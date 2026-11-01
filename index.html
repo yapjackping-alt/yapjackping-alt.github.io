@@ -617,16 +617,16 @@ input[type=text]::placeholder{color:var(--dim)}
 /* top-right tray: ⭕⬅ opens 任务 / 活动 / 商城 */
 #qbtns{position:relative;align-items:flex-start}
 .qtog{pointer-events:auto;position:relative;width:40px;height:40px;border-radius:50%;border:2px solid #ffb070;background:rgba(30,16,20,.85);color:#ffd9a8;font-size:18px;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;transition:transform .2s}
-.qtog .qarr{display:block;transition:transform .25s}.qtog.open .qarr{transform:rotate(180deg)}
+.qtog .qarr{display:block;width:22px;height:22px;transition:transform .25s}.qtog.open .qarr{transform:rotate(180deg)}
 .qtog .qdot{position:absolute;right:-2px;top:-2px;width:12px;height:12px;border-radius:50%;background:#ffc94a;border:2px solid #2a1410;display:none}.qtog.dot .qdot{display:block}
-#qtray{position:absolute;right:calc(100% + 6px);top:0;display:flex;gap:6px;opacity:0;transform:translateX(12px);pointer-events:none;transition:opacity .18s,transform .18s}
+#qcorner{position:absolute;right:calc(100% + 8px);top:0;display:flex;align-items:flex-start;gap:6px;pointer-events:auto;cursor:default}
+#qtray{position:static;display:flex;gap:6px;opacity:0;transform:translateX(12px);pointer-events:none;transition:opacity .18s,transform .18s}
 #qtray.open{opacity:1;transform:none;pointer-events:auto}
 #qtray .qitem{width:54px;height:58px;padding:2px 0 0!important;margin:0!important;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;letter-spacing:0!important;background:rgba(30,16,20,.9);border:1.5px solid var(--ember)}
-#qtray .qitem .qic{font-size:24px;line-height:1}#qtray .qitem .qlb{font-size:10.5px;font-weight:900;color:#ffd9a8}
+#qtray .qitem .qic{display:block;width:34px;height:34px;line-height:0}#qtray .qitem .qic .ic{width:100%;height:100%;filter:drop-shadow(0 2px 2px rgba(0,0,0,.65))}#qtray .qitem .qlb{font-size:10.5px;font-weight:900;color:#ffd9a8}
 #qtray #bMall{border-color:#7de0ff}#qtray #bHub{border-color:#ffc94a}
 #qtray #qBadge,#qtray #hubBadge{right:-5px;top:-6px}
 /* everything on the HUD a bit smaller */
-#act{transform:scale(.84);transform-origin:100% 100%}
 #right{transform:scale(.86);transform-origin:100% 0}
 #status{transform:scale(.9);transform-origin:0 0}
 .bcat.btool{border-color:#8fd0ff}.bcat.btool.on{background:rgba(90,170,255,.35);border-color:#bfe4ff;color:#fff}
@@ -2187,6 +2187,27 @@ const IMODEL = {
 /* food: fruit, raw meat and cooked dishes (bag icons and loot share them) */
 const _ico = (r, c, x, y, z, g, d) => { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, d || 0), typeof c === 'number' ? mat(c) : c); m.position.set(x, y, z); g.add(m); return m; };
 const _bowl = (g, top) => { _cy(.62, .42, .42, 12, 0x6a4a34, 0, -.1, 0, g); _cy(.66, .66, .06, 12, 0x5a3a26, 0, .12, 0, g); _cy(.56, .56, .04, 12, top, 0, .1, 0, g); };
+// HUD menu icons, built like the backpack: 任务 = a sealed scroll, 活动 = a gift box, 商城 = a shopping cart
+Object.assign(IMODEL, {
+  hudQuest(g) { const cyl = (r, l, c, y) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, l, 10), mat(c)); m.rotation.z = Math.PI / 2; m.position.set(0, y, 0); g.add(m); return m; };
+    _bx(.78, 1.0, .06, 0xf0dcae, 0, 0, 0, g); _bx(.78, .5, .065, 0xe2c890, 0, -.25, .001, g);
+    cyl(.11, .9, 0xd8bc84, .5); cyl(.11, .9, 0xc8a870, -.5); [-1, 1].forEach(s => { cyl(.075, .12, 0x7a4a24, .5).position.x = s * .5; cyl(.075, .12, 0x7a4a24, -.5).position.x = s * .5; });
+    [.28, .14, 0, -.14].forEach((y, i) => _bx(i === 0 ? .5 : .56 - i * .06, .045, .02, 0x8a6a48, -.02, y, .04, g));
+    const seal = new THREE.Mesh(new THREE.CylinderGeometry(.13, .13, .05, 12), mat(0xc8302a)); seal.rotation.x = Math.PI / 2; seal.position.set(.18, -.3, .06); g.add(seal); _bx(.08, .08, .02, 0xff6a5a, .18, -.3, .09, g);
+    _bx(.06, .3, .02, 0xc8302a, .12, -.5, .08, g, 0, 0, .3); _bx(.06, .3, .02, 0xa82420, .24, -.5, .08, g, 0, 0, -.3); },
+  hudEvent(g) { _bx(.86, .7, .86, 0xd83a3a, 0, -.12, 0, g); _bx(.86, .7, .43, 0xb82c2c, 0, -.12, -.215, g);
+    _bx(.98, .22, .98, 0xe84a4a, 0, .32, 0, g); _bx(.18, .23, 1.0, 0xffd24a, 0, .32, 0, g); _bx(1.0, .23, .18, 0xffd24a, 0, .32, 0, g);
+    _bx(.18, .72, .88, 0xf0c03a, 0, -.12, 0, g); _bx(.88, .72, .18, 0xf0c03a, 0, -.12, 0, g);
+    [-1, 1].forEach(s => { const t = new THREE.Mesh(new THREE.TorusGeometry(.17, .06, 6, 12), mat(0xffd24a)); t.position.set(s * .17, .56, 0); t.rotation.set(0, 0, s * .5); t.scale.set(1, .75, 1); g.add(t); });
+    _bx(.14, .14, .14, 0xffe27a, 0, .5, 0, g); const st = new THREE.Mesh(new THREE.OctahedronGeometry(.1), new THREE.MeshBasicMaterial({ color: 0xfff4c0 })); st.position.set(.48, .62, .3); g.add(st); },
+  hudCart(g) { const M = 0x5a8ad0, D = 0x3a64a8;
+    _bx(.9, .06, .62, D, .05, -.18, 0, g); _bx(1.0, .06, .64, M, .05, .3, 0, g, 0, 0, 0);
+    [-1, 1].forEach(s => _bx(1.0, .5, .05, M, .05, .06, s * .31, g)); _bx(.05, .5, .62, M, .55, .06, 0, g, 0, 0, -.2); _bx(.05, .5, .62, M, -.42, .06, 0, g, 0, 0, .1);
+    [-.2, .05, .3].forEach(x => _bx(.03, .46, .64, 0x2e5490, x, .06, 0, g));
+    _bx(.08, .7, .08, 0x9aa4b0, -.52, .5, -.28, g, 0, 0, .35); _bx(.08, .7, .08, 0x9aa4b0, -.52, .5, .28, g, 0, 0, .35); _bx(.08, .08, .68, 0xff7a2f, -.66, .84, 0, g);
+    [[-.3, .24], [.38, .24], [-.3, -.24], [.38, -.24]].forEach(([x, z]) => { const w = new THREE.Mesh(new THREE.CylinderGeometry(.11, .11, .08, 10), mat(0x22262c)); w.rotation.x = Math.PI / 2; w.position.set(x, -.36, z); g.add(w); });
+    _bx(.28, .26, .26, 0xff9a3a, -.05, .34, -.08, g, 0, .4, 0); _bx(.22, .22, .22, 0x8fe05a, .26, .32, .1, g, 0, -.3, 0); _bx(.18, .3, .18, 0xffd24a, .02, .38, .16, g); }
+});
 Object.assign(IMODEL, {
   apple(g) { _ico(.55, 0xd8302a, 0, 0, 0, g, 1).scale.set(1.05, .95, 1.05); _ico(.2, 0xf06a5a, -.22, .22, .38, g); _cy(.04, .05, .3, 5, 0x5a3a20, 0, .6, 0, g, 0, 0, .2); _bx(.32, .03, .16, 0x5aa040, .16, .66, 0, g, 0, 0, -.4); },
   berry(g) { [[0, 0, 0], [.32, .05, .1], [-.3, .06, .08], [.12, .3, -.05], [-.12, .28, .12], [.05, -.05, .32], [0, .05, -.3]].forEach((p, i) => _ico(.24, i % 3 ? 0x6a2a8a : 0x8a3aaa, p[0], p[1], p[2], g, 1)); _bx(.5, .03, .22, 0x4a8a3a, 0, .52, 0, g, 0, .4, .2); },
@@ -2226,7 +2247,7 @@ function renderIcons() {
   const key = new THREE.DirectionalLight(0xffb888, 1.05); key.position.set(-2, 3, 3); sc.add(key);
   const fill = new THREE.DirectionalLight(0x9aa0e0, .45); fill.position.set(3, 1, -1); sc.add(fill);
   const cam = new THREE.PerspectiveCamera(28, 1, .1, 100);
-  const IVIEW = { metal: [.95, -.5], circuit: [.95, -.45], coin: [.25, -.35], plate: [.15, -.45], med: [.3, -.6] };
+  const IVIEW = { hudQuest: [.12, -.35], hudEvent: [.4, -.6], hudCart: [.35, -.5], metal: [.95, -.5], circuit: [.95, -.45], coin: [.25, -.35], plate: [.15, -.45], med: [.3, -.6] };
   const shot = (obj, key2, view) => {
     const wide = view === 'side', W = wide ? 240 : 160, H = wide ? 120 : 160;
     R.setSize(W, H, false); cam.aspect = W / H;
@@ -7332,15 +7353,17 @@ function renderGuide() {
       b.addEventListener('click', () => { closeTalents(); openPanel('guide', renderGuide); }); t.appendChild(b); } }
   // top right: 任务 / 活动 / 商城 fold into a tray behind a round ⬅ button next to the map
   setTimeout(() => {
-    const q = $('bQuest'), host = q && q.parentNode; if (!host || !host.insertBefore) return;
-    const tog = document.createElement('button'); tog.id = 'bMore'; tog.className = 'qtog'; tog.setAttribute('aria-label', '更多'); tog.innerHTML = '<span class="qarr">⬅</span><i class="qdot"></i>';
+    const q = $('bQuest'), mw = $('mapwrap'); if (!q || !mw || !mw.appendChild) return;
+    const tog = document.createElement('button'); tog.id = 'bMore'; tog.className = 'qtog'; tog.setAttribute('aria-label', '更多'); tog.innerHTML = '<svg class="qarr" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 5 8.5 12l7 7" fill="none" stroke="#ffd9a8" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg><i class="qdot"></i>';
     const tray = document.createElement('div'); tray.id = 'qtray';
-    [['bQuest', '📜', '任务'], ['bHub', '🎁', '活动'], ['bMall', '🛒', '商城']].forEach(([id, ic, n]) => { const b = $(id); if (!b) return;
+    [['bQuest', 'hudQuest', '任务'], ['bHub', 'hudEvent', '活动'], ['bMall', 'hudCart', '商城']].forEach(([id, ic, n]) => { const b = $(id); if (!b) return;
       [...b.childNodes].forEach(c => { if (c.nodeType === 3) c.remove(); });
-      const sp = document.createElement('span'); sp.className = 'qic'; sp.textContent = ic; const lb = document.createElement('small'); lb.className = 'qlb'; lb.textContent = n;
-      b.insertBefore(lb, b.firstChild); b.insertBefore(sp, b.firstChild); b.classList.add('qitem'); tray.appendChild(b);
-      b.addEventListener('click', () => setTimeout(() => qTray(false), 50)); });
-    host.appendChild(tog); host.appendChild(tray);
+      const sp = document.createElement('span'); sp.className = 'qic'; sp.innerHTML = svgIcon(ic); const lb = document.createElement('small'); lb.className = 'qlb'; lb.textContent = n;
+      b.insertBefore(lb, b.firstChild); b.insertBefore(sp, b.firstChild); b.classList.add('qitem'); b.classList.remove('btn2'); b.classList.add('bagbtn'); tray.appendChild(b);
+      b.addEventListener('click', e => { e.stopPropagation(); setTimeout(() => qTray(false), 50); }); });
+    // the ⬅ sits on the map's top-left corner, the tray opens to its left
+    const box = document.createElement('div'); box.id = 'qcorner'; box.appendChild(tray); const bag = $('bBag'); if (bag) box.appendChild(bag); box.appendChild(tog); mw.appendChild(box); { const qb = $('qbtns'); if (qb) qb.style.display = 'none'; }
+    ['pointerdown', 'click', 'touchstart'].forEach(ev => box.addEventListener(ev, e => e.stopPropagation()));
     tog.addEventListener('click', () => qTray(!tray.classList.contains('open')));
     setInterval(() => { const on = ['qBadge', 'hubBadge'].some(i => { const e = $(i); return e && e.offsetParent !== null && getComputedStyle(e).display !== 'none'; }); tog.classList.toggle('dot', on && !tray.classList.contains('open')); }, 800);
   }, 0);
@@ -8153,4 +8176,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793550615').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793551022').catch(()=>{});</script></body></html>
