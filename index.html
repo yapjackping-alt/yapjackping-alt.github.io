@@ -7352,12 +7352,12 @@ function renderGuide() {
   { const t = $('talents'); if (t && t.appendChild) { const b = document.createElement('button'); b.className = 'ovhelp'; b.id = 'bHelp'; b.innerHTML = '❕<small>按钮指南</small>'; b.setAttribute('aria-label', '按钮指南');
       b.addEventListener('click', () => { closeTalents(); openPanel('guide', renderGuide); }); t.appendChild(b); } }
   // top right: 任务 / 活动 / 商城 fold into a tray behind a round ⬅ button next to the map
-  setTimeout(() => {
+  setTimeout(() => { try {
     const q = $('bQuest'), mw = $('mapwrap'); if (!q || !mw || !mw.appendChild) return;
     const tog = document.createElement('button'); tog.id = 'bMore'; tog.className = 'qtog'; tog.setAttribute('aria-label', '更多'); tog.innerHTML = '<svg class="qarr" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 5 8.5 12l7 7" fill="none" stroke="#ffd9a8" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg><i class="qdot"></i>';
     const tray = document.createElement('div'); tray.id = 'qtray';
     [['bQuest', 'hudQuest', '任务'], ['bHub', 'hudEvent', '活动'], ['bMall', 'hudCart', '商城']].forEach(([id, ic, n]) => { const b = $(id); if (!b) return;
-      [...b.childNodes].forEach(c => { if (c.nodeType === 3) c.remove(); });
+      Array.from(b.childNodes || []).forEach(c => { if (c.nodeType === 3 && c.remove) c.remove(); });
       const sp = document.createElement('span'); sp.className = 'qic'; sp.innerHTML = svgIcon(ic); const lb = document.createElement('small'); lb.className = 'qlb'; lb.textContent = n;
       b.insertBefore(lb, b.firstChild); b.insertBefore(sp, b.firstChild); b.classList.add('qitem'); b.classList.remove('btn2'); b.classList.add('bagbtn'); tray.appendChild(b);
       b.addEventListener('click', e => { e.stopPropagation(); setTimeout(() => qTray(false), 50); }); });
@@ -7366,7 +7366,7 @@ function renderGuide() {
     ['pointerdown', 'click', 'touchstart'].forEach(ev => box.addEventListener(ev, e => e.stopPropagation()));
     tog.addEventListener('click', () => qTray(!tray.classList.contains('open')));
     setInterval(() => { const on = ['qBadge', 'hubBadge'].some(i => { const e = $(i); return e && e.offsetParent !== null && getComputedStyle(e).display !== 'none'; }); tog.classList.toggle('dot', on && !tray.classList.contains('open')); }, 800);
-  }, 0);
+  } catch (e) { console.warn(e); } }, 0);
 })();
 function qTray(open) { const t = $('qtray'), g = $('bMore'); if (!t) return; t.classList.toggle('open', open); if (g) g.classList.toggle('open', open); }
 // first time on the island: open the guide once
@@ -8176,4 +8176,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793551022').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793551235').catch(()=>{});</script></body></html>
