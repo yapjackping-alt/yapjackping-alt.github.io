@@ -624,6 +624,21 @@ input[type=text]::placeholder{color:var(--dim)}
 #qtray.open{opacity:1;transform:none;pointer-events:auto;visibility:visible}
 #qtray:not(.open){visibility:hidden}#qtray:not(.open) *{pointer-events:none!important}
 @media (orientation:landscape){#qcorner{flex-direction:row-reverse}#qtray{flex-direction:row;transform:translateX(12px)}.qtog .qarr{transform:rotate(90deg)}.qtog.open .qarr{transform:rotate(-90deg)}}
+#storyTrk{padding:5px 8px;font-size:11px;line-height:1.35;display:flex;flex-direction:column;gap:1px;pointer-events:auto;cursor:pointer;border-left:3px solid #ffc94a}
+#storyTrk b{color:#ffc94a;font-size:11.5px}#storyTrk span{color:#f3e6d6}#storyTrk em{font-style:normal;color:#9fe8ff;font-weight:800}#storyTrk.done b{color:#8fe05a}
+#storyDlg{position:fixed;inset:0;z-index:9000;display:none;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.35);padding:0 12px calc(16px + env(safe-area-inset-bottom))}
+#storyDlg.show{display:flex}
+#storyDlg .sdbox{position:relative;width:min(620px,100%);background:linear-gradient(180deg,rgba(40,24,18,.97),rgba(24,14,12,.97));border:2px solid #ffb070;border-radius:16px;padding:12px 14px 10px 66px;min-height:76px;box-shadow:0 8px 30px rgba(0,0,0,.5);animation:sdin .2s}
+@keyframes sdin{from{transform:translateY(20px);opacity:0}}
+#storyDlg .sdr{position:absolute;left:12px;top:12px;width:44px;height:44px}#storyDlg .sdr svg{width:100%;height:100%}
+#storyDlg .sdw{display:block;color:#ffc94a;font-size:14px;margin-bottom:3px}#storyDlg .sdt{margin:0;color:#f6ece0;font-size:15px;line-height:1.55}
+#storyDlg small{display:block;text-align:right;color:#c9a88a;font-size:11px;margin-top:4px}
+#storyList{width:min(640px,96vw);display:flex;flex-direction:column;gap:8px}
+.stcard{text-align:left;background:rgba(0,0,0,.3);border:1.5px solid rgba(255,255,255,.12);border-radius:12px;padding:9px 11px;display:flex;flex-direction:column;gap:3px}
+.stcard.cur{border-color:#ffc94a}.stcard.done{opacity:.75}.stcard.lock{opacity:.5}
+.stcard .sth{display:flex;justify-content:space-between;gap:8px}.stcard .sth b{color:#ffd9a8}.stcard .sth span{font-size:12px;color:#c9a88a}
+.stcard .sts{font-size:13px;color:#d8c8b8}.stcard .sts.ok{color:#8fe05a}.stcard .sts.now{color:#fff}.stcard .sts em{font-style:normal;color:#9fe8ff}
+.stcard .str{font-size:12px;color:#c9a88a}.stcard .sbtn{align-self:flex-start;margin-top:4px}
 #uiToast{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));transform:translate(-50%,-20px);z-index:99999;background:rgba(60,14,14,.95);color:#ffe0d8;border:1.5px solid #ff8a7a;border-radius:12px;padding:8px 14px;font-weight:800;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:86vw;text-align:center}
 #uiToast.on{opacity:1;transform:translate(-50%,0)}
 #bStash{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--sb) + 140px);display:none;border-color:#9fe8ff;background:rgba(14,40,50,.85);color:#d8f6ff;font-size:15px}
@@ -7203,7 +7218,6 @@ function poolInfo(K) {
   const line = G => poolOf(K)[G.r].map(x => { const nm = typeof x[0] === 'function' ? x[2] : x[0], wk = W && /武器外观「(.+?)·/.exec(nm); return wk ? '「' + wk[1] + '」' : nm.replace('外观「', '「'); }).join('、');
   bx.innerHTML = '<button class="skpvx" aria-label="关闭">✕</button><b class="gih">' + BOXES[K].n + ' · 能抽到什么</b>' +
     '<div class="gitxt">' + TT.map(G => '<div><b style="color:' + G.c + '">' + G.n + ' ' + (G.p * 100).toFixed(1) + '%</b>' + line(G) + '</div>').join('') +
-    (() => { gPool = K; const T10 = gTiers(true); gPool = keep; const f = g => (Math.round(g.p * 10000) / 100) + '%'; return '<div class="gis">十连抽（' + GCOST[10] + ' 晶石）每一抽的概率：' + T10.filter(g => g.r >= 4).map(g => g.n + ' ' + f(g)).join('、') + '，其余归到普通；单抽 ' + GCOST[1] + ' 晶石。</div>'; })() +
     '<div class="gis">' + (W ? '武器外观（「」里的）会随机给你的一把武器，每把武器的外观分开收集；重复的换成 强化石 ×5。' : K === 'gear' ? '装备会按你现在的等级生成，背包满了会自动分解成余烬币。' : '「」里的是人物外观；重复的换成 强化石 ×8。') + MPITY + ' 抽内必出神话，十连至少一个史诗。</div></div>';
   document.body.appendChild(m); const close = () => { if (m.parentNode) m.parentNode.removeChild(m); };
   bx.querySelector('.skpvx').addEventListener('click', close); m.addEventListener('click', e => { if (e.target === m) close(); });
@@ -7341,8 +7355,8 @@ const BOXES = { main: { n: '余烬补给箱', ic: 'box:4', big: 'box:4', d: '神
   gear: { n: '装备补给箱', ic: 'gear:5', big: 'gear:5', d: '神话、黄金、史诗装备，头盔、护甲、手套、长裤、战靴、背包每个部位都有' } };
 let gPool = 'main';
 // the tiers this box can give (the weapon box has no mythic: its share goes to common)
-// prices: 1 draw 40 晶石, 10 draws 380 (5% off). In a 10-draw the mythic and legendary odds are 15% lower (shown in ⓘ)
-const GCOST = { 1: 40, 10: 380 }, TEN_HI = .85;
+// prices: 1 draw 40 晶石, 10 draws 380 (5% off); the odds are the same for every draw
+const GCOST = { 1: 40, 10: 380 }, TEN_HI = 1;
 function gTiers(ten) { const P = poolOf(gPool), T = GACHA.filter(g => P[g.r]).map(g => ten && g.r >= 4 ? Object.assign({}, g, { p: g.p * TEN_HI }) : g); const cut = ten ? GACHA.filter(g => P[g.r] && g.r >= 4).reduce((a, g) => a + g.p * (1 - TEN_HI), 0) : 0; const lost = GACHA.filter(g => !P[g.r]).reduce((a, g) => a + g.p, 0) + cut; return T.map((g, i) => i === T.length - 1 ? Object.assign({}, g, { p: g.p + lost }) : g); }
 S.pity = 0; S.pity2 = 0; S.mp = 0; S.mp2 = 0; S.mp3 = 0;
 function drawOne(minR, ten) {
@@ -7554,7 +7568,7 @@ function renderMall() {
   const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => closePanel('mall')); o.appendChild(x);
   if (document.body && document.body.appendChild) document.body.appendChild(o); }
 
-function shopSave() { return { gem: S.gem | 0, sk: S.skins, s: S.skin, pity: S.pity | 0, pity2: S.pity2 | 0, gf: S.gemFirst || [], pt: S.payTok || [], mp: S.mp | 0, mp2: S.mp2 | 0, mp3: S.mp3 | 0, mk: S.marks, wo: S.wskOwn, we: S.wsk, bx: S.bagX | 0, sx: stashSave() }; }
+function shopSave() { return { gem: S.gem | 0, sk: S.skins, s: S.skin, pity: S.pity | 0, pity2: S.pity2 | 0, gf: S.gemFirst || [], pt: S.payTok || [], mp: S.mp | 0, mp2: S.mp2 | 0, mp3: S.mp3 | 0, mk: S.marks, wo: S.wskOwn, we: S.wsk, bx: S.bagX | 0, sx: stashSave(), sy: storySave() }; }
 function shopLoad(d) {
   const n = v => (Number.isFinite(+v) ? +v : 0), o = d && d.sh && typeof d.sh === 'object' ? d.sh : {};
   S.gem = Math.max(0, n(o.gem) | 0); S.skins = Array.isArray(o.sk) ? o.sk.filter(k => SKINS[k]) : []; S.skin = SKINS[o.s] && S.skins.includes(o.s) ? o.s : ''; S.pity = clamp(n(o.pity) | 0, 0, PITY);
@@ -7562,7 +7576,7 @@ function shopLoad(d) {
   S.wskOwn = Array.isArray(o.wo) ? o.wo.filter(k => typeof k === 'string' && WSKINS[k.split(':')[0]] && WEAP[k.split(':')[1]]).slice(0, 200) : [];
   S.wsk = {}; if (o.we && typeof o.we === 'object') for (const id in o.we) if (WEAP[id] && S.wskOwn.includes(o.we[id] + ':' + id)) S.wsk[id] = o.we[id]; wpnKey = ''; setTimeout(() => { try { equipModel(); } catch (e) { } }, 0);
   S.marks = Array.isArray(o.mk) ? o.mk.filter(m => m && Number.isFinite(+m.x) && Number.isFinite(+m.z)).slice(0, 6).map((m, i) => ({ x: +m.x, z: +m.z, c: MARK_C.includes(m.c) ? m.c : MARK_C[i] })) : [];
-  S.bagX = clamp(n(o.bx) | 0, 0, 30); try { stashLoad(o.sx); } catch (e) { S.stash = { g: [], m: {} }; }
+  S.bagX = clamp(n(o.bx) | 0, 0, 30); try { stashLoad(o.sx); } catch (e) { S.stash = { g: [], m: {} }; } try { storyLoad(o.sy); } catch (e) { }
   setTimeout(redressPlayer, 0);
 }
 
@@ -7716,6 +7730,154 @@ function renderGuide() {
 function qTray(open) { const t = $('qtray'), g = $('bMore'); if (!t) return; t.classList.toggle('open', open); if (g) g.classList.toggle('open', open); }
 // first time on the island: open the guide once
 function guideFirst() { let seen = true; try { seen = localStorage.getItem('ember_guide') === '1'; } catch (e) { } if (seen) return; try { localStorage.setItem('ember_guide', '1'); } catch (e) { } setTimeout(() => { if (S.started && !S.dead && !S.paused) openPanel('guide', renderGuide); }, 2500); }
+/* ============ 主线剧情: ten chapters, one for each region, told over the radio ============
+   A voice on the radio (老陈) leads you from the island out through every region to the 余烬核心, where the
+   apocalypse started. Each chapter: a short talk, 3 steps (go there, fight, loot / a boss), rewards, and the next
+   chapter opens when you are strong enough for that region. A tracker under the health bar shows the current step. */
+const ZH = LANG !== 'en';
+const T2 = (zh, en) => ZH ? zh : en;
+// step kinds: reach (be in region tier+), kill / crate / boss / search / event (in tier+), build / cook, have (own items)
+const STORY = [
+  { t: T2('醒来', 'Awake'), lv: 1, rw: { coin: 100, estone: 2, gem: 20 },
+    intro: [['老陈', T2('……喂？喂！有人吗？这里是老陈，如果你听得到，说明你还活着。', '...Hello? Hello! Anyone? This is Old Chen. If you can hear me, you\'re still alive.')],
+      ['老陈', T2('你在海岛上，是这片海上最后安全的地方。先把家弄好：造点东西，再用锅炉做顿饭。', 'You\'re on the island, the last safe place on this sea. Get settled first: build something, then cook a meal on the stove.')]],
+    steps: [{ k: 'build', n: 1, d: T2('在海岛上建造任意 1 样东西', 'Build anything on the island') }, { k: 'cook', n: 1, d: T2('用锅炉烹饪 1 份食物', 'Cook 1 meal on the stove') }],
+    end: [['老陈', T2('不错，有个家样了。明天……不，现在就出发吧，我在对岸的郊区等你。', 'Nice, it looks like a home now. Let\'s go. I\'ll wait for you in the suburbs across the water.')]] },
+  { t: T2('微弱的信号', 'A Faint Signal'), lv: 1, tier: 1, rw: { coin: 300, estone: 4, gem: 30 },
+    intro: [['老陈', T2('坐码头的船去「荒废郊区」。那里丧尸不多，正好练手。', 'Take the boat at the pier to the Ruined Suburbs. Few zombies there, a good place to practise.')],
+      ['老陈', T2('我需要知道你能不能活下来。清掉一些丧尸，再翻翻附近的箱子。', 'I need to know you can survive. Clear some zombies and search the crates nearby.')]],
+    steps: [{ k: 'reach', tier: 1, d: T2('坐船去「荒废郊区」', 'Sail to the Ruined Suburbs') }, { k: 'kill', n: 10, tier: 1, d: T2('击败 10 只丧尸', 'Defeat 10 zombies') }, { k: 'crate', n: 3, tier: 1, d: T2('打开 3 个箱子', 'Open 3 crates') }],
+    end: [['老陈', T2('身手不错。听着，我不是一个人，我们有一支小队在找「余烬」的源头。', 'Good moves. Listen, I\'m not alone. A small team of us is searching for the source of the Ember.')],
+      ['老陈', T2('第一个线索在北边的森林，那里有我们的旧哨站。', 'The first clue is in the forest up north, at our old outpost.')]] },
+  { t: T2('林中哨站', 'The Forest Outpost'), lv: 8, tier: 2, rw: { coin: 600, estone: 6, gem: 40 },
+    intro: [['老陈', T2('「枯萎森林」里的丧尸跑得很快，别被围住。', 'The zombies in the Withered Forest are fast. Don\'t get surrounded.')],
+      ['老陈', T2('哨站的人三天前就没了消息。帮我清出一条路，顺便完成一个空投或精英事件，补给我们需要。', 'The outpost went silent three days ago. Clear a path, and finish an airdrop or elite event: we need the supplies.')]],
+    steps: [{ k: 'reach', tier: 2, d: T2('去「枯萎森林」', 'Go to the Withered Forest') }, { k: 'kill', n: 20, tier: 2, d: T2('在森林或更深处击败 20 只丧尸', 'Defeat 20 zombies in the forest or deeper') }, { k: 'event', n: 1, d: T2('完成 1 个空投或精英事件', 'Finish 1 airdrop or elite event') }],
+    end: [['老陈', T2('哨站的日志说，丧尸都在往南边的荒漠走……像是被什么东西叫过去的。', 'The outpost log says the zombies are all walking south into the desert... as if something is calling them.')]] },
+  { t: T2('干涸的水塔', 'The Dry Water Tower'), lv: 18, tier: 3, rw: { coin: 1000, estone: 8, gem: 50, gear: 3 },
+    intro: [['老陈', T2('「沙尘荒漠」白天热得要命，丧尸也更狂暴。', 'The Dust Desert is scorching by day, and the zombies there are more frenzied.')],
+      ['老陈', T2('有个大家伙占了水塔，它就是把丧尸叫过去的东西之一。干掉它。', 'A big one has taken the water tower. It\'s one of the things calling the zombies. Take it down.')]],
+    steps: [{ k: 'reach', tier: 3, d: T2('去「沙尘荒漠」', 'Go to the Dust Desert') }, { k: 'crate', n: 5, tier: 3, d: T2('在荒漠或更深处打开 5 个箱子', 'Open 5 crates in the desert or deeper') }, { k: 'boss', n: 1, tier: 3, d: T2('击败 1 个首领', 'Defeat 1 boss') }],
+    end: [['老陈', T2('首领身上有一块发光的晶体……和沼泽实验室的样本一样。原来是他们搞出来的。', 'The boss had a glowing crystal on it... the same as the samples from the swamp lab. So it was them.')]] },
+  { t: T2('血清样本', 'Serum Samples'), lv: 28, tier: 4, rw: { coin: 1500, estone: 10, gem: 50 },
+    intro: [['老陈', T2('「腐毒沼泽」的毒气会一直伤你，别待太久。', 'The poison in the Rotting Swamp hurts you the whole time. Don\'t stay long.')],
+      ['老陈', T2('我需要变异血清做研究，也许能找到对付余烬的办法。', 'I need mutant serum for research. Maybe it shows us how to stop the Ember.')]],
+    steps: [{ k: 'reach', tier: 4, d: T2('去「腐毒沼泽」', 'Go to the Rotting Swamp') }, { k: 'kill', n: 30, tier: 4, d: T2('在沼泽或更深处击败 30 只丧尸', 'Defeat 30 zombies in the swamp or deeper') }, { k: 'have', item: 'serum', n: 3, d: T2('收集 3 个变异血清', 'Collect 3 Mutant Serum') }],
+    end: [['老陈', T2('血清里有冰冻过的痕迹……实验室的总部，在雪原下面。', 'The serum shows signs of freezing... the lab\'s headquarters is under the snowfield.')]] },
+  { t: T2('冻土下的实验室', 'The Lab Beneath the Ice'), lv: 38, tier: 5, rw: { coin: 2200, estone: 12, gem: 60, gear: 4 },
+    intro: [['老陈', T2('「冰封雪原」会让你变慢，多带点医疗包。', 'The Frozen Snowfield slows you down. Bring extra medkits.')],
+      ['老陈', T2('搜搜那些房子，实验室的入口就在某栋楼里。守着它的东西不会让你轻松进去。', 'Search the buildings: the lab entrance is inside one of them. Whatever guards it won\'t let you in easily.')]],
+    steps: [{ k: 'reach', tier: 5, d: T2('去「冰封雪原」', 'Go to the Frozen Snowfield') }, { k: 'search', n: 3, d: T2('搜索 3 栋建筑', 'Search 3 buildings') }, { k: 'boss', n: 1, tier: 5, d: T2('击败 1 个首领', 'Defeat 1 boss') }],
+    end: [['老陈', T2('实验记录写着：「余烬计划」，目标是让人永远不死。他们失败了……失败成了现在这样。', 'The records say "Project Ember": the goal was to make people immortal. They failed... and the failure is what you see now.')],
+      ['老陈', T2('计划的主机在钢铁废城。', 'The project\'s main computer is in the Steel Ruins.')]] },
+  { t: T2('城市的心跳', 'The City\'s Heartbeat'), lv: 48, tier: 6, rw: { coin: 3000, estone: 14, gem: 60 },
+    intro: [['老陈', T2('「钢铁废城」的丧尸穿着护甲，子弹打上去会弹开。瞄准一点。', 'The zombies in the Steel Ruins wear armour. Bullets glance off. Aim well.')],
+      ['老陈', T2('城里每一个箱子都可能有主机的零件，能拿多少拿多少。', 'Every crate in the city may hold a part of the computer. Take what you can.')]],
+    steps: [{ k: 'reach', tier: 6, d: T2('去「钢铁废城」', 'Go to the Steel Ruins') }, { k: 'kill', n: 40, tier: 6, d: T2('在废城或更深处击败 40 只丧尸', 'Defeat 40 zombies in the ruins or deeper') }, { k: 'crate', n: 6, tier: 6, d: T2('在废城或更深处打开 6 个箱子', 'Open 6 crates in the ruins or deeper') }],
+    end: [['老陈', T2('主机开了！它在发信号……发给峡谷那边的一支车队。车队上运的是「核心」。', 'The computer is on! It\'s sending a signal... to a convoy in the canyon. The convoy is carrying the "Core".')]] },
+  { t: T2('峡谷车队', 'The Canyon Convoy'), lv: 58, tier: 7, rw: { coin: 4000, estone: 16, gem: 70, gear: 4 },
+    intro: [['老陈', T2('「赤岩峡谷」的丧尸皮很厚，打久一点才倒。', 'The zombies in the Red Rock Canyon are tough. They take longer to fall.')],
+      ['老陈', T2('车队早就翻了，但押车的东西还活着。拦下它们。', 'The convoy crashed long ago, but the things guarding it are still alive. Stop them.')]],
+    steps: [{ k: 'reach', tier: 7, d: T2('去「赤岩峡谷」', 'Go to the Red Rock Canyon') }, { k: 'event', n: 2, d: T2('完成 2 个空投或精英事件', 'Finish 2 airdrop or elite events') }, { k: 'boss', n: 1, tier: 7, d: T2('击败 1 个首领', 'Defeat 1 boss') }],
+    end: [['老陈', T2('车是空的。核心早就被运进了熔火之地……它一直在那里烧，烧了整整三年。', 'The truck is empty. The Core was taken into the Molten Land long ago... it has been burning there for three whole years.')]] },
+  { t: T2('火中的余烬', 'Embers in the Fire'), lv: 68, tier: 8, rw: { coin: 5500, estone: 18, gem: 80 },
+    intro: [['老陈', T2('「熔火之地」的丧尸死的时候会爆炸，别贴脸打。', 'Zombies in the Molten Land explode when they die. Don\'t fight them up close.')],
+      ['老陈', T2('首领之心能扛住核心的热量。我要两颗，做一把能打开核心大门的钥匙。', 'A Boss Heart can survive the Core\'s heat. I need two to make a key for the Core\'s gate.')]],
+    steps: [{ k: 'reach', tier: 8, d: T2('去「熔火之地」', 'Go to the Molten Land') }, { k: 'kill', n: 50, tier: 8, d: T2('在熔火之地或更深处击败 50 只丧尸', 'Defeat 50 zombies in the Molten Land or deeper') }, { k: 'have', item: 'heart', n: 2, d: T2('拥有 2 颗首领之心', 'Own 2 Boss Hearts') }],
+    end: [['老陈', T2('钥匙做好了。最后一段路要穿过暗影荒原……那里的东西，你看见的时候它们已经不在那里了。', 'The key is ready. The last stretch crosses the Shadow Wastes... by the time you see things there, they\'re already gone.')]] },
+  { t: T2('影子在低语', 'Whispers in the Shadows'), lv: 78, tier: 9, rw: { coin: 7000, estone: 20, gem: 90, gear: 4 },
+    intro: [['老陈', T2('「暗影荒原」的丧尸会闪避，打不中别慌，继续打。', 'Zombies in the Shadow Wastes dodge. If you miss, don\'t panic, keep firing.')],
+      ['老陈', T2('……其实，我也是计划的研究员之一。是我亲手点燃了余烬。对不起。', '...The truth is, I was one of the project\'s researchers. I lit the Ember myself. I\'m sorry.')]],
+    steps: [{ k: 'reach', tier: 9, d: T2('去「暗影荒原」', 'Go to the Shadow Wastes') }, { k: 'crate', n: 8, tier: 9, d: T2('在暗影荒原或更深处打开 8 个箱子', 'Open 8 crates in the Shadow Wastes or deeper') }, { k: 'boss', n: 1, tier: 9, d: T2('击败 1 个首领', 'Defeat 1 boss') }],
+    end: [['老陈', T2('前面就是余烬核心了。我没有勇气去……但你有。去结束它吧。', 'The Ember Core is ahead. I never had the courage to go... but you do. Go and end it.')]] },
+  { t: T2('终焉', 'The End'), lv: 88, tier: 10, rw: { coin: 10000, estone: 30, gem: 150, gear: 5 },
+    intro: [['老陈', T2('这是最后一章了。「余烬核心」里的一切都会想杀死你。', 'This is the final chapter. Everything in the Ember Core wants you dead.')],
+      ['老陈', T2('打倒守护核心的首领，余烬就会熄灭。活着回来。', 'Defeat the bosses guarding the Core and the Ember will go out. Come back alive.')]],
+    steps: [{ k: 'reach', tier: 10, d: T2('去「余烬核心」', 'Go to the Ember Core') }, { k: 'kill', n: 60, tier: 10, d: T2('在余烬核心击败 60 只丧尸', 'Defeat 60 zombies in the Ember Core') }, { k: 'boss', n: 2, tier: 10, d: T2('击败 2 个首领', 'Defeat 2 bosses') }],
+    end: [['老陈', T2('……核心暗下去了。你听，外面的丧尸都安静了。', '...The Core has gone dark. Listen: the zombies outside have all gone quiet.')],
+      ['老陈', T2('谢谢你。世界还是一片废墟，但现在，它有了重新开始的机会。', 'Thank you. The world is still in ruins, but now it has a chance to begin again.')],
+      ['', T2('主线剧情完成。余烬还在某些地方燃烧，你的冒险还会继续。', 'Main story complete. Embers still burn in some places; your adventure goes on.')]] }
+];
+S.story = { c: 0, s: 0, p: 0, seen: -1 };
+const chN = i => i ? T2('第 ' + i + ' 章', 'Ch.' + i) : T2('序章', 'Prologue');
+const stCh = () => STORY[S.story.c], stStep = () => { const C = stCh(); return C && C.steps[S.story.s]; };
+const stDone = () => S.story.c >= STORY.length;
+const stLocked = () => { const C = stCh(); return C && S.level < C.lv; };
+const stHere = () => S.isl ? 0 : tierAt(player.pos.x, player.pos.z);
+// queue of talks waiting for a calm moment
+const STQ = [];
+function storyTalk(lines) { STQ.push(...lines); }
+function stCalm() { if (!S.started || S.dead || S.paused || document.querySelector('.overlay.show')) return false;
+  return !zombies.some(z => !z.dead && z.chasing && Math.hypot(z.pos.x - player.pos.x, z.pos.z - player.pos.z) < 16); }
+function stShowNext() {
+  const d = $('storyDlg'); if (!d || d.classList.contains('show') || !STQ.length || !stCalm()) return;
+  const [who, txt] = STQ.shift(); d.querySelector('.sdw').textContent = who ? T2(who, who === '老陈' ? 'Old Chen' : who) : ''; d.querySelector('.sdw').style.display = who ? '' : 'none';
+  d.querySelector('.sdt').textContent = txt; d.classList.add('show'); S.paused = true; S._stPause = true; try { if (AC) sfxTone(900, 1200, .08, .06, 'square'); } catch (e) { }
+}
+function stClose() { const d = $('storyDlg'); if (!d) return; d.classList.remove('show'); if (S._stPause) { S._stPause = false; S.paused = false; } setTimeout(stShowNext, 120); }
+function storyStart() {   // open the current chapter (talk once)
+  if (stDone() || stLocked()) return; if (S.story.seen !== S.story.c) { S.story.seen = S.story.c; storyTalk(stCh().intro); saveGame(); } stTrk(); }
+function stAdvance() {
+  const C = stCh(); S.story.s++; S.story.p = 0;
+  try { gain('coin', 50 * (S.story.c + 1)); addXp(40 * (S.story.c + 1)); } catch (e) { }
+  if (S.story.s >= C.steps.length) {
+    const R = C.rw; if (R.coin) gain('coin', R.coin); if (R.estone) gain('estone', R.estone); if (R.gem) addGem(R.gem, T2('主线奖励', 'story reward')); if (R.gear) try { giveGear(R.gear); } catch (e) { }
+    banner(chN(S.story.c) + T2(' 完成', ' complete'), C.t + ' · ' + stRwTxt(R), 4); storyTalk(C.end);
+    S.story.c++; S.story.s = 0; S.story.p = 0;
+    if (!stDone()) { if (stLocked()) feed(T2('下一章「' + stCh().t + '」Lv.' + stCh().lv + ' 开启', 'Next chapter "' + stCh().t + '" opens at Lv.' + stCh().lv), '#ffc94a'); else storyStart(); }
+  } else feed(T2('主线：', 'Story: ') + stStep().d, '#ffc94a');
+  saveGame(); stTrk();
+}
+function stRwTxt(R) { return [R.coin && R.coin + ' ' + T2('余烬币', 'coins'), R.estone && T2('强化石 ×', 'Enhance Stone ×') + R.estone, R.gem && R.gem + ' ' + T2('晶石', 'gems'), R.gear && GQ[R.gear].n + T2('装备', ' gear')].filter(Boolean).join(' · '); }
+// progress from the game's events
+function storyEvent(k, n, ctx) {
+  if (stDone() || stLocked() || S.story.seen !== S.story.c) return; const st = stStep(); if (!st || st.k !== k) return;
+  if (st.tier) { const t = ctx && ctx.tier != null ? ctx.tier : stHere(); if (t < st.tier) return; }
+  S.story.p = Math.min(st.n, S.story.p + (n || 1)); if (S.story.p >= st.n) stAdvance(); else stTrk();
+}
+questTick = (orig => function (k, n, ctx) { orig(k, n, ctx); try { storyEvent(k, n, ctx); } catch (e) { console.warn('story', e); } })(questTick);
+function storyPoll() {
+  if (!S.started || S.dead || stDone()) return;
+  if (S.story.seen !== S.story.c && !stLocked()) storyStart();
+  const st = stStep(); if (st && S.story.seen === S.story.c && !stLocked()) {
+    if (st.k === 'reach' && !S.isl && stHere() >= st.tier) stAdvance();
+    else if (st.k === 'have') { const h = matHave(st.item); if (h !== S.story.p) { S.story.p = Math.min(st.n, h); if (h >= st.n) stAdvance(); else stTrk(); } }
+  }
+  stShowNext();
+}
+// ---- HUD tracker under the health bar
+function stTrk() {
+  const e = $('storyTrk'); if (!e) return;
+  if (stDone()) { e.innerHTML = '<b>' + T2('主线', 'Story') + ' · ' + T2('已完成', 'Complete') + '</b>'; e.classList.add('done'); return; }
+  const C = stCh(), st = stStep();
+  const head = '<b>' + chN(S.story.c) + ' · ' + C.t + '</b>';
+  if (stLocked()) { e.innerHTML = head + '<span>' + T2('Lv.' + C.lv + ' 开启', 'Opens at Lv.' + C.lv) + '</span>'; return; }
+  e.innerHTML = head + '<span>▸ ' + st.d + (st.n ? ' <em>' + S.story.p + '/' + st.n + '</em>' : '') + '</span>';
+}
+function renderStory() {
+  const box = $('storyList'); box.innerHTML = '';
+  STORY.forEach((C, i) => { const done = i < S.story.c, cur = i === S.story.c, lock = S.level < C.lv && !done;
+    const card = document.createElement('div'); card.className = 'stcard' + (done ? ' done' : cur ? ' cur' : '') + (lock ? ' lock' : '');
+    let h = '<div class="sth"><b>' + chN(i) + ' · ' + C.t + '</b><span>' + (done ? T2('已完成', 'Done') : lock ? 'Lv.' + C.lv : cur ? T2('进行中', 'In progress') : '') + '</span></div>';
+    if (cur || done) h += C.steps.map((s, j) => { const ok = done || j < S.story.s, now = cur && j === S.story.s; return '<div class="sts' + (ok ? ' ok' : now ? ' now' : '') + '">' + (ok ? '✓' : now ? '▸' : '·') + ' ' + s.d + (now && s.n ? ' <em>' + S.story.p + '/' + s.n + '</em>' : '') + '</div>'; }).join('');
+    h += '<div class="str">' + T2('奖励：', 'Reward: ') + stRwTxt(C.rw) + '</div>'; card.innerHTML = h;
+    if (done || (cur && S.story.seen === i)) { const b = document.createElement('button'); b.className = 'sbtn ghostb'; b.textContent = T2('重听对话', 'Replay talk'); b.addEventListener('click', () => { closePanel('story'); storyTalk(C.intro.concat(done ? C.end : [])); setTimeout(stShowNext, 150); }); card.appendChild(b); }
+    box.appendChild(card); });
+}
+(() => {
+  const d = document.createElement('div'); d.id = 'storyDlg'; d.innerHTML = '<div class="sdbox"><span class="sdr"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="8" width="18" height="12" rx="2.5" fill="#3a2a20" stroke="#ffc46b" stroke-width="1.6"/><circle cx="15.5" cy="14" r="3.2" fill="none" stroke="#ffc46b" stroke-width="1.6"/><path d="M6 12h5M6 15h5M6 18h3M8 8 17 3" stroke="#ffc46b" stroke-width="1.6" stroke-linecap="round"/></svg></span><b class="sdw"></b><p class="sdt"></p><small>' + T2('点一下继续 ▸', 'Tap to continue ▸') + '</small></div>';
+  d.addEventListener('click', e => { e.stopPropagation(); stClose(); }); if (document.body && document.body.appendChild) document.body.appendChild(d);
+  const o = document.createElement('div'); o.className = 'overlay scroll'; o.id = 'story'; o.innerHTML = '<h2>' + T2('主线剧情', 'Main Story') + '</h2><div id="storyList"></div>';
+  const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => closePanel('story')); o.appendChild(x);
+  if (document.body && document.body.appendChild) document.body.appendChild(o);
+  const L = $('left'), bb = $('bossbox'); if (L && L.insertBefore) { const t = document.createElement('div'); t.id = 'storyTrk'; t.className = 'panel'; t.setAttribute('role', 'button');
+    ['pointerdown', 'touchstart'].forEach(ev => t.addEventListener(ev, e => e.stopPropagation()));
+    t.addEventListener('click', e => { e.stopPropagation(); if (!S.started || S.dead) return; audioInit(); openPanel('story', renderStory); }); L.insertBefore(t, bb || null); }
+  setInterval(() => { try { storyPoll(); } catch (e) { } }, 700);
+})();
+function storySave() { return [S.story.c, S.story.s, S.story.p, S.story.seen]; }
+function storyLoad(a) { const n = v => Number.isFinite(+v) ? Math.floor(+v) : 0; S.story = { c: 0, s: 0, p: 0, seen: -1 }; if (Array.isArray(a)) S.story = { c: Math.max(0, Math.min(STORY.length, n(a[0]))), s: Math.max(0, n(a[1])), p: Math.max(0, n(a[2])), seen: a[3] == null ? -1 : n(a[3]) };
+  if (!stDone() && S.story.s >= stCh().steps.length) S.story.s = 0; setTimeout(stTrk, 0); }
 /* ============ storage: 储物箱 / 储物柜 you build on the island keep gear and items you don't carry ============
    All storage boxes share one store. Every 储物箱 adds 30 gear spaces, every 储物柜 60 (items have no limit).
    Walk up to one and press 「打开储物柜」. */
@@ -8651,4 +8813,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793584363').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793586146').catch(()=>{});</script></body></html>
