@@ -649,8 +649,8 @@ input[type=text]::placeholder{color:var(--dim)}
 .pbook{position:relative;width:100%;height:190px;display:flex;align-items:center;justify-content:center}
 .pbook .pfx{position:absolute;inset:-10px;width:calc(100% + 20px);height:calc(100% + 20px);pointer-events:none}
 .pscene{perspective:620px;perspective-origin:50% 20%;width:108px;height:144px;transform:scale(.86)}
-.pmodel{--w:108px;--h:144px;--d:20px;position:relative;width:var(--w);height:var(--h);transform-style:preserve-3d;transform:rotateX(52deg) rotateZ(72deg);animation:pbfloat 4.5s ease-in-out infinite}
-@keyframes pbfloat{0%,100%{transform:rotateX(52deg) rotateZ(72deg) translateZ(0)}50%{transform:rotateX(52deg) rotateZ(72deg) translateZ(7px)}}
+.pmodel{--w:108px;--h:144px;--d:20px;position:relative;width:var(--w);height:var(--h);transform-style:preserve-3d;transform:rotateX(52deg) rotateZ(32deg);animation:pbfloat 4.5s ease-in-out infinite}
+@keyframes pbfloat{0%,100%{transform:rotateX(52deg) rotateZ(32deg) translateZ(0)}50%{transform:rotateX(52deg) rotateZ(32deg) translateZ(7px)}}
 .pbook .pf,.pbook .pshad{position:absolute;left:50%;top:50%;box-sizing:border-box}
 .pbook .pshad{width:calc(var(--w) + 30px);height:calc(var(--h) + 30px);transform:translate(-50%,-50%) translateZ(calc(var(--d) / -2 - 14px));background:radial-gradient(closest-side,rgba(0,0,0,.65),rgba(0,0,0,0));animation:pbshad 4.5s ease-in-out infinite}
 @keyframes pbshad{50%{opacity:.6}}
@@ -9025,4 +9025,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793591158').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793591426').catch(()=>{});</script></body></html>
