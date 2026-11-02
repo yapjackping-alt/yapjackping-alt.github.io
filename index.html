@@ -8660,6 +8660,13 @@ function aimDir() {
 }
 // every level an enemy is above you, your hits do less (Lv.10 can't farm Lv.99): +10 levels = 62%, +30 = 36%, +89 = 16%
 function lvGapMul(z) { const g = ((z && z.lv) || 1) - S.level; if (g <= 0) return 1; if (!S._gapTip && g >= 5) { S._gapTip = 1; feed('敌人比你高 ' + g + ' 级，你的伤害会降低', '#ff9b8a'); } return 1 / (1 + .06 * g); }
+// up on a floor the walls down below don't stop your bullets; only walls on your own floor do
+function upRayLen(ox, oz, dx, dz, len, F) {
+  for (const b of builds) { if ((b.lv | 0) !== F || b.hp <= 0) continue; const T = BT[b.type]; if (T.k !== 'edge' && T.k !== 'door') continue; if (T.k === 'door' && (b.open || 0) > .5) continue;
+    if (Math.hypot(b.x - ox, b.z - oz) > len + 3) continue;
+    for (const o of T.ob) { const w = obWorld(b.x, b.z, b.rot, o), d = segHit({ t: 1, x: w.x, z: w.z, hw: w.hw, hd: w.hd }, ox, oz, dx, dz, len); if (d >= 0 && d < len) len = d; } }
+  return len;
+}
 function dmgRoll(z, base) {
   const crit = Math.random() < critChance(); let d = base * (crit ? critMul() : 1);
   if (ts('exec') && z.hp < z.max * .3) d *= 1.6;
@@ -8684,7 +8691,7 @@ function shoot() {
   const yAt = d => eyeY + tp * (d + mz), PY = (typeof playerY === 'function' && playerY()) || 0;   // standing on a second floor or a stair: shots start up there
   for (let p = 0; p < W.pel; p++) {
     const sp = rand(-1, 1) * (W.spr + (W.pel > 1 ? 0 : .01)), c = Math.cos(sp), s = Math.sin(sp), ndx = dirx * c - dirz * s, ndz = dirx * s + dirz * c;
-    const len = Math.min(gnd, rayLen(ox, oz, ndx, ndz, W.rng)), hits = [];
+    const len = Math.min(gnd, PY > 1.4 ? upRayLen(ox, oz, ndx, ndz, W.rng, Math.round(PY / UPY)) : rayLen(ox, oz, ndx, ndz, W.rng)), hits = [];
     for (const z of zombies) { if (z.dead) continue; const d = segHit({ t: 0, x: z.pos.x, z: z.pos.z, r: z.r * 1.15 }, ox, oz, ndx, ndz, len); if (d >= 0 && d < len) { if (FPS) { const y = yAt(d); if (y < -.1 || y > 2.3 * (z.sc || 1)) continue; } hits.push([d, z]); } }
     hits.sort((a, b) => a[0] - b[0]);
     const n = Math.min(hits.length, W.pierce || 1), end = n && !W.pierce ? hits[0][0] : len;
@@ -9246,4 +9253,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793617712').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793617985').catch(()=>{});</script></body></html>
