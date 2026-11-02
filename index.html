@@ -1684,9 +1684,9 @@ const zoneLv = (x, z) => 10 * tierAt(x, z) - 5;
    g/g2 ground colours, fog colour, bld building-count factor, tones building colours, tree prop kind, nt props per chunk,
    zs zombie skin, buff zombie trait (also carried by that biome's bosses), boss = the two boss kinds (BOSS_TYPES index) found there */
 const BIOMES = [
-  { n: '荒废郊区', s: '郊区', g: 0x4a3b30, g2: 0x3f3228, fog: 0xa4504a, bld: 1, tones: [0x54474f, 0x5a4a48, 0x4a424f, 0x4f4a45], tree: 'dead', nt: [2, 8], zs: null, buff: null, bn: '普通', bd: '没有特殊能力', boss: [0, 1] },
+  { n: '荒废郊区', s: '郊区', g: 0x4a3b30, g2: 0x3f3228, fog: 0xa4504a, bld: 1, tones: [0x54474f, 0x5a4a48, 0x4a424f, 0x4f4a45], tree: 'dead', nt: [2, 8], zs: null, buff: null, bn: '普通', bd: '没有特殊能力', boss: [0, 2] },
   { n: '枯萎森林', s: '森林', g: 0x34402a, g2: 0x2a3422, fog: 0x7a5a48, bld: .3, tones: [0x4a4a3a, 0x54503e], tree: 'pine', nt: [12, 20], zs: 0x6a8a4a, buff: 'swift', bn: '迅捷', bd: '移动速度 +18%', boss: [1, 3] },
-  { n: '沙尘荒漠', s: '荒漠', g: 0x9a7a4e, g2: 0x8a6a40, fog: 0xc0784e, bld: .5, tones: [0x8a7458, 0x7a6448, 0x9a8060], tree: 'cactus', nt: [3, 7], zs: 0xa08a5a, buff: 'rage', bn: '狂暴', bd: '伤害 +18%', boss: [2, 0] },
+  { n: '沙尘荒漠', s: '荒漠', g: 0x9a7a4e, g2: 0x8a6a40, fog: 0xc0784e, bld: .5, tones: [0x8a7458, 0x7a6448, 0x9a8060], tree: 'cactus', nt: [3, 7], zs: 0xa08a5a, buff: 'rage', bn: '狂暴', bd: '伤害 +18%', boss: [4, 2] },
   { n: '腐毒沼泽', s: '沼泽', g: 0x2c3828, g2: 0x3a4a2c, fog: 0x5a6a48, bld: .3, tones: [0x3e463a, 0x4a4a3a], tree: 'swamp', nt: [6, 11], pool: 0x4a7a3a, zs: 0x5a7a3a, buff: 'poison', bn: '剧毒', bd: '被咬中会中毒 3 秒', boss: [1, 4] },
   { n: '冰封雪原', s: '雪原', g: 0xc4ccd6, g2: 0xaab6c4, fog: 0x9aa0b8, bld: .5, tones: [0x6a6a78, 0x5a6070], snow: true, tree: 'snowpine', nt: [6, 12], zs: 0x9ab0c0, buff: 'frost', bn: '冰冻', bd: '被打中会减速 35%', boss: [2, 3] },
   { n: '钢铁废城', s: '废城', g: 0x3a3638, g2: 0x2e2a2e, fog: 0x8a5a5a, bld: 1.7, tall: true, tones: [0x4a4a52, 0x56545c, 0x3e3e46], tree: 'none', nt: [0, 1], zs: 0x707a70, buff: 'armor', bn: '装甲', bd: '受到伤害 -25%', boss: [2, 0] },
@@ -5387,15 +5387,15 @@ const ITEMS = {
   serum:   { n: '变异血清', r: 2, cat: 'rare', d: '从变异体里抽出来的荧光血清，别直接喝。', use: '武器升级。', src: '强壮的怪物、紫色及以上箱子；流浪商人出售。' },
   crystal: { n: '腐化晶体', r: 3, cat: 'rare', d: '被末日污染的晶体，贴近它，耳边有低语。', use: '武器升级。', src: '极少数怪物、金色及以上箱子、Boss；流浪商人出售。' },
   core:    { n: '终焉核心', r: 3, cat: 'rare', d: '一颗仍在缓缓转动的能量核心，来自旧世界的尽头。', use: '在「角色」里重置天赋点。', src: '金色及以上箱子、Boss；流浪商人出售。' },
-  venom:   { n: '剧毒腺体', r: 3, cat: 'boss', d: '腐化女王体内的毒腺，还在缓缓渗出毒液。', use: '武器升级（12 级以后）。', src: '击败任何首领都可能掉落（每个首领掉 1–2 个随机一种）；「腐化女王」必掉而且掉最多。' },
-  plate:   { n: '重型装甲板', r: 3, cat: 'boss', d: '钢铁巨像身上剥下来的装甲，厚得能挡炮弹。', use: '武器升级（7 级以后）。', src: '击败任何首领都可能掉落（每个首领掉 1–2 个随机一种）；「钢铁巨像」必掉而且掉最多。' },
-  shade:   { n: '暗影精华', r: 3, cat: 'boss', d: '暗影疾行者消散时留下的一缕影子，会盯着你看。', use: '武器升级（16 级以后）。', src: '击败任何首领都可能掉落（每个首领掉 1–2 个随机一种）；「暗影疾行者」必掉而且掉最多。' },
+  venom:   { n: '剧毒腺体', r: 3, cat: 'boss', d: '腐化女王体内的毒腺，还在缓缓渗出毒液。', use: '武器升级（12 级以后）。', src: '击败「腐化女王」。' },
+  plate:   { n: '重型装甲板', r: 3, cat: 'boss', d: '钢铁巨像身上剥下来的装甲，厚得能挡炮弹。', use: '武器升级（7 级以后）。', src: '击败「钢铁巨像」。' },
+  shade:   { n: '暗影精华', r: 3, cat: 'boss', d: '暗影疾行者消散时留下的一缕影子，会盯着你看。', use: '武器升级（16 级以后）。', src: '击败「暗影疾行者」。' },
   bess1: { n: '首领精华·壹', r: 2, cat: 'boss', d: '首领倒下时凝结出的精华，等级越高的首领，精华越纯。', use: '武器升级（5–12 级）。', src: '击败 Lv.1–20 的首领（每个首领 2–4 个）。' },
   bess2: { n: '首领精华·贰', r: 3, cat: 'boss', d: '首领倒下时凝结出的精华，等级越高的首领，精华越纯。', use: '武器升级（13–17 级）。', src: '击败 Lv.21–40 的首领（每个首领 2–4 个）。' },
   bess3: { n: '首领精华·叁', r: 4, cat: 'boss', d: '首领倒下时凝结出的精华，等级越高的首领，精华越纯。', use: '武器升级（18–21 级）。', src: '击败 Lv.41–60 的首领（每个首领 2–4 个）。' },
   bess4: { n: '首领精华·肆', r: 4, cat: 'boss', d: '首领倒下时凝结出的精华，等级越高的首领，精华越纯。', use: '武器升级（22–23 级）。', src: '击败 Lv.61–80 的首领（每个首领 2–4 个）。' },
   bess5: { n: '首领精华·伍', r: 4, cat: 'boss', d: '首领倒下时凝结出的精华，等级越高的首领，精华越纯。', use: '武器升级（24–25 级）。', src: '击败 Lv.81 以上 的首领（每个首领 2–4 个）。' },
-  magma:   { n: '熔岩核心', r: 3, cat: 'boss', d: '熔岩领主胸口的核心，隔着手套也烫手。', use: '武器升级（19 级以后）。', src: '击败任何首领都可能掉落（每个首领掉 1–2 个随机一种）；「熔岩领主」必掉而且掉最多。' },
+  magma:   { n: '熔岩核心', r: 3, cat: 'boss', d: '熔岩领主胸口的核心，隔着手套也烫手。', use: '武器升级（19 级以后）。', src: '击败「熔岩领主」。' },
   heart:   { n: '首领之心', r: 4, cat: 'boss', d: '首领倒下后留下的金色心脏，仍在跳动，火焰在它周围缭绕。', use: '武器 5、10、15、20 级突破的必需品。', src: '击败 Boss 有机会掉落；红色箱子必出。商人不收也不卖。' }
 };
 const BAG_TABS = [['all', '全部'], ['use', '消耗品'], ['mat', '基础材料'], ['rare', '稀有材料'], ['boss', 'Boss 战利品']];
@@ -8347,9 +8347,7 @@ function scrapAllPop() {
    (more the higher it is inside its band). Weapon upgrades from Lv.5 need the essence of the matching band, so to push a
    weapon further you have to beat stronger bosses. */
 const bessTier = lv => Math.max(1, Math.min(5, Math.ceil(Math.max(1, lv) / 20)));
-function bessDrop(level, x, z) { const lv = (level | 0) + 1, t = bessTier(lv), n = 2 + Math.min(2, Math.floor(((lv - 1) % 20) / 7)); spawnLoot('bess' + t, x, z, n, 2);
-  // and one of the four special boss materials, whatever boss it was (its own kind still drops more of its own)
-  const sp = ['venom', 'plate', 'shade', 'magma'][Math.floor(Math.random() * 4)]; spawnLoot(sp, x, z, 1 + (Math.random() < .4 ? 1 : 0), 2); }
+function bessDrop(level, x, z) { const lv = (level | 0) + 1, t = bessTier(lv), n = 2 + Math.min(2, Math.floor(((lv - 1) % 20) / 7)); spawnLoot('bess' + t, x, z, n, 2); }
 // weapon level L -> L+1: which essence and how many (breakthroughs 5/10/15/20 need double)
 function bessNeed(L) { if (L < 5) return null; const t = L < 13 ? 1 : L < 18 ? 2 : L < 22 ? 3 : L < 24 ? 4 : 5; let n = L < 13 ? 2 : 3; if (L % 5 === 0) n += 1; return ['bess' + t, n]; }
 (() => { try { for (const id in WUP) for (let L = 5; L < WUP[id].length; L++) { const b = bessNeed(L); if (b && WUP[id][L]) WUP[id][L][b[0]] = b[1]; } } catch (e) { } })();
@@ -9248,4 +9246,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793617331').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793617712').catch(()=>{});</script></body></html>
