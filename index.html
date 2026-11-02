@@ -1831,7 +1831,11 @@ function genChunk(cx, cz) {
     if (nearSpecial(x, z, 16) || roadDist(x, z) < 1.5 || !free(x, z, .6, .6, 1.2)) continue;
     mark(x, z, .6, .6); n++;
     const Bp = biomeAt(x + rr(-16, 16), z + rr(-16, 16));        // near a border the two regions' props mix
-    const r = propAt(L, W, Bp.tree, x, z, rr, R); if (r) ch.obs.push(addCircle(x, z, r.r, { g: r.g }));
+    const a0 = L.p.length, w0 = W.p.length, r = propAt(L, W, Bp.tree, x, z, rr, R);
+    if (r) { const tid = 'tr' + Math.round(x * 10) + '_' + Math.round(z * 10);
+      if (S.pk && S.pk[tid] > Date.now()) { L.p.length = L.n.length = L.c.length = a0; W.p.length = W.n.length = W.c.length = w0; }   // chopped down recently: still gone
+      else if (r.g === 'wood') { const o = addCircle(x, z, r.r, { g: r.g }); o.tv = { ch, a: a0, b: L.p.length, wa: w0, wb: W.p.length, id: tid }; ch.obs.push(o); }
+      else ch.obs.push(addCircle(x, z, r.r, { g: r.g })); }
   }
   // pools (swamp water, lava)
   if (B.pool) for (let i = 0, m = Math.floor(rr(1, 3)); i < m; i++) { const x = x0 + rr(6, CH - 6), z = z0 + rr(6, CH - 6), s2 = rr(3, 7); if (roadDist(x, z) < s2 || !free(x, z, s2 / 2, s2 / 2, .5) || nearSpecial(x, z, 0)) continue; mark(x, z, s2 / 2, s2 / 2); if (B.glowPool) W.box(x, .03, z, s2, .02, s2 * rr(.6, 1), B.pool, 0, rr(0, 3), 0); else makePond(x, z, s2 * .55, { swamp: true }).forEach(m => ch.meshes.push(m)); }
@@ -1863,8 +1867,8 @@ function genChunk(cx, cz) {
     }
   }
   const ml = L.mesh(chunkMatL), mw = W.mesh(chunkMatW);
-  if (ml) { scene.add(ml); ch.meshes.push(ml); }
-  if (mw) { scene.add(mw); ch.meshes.push(mw); }
+  if (ml) { scene.add(ml); ch.meshes.push(ml); } ch.ml = ml;
+  if (mw) { scene.add(mw); ch.meshes.push(mw); } ch.mw = mw;
   chunks.set(ckey(cx, cz), ch);
 }
 function unloadChunk(ch) {
@@ -3935,13 +3939,14 @@ const costOf = t => { const c = BT[t].cost, k = 1 - Math.min(.6, ts('bcost')); r
 function canAfford(t) { const c = costOf(t); return c.wood <= S.wood && c.metal <= S.metal; }
 // local box -> world box for a quarter-turn rotation
 function obWorld(x, z, rot, o) { const c = Math.round(Math.cos(rot)), s = Math.round(Math.sin(rot)), sw = Math.abs(s) === 1; return { x: x + o[0] * c + o[1] * s, z: z - o[0] * s + o[1] * c, hw: sw ? o[3] : o[2], hd: sw ? o[2] : o[3] }; }
-function addBuild(type, x, z, rot, free) {
-  const T = BT[type], g = buildMesh(type); g.position.set(x, 0, z); g.rotation.y = rot; scene.add(g);
-  const hp = Math.round(T.hp * (1 + ts('bhp'))), b = { type, x, z, rot, hp, max: hp, g, cd: 0, obs: [] };
-  for (const o of T.ob) { const w = obWorld(x, z, rot, o); b.obs.push(addBox(w.x, w.z, w.hw, w.hd, { ref: b, pass: !!T.pass })); }
+function addBuild(type, x, z, rot, free, y) {
+  y = y > 0 ? UPY : 0; const T = BT[type], g = buildMesh(type); g.position.set(x, y, z); g.rotation.y = rot; scene.add(g);
+  const hp = Math.round(T.hp * (1 + ts('bhp'))), b = { type, x, z, rot, hp, max: hp, g, cd: 0, obs: [], y };
+  if (!y) for (const o of T.ob) { const w = obWorld(x, z, rot, o); b.obs.push(addBox(w.x, w.z, w.hw, w.hd, { ref: b, pass: !!T.pass })); }
   builds.push(b); return b;
 }
-function dropBuild(b) { for (const o of b.obs) removeObstacle(o); b.obs = []; scene.remove(b.g); if (b.g.userData.lit) _lamps = Math.max(0, _lamps - 1); const i = builds.indexOf(b); if (i >= 0) builds.splice(i, 1); }
+function dropBuild(b) { for (const o of b.obs) removeObstacle(o); b.obs = []; scene.remove(b.g); if (b.g.userData.lit) _lamps = Math.max(0, _lamps - 1); const i = builds.indexOf(b); if (i >= 0) builds.splice(i, 1);
+  if (b.type === 'upfl') builds.filter(u => u.y > 0 && !onUpper(u.x, u.z)).forEach(u => { burst(u.x, UPY, u.z, 0xaa8a60, 6, 4); dropBuild(u); }); }
 const doorOf = f => builds.find(b => b.type === 'door' && Math.abs(b.x - f.x) < .05 && Math.abs(b.z - f.z) < .05);
 function damageBuild(b, n) {
   if (b.hp <= 0) return; b.hp -= n; burst(b.x, 1, b.z, 0x8a6a48, 3, 3);
@@ -4074,8 +4079,18 @@ function nearestEdge(x, z) {
   const xl = Math.round(x / BG) * BG, zc = (Math.floor(z / BG) + .5) * BG, dx = Math.abs(x - xl);
   return dz < dx ? { x: xc, z: zl, rot: 0 } : { x: xl, z: zc, rot: Math.PI / 2 };
 }
+const UP_OK = t => BT[t] && BT[t].k === 'free' && !['stair', 'ladder', 'upfl', 'hut', 'farm', 'wall', 'gate'].includes(t);
+function upperTransform(T) {
+  const aim = aimPoint(), rot = (buildRot || 0) * Math.PI / 2, f = footprint(T, rot);
+  let x = Math.round(aim.x * 2) / 2, z = Math.round(aim.z * 2) / 2;
+  const fits = (x, z) => onUpper(x, z, Math.min(.6, Math.max(f.hw, f.hd) - .2)) && !builds.some(b => b.y > 0 && b.hp > 0 && Math.abs(b.x - x) < f.hw + (BT[b.type].hw || .3) - .05 && Math.abs(b.z - z) < f.hd + (BT[b.type].hd || .3) - .05) && Math.hypot(player.pos.x - x, player.pos.z - z) > .5;
+  if (!fits(x, z)) { let found = null; for (let r = .5; r <= 2.5 && !found; r += .5) for (let k = 0; k < 16 && !found; k++) { const a = k / 16 * 6.283, nx = Math.round((x + Math.cos(a) * r) * 2) / 2, nz = Math.round((z + Math.sin(a) * r) * 2) / 2; if (fits(nx, nz)) found = { x: nx, z: nz }; }
+    if (!found) return { x, z, rot, y: UPY, ok: false, why: '二楼楼板上放不下了（要放在楼板上面）' }; x = found.x; z = found.z; }
+  return { x, z, rot, y: UPY, ok: true };
+}
 function ghostTransform() {
   const T = BT[buildSel], aim = aimPoint();
+  if (S.up && UP_OK(buildSel)) return upperTransform(T);
   if (T.k === 'cell' || T.k === 'upper') { const x = (Math.floor(aim.x / BG) + .5) * BG, z = (Math.floor(aim.z / BG) + .5) * BG; return { x, z, rot: 0, ok: spotOk(T, x, z, 0) }; }
   if (T.k === 'edge') {
     // prefer an edge of a foundation near the aim point, otherwise the nearest grid edge
@@ -4134,7 +4149,7 @@ function updateGhost() {
     ghostOk = !!hilite; return;
   }
   if (!ghost) return;
-  const t = ghostTransform(); ghost.position.set(t.x, 0, t.z); ghost.rotation.y = t.rot; ghostOk = t.ok && canAfford(buildSel);
+  const t = ghostTransform(); ghost.position.set(t.x, t.y || 0, t.z); ghost.rotation.y = t.rot; ghostOk = t.ok && canAfford(buildSel);
   const col = ghostOk ? 0x8fd16f : 0xe0393e;
   ghost.traverse(o => { if (o.material && o.material.color && !o.isSprite) o.material.emissive = new THREE.Color(col).multiplyScalar(.35); });
 }
@@ -4153,7 +4168,7 @@ function placeBuild() {
   if (!canAfford(buildSel)) { feed('物资不足', '#ff9b8a'); return; }
   if (!t.ok) { feed(t.why || '这里放不下，换个地方', '#ff9b8a'); return; }
   const c = costOf(buildSel); S.wood -= c.wood; S.metal -= c.metal;
-  addBuild(buildSel, t.x, t.z, t.rot); sfx.build(); burst(t.x, .5, t.z, 0xc9955c, 8, 4); feed('建成 ' + BT[buildSel].name, '#8fd16f');
+  addBuild(buildSel, t.x, t.z, t.rot, false, t.y || 0); sfx.build(); burst(t.x, (t.y || 0) + .5, t.z, 0xc9955c, 8, 4); feed('建成 ' + BT[buildSel].name, '#8fd16f');
   questTick('build', 1); refreshHud(); refreshBuildCards(); saveGame();
 }
 
@@ -4233,11 +4248,15 @@ function stairTick(dt) {
     if (f.y <= 0) { S.fall = null; collide(p, player.r); S.shake = Math.max(S.shake, .18); if (AC) { sfxNoise(.08, .2, 400); playerStep && playerStep(true); } } return; }
   const st = stairAt(p.x, p.z);
   if (S.stB) {                                    // walking on a stair
-    if (st && st.b === S.stB) { S.stY = st.u * UPY; return; }
+    if (st && st.b === S.stB) { S.stY = Math.min(UPY, (st.u + 1 / 16) * UPY); return; }
     const was = S.stY || 0; S.stB = null; S.stY = null;
     if (was > UPY * .78 && onUpper(p.x, p.z)) { S.up = true; return; }
     if (was > .5) startFall(was); return; }
-  if (st && ((S.up && st.u > .7) || (!S.up && st.u < .3))) { S.up = false; S.stB = st.b; S.stY = st.u * UPY; return; }
+  if (st && ((S.up && st.u > .7) || (!S.up && st.u < .3))) { S.up = false; S.stB = st.b; S.stY = Math.min(UPY, (st.u + 1 / 16) * UPY); return; }
+  if (st && !S.up) {   // on the ground beside a tall part of the stair: it is solid, step out to its side or back down
+    const b = st.b, L = stairLocal(b, p.x, p.z), c = Math.cos(b.rot), s = Math.sin(b.rot), opts = [[L.lx < 0 ? -.8 : .8, L.lz], [L.lx, 2.15]];
+    const [lx, lz] = Math.abs(opts[0][0] - L.lx) <= Math.abs(opts[1][1] - L.lz) ? opts[0] : opts[1];
+    p.x = b.x + lx * c + lz * s; p.z = b.z - lx * s + lz * c; }
   if (S.up && !onUpper(p.x, p.z)) startFall(UPY);
 }
 // walking up there: free, step off an edge and you fall (stairTick)
@@ -4736,7 +4755,7 @@ function serialize() {
   return { v: 2, wv: 4, level: S.level, xp: S.xp, tv: 4, tal: S.tal, daily: S.daily, weekly: S.weekly, login: S.login, bs: S.bestStreak || 0, st: S.st, ach: S.ach, title: S.title || '', ws: S.ws, wp: S.wp, wpp: S.wpPrev, isl: S.isl ? 1 : 0, gx: S.gx, gz: S.gz, px: +player.pos.x.toFixed(1), pz: +player.pos.z.toFixed(1),
     wood: S.wood, metal: S.metal, reserve: S.reserve, med: S.med, core: S.core, coin: S.coin, inv: S.inv, bossKills: S.bossKills, kills: S.kills, lcd: S.lairCd, cro: Object.keys(S.crOpen).slice(-300),
     gear: S.gear, ginv: S.ginv, pcap: S.pcap, diff: S.diff || 'normal', fd: foodSave(), dl: dailySave(), fm: farmSave(), sh: shopSave(), fx: fixSave(),
-    builds: builds.filter(b => b.hp > 0 && !b.home).map(b => [b.type, b.x, b.z, b.rot]) };
+    builds: builds.filter(b => b.hp > 0 && !b.home).map(b => b.y > 0 ? [b.type, b.x, b.z, b.rot, 1] : [b.type, b.x, b.z, b.rot]) };
 }
 function applySave(d) {
   // saves read back from the cloud arrive as frozen (read-only) objects: work on a private copy, otherwise every
@@ -4773,7 +4792,7 @@ function applySave(d) {
     builds.slice().forEach(b => { if (!b.home) dropBuild(b); });
     const mv = d.wv === 4 ? [0, 0] : [HOME.x - 0, HOME.z - 8];
     d.builds.forEach(b => { if (!Array.isArray(b) || !BT[b[0]] || !Number.isFinite(+b[1]) || !Number.isFinite(+b[2])) return; const x = +b[1] + mv[0], z = +b[2] + mv[1];
-      const onIsl = Math.hypot(x - HOME.x, z - HOME.z) < ISL_R + 20; if ((onIsl && (Math.hypot(x - HOME.x, z - HOME.z) > ISL_R + 8 || Math.hypot(x - PAD.x, z - PAD.z) < 5.5)) || (!onIsl && d.wv !== 4) || overlapsAny(x, z, .3, .3, 0)) return; addBuild(b[0], x, z, +b[3] || 0); });
+      const onIsl = Math.hypot(x - HOME.x, z - HOME.z) < ISL_R + 20; if ((onIsl && (Math.hypot(x - HOME.x, z - HOME.z) > ISL_R + 8 || Math.hypot(x - PAD.x, z - PAD.z) < 5.5)) || (!onIsl && d.wv !== 4) || (!(b[4] > 0) && overlapsAny(x, z, .3, .3, 0))) return; addBuild(b[0], x, z, +b[3] || 0, false, b[4] > 0 ? 1 : 0); });
   }
   try { foodLoad(d); } catch (e) { console.warn('food load', e); }
   try { dailyLoad(d); } catch (e) { console.warn('daily load', e); }
@@ -8661,10 +8680,33 @@ function gatherSwing(W, dx, dz) {
     if (ex > 1.4) continue;
     if (o.islT) { islChop(o.islT, hx, hz); return; }
     if ((o.gt || 0) > S.t) { feed(W.gather === 'wood' ? '这棵树暂时砍不出东西了' : '这里暂时敲不出东西了', '#c1a597'); return; }
-    o.gn = (o.gn || 0) + 1; if (o.gn >= 3) { o.gn = 0; o.gt = S.t + 90; }
+    o.gn = (o.gn || 0) + 1; if (o.gn >= 3) { if (o.tv) { const n = rint(1, 2); spawnLoot(W.gather, hx, hz, n, .4); treeFell(o, dx, dz); return; } o.gn = 0; o.gt = S.t + 90; }
     const n = W.gather === 'wood' ? rint(1, 2) : 1; spawnLoot(W.gather, hx, hz, n, .4); if (Math.random() < ts('gatherX')) spawnLoot(W.gather, hx, hz, n, .4);
     burst(hx, 1, hz, W.gather === 'wood' ? 0x8a5a30 : 0xaec6d8, 6, 3); sfx.hit(); return;
   }
+}
+/* ---- a chopped tree topples away from you, lies there a moment, then sinks into the ground and is gone ---- */
+const FELLED = [];
+function treeFell(o, dx, dz) {
+  const T = o.tv, ch = T.ch; removeObstacle(o); const i = ch.obs.indexOf(o); if (i >= 0) ch.obs.splice(i, 1);
+  try { S.pk[T.id] = Date.now() + 20 * 60000; } catch (e) { }
+  const cut = (mesh, a, b, add) => { if (!mesh || b <= a) return null; const G = mesh.geometry, P = G.attributes.position, N = G.attributes.normal, C = G.attributes.color;
+    const pos = new Float32Array(b - a), nor = new Float32Array(b - a), col = new Float32Array(b - a);
+    for (let k = a; k < b; k += 3) { const v = k / 3; pos[k - a] = P.getX(v) - o.x; pos[k - a + 1] = P.getY(v); pos[k - a + 2] = P.getZ(v) - o.z; nor[k - a] = N.getX(v); nor[k - a + 1] = N.getY(v); nor[k - a + 2] = N.getZ(v); col[k - a] = C.getX(v); col[k - a + 1] = C.getY(v); col[k - a + 2] = C.getZ(v); P.setXYZ(v, o.x, -60, o.z); }
+    P.needsUpdate = true; const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.computeBoundingSphere();
+    const m = new THREE.Mesh(g, mesh.material.clone()); m.material.transparent = true; add.add(m); return m; };
+  const piv = new THREE.Group(); piv.position.set(o.x, 0, o.z); scene.add(piv);
+  const inner = new THREE.Group(); piv.add(inner); cut(ch.ml, T.a, T.b, inner); cut(ch.mw, T.wa, T.wb, inner);
+  piv.rotation.y = Math.atan2(dx, dz);   // fall away from the player along local +z
+  FELLED.push({ piv, inner, t: 0 }); spawnLoot('wood', o.x + dx * 2, o.z + dz * 2, rint(3, 5), 1);
+  feed('树倒了！', '#c9955c'); try { sfx.boom && sfx.boom(); } catch (e) { } burst(o.x, 1.5, o.z, 0x8a5a30, 14, 5); S.shake = Math.max(S.shake, .12);
+}
+function felledTick(dt) {
+  for (let i = FELLED.length - 1; i >= 0; i--) { const f = FELLED[i]; f.t += dt;
+    const k = Math.min(1, f.t / 1.1), ang = k < 1 ? Math.pow(k, 2.2) * 1.5 : 1.5 + Math.sin(Math.min(1, (f.t - 1.1) / .3) * Math.PI) * .06;
+    f.inner.rotation.x = ang; if (f.t > 1.1 && !f.hit) { f.hit = 1; burst(f.piv.position.x + Math.sin(f.piv.rotation.y) * 2.5, .3, f.piv.position.z + Math.cos(f.piv.rotation.y) * 2.5, 0x6a5040, 12, 4); try { sfxNoise(.25, .22, 300); } catch (e) { } }
+    if (f.t > 2.6) { const s = Math.min(1, (f.t - 2.6) / 1.2); f.piv.position.y = -s * 1.2; f.inner.traverse(m => { if (m.material) m.material.opacity = 1 - s; }); }
+    if (f.t > 3.9) { scene.remove(f.piv); f.inner.traverse(m => { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }); FELLED.splice(i, 1); } }
 }
 /* ---- gathering: walk up to a dead tree (axe) or a wreck / ruin / rock (pickaxe) and tap the tool button ---- */
 const GATH = { t: 0, o: null, kind: null, back: null, idle: 0 };
@@ -9110,7 +9152,7 @@ function update(dt) {
     camera.position.set(player.pos.x + rand(-1, 1) * S.shake * .2, eye, player.pos.z);
     camera.lookAt(player.pos.x + Math.sin(f) * Math.cos(p) * 10, eye + Math.sin(p) * 10, player.pos.z + Math.cos(f) * Math.cos(p) * 10); }
   else camera.lookAt(camPos.x, 0.8 + Math.max(0, camPos.y - camH), camPos.z - camD * .96);
-  if (camera.updateMatrixWorld) camera.updateMatrixWorld(); staRingTick(dt); xpPopTick(dt); gatherTick(dt); foodSysTick(dt); climbTick(dt); farmTick(dt); dailyTick(dt);
+  if (camera.updateMatrixWorld) camera.updateMatrixWorld(); staRingTick(dt); xpPopTick(dt); gatherTick(dt); try { felledTick(dt); } catch (e) { } foodSysTick(dt); climbTick(dt); farmTick(dt); dailyTick(dt);
   miniT -= dt; if (miniT <= 0) { miniT = .07; drawMini(); }
   S.saveT += dt; if (S.saveT > 12) { S.saveT = 0; S.dirty = true; saveGame(); markLive(); }
   placeSky(camera);
@@ -9146,4 +9188,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793613855').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793615417').catch(()=>{});</script></body></html>
