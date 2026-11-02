@@ -3458,7 +3458,7 @@ function updateZombie(z, dt) {
   let mx = 0, mz = 0, speed = z.spd;
   if (chase) {
     // through doors: if you are in a house and it isn't, it walks to the door, steps through, then comes for you
-    let gx = tg.x, gz = tg.z; const hP = houseAt(tg.x, tg.z), hZ = houseAt(z.pos.x, z.pos.z);
+    let gx = tg.x, gz = tg.z; const hP = z.up ? null : houseAt(tg.x, tg.z), hZ = z.up ? null : houseAt(z.pos.x, z.pos.z);   // up on your floors there are no village doors to find
     if (hP !== hZ) {
       if (hZ && hZ.dix != null) { if (!z.navOut && Math.hypot(z.pos.x - hZ.dix, z.pos.z - hZ.diz) < 1) z.navOut = true; gx = z.navOut ? hZ.dox : hZ.dix; gz = z.navOut ? hZ.doz : hZ.diz; }
       else if (hP && hP.dox != null) { if (!z.navIn && Math.hypot(z.pos.x - hP.dox, z.pos.z - hP.doz) < 1.2) z.navIn = true; if (z.navIn && Math.hypot(z.pos.x - hP.dox, z.pos.z - hP.doz) > 5) z.navIn = false; gx = z.navIn ? hP.dix : hP.dox; gz = z.navIn ? hP.diz : hP.doz; }
@@ -3489,7 +3489,8 @@ function updateZombie(z, dt) {
   if (z.hold) { z.hold = false; mx = mz = 0; }
   { const ox = z.pos.x, oz = z.pos.z; z.pos.x += mx * speed * dt * (waterAt(ox, oz) > .2 ? .6 : 1) + z.knx * dt; z.pos.z += mz * speed * dt * (waterAt(ox, oz) > .2 ? .6 : 1) + z.knz * dt;
     if ((deepAt(z.pos.x, z.pos.z) && !deepAt(ox, oz)) || (villageNear(z.pos.x, z.pos.z, 0) && !villageNear(ox, oz, 0))) { z.pos.x = ox; z.pos.z = oz; z.wt = 0; }
-    if (z.up && !onUpper(z.pos.x, z.pos.z, .2)) { if (onUpper(z.pos.x, oz, .2)) z.pos.z = oz; else if (onUpper(ox, z.pos.z, .2)) z.pos.x = ox; else { z.pos.x = ox; z.pos.z = oz; } } }
+    // up on the floors: they may walk anywhere on them (also across from one floor tile to the next), just not off the edge
+    if (z.up && !onUpper(z.pos.x, z.pos.z, -.02)) { if (onUpper(z.pos.x, oz, -.02)) z.pos.z = oz; else if (onUpper(ox, z.pos.z, -.02)) z.pos.x = ox; else { z.pos.x = ox; z.pos.z = oz; } } }
   { const wd = waterAt(z.pos.x, z.pos.z); z.pos.y = z.up ? UPY : wd > 0 ? -Math.min(wd, 1.3) * .5 : 0; }
   z.knx *= Math.pow(.01, dt); z.knz *= Math.pow(.01, dt);
   const hit = z.up ? null : collide(z.pos, z.r);
@@ -9253,4 +9254,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793617985').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793618393').catch(()=>{});</script></body></html>
