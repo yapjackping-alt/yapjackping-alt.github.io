@@ -3947,7 +3947,7 @@ function addBuild(type, x, z, rot, free, y) {
 }
 function dropBuild(b) { for (const o of b.obs) removeObstacle(o); b.obs = []; scene.remove(b.g); if (b.g.userData.lit) _lamps = Math.max(0, _lamps - 1); const i = builds.indexOf(b); if (i >= 0) builds.splice(i, 1);
   if (b.type === 'upfl') builds.filter(u => u.y > 0 && !onUpper(u.x, u.z)).forEach(u => { burst(u.x, UPY, u.z, 0xaa8a60, 6, 4); dropBuild(u); }); }
-const doorOf = f => builds.find(b => b.type === 'door' && Math.abs(b.x - f.x) < .05 && Math.abs(b.z - f.z) < .05);
+const doorOf = f => builds.find(b => b.type === 'door' && Math.abs(b.x - f.x) < .05 && Math.abs(b.z - f.z) < .05 && Math.abs((b.y || 0) - (f.y || 0)) < .1);
 function damageBuild(b, n) {
   if (b.hp <= 0) return; b.hp -= n; burst(b.x, 1, b.z, 0x8a6a48, 3, 3);
   b.g.position.x = b.x + rand(-.05, .05);
@@ -3965,7 +3965,7 @@ function updateBuilds(dt) {
       }
     } else if (b.type === 'door') {
       // swings open for you (not for zombies) and closes once you've walked through
-      const near = !S.dead && Math.hypot(player.pos.x - b.x, player.pos.z - b.z) < 2.1, leaf = b.g.userData.leaf;
+      const near = !S.dead && Math.hypot(player.pos.x - b.x, player.pos.z - b.z) < 2.1 && (!(b.y > 0) || S.up), leaf = b.g.userData.leaf;
       b.open = (b.open || 0) + ((near ? 1 : 0) - (b.open || 0)) * Math.min(1, dt * 7); leaf.rotation.y = -b.open * 1.55;
       const pass = b.open > .5; if (b.obs[0] && b.obs[0].open !== pass) { b.obs[0].open = pass; if (pass && near && b.open < .6) sfx.pick(); }
     } else if (b.type === 'fire' || b.type === 'hut' || b.type === 'bed') {
@@ -4091,6 +4091,21 @@ function upperTransform(T) {
 function ghostTransform() {
   const T = BT[buildSel], aim = aimPoint();
   if (S.up && UP_OK(buildSel)) return upperTransform(T);
+  if (S.up && T.k === 'edge') {   // walls on the second floor: along the edges of your upper floors
+    let best = null, bd = 3;
+    for (const b of builds) { if (b.type !== 'upfl' || b.hp <= 0 || Math.hypot(b.x - aim.x, b.z - aim.z) > 4.5) continue;
+      for (const c of [{ x: b.x, z: b.z - 1.5, rot: 0 }, { x: b.x, z: b.z + 1.5, rot: 0 }, { x: b.x - 1.5, z: b.z, rot: Math.PI / 2 }, { x: b.x + 1.5, z: b.z, rot: Math.PI / 2 }]) {
+        if (builds.some(u => u.y > 0 && BT[u.type].k === 'edge' && Math.abs(u.x - c.x) < .1 && Math.abs(u.z - c.z) < .1)) continue;
+        const d = Math.hypot(c.x - aim.x, c.z - aim.z); if (d < bd) { bd = d; best = c; } } }
+    if (!best) return { x: aim.x, z: aim.z, rot: 0, y: UPY, ok: false, why: '二楼的墙要沿着二楼楼板的边建' };
+    return { x: best.x, z: best.z, rot: best.rot, y: UPY, ok: true };
+  }
+  if (S.up && T.k === 'door') {
+    let best = null, bd = 3.5;
+    for (const b of builds) { if (b.type !== 'dframe' || !(b.y > 0) || doorOf(b)) continue; const d = Math.hypot(b.x - aim.x, b.z - aim.z); if (d < bd) { bd = d; best = b; } }
+    if (!best) return { x: aim.x, z: aim.z, rot: 0, y: UPY, ok: false, why: '二楼附近没有空的木门框' };
+    return { x: best.x, z: best.z, rot: best.rot, y: UPY, ok: true };
+  }
   if (T.k === 'cell' || T.k === 'upper') { const x = (Math.floor(aim.x / BG) + .5) * BG, z = (Math.floor(aim.z / BG) + .5) * BG; return { x, z, rot: 0, ok: spotOk(T, x, z, 0) }; }
   if (T.k === 'edge') {
     // prefer an edge of a foundation near the aim point, otherwise the nearest grid edge
@@ -4260,7 +4275,13 @@ function stairTick(dt) {
   if (S.up && !onUpper(p.x, p.z)) startFall(UPY);
 }
 // walking up there: free, step off an edge and you fall (stairTick)
-function upMove(ox, oz) { }
+function upMove(ox, oz) {
+  if (!S.up || S.fall) return; const p = player.pos, r = player.r || .4;
+  for (const b of builds) { if (!(b.y > 0) || b.hp <= 0) continue; const T = BT[b.type]; if (T.k !== 'edge' && T.k !== 'door') continue; if (T.k === 'door' && (b.open || 0) > .5) continue;
+    if (Math.abs(p.x - b.x) > 3 || Math.abs(p.z - b.z) > 3) continue;
+    for (const o of T.ob) { const w = obWorld(b.x, b.z, b.rot, o), cx = clamp(p.x, w.x - w.hw, w.x + w.hw), cz = clamp(p.z, w.z - w.hd, w.z + w.hd), dx = p.x - cx, dz = p.z - cz, d2 = dx * dx + dz * dz;
+      if (d2 < r * r) { if (d2 > 1e-6) { const d = Math.sqrt(d2); p.x = cx + dx / d * r; p.z = cz + dz / d * r; } else { p.x = ox; p.z = oz; } } } }
+}
 // zombies: find a ladder to reach you up there (or come down after you); no ladder -> chew on the floor's posts
 function zLadder(z, dt) {
   if (z.up && !onUpper(z.pos.x, z.pos.z)) z.up = false;
@@ -8292,7 +8313,12 @@ const bessTier = lv => Math.max(1, Math.min(5, Math.ceil(Math.max(1, lv) / 20)))
 function bessDrop(level, x, z) { const lv = (level | 0) + 1, t = bessTier(lv), n = 2 + Math.min(2, Math.floor(((lv - 1) % 20) / 7)); spawnLoot('bess' + t, x, z, n, 2); }
 // weapon level L -> L+1: which essence and how many (breakthroughs 5/10/15/20 need double)
 function bessNeed(L) { if (L < 5) return null; const t = L < 10 ? 1 : L < 15 ? 2 : L < 18 ? 3 : L < 22 ? 4 : 5, start = [0, 5, 10, 15, 18, 22][t]; let n = 2 + Math.floor((L - start) / 2); if (L % 5 === 0) n *= 2; return ['bess' + t, n]; }
-(() => { try { for (const id in WUP) for (let L = 5; L < WUP[id].length; L++) { const b = bessNeed(L); if (b && WUP[id][L]) WUP[id][L][b[0]] = b[1]; } } catch (e) { } })();
+// costs also climb much faster with the level (the old table was far too cheap once you had played a while)
+const WUP_BASIC = { wood: 1, metal: 1, powder: 1 }, WUP_RARE = { circuit: 1, steel: 1, serum: 1, crystal: 1 };
+const wupMul = (k, L) => k === 'coin' ? 2.5 + .6 * L : WUP_BASIC[k] ? 2 + .45 * L : WUP_RARE[k] ? 1.5 + .15 * L : 1;
+(() => { try { for (const id in WUP) for (let L = 1; L < WUP[id].length; L++) { const R = WUP[id][L]; if (!R) continue;
+  for (const k in R) { const v = Math.round(R[k] * wupMul(k, L)); R[k] = v < 20 ? v : v < 200 ? Math.round(v / 5) * 5 : Math.round(v / 10) * 10; }
+  const b = bessNeed(L); if (b) R[b[0]] = b[1]; } } catch (e) { } })();
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -9188,4 +9214,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793615417').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793615835').catch(()=>{});</script></body></html>
