@@ -452,7 +452,7 @@ input[type=text]::placeholder{color:var(--dim)}
   background:linear-gradient(180deg,#ffd27a,#ff8a3a);cursor:pointer;padding-left:calc(38px + .2em)}
 .go:active{transform:scale(.97)}
 .go.ghost{background:transparent;color:var(--ink);border-color:var(--line);font-size:14px;padding:9px 20px;font-weight:700;letter-spacing:.1em}
-#dead h1{background:linear-gradient(180deg,#ffc0b4,#e0393e 60%,#7d0f1c)}
+#dead h1{background-image:linear-gradient(180deg,#ffc0b4,#e0393e 60%,#7d0f1c);-webkit-background-clip:text;background-clip:text;color:transparent}
 
 /* compact HUD */
 #left{width:min(34vw,150px);gap:5px}
@@ -9254,4 +9254,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793618393').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1793678882').catch(()=>{});</script></body></html>
