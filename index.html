@@ -313,6 +313,8 @@ img.ic{object-fit:contain;display:block}
 #bPet svg{width:16px;height:16px}#bPet u{display:block;width:34px;height:4px;border-radius:2px;background:rgba(0,0,0,.5);overflow:hidden}#bPet u i{display:block;height:100%;background:#7fe0a0}
 #bClimb{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--sb) + 146px);display:none;border-color:#c9955c;background:rgba(60,36,16,.88);color:#ffe0b0;font-size:15px}
 #bCook,#bTame{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--sb) + 96px);display:none;border-color:#ffd27a;background:rgba(70,44,10,.85);color:#ffe9a8;font-size:15px}
+#bRecruit{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--sb) + 196px);display:none;border-color:#7fe0a0;background:rgba(14,52,24,.9);color:#dfffe6;font-size:15px}
+#bComp{display:none;align-items:center;gap:5px;margin-top:4px;padding:3px 8px 3px 5px;border-radius:9px;border:1px solid rgba(127,224,160,.5);background:rgba(16,40,24,.7);color:#dfffe6;font:11px var(--font-body);pointer-events:auto;cursor:pointer;position:relative}#bComp .cdot{position:absolute;right:-3px;top:-3px;width:8px;height:8px;border-radius:50%;background:#ffcf4a}
 #bTame{bottom:calc(var(--sb) + 146px);border-color:#9fe8ff;background:rgba(14,40,52,.88);color:#dff6ff}
 #cookList .sn,#petList .sn{flex:1;text-align:left;align-items:flex-start}.ckic{width:44px;height:44px;flex:none;margin-right:8px;display:flex;align-items:center;justify-content:center}.ckic img,.ckic svg{width:44px;height:44px}
 
@@ -9646,6 +9648,178 @@ try { FB.email = localStorage.getItem('ember_gmail') || ''; } catch (e) { }
   let n = 0, t0 = 0; const hd = document.querySelector && document.querySelector('#chars h2');
   if (hd) hd.addEventListener('click', () => { const now = Date.now(); n = now - t0 < 2500 ? n + 1 : 1; t0 = now; if (n < 5) return; n = 0;
     if (DEV_ON) { toggle(); return; } if (nm) { nm.focus(); nm.placeholder = '在这里输入测试码，再点「新建角色」'; } }); }
+/* ============ 同伴: survivors you rescue in the wild come home to the island and survive with you ============
+   Out in the regions you now and then hear a cry for help: a survivor cornered by zombies (a red 「救」 on the map).
+   Clear the zombies around them before they fall, then talk: some join you out of gratitude, some first ask for
+   a medkit or a hot meal. They need a bed on the island (1 free place + 1 per bed, up to 6).
+   Each has a trade. Up to 2 follow you and fight (the 猎户 shoots harder, the 老兵 is tough, the 药师 patches you up);
+   the rest stay home, fight off the nightly raid, and every day bring in what their trade makes. */
+const COMP_ROLES = {
+  猎户: { c: 0x5a4a2a, d: '枪法准，跟随时伤害 +30%', job: '每天打回 生肉 ×4', give: () => [['rmeat', 4]] },
+  老兵: { c: 0x3a4a3a, d: '皮糙肉厚，生命 +60%', job: '每天整理出 强化石 ×1、弹药 ×40', give: () => [['estone', 1], ['ammo', 40]] },
+  药师: { c: 0xd8d8d0, d: '跟随时每 6 秒给你包扎（回复 5% 生命）', job: '每天配出 医疗包 ×2', give: () => [['med', 2]] },
+  铁匠: { c: 0x4a3a34, d: '会打铁', job: '每天打出 精钢锭 ×2、铁片 ×10', give: () => [['steel', 2], ['metal', 10]] },
+  木匠: { c: 0x7a5a34, d: '手巧', job: '每天砍回 木头 ×30，并自动修好被破坏的建筑', give: () => [['wood', 30]] },
+  拾荒者: { c: 0x5a5a62, d: '什么都捡', job: '每天捡回 火药、电路板 和一些余烬币', give: () => [['powder', 6], ['circuit', 3], ['coin', 120]] },
+  农夫: { c: 0x6a7a3a, d: '会种地', job: '每天带回 辣椒炖肉 ×2', give: () => [['stew', 2]] },
+  商贩: { c: 0x7a2a4a, d: '会做买卖', job: '每天赚回 余烬币（按你的区域）', give: () => [['coin', 150 * Math.max(1, lvTier())]] }
+};
+const COMP_RK = Object.keys(COMP_ROLES);
+const COMP_NAMES = ['阿杰', '小雨', '老刘', '阿梅', '大壮', '小芳', '阿德', '秀珍', '老胡', '阿宝', '晓琳', '阿龙', '美玲', '老唐', '小虎', '阿英'];
+S.comps = [];
+const compCap = () => { let beds = 0; try { beds = builds.filter(b => b.type === 'bed' && b.hp > 0 && !(b.broken)).length; } catch (e) { } return Math.min(6, 1 + beds); };
+const compMax = c => Math.round((120 + 10 * S.level + 12 * c.lv) * (c.role === '老兵' ? 1.6 : 1));
+const compDmg = c => (10 + 2.4 * S.level + 3 * c.lv) * (c.role === '猎户' ? 1.3 : 1);
+const COMPS = new Map();   // id -> live companion in the world
+
+function compModel(c) {
+  const R = COMP_ROLES[c.role] || COMP_ROLES.拾荒者, s = c.seed | 0;
+  const h = makeHuman({ skin: [0xe0b090, 0xc89870, 0xa8784e, 0xf0c8a0][s % 4], shirt: R.c, pants: [0x3a2e24, 0x2a2a33, 0x4a3a2a][(s >>> 3) % 3] });
+  if (c.role === '猎户') box(.56, .12, .56, mat(0x6a5a3a), 0, h.hip + 1.3, 0, h.body);
+  else if (c.role === '老兵') box(.48, .18, .5, mat(0x3a4a2a), 0, h.hip + 1.34, 0, h.body);
+  else if (c.role === '药师') box(.2, .2, .04, new THREE.MeshBasicMaterial({ color: 0xe0393e }), 0, h.hip + .55, .21, h.body);
+  else if (c.role === '农夫') box(.62, .1, .62, mat(0xc8b070), 0, h.hip + 1.3, 0, h.body);
+  box(.09, .1, .6, mat(0x2a2a30), 0, -.72, .26, h.armR);   // a gun in hand
+  { const lab = labelSprite(c.role + ' ' + c.n, '#bff7c8', .85); lab.position.set(0, 2.75, 0); h.g.add(lab); }
+  blob(.7, h.g); scene.add(h.g); return h;
+}
+function compSpawn(c) { let P = COMPS.get(c.id); if (P) return P; const h = compModel(c);
+  P = { c, h, g: h.g, pos: h.g.position, face: 0, cd: 0, hurtCd: 0, healT: 4, walk: 0, wt: 0 };
+  const a = player.face + Math.PI + rand(-.8, .8); P.pos.set(player.pos.x + Math.sin(a) * 2.8, 0, player.pos.z + Math.cos(a) * 2.8);
+  if (S.isl && c.mode === 'home') P.pos.set(HOME.x + rand(-6, 6), 0, HOME.z + rand(-6, 6));
+  COMPS.set(c.id, P); return P; }
+function compDespawn(id) { const P = COMPS.get(id); if (P) { scene.remove(P.g); COMPS.delete(id); } }
+
+/* ---- the cry for help ---- */
+const SOS = { s: null, t: 140 };
+function sosSpawn() {
+  const a = Math.random() * 6.283, d = rand(38, 55); let x = player.pos.x + Math.cos(a) * d, z = player.pos.z + Math.sin(a) * d;
+  try { const p = safeSpot(x, z); x = p.x; z = p.z; } catch (e) { }
+  if (typeof villageNear === 'function' && villageNear(x, z, 6)) return;
+  const role = COMP_RK[(Math.random() * COMP_RK.length) | 0], seed = (Math.random() * 1e9) | 0, n = COMP_NAMES.filter(q => !S.comps.some(c => c.n === q))[(Math.random() * 10) | 0] || '幸存者';
+  const r = Math.random(), req = r < .5 ? null : r < .75 ? 'med' : 'food';
+  const c = { id: 'c' + Date.now().toString(36), n, role, lv: 1, xp: 0, seed, mode: 'follow' }, h = compModel(c); h.g.position.set(x, 0, z);
+  h.armL.rotation.x = h.armR.rotation.x = -2.6;   // waving for help
+  SOS.s = { c, h, x, z, hp: 100, t: 150, req, safe: false, said: false };
+  for (let i = 0; i < 3 + Math.min(4, lvTier() >> 1); i++) { const b = (i / 4) * 6.283 + rand(-.4, .4), rr = rand(3, 6); const zb = spawnZombie(Math.random() < .6 ? 'walker' : 'runner', x + Math.cos(b) * rr, z + Math.sin(b) * rr, false); zb.aggro = 60; zb.sosT = 1; }
+  feed('📻 附近有人在求救！（地图上的红色「救」）', '#ff9b8a'); banner('有人在求救', role + ' ' + n + ' 被丧尸围住了，快去救！', 3.5); try { sfxTone(700, 500, .25, .1, 'square'); } catch (e) { }
+}
+function sosEnd(msg, col) { const s = SOS.s; if (!s) return; scene.remove(s.h.g); SOS.s = null; SOS.t = rand(160, 300); if (msg) feed(msg, col || '#c1a597'); recruitBtn(); }
+function sosTick(dt) {
+  if (S.isl || S.dead) { if (SOS.s && S.isl) sosEnd(); return; }
+  if (!SOS.s) { SOS.t -= dt; if (SOS.t <= 0) { SOS.t = rand(160, 300); if (S.level >= 2 && !(typeof ID !== 'undefined' && ID.on)) sosSpawn(); } return; }
+  const s = SOS.s, dP = Math.hypot(player.pos.x - s.x, player.pos.z - s.z); s.t -= dt;
+  if (dP > 140 || (s.t <= 0 && !s.safe)) return sosEnd(s.c.n + ' 没等到救援……', '#c1a597');
+  let near = 0; for (const z of zombies) { if (z.dead || z.animal) continue; const d = Math.hypot(z.pos.x - s.x, z.pos.z - s.z); if (d < 11) near++; if (d < 1.7) s.hp -= (z.dmg || 8) * .55 * dt; }
+  if (s.hp <= 0) { burst(s.x, 1, s.z, 0xb02030, 12, 4); return sosEnd(s.c.role + ' ' + s.c.n + ' 没能撑住……', '#ff9b8a'); }
+  s.safe = near === 0;
+  const g = s.h.g, T = S.t; g.rotation.y = Math.atan2(player.pos.x - s.x, player.pos.z - s.z);
+  if (!s.safe) { s.h.armL.rotation.x = -2.6 + Math.sin(T * 9) * .4; s.h.armR.rotation.x = -2.6 - Math.sin(T * 9) * .4; g.position.y = 0; }
+  else { s.h.armL.rotation.x = s.h.armR.rotation.x = -.1; if (dP < 8 && !s.said) { s.said = true; banner(s.c.n + '：「得救了……」', s.req === 'med' ? '我受伤了，有医疗包吗？给我一个就跟你走' : s.req === 'food' ? '好几天没吃东西了，给我一份熟食，我就跟你走' : '谢谢你！带我走吧，我是' + s.c.role + '，' + COMP_ROLES[s.c.role].d, 4); } }
+  recruitBtn();
+}
+const FOOD_KEYS = ['roast', 'rroast', 'skewer', 'stew', 'soup', 'pie', 'bread', 'psoup', 'jam', 'tea'];
+function recruitBtn() { const b = $('bRecruit'); if (!b) return; const s = SOS.s, ok = s && s.safe && !S.isl && Math.hypot(player.pos.x - s.x, player.pos.z - s.z) < 4.5;
+  b.style.display = ok ? 'block' : 'none'; if (!ok) return;
+  b.textContent = S.comps.length >= compCap() ? '床位不够（海岛上多放一张床）' : s.req === 'med' ? '给医疗包，带' + s.c.n + '回家' : s.req === 'food' ? '给一份熟食，带' + s.c.n + '回家' : '带' + s.c.n + '回家'; }
+function recruitAct() {
+  const s = SOS.s; if (!s || !s.safe) return;
+  if (S.comps.length >= compCap()) { feed('海岛上没床位了：在海岛放一张「床」，每张床多住 1 个同伴（最多 6 个）', '#ff9b8a'); return; }
+  if (s.req === 'med') { if (matHave('med') < 1) { feed('你身上没有医疗包', '#ff9b8a'); return; } matAdd('med', -1); }
+  if (s.req === 'food') { const k = FOOD_KEYS.find(f => matHave(f) > 0); if (!k) { feed('你身上没有熟食（去锅炉做一份）', '#ff9b8a'); return; } matAdd(k, -1); }
+  const c = s.c; c.mode = S.comps.filter(q => q.mode === 'follow').length >= 2 ? 'home' : 'follow'; c.hp = compMax(c); S.comps.push(c);
+  const x = s.x, z = s.z; scene.remove(s.h.g); SOS.s = null; SOS.t = rand(200, 360); recruitBtn();
+  burst(x, 1.2, z, 0x9fe8a0, 16, 4); sfx.build();
+  banner(c.role + ' ' + c.n + ' 加入了！', c.mode === 'follow' ? '会跟着你战斗，回海岛后每天还会帮你干活' : '已经坐船回海岛了，每天会帮你干活', 3.5);
+  if (c.mode === 'follow') { const P = compSpawn(c); P.pos.set(x, 0, z); }
+  compHud(true); refreshHud(); saveGame();
+}
+
+/* ---- companions in the world ---- */
+function compsTick(dt) {
+  if (!S.started) return; try { sosTick(dt); } catch (e) { }
+  for (const c of S.comps) { const want = S.isl || (c.mode === 'follow' && !S.dead); if (want && !COMPS.has(c.id)) compSpawn(c); else if (!want && COMPS.has(c.id)) compDespawn(c.id); }
+  for (const [id, P] of COMPS) { if (!S.comps.includes(P.c)) { compDespawn(id); continue; } compUpdate(P, dt); }
+  compDaily(); compHud();
+}
+function compUpdate(P, dt) {
+  const c = P.c, mx = compMax(c); if (c.hp == null || c.hp > mx) c.hp = Math.min(mx, c.hp == null ? mx : c.hp);
+  const home = S.isl && c.mode === 'home', raid = S.isl && typeof ID !== 'undefined' && ID.on;
+  // a target: the nearest hostile near you (following) or near them (at home during a raid)
+  let tgt = null, bd = 15; const cx = home ? P.pos.x : player.pos.x, cz = home ? P.pos.z : player.pos.z;
+  if (!S.dead && (!S.isl || raid)) for (const z of zombies) { if (z.dead || (z.animal && !(z.angry > 0 || z.hostile))) continue; if (Math.hypot(z.pos.x - cx, z.pos.z - cz) > 16) continue; const d = Math.hypot(z.pos.x - P.pos.x, z.pos.z - P.pos.z); if (d < bd) { bd = d; tgt = z; } }
+  let tx, tz, speed = 0;
+  if (home && !tgt) { P.wt -= dt; if (P.wt <= 0 || P.wx == null) { P.wt = rand(4, 9); P.wx = HOME.x + rand(-7, 7); P.wz = HOME.z + rand(-7, 7); } tx = P.wx; tz = P.wz; speed = 1.6; c.hp = Math.min(mx, c.hp + mx * .03 * dt); }
+  else if (!home) { const dP = Math.hypot(player.pos.x - P.pos.x, player.pos.z - P.pos.z); if (dP > 30) { const a = player.face + Math.PI; P.pos.set(player.pos.x + Math.sin(a) * 2.5, 0, player.pos.z + Math.cos(a) * 2.5); }
+    const slot = (c.id.charCodeAt(c.id.length - 1) % 2 ? 1 : -1), a = player.face + Math.PI + slot * .8; tx = player.pos.x + Math.sin(a) * 3; tz = player.pos.z + Math.cos(a) * 3;
+    const dd = Math.hypot(tx - P.pos.x, tz - P.pos.z); speed = dd < .7 ? 0 : Math.min(11, moveSpeed() * (S.sprint ? 1.8 : 1.1) * (dd > 5 ? 1.3 : 1)); if (S.t - (S.lastHit || -99) > 5) c.hp = Math.min(mx, c.hp + mx * .012 * dt); }
+  else { tx = P.pos.x; tz = P.pos.z; }
+  // shoot
+  if (tgt) { const d = Math.hypot(tgt.pos.x - P.pos.x, tgt.pos.z - P.pos.z); P.face = Math.atan2(tgt.pos.x - P.pos.x, tgt.pos.z - P.pos.z); P.cd -= dt;
+    if (P.cd <= 0 && d < 15) { P.cd = rand(.75, 1.05); const dx = (tgt.pos.x - P.pos.x) / (d || 1), dz = (tgt.pos.z - P.pos.z) / (d || 1);
+      try { tracer(P.pos.x + dx * .7, 1.45, P.pos.z + dz * .7, tgt.pos.x, 1.3, tgt.pos.z, 0xbff7c8); sfxNoise(.05, .05, 1400, { pan: 0 }); } catch (e) { }
+      const was = tgt.dead; hurtZombie(tgt, compDmg(c) * (Math.random() < .1 ? 2 : 1), dx, dz); if (!was && tgt.dead) compXp(c, 1); }
+    if (!home && d < 6) speed = 0; }
+  // hurt by zombies next to them
+  P.hurtCd -= dt; if (P.hurtCd <= 0) { P.hurtCd = 1.2; for (const z of zombies) { if (z.dead || (z.animal && !z.hostile)) continue; if (Math.hypot(z.pos.x - P.pos.x, z.pos.z - P.pos.z) < 1.5) { c.hp -= (z.dmg || 8) * .45; burst(P.pos.x, 1, P.pos.z, 0xb02030, 3, 2); break; } } }
+  if (c.hp <= 0) { c.hp = Math.round(mx * .3); c.mode = 'home'; compDespawn(c.id); banner(c.n + ' 受了重伤', '先回海岛养伤（在「同伴」里可以再叫上）', 3); compHud(true); saveGame(); return; }
+  // the medic patches you up
+  if (c.role === '药师' && !home && !S.dead) { P.healT -= dt; if (P.healT <= 0 && S.hp < S.maxHp * .9) { P.healT = 6; S.hp = Math.min(S.maxHp, S.hp + S.maxHp * .05); burst(player.pos.x, 1.6, player.pos.z, 0x7fe0a0, 6, 2); refreshHud(); } }
+  // move
+  if (speed > 0 && tx != null) { const ex = tx - P.pos.x, ez = tz - P.pos.z, e = Math.hypot(ex, ez) || 1, ox = P.pos.x, oz = P.pos.z; if (e > .3) { const st = Math.min(e, speed * dt); P.pos.x += ex / e * st; P.pos.z += ez / e * st; collide(P.pos, .35);
+      if (!S.isl && typeof deepAt === 'function' && deepAt(P.pos.x, P.pos.z)) { P.pos.x = ox; P.pos.z = oz; } if (!tgt) P.face = Math.atan2(ex, ez); P.walk += dt * 9; } }
+  else P.walk = 0;
+  const sw = Math.sin(P.walk) * .55 * (speed > 0 ? 1 : 0); P.h.legL.rotation.x = sw; P.h.legR.rotation.x = -sw; P.h.armR.rotation.x = tgt ? -1.45 : -.2; P.h.armL.rotation.x = tgt ? -1.2 : -sw * .5;
+  P.g.rotation.y = P.face;
+}
+function compXp(c, n) { c.xp = (c.xp || 0) + n; const need = 8 + c.lv * 6; if (c.xp >= need && c.lv < 20) { c.xp -= need; c.lv++; c.hp = compMax(c); banner(c.n + ' 升到 ' + c.lv + ' 级', '伤害和生命都提高了', 2.6); saveGame(); } }
+// every day, companions at home bring in what their trade makes (collect on the island)
+function compReady() { const d = dateKey(); return S.comps.filter(c => c.mode === 'home' && c.day !== d); }
+let _crT = 0;
+function compDaily() { if (!S.isl || S.t < _crT) return; _crT = S.t + 5; if (compReady().length && !S._crSaid) { S._crSaid = true; feed('同伴们今天的收获可以领了（点「同伴」）', '#bff7c8'); } }
+function compCollect() { const d = dateKey(), got = {}; let fixed = 0;
+  for (const c of compReady()) { c.day = d; for (const [k, n0] of COMP_ROLES[c.role].give()) { const n = Math.round(n0 * (1 + (c.lv - 1) * .08)); gain(k, n); got[k] = (got[k] || 0) + n; }
+    if (c.role === '木匠') for (const b of builds) if (b.broken) { try { buildFix(b); fixed++; } catch (e) { } } }
+  const txt = Object.keys(got).map(k => (k === 'coin' ? '余烬币' : k === 'ammo' ? '弹药' : k === 'med' ? '医疗包' : (ITEMS[k] && ITEMS[k].n) || k) + ' ×' + got[k]).join('、');
+  if (txt) banner('同伴的收获', txt + (fixed ? ' · 木匠修好了 ' + fixed + ' 个建筑' : ''), 4); S._crSaid = false; sfx.build(); refreshHud(); saveGame(); renderComps(); }
+
+/* ---- HUD chip, panel, map ---- */
+let _cKey = '';
+function compHud(force) { const b = $('bComp'); if (!b) return; const f = S.comps.filter(c => c.mode === 'follow'), key = S.comps.length + '|' + f.map(c => c.n + Math.round(c.hp / compMax(c) * 10)).join() + '|' + compReady().length;
+  if (!force && key === _cKey) return; _cKey = key; b.style.display = S.comps.length ? 'flex' : 'none';
+  b.innerHTML = '<b>👥</b><span>' + (f.length ? f.map(c => c.n).join('·') : '同伴 ×' + S.comps.length) + '</span>' + (compReady().length && S.isl ? '<i class="cdot"></i>' : ''); }
+function renderComps() {
+  const box = $('compList'); if (!box) return; box.innerHTML = '';
+  const note = t => { const n = document.createElement('div'); n.className = 'snote'; n.textContent = t; box.appendChild(n); };
+  note('床位 ' + S.comps.length + ' / ' + compCap() + ' · 海岛上每放一张「床」多住 1 个（最多 6 个）· 最多 2 个同时跟着你');
+  if (!S.comps.length) { note('还没有同伴。在野外听到求救（地图上红色的「救」）就赶过去，清掉周围的丧尸，再和幸存者说话。'); return; }
+  const rd = compReady();
+  if (rd.length) { const r = shopRow('今天的收获', rd.map(c => c.n).join('、') + ' 带回了东西', '#bff7c8'); const b = document.createElement('button'); b.className = 'sbtn'; b.textContent = S.isl ? '领取' : '回海岛领取'; b.disabled = !S.isl; b.addEventListener('click', compCollect); r.appendChild(b); box.appendChild(r); }
+  S.comps.forEach(c => { const R = COMP_ROLES[c.role], mx = compMax(c);
+    const row = shopRow(c.role + ' ' + c.n + ' · Lv.' + c.lv, '生命 ' + Math.ceil(c.hp) + '/' + mx + ' · 伤害 ' + Math.round(compDmg(c)) + ' · ' + R.d + ' · 留守时：' + R.job, c.mode === 'follow' ? '#bff7c8' : '#c1a597');
+    const btn = (t, cls, fn, dis) => { const b = document.createElement('button'); b.className = 'sbtn ' + (cls || ''); b.textContent = t; b.disabled = !!dis; b.addEventListener('click', fn); row.appendChild(b); };
+    btn('跟我走', '', () => { if (S.comps.filter(q => q.mode === 'follow').length >= 2) { feed('最多 2 个同伴同时跟着你', '#ff9b8a'); return; } c.mode = 'follow'; compHud(true); renderComps(); saveGame(); }, c.mode === 'follow');
+    btn('留守海岛', 'ghostb', () => { c.mode = 'home'; compDespawn(c.id); compHud(true); renderComps(); saveGame(); }, c.mode === 'home');
+    let armed = 0; btn('请离开', 'ghostb', e => { if (!armed) { armed = 1; e.target.textContent = '再点一次确认'; setTimeout(() => { armed = 0; e.target.textContent = '请离开'; }, 3000); return; } const i = S.comps.indexOf(c); if (i >= 0) S.comps.splice(i, 1); compDespawn(c.id); feed(c.n + ' 离开了', '#c1a597'); compHud(true); renderComps(); saveGame(); });
+    box.appendChild(row); });
+}
+drawExtraRadar = (orig => function (tx, tz, edgeMark) { orig(tx, tz, edgeMark); try { const k = _mapK || 2, s = SOS.s;
+  if (s && !S.isl) { edgeMark({ x: s.x, z: s.z }, '#ff4a4a'); mapPin(mctx, tx(s.x), tz(s.z), 6 * k * (1 + Math.sin(S.t * 6) * .12), '#ff4a4a', '救', k); }
+  for (const [, P] of COMPS) { mctx.fillStyle = '#0c1a10'; mctx.beginPath(); mctx.arc(tx(P.pos.x), tz(P.pos.z), 3.4 * k, 0, 7); mctx.fill(); mctx.fillStyle = '#7fe0a0'; mctx.beginPath(); mctx.arc(tx(P.pos.x), tz(P.pos.z), 2.4 * k, 0, 7); mctx.fill(); } } catch (e) { } })(drawExtraRadar);
+// save
+function compSave() { return S.comps.map(c => ({ id: c.id, n: c.n, role: c.role, lv: c.lv, xp: c.xp | 0, hp: Math.round(c.hp || 0), mode: c.mode, seed: c.seed | 0, day: c.day || '' })); }
+function compLoad(a) { S.comps = []; for (const c of Array.isArray(a) ? a : []) { if (!c || !COMP_ROLES[c.role]) continue; S.comps.push({ id: String(c.id).slice(0, 20), n: cleanName(c.n) || '幸存者', role: c.role, lv: clamp(c.lv | 0, 1, 20), xp: c.xp | 0, hp: +c.hp || 0, mode: c.mode === 'follow' ? 'follow' : 'home', seed: c.seed | 0, day: String(c.day || '') }); }
+  let f = 0; S.comps.forEach(c => { if (c.mode === 'follow' && ++f > 2) c.mode = 'home'; }); for (const id of [...COMPS.keys()]) compDespawn(id); }
+shopSave = (o => function () { const r = o(); try { r.cp = compSave(); } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); try { compLoad(d && d.sh && d.sh.cp); } catch (e) { S.comps = []; } })(shopLoad);
+// hook into the game loop (after the pets) and build the UI
+petsTick = (o => function (dt) { o(dt); try { compsTick(dt); } catch (e) { } })(petsTick);
+{ const t = $('bTame'); if (t && t.parentNode) { const b = document.createElement('button'); b.className = 'btn2'; b.id = 'bRecruit'; t.parentNode.appendChild(b); b.addEventListener('click', recruitAct); }
+  const pb = $('bPet'); if (pb && pb.parentNode) { const c = document.createElement('button'); c.id = 'bComp'; c.setAttribute('aria-label', '同伴'); pb.parentNode.insertBefore(c, pb.nextSibling);
+    c.addEventListener('click', () => { if (!S.started || S.dead || S.paused) return; audioInit(); openPanel('comp', renderComps); }); }
+  const o = document.createElement('div'); o.className = 'overlay scroll'; o.id = 'comp'; o.innerHTML = '<h2>同伴</h2><div id="compList" class="slist"></div>';
+  const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => closePanel('comp')); o.appendChild(x);
+  if (document.body && document.body.appendChild) document.body.appendChild(o); }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -10593,4 +10767,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794080613').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794081187').catch(()=>{});</script></body></html>
