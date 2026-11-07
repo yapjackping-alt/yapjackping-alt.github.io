@@ -9412,14 +9412,20 @@ try { FB.email = localStorage.getItem('ember_gmail') || ''; } catch (e) { }
       .catch(e => { try { banner('Google 登录失败', String(e.message || e).slice(0, 60), 4); } catch (er) { } }); }
   else if (/[#&]error=/.test(h)) history.replaceState(null, '', location.pathname + location.search); }
 
-// tester code: tap the 「选择角色」 title 5 times, enter the code → this device gets the free test shop (and leaves the leaderboard)
+// tester code: type it as a new character's name (or tap the 「选择角色」 title 5 times) → this device gets the free test shop and leaves the leaderboard
 { const h = s => { let x = 5381; for (const c of s) x = ((x * 33) ^ c.charCodeAt(0)) >>> 0; return x; };
+  const isCode = v => h(String(v || '').trim().toLowerCase()) === 755785216;
+  const toggle = () => { try { if (DEV_ON) localStorage.removeItem('ember_dev'); else localStorage.setItem('ember_dev', '1'); } catch (e) { }
+    const m = document.createElement('div'); m.className = 'overlay show'; m.style.cssText = 'z-index:99;background:#140b12;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px';
+    m.innerHTML = '<h2>' + (DEV_ON ? '测试号已关闭' : '测试号已开启') + '</h2><div class="snote">' + (DEV_ON ? '这台手机回到正常版本' : '商城免费、晶石无限，这台手机不上排行榜') + '</div><div class="snote">正在重新载入…</div>';
+    document.body.appendChild(m); setTimeout(() => location.reload(), 1600); };
+  const go = $('newGo'), nm = $('newName');
+  const trap = e => { if (nm && isCode(nm.value)) { e.preventDefault(); e.stopImmediatePropagation(); nm.value = ''; toggle(); } };
+  if (go) go.addEventListener('click', trap, true);
+  if (nm) nm.addEventListener('keydown', e => { if (e.key === 'Enter') trap(e); }, true);
   let n = 0, t0 = 0; const hd = document.querySelector && document.querySelector('#chars h2');
-  if (hd) hd.addEventListener('click', () => { const now = Date.now(); n = now - t0 < 1500 ? n + 1 : 1; t0 = now; if (n < 5) return; n = 0;
-    if (DEV_ON) { if (confirm('关闭测试号？这台手机会回到正常版本。')) { try { localStorage.removeItem('ember_dev'); } catch (e) { } location.reload(); } return; }
-    const c = prompt('测试码'); if (!c) return;
-    if (h(c.trim().toLowerCase()) === 755785216) { try { localStorage.setItem('ember_dev', '1'); } catch (e) { } alert('测试号已开启：商城免费，不上排行榜。'); location.reload(); }
-    else alert('测试码不对'); }); }
+  if (hd) hd.addEventListener('click', () => { const now = Date.now(); n = now - t0 < 2500 ? n + 1 : 1; t0 = now; if (n < 5) return; n = 0;
+    if (DEV_ON) { toggle(); return; } if (nm) { nm.focus(); nm.placeholder = '在这里输入测试码，再点「新建角色」'; } }); }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -10367,4 +10373,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794070015').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794070632').catch(()=>{});</script></body></html>
