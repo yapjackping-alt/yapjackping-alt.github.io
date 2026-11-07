@@ -9292,6 +9292,77 @@ function mythSwing(K) {
     fxSpark(x + Math.sin(a) * r, y - .2 + Math.random() * .8, z + Math.cos(a) * r, [cols[0], cols[1], 0xffffff][i % 3], { sp: 1, life: .45 + Math.random() * .35, s: 2 + Math.random() * 1.8 }); }
   if (K.key === 'galaxy') for (let i = 0; i < 6; i++) { const a = f + (i / 5 - .5) * 1.8, r = 1.6; fxPiece(G.oct, i % 2 ? 0xffffff : 0x7ff0ff, x + Math.sin(a) * r, y, z + Math.cos(a) * r, .55, (k, m) => { m.scale.setScalar(2.6 * (1 - k) + .3); m.rotation.y = k * 9; m.position.y = y + k * .6; m.material.opacity = 1 - k; }); }
 }
+/* ============ 全球排行榜 (Firebase, free Spark plan) ============
+   Guest login: each device gets an anonymous Firebase account (no password, nothing to type).
+   Plain REST calls, no SDK to download. Every character puts one row in Firestore "lb":
+   name, level, combat power, kills, best endless wave. Works in the iPhone home-screen version and the Android app. */
+const FB = { key: 'AIzaSyBcRX3R6HB9fmNPUYul9zZOI6KyyOXkXgI', proj: 'emberdoom', uid: null, tok: null, rt: null, exp: 0, ok: false, err: '', last: '', rows: {}, mine: {}, busy: false, sort: 'cp' };
+const FB_DOCS = 'https://firestore.googleapis.com/v1/projects/' + FB.proj + '/databases/(default)/documents';
+try { const s = JSON.parse(localStorage.getItem('ember_fb') || 'null'); if (s && s.uid && s.rt) { FB.uid = s.uid; FB.rt = s.rt; } } catch (e) { }
+function fbStore() { try { localStorage.setItem('ember_fb', JSON.stringify({ uid: FB.uid, rt: FB.rt })); } catch (e) { } }
+async function fbJson(url, opt) { const r = await fetch(url, opt); const j = await r.json().catch(() => ({})); if (!r.ok) { const m = (j.error && (j.error.message || j.error.status)) || ('HTTP ' + r.status); throw new Error(m); } return j; }
+// a valid id token: sign up once as a guest, then refresh it when it runs out (an hour)
+async function fbToken() {
+  if (FB.tok && Date.now() < FB.exp - 60000) return FB.tok;
+  if (FB.rt) { try { const j = await fbJson('https://securetoken.googleapis.com/v1/token?key=' + FB.key, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(FB.rt) });
+      FB.tok = j.id_token; FB.rt = j.refresh_token || FB.rt; FB.uid = j.user_id || FB.uid; FB.exp = Date.now() + (+j.expires_in || 3600) * 1000; fbStore(); FB.ok = true; return FB.tok; } catch (e) { if (!/TOKEN_EXPIRED|USER_NOT_FOUND|USER_DISABLED|INVALID_REFRESH_TOKEN/.test(e.message)) throw e; FB.rt = null; } }
+  const j = await fbJson('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + FB.key, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ returnSecureToken: true }) });
+  FB.tok = j.idToken; FB.rt = j.refreshToken; FB.uid = j.localId; FB.exp = Date.now() + (+j.expiresIn || 3600) * 1000; fbStore(); FB.ok = true; return FB.tok;
+}
+const fbDocId = () => (FB.uid + '_' + String(Acct.cur || 'c0')).replace(/[^\w-]/g, '').slice(0, 80);
+function fbRow() { let cp = 0; try { cp = combatPower() | 0; } catch (e) { } let w = 0; try { seaEnsure(); w = S.sea.best | 0; } catch (e) { }
+  return { n: (cleanName(S.name) || '幸存者').slice(0, 16), lv: S.level | 0, cp, k: S.kills | 0, w, t: Date.now() }; }
+async function fbSubmit(force) {
+  if (!S.started) return; const R = fbRow(), sig = [R.n, R.lv, R.cp, R.k, R.w].join('|'); if (!force && sig === FB.last) return;
+  try { const tok = await fbToken(), F = {}; for (const k in R) F[k] = k === 'n' ? { stringValue: R[k] } : { integerValue: String(R[k]) };
+    await fbJson(FB_DOCS + '/lb/' + fbDocId(), { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify({ fields: F }) });
+    FB.last = sig; FB.err = ''; FB.mine = R; } catch (e) { FB.err = String(e.message || e); console.warn('fb', e); }
+}
+const fbVal = v => v ? (v.integerValue != null ? +v.integerValue : v.doubleValue != null ? +v.doubleValue : v.stringValue != null ? v.stringValue : 0) : 0;
+async function fbLoad(sort) {
+  if (FB.busy) return; FB.busy = true; sort = sort || FB.sort;
+  try { const tok = await fbToken().catch(() => null), H = { 'Content-Type': 'application/json' }; if (tok) H.Authorization = 'Bearer ' + tok;
+    await fbSubmit(true);
+    const j = await fbJson(FB_DOCS + ':runQuery', { method: 'POST', headers: H, body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'lb' }], orderBy: [{ field: { fieldPath: sort }, direction: 'DESCENDING' }], limit: 50 } }) });
+    FB.rows[sort] = (j || []).filter(x => x.document).map(x => { const f = x.document.fields || {}, o = { id: x.document.name.split('/').pop() }; for (const k in f) o[k] = fbVal(f[k]); return o; });
+    const me = fbRow()[sort];
+    try { const a = await fbJson(FB_DOCS + ':runAggregationQuery', { method: 'POST', headers: H, body: JSON.stringify({ structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: 'lb' }], where: { fieldFilter: { field: { fieldPath: sort }, op: 'GREATER_THAN', value: { integerValue: String(me) } } } }, aggregations: [{ alias: 'n', count: {} }] } }) });
+      FB.rank = FB.rank || {}; FB.rank[sort] = 1 + fbVal(a[0] && a[0].result && a[0].result.aggregateFields && a[0].result.aggregateFields.n); } catch (e) { }
+    FB.err = ''; } catch (e) { FB.err = String(e.message || e); }
+  FB.busy = false; if (hubTab === 'rank' && $('hub').classList.contains('show')) renderHub();
+}
+// keep my row fresh: shortly after starting, then every 90 s (only when something changed), and when the app goes to the background
+setTimeout(() => setInterval(() => { if (S.started && !document.hidden) fbSubmit(); }, 90000), 8000);
+setInterval(() => { if (S.started && !FB.first) { FB.first = 1; fbSubmit(true); } }, 5000);
+document.addEventListener('visibilitychange', () => { if (document.hidden && S.started) fbSubmit(); });
+const FB_SORT = [['cp', '战力'], ['lv', '等级'], ['k', '击杀'], ['w', '尸潮']];
+function fbErrTxt(e) { if (/fetch|network|Load failed|NetworkError/i.test(e)) return '连不上排行榜服务器（网页预览版不支持，请用主屏版或安卓 App，并确认有网络）';
+  if (/ADMIN_ONLY_OPERATION|OPERATION_NOT_ALLOWED/.test(e)) return '服务器还没开启「匿名登录」（Firebase → Authentication → 登录方法 → 匿名）';
+  if (/PERMISSION_DENIED|permission/i.test(e)) return '服务器规则不允许写入（Firestore → 规则，照指南粘贴）';
+  if (/NOT_FOUND|database/i.test(e)) return '服务器还没建 Firestore 数据库'; return '排行榜暂时读不到：' + e.slice(0, 60); }
+function fbRender(box, h3, note) {
+  const tabs = document.createElement('div'); tabs.className = 'tabs';
+  FB_SORT.forEach(([k, n]) => { const b = document.createElement('button'); b.className = 'sbtn' + (FB.sort === k ? ' on' : ''); b.textContent = n; b.addEventListener('click', () => { FB.sort = k; renderHub(); if (!FB.rows[k]) fbLoad(k); }); tabs.appendChild(b); });
+  box.appendChild(tabs);
+  const unit = { cp: '战力', lv: '级', k: '击杀', w: '波' }[FB.sort], R = fbRow(), rk = FB.rank && FB.rank[FB.sort];
+  h3('全球排行 · ' + FB_SORT.find(x => x[0] === FB.sort)[1]);
+  hubRow(box, '我：' + R.n + (rk ? ' · 第 ' + rk + ' 名' : ''), (FB.sort === 'lv' ? 'Lv.' + R.lv : R[FB.sort] + ' ' + unit) + ' · 游客账号' + (FB.uid ? ' ' + FB.uid.slice(0, 6) : '（未登录）'), '#7de0ff', '刷新', () => fbLoad(FB.sort), FB.busy);
+  const rows = FB.rows[FB.sort];
+  if (FB.err) note(fbErrTxt(FB.err));
+  if (rows && rows.length) rows.forEach((r, i) => { const me = r.id === fbDocId(); hubRow(box, (i < 3 ? ['🥇', '🥈', '🥉'][i] : '#' + (i + 1)) + ' ' + cleanName(r.n || '?') + (me ? '（我）' : ''), 'Lv.' + (r.lv | 0) + ' · 战力 ' + (r.cp | 0) + ' · 击杀 ' + (r.k | 0) + (r.w ? ' · 尸潮 ' + r.w + ' 波' : ''), me ? '#7de0ff' : i < 3 ? '#ffc94a' : '#c1a597'); });
+  else if (!FB.err) note(FB.busy ? '排行榜读取中…' : '还没有人上榜，点「刷新」');
+  note('每个设备自动有一个游客账号，不用注册。换手机或删掉 App 会换成新账号。');
+}
+renderHub = (orig => function () {
+  orig(); const box = $('hubList'); if (!box || !box.querySelector) return; const tabs = box.querySelector('.tabs'); if (!tabs) return;
+  if (!tabs.querySelector('[data-rk]')) { const b = document.createElement('button'); b.className = 'sbtn' + (hubTab === 'rank' ? ' on' : ''); b.dataset.rk = 1; b.textContent = '排行';
+    b.addEventListener('click', () => { hubTab = 'rank'; renderHub(); if (!FB.rows[FB.sort]) fbLoad(FB.sort); }); tabs.insertBefore(b, tabs.children[1] || null); }
+  if (hubTab !== 'rank') return;
+  Array.from(box.children).forEach(c => { if (c !== tabs) c.remove(); });
+  const h3 = t => { const h = document.createElement('h3'); h.textContent = t; box.appendChild(h); };
+  const note = t => { const n = document.createElement('div'); n.className = 'snote'; n.textContent = t; box.appendChild(n); };
+  fbRender(box, h3, note);
+})(renderHub);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -10239,4 +10310,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794058618').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794059337').catch(()=>{});</script></body></html>
