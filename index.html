@@ -772,6 +772,7 @@ button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);mar
 @media (orientation:portrait){.skpvbox.pvbox{flex-direction:column;gap:8px;padding:44px 18px 18px;overflow:auto}.pvbox .skpvfig{width:180px;height:240px}.pvbox .skpvt{align-items:center;text-align:center;max-width:none}.pvbox .skpvt em{align-self:center}}
 #qbag{position:absolute;right:0;top:calc(100% + 16px);display:flex;align-items:center;gap:6px;pointer-events:auto}
 #fpDir{position:fixed;top:46%;z-index:30;pointer-events:none;background:rgba(150,10,10,.78);color:#fff;font:800 14px sans-serif;padding:7px 11px;border-radius:10px;animation:fpdp .8s ease-in-out infinite}#fpDir.l{left:10px}#fpDir.r{right:10px}@keyframes fpdp{50%{opacity:.6}}
+#login{background:#140b12;z-index:60}#login .lgbox{display:flex;flex-direction:column;gap:12px;width:min(340px,88vw);margin:14px auto}#login .lgb{display:grid;grid-template-columns:44px 1fr;grid-template-rows:auto auto;column-gap:12px;text-align:left;align-items:center;padding:14px 16px;border-radius:14px;border:1px solid rgba(255,190,140,.35);background:rgba(30,18,24,.85);color:#fff2e4;font:inherit}#login .lgb b{font-size:17px}#login .lgb small{grid-column:2;color:#c1a597;font-size:12px}#login .lgi{grid-row:1/3;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;background:#ff8a3a}#login .lgg{background:#fff;color:#4285f4;font-weight:900}#login .lgb.off{opacity:.55}#lgSwitch{display:block;margin:6px auto 0}
 #qbag .viewbtn .vic{font-size:20px;line-height:24px}#qbag .viewbtn small{font-size:8.5px!important;letter-spacing:0!important;white-space:nowrap}#qbag .viewbtn.pulse{animation:vpulse 1s ease-in-out infinite}@keyframes vpulse{50%{box-shadow:0 0 0 6px rgba(125,224,255,.45)}}
 #qbag .bagbtn{width:48px!important;height:48px!important;transform:none!important}#qbag .bagbtn .bagic{width:30px!important;height:30px!important;margin-top:0}#qbag .bagbtn small{font-size:9.5px;letter-spacing:.1em}
 /* phone held upright: the tray drops down under the map instead of covering the health bar */
@@ -5044,7 +5045,7 @@ async function acctInit() {
   // the page reloads whenever the game is updated (and that empties the co-op room): drop straight back into the
   // character you were playing, where you were, and rejoin the same room, instead of starting over at the title
   try { const rs = JSON.parse(lsGet('ember_live') || 'null'); const c = rs && Date.now() - rs.t < 30 * 60000 && Acct.chars.find(x => x.id === rs.id);
-    if (c && !worldEntered) { $('start').classList.remove('show'); $('chars').classList.remove('show'); startChar(c); setTimeout(() => banner('游戏更新了', '已经自动回到刚才的位置' + (MP.code ? '，并重新加入房间 ' + MP.code : ''), 3.5), 1500); } } catch (e) { }
+    if (c && !worldEntered && !window.EMBER_APP) { $('start').classList.remove('show'); $('chars').classList.remove('show'); startChar(c); setTimeout(() => banner('游戏更新了', '已经自动回到刚才的位置' + (MP.code ? '，并重新加入房间 ' + MP.code : ''), 3.5), 1500); } } catch (e) { }
 }
 function markLive() { if (Acct.cur && S.started) lsSet('ember_live', JSON.stringify({ id: Acct.cur, t: Date.now() })); }
 // save right away when the page is hidden or closed (an update reload, switching apps)
@@ -9363,6 +9364,51 @@ renderHub = (orig => function () {
   const note = t => { const n = document.createElement('div'); n.className = 'snote'; n.textContent = t; box.appendChild(n); };
   fbRender(box, h3, note);
 })(renderHub);
+
+/* ---- 登录方式: guest or Google, chosen on the first start (the iPhone / Android versions open on the title, then this) ---- */
+// Google: the web OAuth client id from Firebase → Authentication → Google → Web SDK 配置 (empty = not set up yet)
+const GCID = '';
+const fbMode = () => { try { return localStorage.getItem('ember_login') || ''; } catch (e) { return ''; } };
+const gOk = () => !!GCID && !(window.EMBER_APP && /Android/i.test(navigator.userAgent));   // Google blocks sign-in inside the Android app's web view
+function loginShow() {
+  let o = $('login');
+  if (!o) { o = document.createElement('div'); o.className = 'overlay'; o.id = 'login';
+    o.innerHTML = '<h2>选择登录方式</h2><div class="lgbox">'
+      + '<button class="lgb" id="lgGuest"><span class="lgi">👤</span><b>游客登录</b><small>不用注册，马上开始。成绩会进全球排行榜</small></button>'
+      + '<button class="lgb" id="lgGoogle"><span class="lgi lgg">G</span><b>Google 登录</b><small id="lgGTxt"></small></button>'
+      + '</div><div class="snote" id="lgNote">以后可以在「选择角色」页面上方切换登录方式</div>';
+    document.body.appendChild(o);
+    $('lgGuest').addEventListener('click', () => { try { localStorage.setItem('ember_login', 'guest'); } catch (e) { } loginDone(); fbToken().catch(() => { }); });
+    $('lgGoogle').addEventListener('click', () => { if (!gOk()) { feed(window.EMBER_APP && /Android/i.test(navigator.userAgent) ? '安卓版的 Google 登录下个版本开放，先用游客登录' : 'Google 登录还在设置中，先用游客登录', '#ffc94a'); return; } gLogin(); }); }
+  $('lgGTxt').textContent = gOk() ? '换手机也能保住账号' : '即将开放';
+  $('lgGoogle').classList.toggle('off', !gOk());
+  $('chars').classList.remove('show'); $('start').classList.remove('show'); o.classList.add('show');
+}
+function loginDone() { const o = $('login'); if (o) o.classList.remove('show'); $('chars').classList.add('show'); renderChars(); }
+$('goStart').addEventListener('click', () => { if (!fbMode()) loginShow(); });
+// the account line on the character screen
+renderChars = (orig => function () { orig(); try { const n = $('acctNote'); if (!n) return; const m = fbMode();
+  n.textContent = (m === 'google' ? 'Google 账号' + (FB.email ? '：' + FB.email : '') : '游客账号' + (FB.uid ? ' · ID ' + FB.uid.slice(0, 6) : '')) + ' · 角色存档保存在这台手机上';
+  let b = $('lgSwitch'); if (!b) { b = document.createElement('button'); b.id = 'lgSwitch'; b.className = 'sbtn ghostb'; b.textContent = '切换登录方式'; b.addEventListener('click', loginShow); n.parentNode.insertBefore(b, n.nextSibling); } } catch (e) { } })(renderChars);
+// Google sign-in without any SDK: go to Google, come back with an id token in the address, hand it to Firebase.
+// A guest account is upgraded (linked) so its leaderboard rows stay; if that Google account already exists, switch to it.
+function gLogin() { const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36); try { localStorage.setItem('ember_gnonce', nonce); } catch (e) { }
+  const back = location.origin + location.pathname;
+  location.href = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=' + encodeURIComponent(GCID) + '&redirect_uri=' + encodeURIComponent(back) + '&response_type=id_token&scope=' + encodeURIComponent('openid email profile') + '&nonce=' + nonce + '&prompt=select_account'; }
+async function gFinish(idt) {
+  const body = (tok) => JSON.stringify(Object.assign({ postBody: 'id_token=' + idt + '&providerId=google.com', requestUri: location.origin, returnSecureToken: true, returnIdpCredential: true }, tok ? { idToken: tok } : {}));
+  const url = 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=' + FB.key; let j;
+  try { const tok = FB.rt ? await fbToken().catch(() => null) : null; j = await fbJson(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body(tok) }); }
+  catch (e) { if (!/FEDERATED_USER_ID_ALREADY_LINKED|CREDENTIAL_ALREADY_IN_USE|EMAIL_EXISTS/.test(e.message)) throw e; j = await fbJson(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body(null) }); }
+  FB.tok = j.idToken; FB.rt = j.refreshToken; FB.uid = j.localId; FB.exp = Date.now() + (+j.expiresIn || 3600) * 1000; FB.email = j.email || ''; fbStore();
+  try { localStorage.setItem('ember_login', 'google'); localStorage.setItem('ember_gmail', FB.email); } catch (e) { }
+}
+try { FB.email = localStorage.getItem('ember_gmail') || ''; } catch (e) { }
+{ const h = location.hash || ''; const m = /[#&]id_token=([^&]+)/.exec(h);
+  if (m) { history.replaceState(null, '', location.pathname + location.search);
+    gFinish(decodeURIComponent(m[1])).then(() => { try { banner('Google 登录成功', FB.email || '', 3); } catch (e) { } try { $('start').classList.remove('show'); $('chars').classList.add('show'); renderChars(); } catch (e) { } })
+      .catch(e => { try { banner('Google 登录失败', String(e.message || e).slice(0, 60), 4); } catch (er) { } }); }
+  else if (/[#&]error=/.test(h)) history.replaceState(null, '', location.pathname + location.search); }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -10310,4 +10356,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794059337').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794061646').catch(()=>{});</script></body></html>
