@@ -4230,7 +4230,7 @@ function updateBuilds(dt) {
 
 /* ---- build menu & ghost placement ---- */
 const buildEl = $('build'), bPlaceEl = $('bPlace'), bRotEl = $('bRot');
-let buildRot = 0, hilite = null, buildAnchor = null;   // buildRot: quarter turns (furniture & fences); buildAnchor: where you tapped
+let buildRot = 0, hilite = null, buildAnchor = null, buildTap = null;   // buildTap: the screen point you last touched (to pick the piece you can see)   // buildRot: quarter turns (furniture & fences); buildAnchor: where you tapped
 const isHomeFire = b => !!b.home;
 function buildCards() {
   buildEl.innerHTML = '';
@@ -4299,7 +4299,7 @@ function aimPoint() {
 }
 function onBuildPointer(e) {
   if (!buildOpen || S.paused || S.dead || (typeof fpOn === 'function' && fpOn())) return; if (e.type === 'pointermove' && !(e.buttons & 1) && e.pointerType === 'mouse') return;
-  const p = groundAt(e.clientX, e.clientY); if (p) buildAnchor = { x: p.x, z: p.z };
+  const p = groundAt(e.clientX, e.clientY); if (p) buildAnchor = { x: p.x, z: p.z }; buildTap = { x: e.clientX, y: e.clientY };
 }
 canvas.addEventListener('pointerdown', onBuildPointer); canvas.addEventListener('pointermove', onBuildPointer);
 function footprint(T, rot) { const swap = Math.abs(Math.sin(rot)) > .7; return { hw: swap ? T.hd : T.hw, hd: swap ? T.hw : T.hd }; }
@@ -4408,8 +4408,20 @@ function ghostTransform() {
     rot = Math.round(Math.atan2(tp.x - x, tp.z - z) / (Math.PI / 2)) * (Math.PI / 2); ok = ok && spotOk(T, x, z, rot); }
   return { x, z, rot, ok, snapped };
 }
-// what the demolish tool points at: small things first, floors last
+// the building you can actually see under your finger (or the crosshair): a ray from the camera, the first piece it hits.
+// Before, the tap was projected to the ground, which lands BEHIND a wall, so the piece behind got picked.
+const _pickRay = new THREE.Raycaster(), _pickV = new THREE.Vector2();
+function pickBuild(ok) {
+  try { let sx, sy; const fp = typeof fpOn === 'function' && fpOn(); if (fp) { sx = window.innerWidth / 2; sy = window.innerHeight / 2; } else if (buildTap) { sx = buildTap.x; sy = buildTap.y; } else return null;
+    const r = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    _pickV.set(((sx - r.left) / r.width) * 2 - 1, -((sy - r.top) / r.height) * 2 + 1); _pickRay.setFromCamera(_pickV, camera);
+    const list = builds.filter(b => b.g && b.hp > 0 && ok(b) && Math.hypot(b.x - player.pos.x, b.z - player.pos.z) < 40);
+    const hits = _pickRay.intersectObjects(list.map(b => b.g), true); if (!hits.length) return null;
+    for (const h of hits) { let o = h.object; while (o && !list.some(b => b.g === o)) o = o.parent; if (o) return list.find(b => b.g === o); }
+  } catch (e) { } return null; }
+// what the demolish tool points at: the piece under your finger; otherwise the nearest (small things first, floors last)
 function removeTarget() {
+  { const p = pickBuild(b => !isHomeFire(b)); if (p) return p; }
   const aim = aimPoint(); let best = null, bd = 3.6;
   for (const b of builds) { if (isHomeFire(b)) continue; const k = BT[b.type].k, d = Math.hypot(b.x - aim.x, b.z - aim.z) + (k === 'cell' ? 1.4 : k === 'edge' ? .4 : 0); if (d < bd) { bd = d; best = b; } }
   if (S.isl && typeof fixList === 'function') for (const f of fixList()) { if (!f.rem) continue; const d = Math.hypot(f.x - aim.x, f.z - aim.z); if (d < bd) { bd = d; best = f; } }
@@ -8154,6 +8166,7 @@ const ownObs = f => f.fix ? (f.id === 'kennel' ? [KENNEL.o] : f.id === 'pot' ? [
 /* ---- the 移动 tool ---- */
 const MV = { o: null, x0: 0, z0: 0, rot0: 0, x: 0, z: 0, ok: false, hl: null };
 function moveTarget() {
+  { const p = pickBuild(b => BT[b.type].k === 'free'); if (p) return p; }
   const aim = aimPoint(); let best = null, bd = 3.6;
   for (const b of builds) { if (BT[b.type].k !== 'free' || b.hp <= 0) continue; const d = Math.hypot(b.x - aim.x, b.z - aim.z); if (d < bd) { bd = d; best = b; } }
   if (S.isl) for (const f of fixList()) { const d = Math.hypot(f.x - aim.x, f.z - aim.z) - .4; if (d < bd) { bd = d; best = f; } }
@@ -9140,8 +9153,8 @@ SKIN_P.seraph = [
   { pts: 'body', rate: 6, life: 1.4, v: [0, .5, 0], sp: .3, col: [0xffb04a, 0xfff0c0], sz: .045 }];
 
 /* ---- two mythic weapon skins, each for one weapon only ---- */
-WSKINS.phoenix = { only: 'shotgun', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '凤鸣', r: 5, base: 0x6a0c10, mid: 0xc8902a, acc: 0xffd27a, glow: 0xff7a1a, tr: 0xff8a2a, tr2: 0xffd060,
-  d: '深红枪身镶着金色凤纹，枪管两侧展开燃烧的金羽，两道火环绕着枪管旋转；开火时弹丸化作金红色的凤火，命中炸开火羽。' };
+WSKINS.phoenix = { only: 'shotgun', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '凤鸣', r: 5, base: 0xf2e2bc, mid: 0xc81e36, acc: 0xe8c06a, glow: 0xff5a6a, tr: 0xfff1c8, tr2: 0xd8203a,
+  d: '象牙白的枪身绘着朱红凤纹，枪管两侧展开长长的凤羽（米白羽毛、朱红羽纹、金色翎眼），祥云绕着枪管流转；开火时凤羽破云而出，命中处祥云翻涌、金粉飞散。' };
 WSKINS.galaxy = { only: 'blade', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '星河', r: 5, base: 0x101436, mid: 0x3a2a7a, acc: 0xbfe6ff, glow: 0x8a7aff, tr: 0x9a8aff, tr2: 0x7ff0ff,
   d: '刀身是深蓝的夜空，里面流动着一条星河，刀刃泛着青紫色的星光，星辰绕着刀身转；挥刀时洒出一片星屑。' };
 buildWeapon = (orig => function (id, t, skin) { const g = orig(id, t, skin), k = skin !== undefined ? skin : (S.wsk && S.wsk[id]);
@@ -9149,29 +9162,29 @@ buildWeapon = (orig => function (id, t, skin) { const g = orig(id, t, skin), k =
   return g; })(buildWeapon);
 function wskExtra(g, k) {
   const bb = new THREE.Box3().setFromObject(g), sz = new THREE.Vector3(), ct = new THREE.Vector3(); bb.getSize(sz); bb.getCenter(ct);
-  if (k === 'phoenix') {   // a phoenix wrapped round the gun: head at the muzzle, burning wings on the sides, tail plumes at the stock
-    const F = new THREE.MeshBasicMaterial({ color: 0xff7a1a }), F2 = new THREE.MeshBasicMaterial({ color: 0xffd27a }), GO = mat(0xe8b84a), RD = mat(0x9a1418), EY = new THREE.MeshBasicMaterial({ color: 0xfff6d0 });
-    const B = (w, h, d, m, x, y, z, p) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); (p || g).add(o); return o; };
-    const top = bb.max.y, fz = bb.max.z, bz = bb.min.z, L = sz.z;
-    // head over the muzzle: gold skull, beak forward, white-hot eyes, a swept crest
-    const head = new THREE.Group(); head.position.set(ct.x, top + .06, fz - L * .1); head.scale.setScalar(2); g.add(head);
-    B(.07, .06, .1, GO, 0, 0, 0, head); const beak = new THREE.Mesh(new THREE.ConeGeometry(.026, .09, 5).rotateX(Math.PI / 2), F2); beak.position.set(0, -.005, .09); head.add(beak);
-    for (const s of [-1, 1]) B(.012, .012, .012, EY, s * .036, .012, .03, head);
-    for (let i = 0; i < 3; i++) { const c = B(.012, .012, .13 - i * .02, i ? F : F2, 0, .03 + i * .012, -.07 - i * .02, head); c.rotation.x = .5 + i * .2; }
-    // the wings: three layers of feathers per side, sweeping back and up, burning at the tips
-    for (const s of [-1, 1]) { const wg = new THREE.Group(); wg.position.set(ct.x + s * (sz.x / 2 + .01), ct.y + sz.y * .15, ct.z + L * .05); g.add(wg);
-      for (let i = 0; i < 7; i++) { const len = .26 + i * .06, a = .3 + i * .15;
-        const f = B(.016, .07, len, i % 2 ? RD : GO, s * (.02 + i * .008), Math.sin(a) * len * .5, -Math.cos(a) * len * .5, wg); f.rotation.x = a - Math.PI / 2 + Math.PI / 2; f.rotation.set(-(a), s * .25, 0);
-        const tip = B(.02, .06, .09, i % 2 ? F : F2, f.position.x, Math.sin(a) * len * .95, -Math.cos(a) * len * .95, wg); tip.rotation.copy(f.rotation); }
-      const gl = new THREE.Mesh(new THREE.BoxGeometry(.01, .32, .4), new THREE.MeshBasicMaterial({ color: 0xff8a2a, transparent: true, opacity: .35, depthWrite: false })); gl.position.set(s * .05, .16, -.16); wg.add(gl);
-      gl.onBeforeRender = () => { const T = performance.now() / 1000; wg.rotation.z = s * (.12 + Math.sin(T * 3) * .1); wg.rotation.y = s * .15; gl.material.opacity = .25 + Math.sin(T * 6) * .1; }; }
-    // tail plumes behind the stock
-    const tail = new THREE.Group(); tail.position.set(ct.x, ct.y - sz.y * .1, bz + .01); tail.scale.setScalar(1.8); g.add(tail);
-    for (let i = 0; i < 3; i++) { const t = new THREE.Group(); t.rotation.set(.35 + i * .12, (i - 1) * .35, 0); tail.add(t); B(.016, .02, .3 - Math.abs(i - 1) * .06, i === 1 ? GO : RD, 0, 0, -.15, t); B(.03, .03, .06, i === 1 ? F2 : F, 0, 0, -.3 + Math.abs(i - 1) * .06, t); }
-    tail.children[0].children[0].onBeforeRender = () => { const T = performance.now() / 1000; tail.children.forEach((t, i) => { t.rotation.x = .35 + i * .12 + Math.sin(T * 4 + i) * .08; }); };
-    // a flame core in the receiver
-    const core = new THREE.Mesh(new THREE.OctahedronGeometry(Math.max(.03, sz.y * .2)), F2); core.position.set(ct.x, ct.y, ct.z - L * .12); g.add(core);
-    core.onBeforeRender = () => { const T = performance.now() / 1000; core.rotation.y = T * 3; core.scale.setScalar(1 + Math.sin(T * 8) * .15); };
+  if (k === 'phoenix') {   // 凤鸣: an ivory gun wrapped in long phoenix plumes — cream feathers, crimson streaks, gold eye-spots — with auspicious clouds drifting round the barrel
+    const P = phxGeo(), top = bb.max.y, fz = bb.max.z, bz = bb.min.z, L = sz.z;
+    const M = c => new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }), CR = M(0xfff1c8), GD = M(0xe8c06a), RD = M(0xd8203a), DR = M(0x9a0f22), OL = M(0xb8a23a);
+    const add = (geo, m, x, y, z, p) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); (p || g).add(o); return o; };
+    // the head over the muzzle: cream, a crimson crest of three curling plumes, a hooked beak and a red eye
+    const head = new THREE.Group(); head.position.set(ct.x, top + .05, fz - L * .1); head.scale.setScalar(.55); g.add(head);
+    add(P.head, CR, 0, 0, 0, head).scale.set(1, .9, 1.2); add(P.beak, GD, 0, -.01, .12, head);
+    for (const sd of [-1, 1]) add(new THREE.SphereGeometry(.018, 6, 5), RD, sd * .06, .03, .04, head);
+    for (let i = -1; i <= 1; i++) { const c = add(P.crest, i ? DR : RD, i * .03, .07, -.02, head); c.rotation.set(.75 + Math.abs(i) * .25, i * .4, 0); c.scale.setScalar(1.6); }
+    // long plumes sweeping back along both sides: cream blades with a crimson streak and a gold eye near the tip
+    for (const sd of [-1, 1]) { const wg = new THREE.Group(); wg.position.set(ct.x + sd * (sz.x / 2 + .005), ct.y + sz.y * .2, fz - L * .2); g.add(wg);
+      for (let i = 0; i < 6; i++) { const f = new THREE.Group(); f.rotation.set(.1 + i * .1, sd * (.12 + i * .07), sd * 1.15); wg.add(f); f.scale.setScalar(.24 + i * .035);
+        add(P.tail, CR, 0, 0, 0, f); add(P.tailS, i % 2 ? RD : DR, sd * .03, .004, -.15, f).scale.set(.35, 1, .9);
+        add(new THREE.CircleGeometry(.07, 12).rotateX(-Math.PI / 2), OL, 0, .008, -1.45, f); add(new THREE.CircleGeometry(.035, 10).rotateX(-Math.PI / 2), RD, 0, .012, -1.45, f); }
+      wg.children[0].children[0].onBeforeRender = () => { const T = performance.now() / 1000; wg.rotation.z = sd * Math.sin(T * 2.2) * .08; wg.rotation.x = Math.sin(T * 1.7 + sd) * .05; }; }
+    // a tail of three plumes behind the stock
+    const tail = new THREE.Group(); tail.position.set(ct.x, ct.y, bz + .01); g.add(tail);
+    for (let i = 0; i < 3; i++) { const t = add(i === 1 ? P.tail : P.tailS, i === 1 ? CR : RD, 0, 0, 0, tail); t.rotation.set(.25, (i - 1) * .3, 0); t.scale.setScalar(.32); }
+    // flowing cloud wisps keep curling off the barrel (only while you can see the gun)
+    const anchor = new THREE.Object3D(); anchor.position.set(ct.x, ct.y, ct.z + L * .15); g.add(anchor); let nx = 0; const wv = new THREE.Vector3();
+    head.children[0].onBeforeRender = () => { const now = performance.now(); if (now < nx || !g.parent || typeof scene === 'undefined' || !g.parent.parent) return; nx = now + 650 + Math.random() * 500;
+      let o = g; while (o.parent) o = o.parent; if (o !== scene) return; anchor.getWorldPosition(wv); const q = new THREE.Quaternion(); g.getWorldQuaternion(q); const fw = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
+      fxWisp(wv.x, wv.y - .05, wv.z, Math.atan2(fw.x, fw.z) + (Math.random() < .5 ? 1.3 : -1.3), { s: .32, vx: -fw.x * .4, vz: -fw.z * .4, vy: .25, life: 1.1 }); };
   } else {                 // stars along the blade, a soft violet edge
     const W = new THREE.MeshBasicMaterial({ color: 0xffffff }), C = new THREE.MeshBasicMaterial({ color: 0x7ff0ff }), V = new THREE.MeshBasicMaterial({ color: 0xc49aff });
     for (let i = 0; i < 9; i++) { const st = new THREE.Mesh(new THREE.OctahedronGeometry(.012 + (i % 3) * .005), [W, C, V][i % 3]);
@@ -9259,8 +9272,9 @@ function fxImpact(K, x, y, z, dx, dz, big) {
   for (let i = 0; i < n; i++) { const a = Math.atan2(-dx, -dz) + (Math.random() - .5) * 2.4, sp = 4 + Math.random() * 5; fxStreak(x, y, z, Math.sin(a) * sp, 1 + Math.random() * 3.5, Math.cos(a) * sp, [c1, c2, 0xffffff][i % 3], .28 + Math.random() * .2, .04); }
   // each mythic skin's own touch
   if (K.key === 'phoenix' && big) {
-    fxPiece(G.cone, 0xff7a1a, x, y + .4, z, .45, (k, m) => { m.scale.set(1 + k, .4 + k * 2.2, 1 + k); m.position.y = y + .2 + k * 1.1; m.material.opacity = .85 * (1 - k); });
-    for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283, r0 = Math.random() * .2; fxPiece(G.box, i % 2 ? 0xffd27a : 0xff8a2a, x, y, z, .8, (k, m) => { const r = r0 + k * 1.4; m.position.set(x + Math.cos(a + k * 2) * r, y + k * 1.4 - k * k * .8, z + Math.sin(a + k * 2) * r); m.rotation.set(k * 6 + i, a, k * 4); m.scale.set(.08, .26, .02); m.material.opacity = 1 - k; }); }
+    for (let i = 0; i < 4; i++) { const a = i / 4 * 6.283 + Math.random(); fxWisp(x, y - .2 + i * .1, z, a, { s: .5 + Math.random() * .2, vx: Math.cos(a) * .9, vz: Math.sin(a) * .9, vy: .5, life: .9 }); }
+    const P = phxGeo(); for (let i = 0; i < 5; i++) { const a = Math.random() * 6.283, r0 = Math.random() * .2; fxPiece(P.tailS, i % 2 ? 0xd8203a : 0xfbe8c0, x, y, z, .9, (k, m) => { const r = r0 + k * 1.2; m.position.set(x + Math.cos(a + k * 1.5) * r, y + k * .9 - k * k * 1.1, z + Math.sin(a + k * 1.5) * r); m.rotation.set(k * 3 + i, a, k * 5); m.scale.setScalar(.22); m.material.opacity = 1 - k; }); }
+    for (let i = 0; i < 12; i++) fxSpark(x, y, z, Math.random() < .6 ? 0xffe38a : 0xfff1c8, { sp: 2.2, vy: 1, life: .6, s: 1.6 });
   } else if (K.key === 'celest' && big) {
     for (let i = 0; i < 5; i++) { const a = i / 5 * 6.283; fxPiece(G.oct, i % 2 ? 0xc49aff : 0xffffff, x, y, z, .6, (k, m) => { const r = k * 1.3; m.position.set(x + Math.cos(a) * r, y + Math.sin(a) * r * .6 + .2, z + Math.sin(a) * r * .5); m.scale.setScalar(2.4 * (1 - k) + .2); m.rotation.y = k * 8; m.material.opacity = 1 - k * .8; }); }
   }
@@ -9275,8 +9289,8 @@ function mythShot(K, ox, oz, dx, dz, end, hit, fm, pel) {
   const ex = ox + dx * end, ez = oz + dz * end, PY = (typeof playerY === 'function' && playerY()) || 0, w = K.r >= 5 ? 1 : .65;
   const sx = fm ? fm.x : ox, sy = fm ? fm.y : 1.55 + PY, sz = fm ? fm.z : oz, ey = 1.45 + PY, phx = K.key === 'phoenix';
   if (!phx) { mythBeam(sx, sy, sz, ex, ey, ez, K.tr, .3 * w, .2); mythBeam(sx, sy, sz, ex, ey, ez, K.tr2, .14 * w, .16); mythBeam(sx, sy, sz, ex, ey, ez, 0xffffff, .06, .12); }
-  else fxPhoenix(sx, sy, sz, dx, dz, end, .75 + Math.random() * .35, (pel | 0) * .018);   // the phoenix gun: each pellet is a phoenix
-  if (FXN.first) fxMuzzle(K, sx, sy, sz, dx, dz);
+  else fxPhoenix(sx, sy, sz, dx, dz, end, .7 + Math.random() * .3, (pel | 0) * .02);   // the phoenix gun: each pellet is a phoenix
+  if (FXN.first) { if (phx) fxCloudBurst(sx, sy, sz, dx, dz); else fxMuzzle(K, sx, sy, sz, dx, dz); }
   const n = phx ? 0 : Math.min(8, 3 + Math.floor(end / 3)); for (let i = 0; i < n; i++) { const t = Math.random(); fxSpark(sx + (ex - sx) * t, sy + (ey - sy) * t + (Math.random() - .5) * .15, sz + (ez - sz) * t, Math.random() < .5 ? K.tr : K.tr2, { sp: .6, life: .35 + Math.random() * .3, s: 1.8 + Math.random() * 1.4 }); }
   const big = hit && FXN.big < 2; if (big) FXN.big++;
   fxImpact(K, ex, ey, ez, dx, dz, big);
@@ -9298,20 +9312,78 @@ function phxGeo() { if (PHX.g) return PHX.g; const G = {};
   G.body = new THREE.SphereGeometry(.13, 10, 8).scale(.85, .75, 2.4); G.head = new THREE.SphereGeometry(.085, 10, 8);
   G.beak = new THREE.ConeGeometry(.035, .14, 6).rotateX(Math.PI / 2); G.glow = new THREE.SphereGeometry(.4, 20, 12).scale(1.5, .45, 1.6);
   return (PHX.g = G); }
+// 祥云: an auspicious cloud — a lobed slate-blue puff with a pale curl spiralling inside it (flat; faces wherever it is turned)
+const CLD = { g: null };
+function cloudGeo() { if (CLD.g) return CLD.g; const sh = new THREE.Shape(), R = [[-.55, 0, .32], [-.15, .2, .42], [.32, .08, .36], [.62, -.05, .24]];
+  sh.moveTo(-.85, -.18); for (const [x, y, r] of R) sh.absarc(x, y, r, Math.PI * .95, Math.PI * .05, true); sh.lineTo(.86, -.2); sh.quadraticCurveTo(0, -.32, -.85, -.18);
+  const pts = []; for (let i = 0; i <= 40; i++) { const t = i / 40, a = t * Math.PI * 3.2, r = .3 * (1 - t * .85); pts.push(new THREE.Vector3(-.1 + Math.cos(a) * r, .1 + Math.sin(a) * r * .8, .01)); }
+  const curl = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 48, .028, 5, false);
+  const pts2 = pts.map(p => new THREE.Vector3(p.x + .48, p.y - .06, .01)).slice(0, 26); const curl2 = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts2), 30, .022, 5, false);
+  return (CLD.g = { fill: new THREE.ShapeGeometry(sh, 10), curl, curl2, rim: new THREE.ShapeGeometry(sh, 10).scale(1.08, 1.12, 1) }); }
+function cloudMesh(sc, op, mats) { const C = cloudGeo(), g = new THREE.Group(), M = (c, o) => { const m = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false, side: THREE.DoubleSide }); if (mats) mats.push([m, o]); return m; };
+  const rim = new THREE.Mesh(C.rim, M(0xdfe8f2, op)); rim.position.z = -.005; g.add(rim); g.add(new THREE.Mesh(C.fill, M(0x5f7090, op)));
+  g.add(new THREE.Mesh(C.curl, M(0xeef3f8, op))); g.add(new THREE.Mesh(C.curl2, M(0xc8d4e6, op))); g.scale.setScalar(sc); return g; }
+// 流云: flowing cloud wisps — a soft band that runs out straight, then curls into a spiral at its end (like the curls in
+// classic auspicious-cloud drawings). Each one unfurls along its length, drifts, keeps curling and thins away; never a fixed sticker.
+const WSP = { g: null };
+function wispGeos() { if (WSP.g) return WSP.g; const out = [];
+  for (let v = 0; v < 3; v++) { const pts = [], turns = 1.3 + v * .35, len = .9 + v * .25;
+    for (let i = 0; i <= 24; i++) { const t = i / 24; pts.push(new THREE.Vector3(-len + t * len, 0, Math.sin(t * 2.4 + v) * .08)); }
+    for (let i = 1; i <= 40; i++) { const t = i / 40, a = -Math.PI / 2 + t * turns * Math.PI * 2, r = .26 * (1 - t * .8); pts.push(new THREE.Vector3(Math.cos(a) * r, 0, .26 + Math.sin(a) * r)); }
+    const c = new THREE.CatmullRomCurve3(pts); out.push({ line: new THREE.TubeGeometry(c, 96, .022, 5, false), mist: new THREE.TubeGeometry(c, 96, .09, 6, false) }); }
+  return (WSP.g = out); }
+function fxWisp(x, y, z, ang, o) { o = o || {}; const G = wispGeos()[(Math.random() * 3) | 0], g = new THREE.Group(), mats = [];
+  const M = (c, op) => { const m = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, depthWrite: false }); mats.push([m, op]); return m; };
+  const mist = new THREE.Mesh(G.mist, M(o.mist || 0x8a9ab8, .22)), line = new THREE.Mesh(G.line, M(o.c || 0xe6eef8, .95)); g.add(mist, line); g.renderOrder = 1;
+  const flip = Math.random() < .5 ? -1 : 1; g.scale.set(o.s || 1, 1, (o.s || 1) * flip); g.position.set(x, y, z); g.rotation.y = ang; scene.add(g); FXN.n++;
+  let dl = 3, dm = 3; line.onBeforeRender = () => line.geometry.setDrawRange(0, dl); mist.onBeforeRender = () => mist.geometry.setDrawRange(0, dm);   // shared shapes: each wisp sets its own length right before it is drawn
+  const n = G.line.index ? G.line.index.count : 0, nm = G.mist.index ? G.mist.index.count : 0, t0 = performance.now(), life = o.life || .9, vx = o.vx || 0, vz = o.vz || 0, vy = o.vy == null ? .25 : o.vy;
+  const tick = () => { const k = Math.min(1, (performance.now() - t0) / (life * 1000 * (FXN.ts || 1))), e = 1 - Math.pow(1 - Math.min(1, k * 1.7), 3);
+    dl = Math.max(3, Math.floor(n * e / 3) * 3); dm = Math.max(3, Math.floor(nm * e / 3) * 3);   // unfurling
+    g.position.set(x + vx * k, y + vy * k, z + vz * k); g.rotation.y = ang + flip * k * .5; const sc = (o.s || 1) * (1 + k * .35); g.scale.set(sc, 1, sc * flip);   // drifting and still curling
+    const f = k < .55 ? 1 : 1 - (k - .55) / .45; mats.forEach(([m, op]) => { m.opacity = op * f; });
+    if (k < 1) requestAnimationFrame(tick); else { scene.remove(g); mats.forEach(([m]) => m.dispose()); FXN.n--; } };
+  requestAnimationFrame(tick); }
+// clouds bursting apart from the muzzle, as if the shot tears through them (破云)
+function fxCloudBurst(x, y, z, dx, dz) { const f = Math.atan2(dx, dz);
+  for (let i = 0; i < 6; i++) { const side = i % 2 ? 1 : -1, px = -dz * side, pz = dx * side, fw = .2 + (i >> 1) * .35;
+    fxWisp(x + dx * fw + px * .15, y - .1 + (i >> 1) * .08, z + dz * fw + pz * .15, f + side * (Math.PI / 2 - .5), { s: .55 + Math.random() * .25, vx: px * 1.2 - dx * .3, vz: pz * 1.2 - dz * .3, vy: .2, life: .8 + Math.random() * .3 }); }
+  for (let i = 0; i < 10; i++) fxSpark(x + dx * .4, y + .1, z + dz * .4, Math.random() < .6 ? 0xffe38a : 0xfff1c8, { sp: 1.6, vy: .6, life: .5, s: 1.6 });   // gold dust
+}
+// each pellet: a long phoenix feather — cream blade, crimson streak, a gold-and-red eye near the tip — fluttering along the shot in a trail of gold dust
+function fxPlume(x, y, z, dx, dz, end, delay) {
+  if (PHX.n >= 16) return; PHX.n++; const P = phxGeo(), g = new THREE.Group(), mats = [];
+  const M = (c, o) => { const m = fxMat(c, o == null ? 1 : o); mats.push([m, o == null ? 1 : o]); return m; };
+  const add = (geo, m, px, py, pz, sx) => { const o = new THREE.Mesh(geo, m); o.position.set(px, py, pz); o.frustumCulled = false; if (sx) o.scale.set(sx, 1, 1); g.add(o); return o; };
+  add(P.tail, M(0xfff1c8), 0, 0, .9); add(P.tailS, M(0xd8203a, .95), .035, .006, .72, .4); add(P.tailS, M(0x9a0f22, .9), -.04, .004, .62, .25);
+  add(new THREE.CircleGeometry(.075, 14).rotateX(-Math.PI / 2), M(0xb8a23a), 0, .01, -.45); add(new THREE.CircleGeometry(.04, 12).rotateX(-Math.PI / 2), M(0xd8203a), 0, .014, -.45);
+  add(new THREE.SphereGeometry(.06, 8, 6), M(0xfff6dc), 0, 0, .9);                       // the glowing quill at the front
+  const sc = .75 + Math.random() * .3; g.position.set(x, y, z); g.rotation.y = Math.atan2(dx, dz); g.scale.setScalar(.01); scene.add(g);
+  const t0 = performance.now() + (delay || 0) * 1000, life = .36, Ld = Math.max(3, end), ph = Math.random() * 6; let sp = 0;
+  const tick = () => { const now = performance.now(); if (now < t0) { requestAnimationFrame(tick); return; }
+    const k = Math.min(1, (now - t0) / (life * 1000 * (FXN.ts || 1))), T = now / 1000;
+    g.position.set(x + dx * Ld * k, y + Math.sin(k * Math.PI) * .12, z + dz * Ld * k); g.scale.setScalar(sc * Math.min(1, k * 7));
+    g.rotation.z = Math.sin(T * 18 + ph) * .35; g.rotation.x = Math.sin(T * 13 + ph) * .08;                  // the feather flutters as it flies
+    const fade = k > .85 ? (1 - k) / .15 : 1; mats.forEach(([m, o]) => { m.opacity = o * fade; });
+    if (++sp % 2 === 0) fxSpark(g.position.x - dx * .5, g.position.y, g.position.z - dz * .5, Math.random() < .6 ? 0xffe38a : 0xfff1c8, { sp: .35, vy: .2, life: .4, s: 1.2 });
+    if (k < 1) requestAnimationFrame(tick); else { scene.remove(g); mats.forEach(([m]) => m.dispose()); PHX.n--; } };
+  requestAnimationFrame(tick);
+}
 function fxPhoenix(x, y, z, dx, dz, end, sc, delay) {
   if (PHX.n >= 14) return; PHX.n++; const G = phxGeo(), g = new THREE.Group(), mats = [];
   const M = (c, o) => { const m = fxMat(c, o == null ? 1 : o); mats.push([m, o == null ? 1 : o]); return m; };
   const add = (geo, m, px, py, pz, p) => { const o = new THREE.Mesh(geo, m); o.position.set(px, py, pz); o.frustumCulled = false; (p || g).add(o); return o; };
-  add(G.glow, M(0xffa040, .13), 0, 0, -.05);                                             // soft fire halo
-  add(G.body, M(0xffa62a), 0, 0, 0);
-  const head = add(G.head, M(0xffd36a), 0, .07, .36); add(G.beak, M(0xfff2c0), 0, .06, .48);
-  for (let i = -1; i <= 1; i++) { const c = add(G.crest, M(i ? 0xff6a10 : 0xffc040), i * .03, .13, .34); c.rotation.set(.9 + Math.abs(i) * .15, i * .35, 0); }
+  add(G.glow, M(0xfff1c8, .1), 0, 0, -.05);                                             // soft fire halo
+  add(G.body, M(0xfbecc8), 0, 0, 0);
+  const head = add(G.head, M(0xfff4dc), 0, .07, .36); add(G.beak, M(0xe8b84a), 0, .06, .48); for (const e of [-1, 1]) add(new THREE.SphereGeometry(.016, 6, 5), M(0xd8203a), e * .06, .1, .4);
+  for (let i = -1; i <= 1; i++) { const c = add(G.crest, M(i ? 0x9a0f22 : 0xd8203a), i * .03, .13, .34); c.rotation.set(.9 + Math.abs(i) * .15, i * .35, 0); }
   const wings = [];
   for (const s of [-1, 1]) { const piv = new THREE.Group(); piv.position.set(s * .06, .03, .08); piv.scale.x = s; g.add(piv); wings.push([piv, s]);
-    add(G.wing, M(0xff4512, .95), 0, 0, 0, piv); add(G.wingIn, M(0xff9a20), 0, .01, 0, piv); add(G.wingCore, M(0xffe08a), 0, .02, .02, piv); }
+    add(G.wing, M(0xfbe8c0, .97), 0, 0, 0, piv); add(G.wingIn, M(0xd8203a, .9), 0, .01, -.04, piv).scale.set(.95, 1, .55); add(G.wingCore, M(0xffe9a8), 0, .02, .02, piv); }
   const tails = [];
-  for (let i = 0; i < 7; i++) { const a = (i - 3) * .13, t = add(i % 2 ? G.tailS : G.tail, M([0xff2a08, 0xffb43a, 0xff5a10, 0xffe08a, 0xff5a10, 0xffb43a, 0xff2a08][i], .92), 0, -.02 - Math.abs(i - 3) * .008, -.28); t.rotation.y = a; tails.push([t, a, i]); }
-  const S0 = (sc || 1) * .85; g.position.set(x, y, z); g.rotation.y = Math.atan2(dx, dz); g.scale.setScalar(.01); scene.add(g);
+  for (let i = 0; i < 7; i++) { const a = (i - 3) * .13, t = add(i % 2 ? G.tailS : G.tail, M([0xd8203a, 0xfbe8c0, 0xfff1c8, 0xd8203a, 0xfff1c8, 0xfbe8c0, 0xd8203a][i], .94), 0, -.02 - Math.abs(i - 3) * .008, -.28); t.rotation.y = a; tails.push([t, a, i]);
+    if (!(i % 2)) { const eye = new THREE.Group(); t.add(eye); const L2 = i === 3 ? 1.6 : 1.75; eye.add(new THREE.Mesh(new THREE.CircleGeometry(.07, 12).rotateX(-Math.PI / 2), M(0xb8a23a))); const ec = new THREE.Mesh(new THREE.CircleGeometry(.035, 10).rotateX(-Math.PI / 2), M(0x9a0f22)); ec.position.y = .004; eye.add(ec); eye.position.set(0, .006, -L2); } }
+  const S0 = (sc || 1) * .85; g.position.set(x, y, z); g.rotation.y = Math.atan2(dx, dz); g.scale.setScalar(.01); g.renderOrder = 3; g.traverse(o => { o.renderOrder = 3; }); scene.add(g);
   const t0 = performance.now() + (delay || 0) * 1000, life = .42, L = Math.max(3, end); let sp = 0;
   const tick = () => { const now = performance.now(); if (now < t0) { requestAnimationFrame(tick); return; }
     const k = Math.min(1, (now - t0) / (life * 1000 * (FXN.ts || 1))), T = now / 1000;
@@ -9320,9 +9392,9 @@ function fxPhoenix(x, y, z, dx, dz, end, sc, delay) {
     tails.forEach(([t, a, i]) => { t.rotation.y = a + Math.sin(T * 14 + i) * .12; t.rotation.x = Math.sin(T * 11 + i * .7) * .12; });
     head.position.y = .07 + Math.sin(T * 30) * .015;
     const fade = k > .82 ? (1 - k) / .18 : 1; mats.forEach(([m, o]) => { m.opacity = o * fade; });
-    if (typeof fxSpark === 'function' && ++sp % 2 === 0) fxSpark(g.position.x - dx * .6, g.position.y, g.position.z - dz * .6, Math.random() < .5 ? 0xff7a1a : 0xffd27a, { sp: .5, vy: .3, life: .35, s: 1.4 });   // embers streaming off the tail
+    if (typeof fxSpark === 'function' && ++sp % 2 === 0) fxSpark(g.position.x - dx * .6, g.position.y, g.position.z - dz * .6, Math.random() < .6 ? 0xffe38a : 0xfff1c8, { sp: .5, vy: .3, life: .35, s: 1.4 });   // gold dust streaming off the tail
     if (k < 1) requestAnimationFrame(tick); else { scene.remove(g); mats.forEach(([m]) => m.dispose()); PHX.n--;
-      const GG = fxGeo(); fxPiece(GG.ico, 0xffc040, g.position.x, g.position.y, g.position.z, .3, (kk, m) => { m.scale.setScalar(1 + kk * 4); m.material.opacity = 1 - kk; }); } };
+      const GG = fxGeo(); fxPiece(GG.ico, 0xfff1c8, g.position.x, g.position.y, g.position.z, .3, (kk, m) => { m.scale.setScalar(1 + kk * 4); m.material.opacity = 1 - kk; }); } };
   requestAnimationFrame(tick);
 }
 function mythSwing(K) {
@@ -10411,4 +10483,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794076969').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794077952').catch(()=>{});</script></body></html>
