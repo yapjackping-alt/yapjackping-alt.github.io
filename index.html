@@ -9367,7 +9367,7 @@ renderHub = (orig => function () {
 
 /* ---- 登录方式: guest or Google, chosen on the first start (the iPhone / Android versions open on the title, then this) ---- */
 // Google: the web OAuth client id from Firebase → Authentication → Google → Web SDK 配置 (empty = not set up yet)
-const GCID = '';
+const GCID = '736215633065-c066k94n8qhovpo68ft35bqgnd716mqq.apps.googleusercontent.com';
 const fbMode = () => { try { return localStorage.getItem('ember_login') || ''; } catch (e) { return ''; } };
 const gOk = () => !!GCID && !(window.EMBER_APP && /Android/i.test(navigator.userAgent));   // Google blocks sign-in inside the Android app's web view
 function loginShow() {
@@ -9393,7 +9393,7 @@ renderChars = (orig => function () { orig(); try { const n = $('acctNote'); if (
 // Google sign-in without any SDK: go to Google, come back with an id token in the address, hand it to Firebase.
 // A guest account is upgraded (linked) so its leaderboard rows stay; if that Google account already exists, switch to it.
 function gLogin() { const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36); try { localStorage.setItem('ember_gnonce', nonce); } catch (e) { }
-  const back = location.origin + location.pathname;
+  const back = location.origin + location.pathname.replace(/index\.html$/, '');
   location.href = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=' + encodeURIComponent(GCID) + '&redirect_uri=' + encodeURIComponent(back) + '&response_type=id_token&scope=' + encodeURIComponent('openid email profile') + '&nonce=' + nonce + '&prompt=select_account'; }
 async function gFinish(idt) {
   const body = (tok) => JSON.stringify(Object.assign({ postBody: 'id_token=' + idt + '&providerId=google.com', requestUri: location.origin, returnSecureToken: true, returnIdpCredential: true }, tok ? { idToken: tok } : {}));
@@ -10356,4 +10356,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794061646').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794062156').catch(()=>{});</script></body></html>
