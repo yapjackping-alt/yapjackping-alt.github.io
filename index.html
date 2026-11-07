@@ -2557,8 +2557,13 @@ function audioUnlock() {
     const p = _auEl.play(); if (p && p.catch) p.catch(() => { });
   } catch (e) { }
 }
-['touchstart', 'touchend', 'pointerdown', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, () => { if (!AC || AC.state !== 'running' || !_auEl || _auEl.paused) audioUnlock(); }, { capture: true, passive: true }));
-document.addEventListener('visibilitychange', () => { if (!document.hidden && AC && AC.state !== 'running') try { AC.resume(); } catch (e) { } });
+['touchstart', 'touchend', 'pointerdown', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, () => { if (document.hidden) return; if (!AC || AC.state !== 'running' || !_auEl || _auEl.paused) audioUnlock(); }, { capture: true, passive: true }));
+// leaving the game (home button, another app, locked screen): all sound stops; coming back turns it on again
+function audioPause() { try { if (AC && AC.state === 'running') AC.suspend(); } catch (e) { } try { if (_auEl && !_auEl.paused) _auEl.pause(); } catch (e) { } }
+function audioResume() { if (document.hidden) return; try { if (AC && AC.state !== 'running') AC.resume(); } catch (e) { } try { if (_auEl && _auEl.paused && AC) { const p = _auEl.play(); if (p && p.catch) p.catch(() => { }); } } catch (e) { } }
+document.addEventListener('visibilitychange', () => { if (document.hidden) audioPause(); else audioResume(); });
+window.addEventListener('pagehide', audioPause); window.addEventListener('blur', () => setTimeout(() => { if (document.hidden) audioPause(); }, 50)); window.addEventListener('pageshow', audioResume); window.addEventListener('focus', audioResume);
+window.emberAudio = on => { if (on) audioResume(); else audioPause(); };   // called by the Android app when it goes to the background
 // out(pan): a destination node, optionally panned left/right (-1..1)
 function out(pan) { if (!pan || !AC.createStereoPanner) return BUS; const p = AC.createStereoPanner(); p.pan.value = clamp(pan, -1, 1); p.connect(BUS); return p; }
 const _nb = {};
@@ -10588,4 +10593,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794079875').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794080613').catch(()=>{});</script></body></html>
