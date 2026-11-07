@@ -7371,7 +7371,9 @@ function dailyLoad(d) {
 /* ============ map markers, and the 商城: 晶石, gacha supply boxes, the premium season pass and outfits ============
    This is a test build: there is no real payment. Recharge packs hand out 晶石 for free and draws cost nothing
    (FREE_TEST), so everyone can try the gacha without limit. */
-const FREE_TEST = !window.EMBER_APP || !!window.EMBER_TEST;       // the Play-store build turns test mode off
+// test account: on the iPhone web version only a device unlocked with the tester code gets the free shop (it then stays off the leaderboard)
+const DEV_ON = (() => { try { return localStorage.getItem('ember_dev') === '1'; } catch (e) { return false; } })();
+const FREE_TEST = !window.EMBER_APP || (!!window.EMBER_TEST && DEV_ON);       // Play-store build: real payments; web version: no top-up unless unlocked
 
 /* ---- map markers: tap the big map to drop one, tap it again to remove ---- */
 S.marks = [];
@@ -8066,7 +8068,7 @@ function renderMall() {
       list.appendChild(row); }); box.appendChild(list);
   } else if (!FREE_TEST) {
     // phone build: real top-up through Google Play. Prices come from Google (RM etc.); gems are added only after Google says it is paid
-    box.appendChild(el2('div', 'snote', APP_PAY ? '付款由 Google Play 处理，付款成功后晶石马上到账。首次购买每一档双倍。' : '这个版本还不能充值。'));
+    box.appendChild(el2('div', 'snote', APP_PAY ? '付款由 Google Play 处理，付款成功后晶石马上到账。首次购买每一档双倍。' : '网页版不能充值。想充值请下载安卓版（Google Play），同一个游戏。'));
     if (APP_PAY) { const g = el2('div', 'gemg');
       PACKS.forEach(([n], i) => { const id = PAY_IDS[i], first = !(S.gemFirst || []).includes(i), pr = PAY_PRICE[id];
         const c = el2('button', 'gemc', (first ? '<em>首充双倍</em>' : '') + '<div class="rwi">' + icHtml('gem:1') + '</div><b>' + n + ' 晶石</b>' + (first ? '<small>+' + n + ' 赠送</small>' : '') + '<span>' + (pr || '读取价格中…') + '</span>');
@@ -8506,7 +8508,7 @@ function passBuy(k) {
   seaEnsure(); const cur = S.sea.prem | 0; if (k === 'elite' && cur === 1) k = 'up';
   if ((k === 'adv' && cur >= 1) || cur >= 2) return;
   if (FREE_TEST) { passGrant(k === 'adv' ? 1 : 2); return; }
-  if (!APP_PAY) { feed(T2('这个版本还不能付款', 'Payment isn\'t available in this version'), '#ff9b8a'); return; }
+  if (!APP_PAY) { feed(T2('网页版不能充值，请用安卓版（Google Play）', 'Top-up is only in the Android app'), '#ff9b8a'); return; }
   const id = PASS_ID[k]; if (!PAY_PRICE[id]) { feed(T2('还没读到价格，请稍等再试（要连网）', 'Price not loaded yet, try again in a moment (needs internet)'), '#ff9b8a'); try { EmberPay.prices(); } catch (e) { } return; }
   try { EmberPay.buy(id); } catch (e) { feed(T2('付款打不开', 'Couldn\'t open payment'), '#ff9b8a'); }
 }
@@ -9191,7 +9193,7 @@ function packGrant() {
 function packBuy() {
   if (S.packW5) return;
   if (FREE_TEST) { packGrant(); return; }
-  if (!APP_PAY) { feed(T2('这个版本还不能付款', 'Payment isn\'t available in this version'), '#ff9b8a'); return; }
+  if (!APP_PAY) { feed(T2('网页版不能充值，请用安卓版（Google Play）', 'Top-up is only in the Android app'), '#ff9b8a'); return; }
   if (!PAY_PRICE[PACK_W5]) { feed(T2('礼包还没上架，请稍后再来', 'This pack isn\'t on sale yet'), '#ff9b8a'); try { EmberPay.prices(); } catch (e) { } return; }
   try { EmberPay.buy(PACK_W5); } catch (e) { feed(T2('付款打不开', 'Couldn\'t open payment'), '#ff9b8a'); }
 }
@@ -9314,7 +9316,7 @@ const fbDocId = () => (FB.uid + '_' + String(Acct.cur || 'c0')).replace(/[^\w-]/
 function fbRow() { let cp = 0; try { cp = combatPower() | 0; } catch (e) { } let w = 0; try { seaEnsure(); w = S.sea.best | 0; } catch (e) { }
   return { n: (cleanName(S.name) || '幸存者').slice(0, 16), lv: S.level | 0, cp, k: S.kills | 0, w, t: Date.now() }; }
 async function fbSubmit(force) {
-  if (!S.started) return; const R = fbRow(), sig = [R.n, R.lv, R.cp, R.k, R.w].join('|'); if (!force && sig === FB.last) return;
+  if (!S.started || (typeof DEV_ON !== 'undefined' && DEV_ON && window.EMBER_APP)) return;   // tester devices stay off the leaderboard const R = fbRow(), sig = [R.n, R.lv, R.cp, R.k, R.w].join('|'); if (!force && sig === FB.last) return;
   try { const tok = await fbToken(), F = {}; for (const k in R) F[k] = k === 'n' ? { stringValue: R[k] } : { integerValue: String(R[k]) };
     await fbJson(FB_DOCS + '/lb/' + fbDocId(), { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify({ fields: F }) });
     FB.last = sig; FB.err = ''; FB.mine = R; } catch (e) { FB.err = String(e.message || e); console.warn('fb', e); }
@@ -9409,6 +9411,15 @@ try { FB.email = localStorage.getItem('ember_gmail') || ''; } catch (e) { }
     gFinish(decodeURIComponent(m[1])).then(() => { try { banner('Google 登录成功', FB.email || '', 3); } catch (e) { } try { $('start').classList.remove('show'); $('chars').classList.add('show'); renderChars(); } catch (e) { } })
       .catch(e => { try { banner('Google 登录失败', String(e.message || e).slice(0, 60), 4); } catch (er) { } }); }
   else if (/[#&]error=/.test(h)) history.replaceState(null, '', location.pathname + location.search); }
+
+// tester code: tap the 「选择角色」 title 5 times, enter the code → this device gets the free test shop (and leaves the leaderboard)
+{ const h = s => { let x = 5381; for (const c of s) x = ((x * 33) ^ c.charCodeAt(0)) >>> 0; return x; };
+  let n = 0, t0 = 0; const hd = document.querySelector && document.querySelector('#chars h2');
+  if (hd) hd.addEventListener('click', () => { const now = Date.now(); n = now - t0 < 1500 ? n + 1 : 1; t0 = now; if (n < 5) return; n = 0;
+    if (DEV_ON) { if (confirm('关闭测试号？这台手机会回到正常版本。')) { try { localStorage.removeItem('ember_dev'); } catch (e) { } location.reload(); } return; }
+    const c = prompt('测试码'); if (!c) return;
+    if (h(c.trim().toLowerCase()) === 755785216) { try { localStorage.setItem('ember_dev', '1'); } catch (e) { } alert('测试号已开启：商城免费，不上排行榜。'); location.reload(); }
+    else alert('测试码不对'); }); }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -10356,4 +10367,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794062156').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794070015').catch(()=>{});</script></body></html>
