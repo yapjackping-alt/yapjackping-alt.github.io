@@ -7768,7 +7768,7 @@ S.payTok = [];
 window.payPrices = o => { Object.assign(PAY_PRICE, o || {}); try { if ($('mall').classList.contains('show') && mallTab === 'gem') renderMall(); } catch (e) { } };
 window.payDone = (id, tok) => { PAYQ.push([id, tok]); payFlush(); };
 window.payPending = () => feed('付款处理中，Google 确认后晶石会自动到账', '#ffc94a');
-window.payFail = (id, msg) => feed(msg || '付款没有完成', '#ff9b8a');
+window.payFail = (id, msg) => { feed(msg || '付款没有完成', '#ff9b8a'); if (msg && !/取消/.test(msg)) try { banner('付款没有完成', msg, 5); const L = $('mallList'); if (L && L.prepend) { const d = document.createElement('div'); d.className = 'snote'; d.style.cssText = 'color:#ff9b8a;border:1px solid #ff9b8a;border-radius:10px;padding:8px'; d.textContent = '⚠ ' + msg; L.prepend(d); } } catch (e) { } };   // a big notice, not only the small line
 function payFlush() {
   if (!Acct.cur || !PAYQ.length) return;
   while (PAYQ.length) { const [id, tok] = PAYQ.shift(), i = PAY_IDS.indexOf(id);
@@ -10373,4 +10373,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794070632').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794073751').catch(()=>{});</script></body></html>
