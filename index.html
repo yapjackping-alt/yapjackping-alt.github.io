@@ -9151,6 +9151,68 @@ function packRender(box, el2) {
     '<p>' + T2('7 把武器（手枪、步枪、狙击枪、散弹枪、斧头、镐子、武士刀）全部直接升到 Lv.5，没有的武器也会直接送你。已经超过 5 级的不受影响。', 'All 7 weapons go straight to Lv.5, including ones you don\'t own yet. Weapons already above Lv.5 stay as they are.') + '</p>';
   const b = el2('button', 'go', S.packW5 ? T2('已购买', 'Purchased') : pr); b.disabled = !!S.packW5; b.addEventListener('click', packBuy); c.appendChild(b); box.appendChild(c);
 }
+
+/* ============ weapon-skin hit effects: muzzle flare, a tracer of light, and a real impact where it lands ============
+   Legendary skins get them too (smaller); mythic ones the full show, each in its own style:
+   天穹 a star flare, 凤鸣 a burst of phoenix fire and burning feathers, 星河 crescent slashes full of stars. */
+function wsMyth(id) { const k = S.wsk && S.wsk[id || S.wp], K = k && WSKINS[k]; if (!K || K.r < 4) return null; if (K.r < 5 && !K.tr) { K.tr = K.glow; K.tr2 = K.acc; } K.key = k; return K; }
+const FXN = { n: 0, shot: 0, big: 0 };
+const _fxG = { ico: null, ring: null, box: null, oct: null, cone: null };
+// normal blending: additive light vanishes on bright daytime ground; solid bright colours read everywhere
+const fxMat = (c, o) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o == null ? 1 : o, depthWrite: false, side: THREE.DoubleSide });
+// one short-lived glowing piece: f(k, mesh) runs each frame with k = 0..1, then it's removed
+function fxPiece(geo, c, x, y, z, life, f, o) {
+  if (FXN.n > 70) return null; FXN.n++;
+  const m = new THREE.Mesh(geo, fxMat(c, o)); m.position.set(x, y, z); m.frustumCulled = false; scene.add(m); const t0 = performance.now();
+  m.onBeforeRender = () => { const k = Math.min(1, (performance.now() - t0) / (life * 1000)); try { f(k, m); } catch (e) { } };
+  setTimeout(() => { scene.remove(m); m.material.dispose(); FXN.n--; }, life * 1000 * (FXN.ts || 1) + 30); return m;
+}
+function fxGeo() { if (_fxG.ico) return _fxG; _fxG.ico = new THREE.IcosahedronGeometry(.22, 1); _fxG.ring = new THREE.RingGeometry(.3, .4, 28); _fxG.box = new THREE.BoxGeometry(1, 1, 1); _fxG.oct = new THREE.OctahedronGeometry(.06); _fxG.cone = new THREE.ConeGeometry(.22, 1, 7, 1, true); _fxG.arc = new THREE.TorusGeometry(1.5, .12, 4, 24, 2.2).rotateZ(-Math.PI / 2 - 1.1).rotateX(-Math.PI / 2); return _fxG; }
+const faceCam = m => { try { m.lookAt(camera.position); } catch (e) { } };
+// a fast streak flying out of the impact (a thin bar along its direction, falling a little)
+function fxStreak(x, y, z, vx, vy, vz, c, life, w) { const G = fxGeo(); const m = fxPiece(G.box, c, x, y, z, life, (k, mm) => { const t = k * life;
+    mm.position.set(x + vx * t, y + vy * t - 4 * t * t, z + vz * t); mm.lookAt(mm.position.x + vx, mm.position.y + vy - 8 * t, mm.position.z + vz); mm.scale.set(w, w, .35 * (1 - k) + .05); mm.material.opacity = 1 - k; }); }
+function fxImpact(K, x, y, z, dx, dz, big) {
+  const G = fxGeo(), c1 = K.tr, c2 = K.tr2, myth = K.r >= 5, sc = (big ? 1.5 : .8) * (myth ? 1 : .75);
+  // white-hot flash
+  fxPiece(G.ico, 0xffffff, x, y, z, .16, (k, m) => { m.scale.setScalar(sc * (.5 + k * 1.6)); m.material.opacity = 1 - k; });
+  fxPiece(G.ico, c1, x, y, z, .26, (k, m) => { m.scale.setScalar(sc * (.8 + k * 2.4)); m.material.opacity = .7 * (1 - k); });
+  // a shock ring facing you, and one on the ground
+  fxPiece(G.ring, c2, x, y, z, .34, (k, m) => { faceCam(m); m.scale.setScalar(sc * (1 + k * 4.5)); m.material.opacity = .9 * (1 - k); });
+  if (big) fxPiece(G.ring, c1, x, .06, z, .45, (k, m) => { m.rotation.x = -Math.PI / 2; m.scale.setScalar(1 + k * 5); m.material.opacity = .7 * (1 - k); });
+  // a cross flare that spins as it fades
+  if (myth) for (let i = 0; i < 2; i++) fxPiece(G.box, i ? c1 : 0xffffff, x, y, z, .24, (k, m) => { faceCam(m); m.rotateZ(.785 + i * 1.571 + k * 1.2); const L = sc * (1.6 - k * .6); m.scale.set(.05 * (1 - k * .5), L * (1 - k), .02); m.material.opacity = 1 - k; });
+  // sparks thrown back toward you and out to the sides
+  const n = big ? (myth ? 10 : 6) : 3;
+  for (let i = 0; i < n; i++) { const a = Math.atan2(-dx, -dz) + (Math.random() - .5) * 2.4, sp = 4 + Math.random() * 5; fxStreak(x, y, z, Math.sin(a) * sp, 1 + Math.random() * 3.5, Math.cos(a) * sp, [c1, c2, 0xffffff][i % 3], .28 + Math.random() * .2, .04); }
+  // each mythic skin's own touch
+  if (K.key === 'phoenix' && big) {
+    fxPiece(G.cone, 0xff7a1a, x, y + .4, z, .45, (k, m) => { m.scale.set(1 + k, .4 + k * 2.2, 1 + k); m.position.y = y + .2 + k * 1.1; m.material.opacity = .85 * (1 - k); });
+    for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283, r0 = Math.random() * .2; fxPiece(G.box, i % 2 ? 0xffd27a : 0xff8a2a, x, y, z, .8, (k, m) => { const r = r0 + k * 1.4; m.position.set(x + Math.cos(a + k * 2) * r, y + k * 1.4 - k * k * .8, z + Math.sin(a + k * 2) * r); m.rotation.set(k * 6 + i, a, k * 4); m.scale.set(.08, .26, .02); m.material.opacity = 1 - k; }); }
+  } else if (K.key === 'celest' && big) {
+    for (let i = 0; i < 5; i++) { const a = i / 5 * 6.283; fxPiece(G.oct, i % 2 ? 0xc49aff : 0xffffff, x, y, z, .6, (k, m) => { const r = k * 1.3; m.position.set(x + Math.cos(a) * r, y + Math.sin(a) * r * .6 + .2, z + Math.sin(a) * r * .5); m.scale.setScalar(2.4 * (1 - k) + .2); m.rotation.y = k * 8; m.material.opacity = 1 - k * .8; }); }
+  }
+}
+function fxMuzzle(K, x, y, z, dx, dz) { const G = fxGeo();
+  fxPiece(G.ico, K.tr, x, y, z, .1, (k, m) => { m.scale.setScalar(.6 + k * .8); m.material.opacity = .9 * (1 - k); });
+  fxPiece(G.ring, K.tr2, x, y, z, .18, (k, m) => { m.lookAt(x + dx, y, z + dz); m.scale.setScalar(.5 + k * 1.6); m.material.opacity = 1 - k; }); }
+function mythShot(K, ox, oz, dx, dz, end, hit) {
+  const now = performance.now(); if (now - FXN.shot > 30) { FXN.shot = now; FXN.big = 0; FXN.first = true; } else FXN.first = false;
+  const ex = ox + dx * end, ez = oz + dz * end, PY = (typeof playerY === 'function' && playerY()) || 0, w = K.r >= 5 ? 1 : .65;
+  mythBeam(ox, 1.55 + PY, oz, ex, 1.5 + PY, ez, K.tr, .3 * w, .2); mythBeam(ox, 1.55 + PY, oz, ex, 1.5 + PY, ez, K.tr2, .14 * w, .16); mythBeam(ox, 1.55 + PY, oz, ex, 1.5 + PY, ez, 0xffffff, .06, .12);
+  if (FXN.first) fxMuzzle(K, ox, 1.55 + PY, oz, dx, dz);
+  const n = Math.min(8, 3 + Math.floor(end / 3)); for (let i = 0; i < n; i++) { const t = Math.random(); fxSpark(ox + dx * end * t, 1.52 + PY + (Math.random() - .5) * .15, oz + dz * end * t, Math.random() < .5 ? K.tr : K.tr2, { sp: .6, life: .35 + Math.random() * .3, s: 1.8 + Math.random() * 1.4 }); }
+  const big = hit && FXN.big < 2; if (big) FXN.big++;
+  fxImpact(K, ex, 1.4 + PY, ez, dx, dz, big);
+}
+function mythSwing(K) {
+  const G = fxGeo(), [dx, dz] = aimDir(), f = Math.atan2(dx, dz), x = player.pos.x, z = player.pos.z, y = 1.15 + ((typeof playerY === 'function' && playerY()) || 0), cols = K.key === 'galaxy' ? [0x9a8aff, 0x7ff0ff] : [K.tr, K.tr2];
+  // two crescent slashes sweeping across in front of you
+  cols.forEach((c, i) => fxPiece(G.arc, c, x, y + i * .12, z, .28, (k, m) => { m.rotation.set(i ? .12 : -.08, f + .55 - k * 1.1, 0); const s = .7 + k * .5 + i * .1; m.scale.set(s, s, 1); m.material.opacity = (1 - k) * (i ? .7 : 1); }));
+  for (let i = 0; i < 16; i++) { const a = f + (i / 15 - .5) * 2.2, r = 1.1 + Math.random() * .9;
+    fxSpark(x + Math.sin(a) * r, y - .2 + Math.random() * .8, z + Math.cos(a) * r, [cols[0], cols[1], 0xffffff][i % 3], { sp: 1, life: .45 + Math.random() * .35, s: 2 + Math.random() * 1.8 }); }
+  if (K.key === 'galaxy') for (let i = 0; i < 6; i++) { const a = f + (i / 5 - .5) * 1.8, r = 1.6; fxPiece(G.oct, i % 2 ? 0xffffff : 0x7ff0ff, x + Math.sin(a) * r, y, z + Math.cos(a) * r, .55, (k, m) => { m.scale.setScalar(2.6 * (1 - k) + .3); m.rotation.y = k * 9; m.position.y = y + k * .6; m.material.opacity = 1 - k; }); }
+}
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -10044,4 +10106,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794047343').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794047880').catch(()=>{});</script></body></html>
