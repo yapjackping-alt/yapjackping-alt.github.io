@@ -4069,7 +4069,7 @@ const BT = {
   rug:    { name: '地毯',     cat: 'fu', k: 'free', cost: { wood: 3 },             hp: 40, hw: 1.0, hd: .7, ob: [], desc: '铺在地上' },
   plant:  { name: '盆栽',     cat: 'fu', k: 'free', cost: { wood: 2 },             hp: 40, hw: .25, hd: .25, ob: [[0, 0, .22, .22]], desc: '一点绿色' },
   upfl:   { name: '二楼楼板', cat: 'st', k: 'upper', cost: { wood: 8, metal: 1 }, hp: 420, hw: 1.5, hd: 1.5, ob: [], desc: '架在墙顶高度的楼板，用梯子上去' },
-  stair:  { name: '木楼梯',   cat: 'st', k: 'free', cost: { wood: 10, metal: 1 },  hp: 300, hw: .75, hd: 2, ob: [], desc: '靠着二楼楼板放，直接走上走下' },
+  stair:  { name: '木楼梯',   cat: 'st', k: 'free', cost: { wood: 10, metal: 1 },  hp: 300, hw: 1.05, hd: 2, ob: [], desc: '靠着二楼楼板放，直接走上走下' },
   ladder: { name: '木梯子',   cat: 'st', k: 'free', cost: { wood: 4 },             hp: 150, hw: .45, hd: .12, ob: [[0, 0, .45, .1]], desc: '靠着二楼楼板放，爬上爬下' },
   wall:   { name: '木栅栏',   cat: 'df', k: 'free', cost: { wood: 4 },             hp: 220, hw: 1.5, hd: .35, ob: [[0, 0, 1.5, .35]], desc: '随处可放' },
   gate:   { name: '铁栅栏',   cat: 'df', k: 'free', cost: { wood: 2, metal: 5 },   hp: 620, hw: 1.5, hd: .35, ob: [[0, 0, 1.5, .35]], desc: '更结实' },
@@ -4154,10 +4154,9 @@ function buildMesh(type) {
   } else if (type === 'farm') { farmSoil(g);
   } else if (type === 'upfl') {
     box(3, .14, 3, beam, 0, UPY - .07, 0, g); for (let i = 0; i < 6; i++) box(.48, .05, 2.96, i % 2 ? plank : plank2, -1.25 + i * .5, UPY + .02, 0, g);
-    for (const [x, z] of [[-1.38, -1.38], [1.38, -1.38], [-1.38, 1.38], [1.38, 1.38]]) box(.16, UPY - .1, .16, beam, x, (UPY - .1) / 2, z, g);
   } else if (type === 'stair') {
-    for (let i = 0; i < 8; i++) { const top = (i + 1) * UPY / 8; box(1.4, top, .5, i % 2 ? plank : plank2, 0, top / 2, -2 + .25 + i * .5, g); }
-    for (const s of [-1, 1]) { const r = box(.1, .16, 4.5, beam, s * .72, UPY / 2 + .12, 0, g); r.rotation.x = -Math.atan2(UPY, 4); }
+    for (let i = 0; i < 8; i++) { const top = (i + 1) * UPY / 8; box(2, top, .5, i % 2 ? plank : plank2, 0, top / 2, -2 + .25 + i * .5, g); }
+    for (const s of [-1, 1]) { const r = box(.1, .16, 4.5, beam, s * 1.02, UPY / 2 + .12, 0, g); r.rotation.x = -Math.atan2(UPY, 4); }
   } else if (type === 'ladder') {
     for (const s of [-1, 1]) box(.08, UPY + .5, .08, beam, s * .38, (UPY + .5) / 2, 0, g);
     for (let y = .3; y < UPY + .3; y += .36) box(.76, .06, .07, plank, 0, y, 0, g);
@@ -4479,10 +4478,22 @@ const climbers = () => builds.filter(b => (b.type === 'ladder' || b.type === 'st
 const stairs = () => builds.filter(b => b.type === 'stair' && b.hp > 0);
 const stairEnd = (b, d) => ({ x: b.x + Math.sin(b.rot) * d, z: b.z + Math.cos(b.rot) * d });
 function stairLocal(b, x, z) { const dx = x - b.x, dz = z - b.z, s = Math.sin(b.rot), c = Math.cos(b.rot); return { lx: dx * c - dz * s, lz: dx * s + dz * c }; }
-function stairAt(x, z, lv) { for (const b of stairs()) { if (lv != null && (b.lv | 0) !== lv) continue; const L = stairLocal(b, x, z); if (Math.abs(L.lx) < .78 && L.lz > -2.1 && L.lz < 2.55) return { b, u: clamp((L.lz + 2) / 4, 0, 1) }; } return null; }
+function stairAt(x, z, lv) { for (const b of stairs()) { if (lv != null && (b.lv | 0) !== lv) continue; const L = stairLocal(b, x, z); if (Math.abs(L.lx) < 1.08 && L.lz > -2.1 && L.lz < 2.55) return { b, u: clamp((L.lz + 2) / 4, 0, 1) }; } return null; }
 // where a stair goes for an aim point: just outside the nearest floor, its top end touching the floor's edge
 // on an upper floor: try every side of every floor above, keep the closest one whose whole stair stands on this floor
+const SIDES = [[0, 1], [1, 0], [0, -1], [-1, 0]];   // the four sides of a floor, in rotate-button order
 function stairFitUp(ax, az, F) {
+  let best = null, bd = 1e9; const on = f => [-1.9, -.8, .4, 1.6].every(d => [-.95, 0, .95].every(w => onUpper(f.x + Math.sin(f.rot) * d + Math.cos(f.rot) * w, f.z + Math.cos(f.rot) * d - Math.sin(f.rot) * w, -.05, F)));
+  const R = buildRot | 0, cand = [];
+  for (const fl of builds) { if (fl.type !== 'upfl' || fl.hp <= 0 || (fl.lv | 0) !== F || Math.max(Math.abs(ax - fl.x), Math.abs(az - fl.z)) > 9) continue;
+    for (const [sx, sz] of SIDES) { const off = 3.75, lat = sx ? clamp(az - fl.z, -.5, .5) : clamp(ax - fl.x, -.5, .5);
+      const f = { x: Math.round((fl.x + (sx ? sx * off : lat)) * 4) / 4, z: Math.round((fl.z + (sz ? sz * off : lat)) * 4) / 4, rot: Math.atan2(-sx, -sz) };
+      if (on(f)) cand.push(f); } }
+  if (!cand.length) return null;
+  cand.sort((a, b) => Math.hypot(a.x - ax, a.z - az) - Math.hypot(b.x - ax, b.z - az));
+  return cand[R % cand.length];   // the rotate button steps through the places a stair fits, nearest first
+}
+function stairFitUpOld(ax, az, F) {
   let best = null, bd = 1e9; const on = f => [-1.9, -.8, .4, 1.6].every(d => onUpper(f.x + Math.sin(f.rot) * d, f.z + Math.cos(f.rot) * d, -.05, F));
   for (const fl of builds) { if (fl.type !== 'upfl' || fl.hp <= 0 || (fl.lv | 0) !== F || Math.max(Math.abs(ax - fl.x), Math.abs(az - fl.z)) > 9) continue;
     for (const [sx, sz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const off = 3.75, lat = sx ? clamp(az - fl.z, -.8, .8) : clamp(ax - fl.x, -.8, .8);
@@ -4493,8 +4504,10 @@ function stairFitUp(ax, az, F) {
 function stairFit(ax, az, F) {
   F = F | 0; let fl = null, fd = 6.5; for (const b of builds) { if (b.type !== 'upfl' || b.hp <= 0 || (b.lv | 0) !== F) continue; const d = Math.max(Math.abs(ax - b.x), Math.abs(az - b.z)); if (d < fd) { fd = d; fl = b; } }
   if (!fl) return null; const dx = ax - fl.x, dz = az - fl.z, alongX = Math.abs(dx) >= Math.abs(dz), sg = (alongX ? dx : dz) >= 0 ? 1 : -1, off = 1.5 + .25 + 2;
-  const x = alongX ? fl.x + sg * off : fl.x + clamp(dx, -.8, .8), z = alongX ? fl.z + clamp(dz, -.8, .8) : fl.z + sg * off;
-  const fx = alongX ? -sg : 0, fz = alongX ? 0 : -sg; return { x: Math.round(x * 4) / 4, z: Math.round(z * 4) / 4, rot: Math.atan2(fx, fz) };
+  // the side you aim at, then the rotate button turns it to the next side of the floor
+  const i0 = SIDES.findIndex(([a, b]) => alongX ? a === sg : b === sg), [sx, sz] = SIDES[(i0 + (buildRot | 0)) % 4];
+  const x = sx ? fl.x + sx * off : fl.x + clamp(dx, -.5, .5), z = sz ? fl.z + sz * off : fl.z + clamp(dz, -.5, .5);
+  return { x: Math.round(x * 4) / 4, z: Math.round(z * 4) / 4, rot: Math.atan2(-sx, -sz) };
 }
 function ladderNear() {
   if (S.dead || S.climbA) return null; let best = null, bd = 1.5;
@@ -4544,7 +4557,7 @@ function stairTick(dt) {
   { const st = stairAt(p.x, p.z, F); if (st && st.u < .3) { S.stB = st.b; S.stY = F * UPY + Math.min(UPY, (st.u + 1 / 16) * UPY); return; } }
   if (F > 0) { const st = stairAt(p.x, p.z, F - 1); if (st && st.u > .7) { S.stB = st.b; S.stY = (F - 1) * UPY + Math.min(UPY, (st.u + 1 / 16) * UPY); return; } }
   { const st = stairAt(p.x, p.z, F); if (st) {   // beside the tall part of a stair on this floor: it is solid
-    const b = st.b, L = stairLocal(b, p.x, p.z), c = Math.cos(b.rot), s = Math.sin(b.rot), opts = [[L.lx < 0 ? -.8 : .8, L.lz], [L.lx, 2.6]];
+    const b = st.b, L = stairLocal(b, p.x, p.z), c = Math.cos(b.rot), s = Math.sin(b.rot), opts = [[L.lx < 0 ? -1.1 : 1.1, L.lz], [L.lx, 2.6]];
     const [lx, lz] = Math.abs(opts[0][0] - L.lx) <= Math.abs(opts[1][1] - L.lz) ? opts[0] : opts[1];
     p.x = b.x + lx * c + lz * s; p.z = b.z - lx * s + lz * c; } }
   if (F > 0 && !onUpper(p.x, p.z, 0, F)) startFall(F * UPY);
@@ -5402,8 +5415,8 @@ function redressPlayer() { try { outfitOn(pm, S.gear); } catch (e) { } if (typeo
 
 var GEAR_READY = true;
 /* ---- bag space: 40 slots, plus what the backpack you wear adds (better quality = more room) ---- */
-const PACK_CAP = [5, 10, 15, 25, 35, 50, 60];
-const packBonus = () => { const it = S.gear && S.gear.pack; return it && gDur(it) > 0 ? PACK_CAP[it[1]] + Math.floor((it[7] || 0) / 3) * 2 : 0; };
+const PACK_CAP = [2, 4, 6, 9, 12, 16, 20];   // extra bag slots by backpack quality (white → immortal)
+const packBonus = () => { const it = S.gear && S.gear.pack; return it && gDur(it) > 0 ? PACK_CAP[it[1]] + Math.floor((it[7] || 0) / 5) : 0; };
 const gcap = () => 1e9;   // gear takes no backpack space any more
 // more room: +10 for every 10 player levels, +10 for each 「背包扩容」 from the gear box
 function bagExtra() { return Math.floor((S.level || 1) / 10) * 10 + Math.min(30, S.bagX | 0) * 10; }
@@ -5731,7 +5744,7 @@ function renderBag0() {
   for (let i = used; i < bagCap(); i++) { const e = document.createElement('div'); e.className = 'slot empty'; grid.appendChild(e); }
   { const cap = document.createElement('div'); cap.className = 'gcapbar'; const n = bagSlotsUsed(), c = bagCap();
     cap.innerHTML = '<span>背包 <b' + (n >= c ? ' class="full"' : '') + '>' + n + ' / ' + c + ' 格</b></span><u><i style="width:' + Math.min(100, n / c * 100) + '%"></i></u>';
-    { const sp = document.createElement('small'); sp.textContent = '每格最多 99 个 · 装备不占格子 · 「背包扩容」每次 +5 格'; cap.appendChild(sp); }
+    { const sp = document.createElement('small'); sp.textContent = '每格最多 99 个 · 装备不占格子 · 穿上的背包和「背包扩容」都会加格子'; cap.appendChild(sp); }
     if (S.ginv.length) { const sb = document.createElement('button'); sb.className = 'sbtn ghostb gscrapall'; sb.textContent = '一键分解装备'; sb.addEventListener('click', e => { e.stopPropagation(); scrapAllPop(); }); cap.appendChild(sb); }
     grid.parentNode && grid.parentNode.insertBefore ? grid.parentNode.insertBefore(cap, grid) : 0; const old = $('gcapOld'); if (old && old.parentNode) old.parentNode.removeChild(old); cap.id = 'gcapOld'; }
   bagDetail();
@@ -5836,7 +5849,7 @@ function enhBtn(it) {
 function gearDetail(box) {
   const d = document.createElement('div'); d.className = 'dtl';
   if (bagSel[0] === 'g') { const g = GEAR.find(x => 'g:' + x[0] === bagSel) || GEAR[0], slot = g[0], cur = S.gear[slot];
-    const statHtml = it => { const o = gStats(it, 'base'); return (gSlot(it) === 'pack' ? '<span class="gst">背包格子 <b>+' + (PACK_CAP[it[1]] + Math.floor((it[7] || 0) / 3) * 2) + '</b></span>' : '') + Object.keys(o).map(k => '<span class="gst">' + GSTAT_N[k][0] + ' <b>' + GSTAT_N[k][1](o[k]) + '</b></span>').join('') + '</div><div class="gtrs">' + gearTraitHtml(it); };
+    const statHtml = it => { const o = gStats(it, 'base'); return (gSlot(it) === 'pack' ? '<span class="gst">背包格子 <b>+' + (PACK_CAP[it[1]] + Math.floor((it[7] || 0) / 5)) + '</b></span>' : '') + Object.keys(o).map(k => '<span class="gst">' + GSTAT_N[k][0] + ' <b>' + GSTAT_N[k][1](o[k]) + '</b></span>').join('') + '</div><div class="gtrs">' + gearTraitHtml(it); };
     const card = (it, tag) => { const Q = GQ[it[1]]; return '<div class="gcard" style="--qc:' + Q.c + '"><div class="gtop"><b style="color:' + Q.c + '">' + Q.n + ' · ' + gName(it) + '</b><span>Lv.' + it[2] + ' · 评分 ' + gScore(it) + (tag || '') + '</span></div><div class="gsts">' + statHtml(it) + '</div>' + durHtml(it) + '</div>'; };
     const durHtml = it => { if (it[1] === 6) return '<span class="gdtx" style="color:#6ff6ff">不朽：永不损坏 · 等级永远最高 · 所有词条都能洗练</span>'; const d = gDur(it), left = GREP_MAX - gRep(it); return '<div class="gdur"><i style="width:' + d + '%;background:' + (d > 50 ? '#8fe05a' : d > 20 ? '#ffd24a' : '#ff5a4a') + '"></i></div><span class="gdtx">耐久 ' + Math.ceil(d) + '%' + (d <= 0 ? ' · 已损坏' : '') + ' · ' + (left > 0 ? '还能修理 ' + left + ' 次' : '不能再修，坏了就报废') + '</span>'; };
     d.innerHTML = '<div class="nm" style="font-size:18px;font-weight:900">' + g[1] + '</div>' + (cur ? card(cur, ' · 穿着中') : '<p class="dd">这个部位还没有装备。打丧尸会掉落，越深的区域越容易出好品质，首领必掉。</p>');
@@ -8687,7 +8700,7 @@ Object.assign(SELL_PRICE, { stone: 1, flesh: 1, vine: 2, rock: 3 }); REG_SUB.for
 /* ---- backpack: 20 slots of up to 99; storage counts toward everything you spend */
 const NOSLOT = { ammo: 1, coin: 1 };
 const bagHave = k => k === 'med' ? S.med : k === 'wood' ? S.wood : k === 'metal' ? S.metal : k === 'core' ? S.core : k === 'coin' ? S.coin : (S.inv[k] || 0);
-function bagCap() { return 20 + Math.min(10, S.bagX | 0) * 5; }
+function bagCap() { let p = 0; try { p = packBonus(); } catch (e) { } return 20 + Math.min(10, S.bagX | 0) * 5 + p; }   // the backpack you wear adds room too
 function bagSlotsUsed(skip) { let n = 0; for (const k in ITEMS) { if (NOSLOT[k] || k === skip) continue; const h = bagHave(k); if (h > 0) n += Math.ceil(h / STACK); } return n; }
 // how many more of k fit in the backpack
 function bagRoom(k) { if (NOSLOT[k] || !ITEMS[k]) return 1e9; const h = bagHave(k), free = bagCap() - bagSlotsUsed(k); return Math.max(0, free * STACK - h); }
@@ -9261,30 +9274,55 @@ function mythShot(K, ox, oz, dx, dz, end, hit, fm, pel) {
   const now = performance.now(); if (now - FXN.shot > 30) { FXN.shot = now; FXN.big = 0; FXN.first = true; } else FXN.first = false;
   const ex = ox + dx * end, ez = oz + dz * end, PY = (typeof playerY === 'function' && playerY()) || 0, w = K.r >= 5 ? 1 : .65;
   const sx = fm ? fm.x : ox, sy = fm ? fm.y : 1.55 + PY, sz = fm ? fm.z : oz, ey = 1.45 + PY, phx = K.key === 'phoenix';
-  if (!phx || !pel) { mythBeam(sx, sy, sz, ex, ey, ez, K.tr, .3 * w, .2); mythBeam(sx, sy, sz, ex, ey, ez, K.tr2, .14 * w, .16); mythBeam(sx, sy, sz, ex, ey, ez, 0xffffff, .06, .12); }
-  else mythBeam(sx, sy, sz, ex, ey, ez, Math.random() < .5 ? 0xff7a1a : 0xffc040, .12, .14);
-  if (FXN.first) { fxMuzzle(K, sx, sy, sz, dx, dz); if (phx) fxPhoenix(sx, sy, sz, dx, dz, end); }
-  const n = Math.min(phx ? 4 : 8, 3 + Math.floor(end / 3)); for (let i = 0; i < n; i++) { const t = Math.random(); fxSpark(sx + (ex - sx) * t, sy + (ey - sy) * t + (Math.random() - .5) * .15, sz + (ez - sz) * t, Math.random() < .5 ? K.tr : K.tr2, { sp: .6, life: .35 + Math.random() * .3, s: 1.8 + Math.random() * 1.4 }); }
+  if (!phx) { mythBeam(sx, sy, sz, ex, ey, ez, K.tr, .3 * w, .2); mythBeam(sx, sy, sz, ex, ey, ez, K.tr2, .14 * w, .16); mythBeam(sx, sy, sz, ex, ey, ez, 0xffffff, .06, .12); }
+  else fxPhoenix(sx, sy, sz, dx, dz, end, .75 + Math.random() * .35, (pel | 0) * .018);   // the phoenix gun: each pellet is a phoenix
+  if (FXN.first) fxMuzzle(K, sx, sy, sz, dx, dz);
+  const n = phx ? 0 : Math.min(8, 3 + Math.floor(end / 3)); for (let i = 0; i < n; i++) { const t = Math.random(); fxSpark(sx + (ex - sx) * t, sy + (ey - sy) * t + (Math.random() - .5) * .15, sz + (ez - sz) * t, Math.random() < .5 ? K.tr : K.tr2, { sp: .6, life: .35 + Math.random() * .3, s: 1.8 + Math.random() * 1.4 }); }
   const big = hit && FXN.big < 2; if (big) FXN.big++;
   fxImpact(K, ex, ey, ez, dx, dz, big);
 }
 // 凤鸣: a bird of fire flies out of the barrel along the shot, beating its wings, and bursts at the end
-function fxPhoenix(x, y, z, dx, dz, end) {
-  if (FXN.n > 60) return; const g = new THREE.Group(), F = fxMat(0xff6a10, .95), F2 = fxMat(0xffc040, .95), W = fxMat(0xfff0c0, 1), wings = [];
-  const add = (geo, m, px, py, pz, p) => { const o = new THREE.Mesh(geo, m); o.position.set(px, py, pz); (p || g).add(o); return o; };
-  add(new THREE.ConeGeometry(.12, .7, 6).rotateX(Math.PI / 2), F, 0, 0, 0);                 // body
-  add(new THREE.ConeGeometry(.08, .22, 5).rotateX(Math.PI / 2), F2, 0, .04, .42);          // head and beak
-  add(new THREE.OctahedronGeometry(.05), W, 0, .07, .38);
-  for (let i = 0; i < 3; i++) { const t = add(new THREE.BoxGeometry(.05, .02, .8 - i * .15), i === 1 ? F2 : F, (i - 1) * .1, 0, -.6); t.rotation.y = (i - 1) * .25; }   // tail plumes
-  for (const s of [-1, 1]) { const piv = new THREE.Group(); piv.position.set(s * .08, .02, .05); g.add(piv); wings.push([piv, s]);
-    for (let i = 0; i < 5; i++) { const f = add(new THREE.BoxGeometry(.5 - i * .05, .02, .12), i % 2 ? F2 : F, s * (.25 + i * .02), 0, -i * .09, piv); f.rotation.y = s * i * .12; } }
-  g.position.set(x, y, z); g.rotation.y = Math.atan2(dx, dz); g.scale.setScalar(.8); scene.add(g); FXN.n += 8;
-  const t0 = performance.now(), life = .32, L = Math.max(3, end);
-  const tick = () => { const k = Math.min(1, (performance.now() - t0) / (life * 1000 * (FXN.ts || 1)));
-    g.position.set(x + dx * L * k, y - .05 * k, z + dz * L * k); g.scale.setScalar(.8 + k * .9); wings.forEach(([p, s]) => { p.rotation.z = s * Math.sin(k * 26) * .7; });
-    g.traverse(o => { if (o.material) o.material.opacity = k > .8 ? (1 - k) / .2 : 1; });
-    if (k < 1) requestAnimationFrame(tick); else { scene.remove(g); g.traverse(o => { if (o.material) o.material.dispose(); }); FXN.n -= 8;
-      const G = fxGeo(); fxPiece(G.ico, 0xffc040, g.position.x, g.position.y, g.position.z, .3, (kk, m) => { m.scale.setScalar(1 + kk * 4); m.material.opacity = 1 - kk; }); } };
+// 凤鸣: every pellet flies out as a phoenix of fire — wide swept wings with feathered edges, a crested head,
+// and long flowing tail plumes — beating its wings along the shot and bursting into embers where it lands
+const PHX = { g: null, n: 0 };
+function phxGeo() { if (PHX.g) return PHX.g; const G = {};
+  const wing = (span, back) => { const sh = new THREE.Shape(); sh.moveTo(0, .1);
+    sh.bezierCurveTo(span * .35, .28, span * .75, .2, span, -back * .25);             // leading edge arching out to the tip
+    const n = 6; for (let i = 0; i < n; i++) { const u = 1 - (i + .5) / n, u2 = 1 - (i + 1) / n;   // scalloped trailing edge: one point per flight feather
+      sh.lineTo(span * u, -back * (.55 + .45 * Math.sin(u * Math.PI * .9))); sh.lineTo(span * u2 + span * .04, -back * (.3 + .3 * u2)); }
+    sh.lineTo(0, -.18); sh.closePath(); return new THREE.ShapeGeometry(sh, 6).rotateX(Math.PI / 2); };
+  G.wing = wing(1.35, .62); G.wingIn = wing(.82, .42); G.wingCore = wing(.4, .24);
+  const plume = (len, w) => { const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.quadraticCurveTo(w, -len * .35, w * .35, -len * .8); sh.quadraticCurveTo(w * .5, -len * .95, 0, -len);
+    sh.quadraticCurveTo(-w * .5, -len * .95, -w * .35, -len * .8); sh.quadraticCurveTo(-w, -len * .35, 0, 0); return new THREE.ShapeGeometry(sh, 6).rotateX(Math.PI / 2); };
+  G.tail = plume(1.95, .14); G.tailS = plume(1.3, .1); G.crest = plume(.38, .05);
+  G.body = new THREE.SphereGeometry(.13, 10, 8).scale(.85, .75, 2.4); G.head = new THREE.SphereGeometry(.085, 10, 8);
+  G.beak = new THREE.ConeGeometry(.035, .14, 6).rotateX(Math.PI / 2); G.glow = new THREE.SphereGeometry(.4, 20, 12).scale(1.5, .45, 1.6);
+  return (PHX.g = G); }
+function fxPhoenix(x, y, z, dx, dz, end, sc, delay) {
+  if (PHX.n >= 14) return; PHX.n++; const G = phxGeo(), g = new THREE.Group(), mats = [];
+  const M = (c, o) => { const m = fxMat(c, o == null ? 1 : o); mats.push([m, o == null ? 1 : o]); return m; };
+  const add = (geo, m, px, py, pz, p) => { const o = new THREE.Mesh(geo, m); o.position.set(px, py, pz); o.frustumCulled = false; (p || g).add(o); return o; };
+  add(G.glow, M(0xffa040, .13), 0, 0, -.05);                                             // soft fire halo
+  add(G.body, M(0xffa62a), 0, 0, 0);
+  const head = add(G.head, M(0xffd36a), 0, .07, .36); add(G.beak, M(0xfff2c0), 0, .06, .48);
+  for (let i = -1; i <= 1; i++) { const c = add(G.crest, M(i ? 0xff6a10 : 0xffc040), i * .03, .13, .34); c.rotation.set(.9 + Math.abs(i) * .15, i * .35, 0); }
+  const wings = [];
+  for (const s of [-1, 1]) { const piv = new THREE.Group(); piv.position.set(s * .06, .03, .08); piv.scale.x = s; g.add(piv); wings.push([piv, s]);
+    add(G.wing, M(0xff4512, .95), 0, 0, 0, piv); add(G.wingIn, M(0xff9a20), 0, .01, 0, piv); add(G.wingCore, M(0xffe08a), 0, .02, .02, piv); }
+  const tails = [];
+  for (let i = 0; i < 7; i++) { const a = (i - 3) * .13, t = add(i % 2 ? G.tailS : G.tail, M([0xff2a08, 0xffb43a, 0xff5a10, 0xffe08a, 0xff5a10, 0xffb43a, 0xff2a08][i], .92), 0, -.02 - Math.abs(i - 3) * .008, -.28); t.rotation.y = a; tails.push([t, a, i]); }
+  const S0 = (sc || 1) * .85; g.position.set(x, y, z); g.rotation.y = Math.atan2(dx, dz); g.scale.setScalar(.01); scene.add(g);
+  const t0 = performance.now() + (delay || 0) * 1000, life = .42, L = Math.max(3, end); let sp = 0;
+  const tick = () => { const now = performance.now(); if (now < t0) { requestAnimationFrame(tick); return; }
+    const k = Math.min(1, (now - t0) / (life * 1000 * (FXN.ts || 1))), T = now / 1000;
+    g.position.set(x + dx * L * k, y + Math.sin(k * Math.PI) * .25, z + dz * L * k); g.scale.setScalar(S0 * Math.min(1, k * 6) * (1 + k * .35));
+    wings.forEach(([p, s]) => { p.rotation.z = Math.sin(T * 30) * .65 - .1; p.rotation.y = -.25; });            // big wing beats, swept back
+    tails.forEach(([t, a, i]) => { t.rotation.y = a + Math.sin(T * 14 + i) * .12; t.rotation.x = Math.sin(T * 11 + i * .7) * .12; });
+    head.position.y = .07 + Math.sin(T * 30) * .015;
+    const fade = k > .82 ? (1 - k) / .18 : 1; mats.forEach(([m, o]) => { m.opacity = o * fade; });
+    if (typeof fxSpark === 'function' && ++sp % 2 === 0) fxSpark(g.position.x - dx * .6, g.position.y, g.position.z - dz * .6, Math.random() < .5 ? 0xff7a1a : 0xffd27a, { sp: .5, vy: .3, life: .35, s: 1.4 });   // embers streaming off the tail
+    if (k < 1) requestAnimationFrame(tick); else { scene.remove(g); mats.forEach(([m]) => m.dispose()); PHX.n--;
+      const GG = fxGeo(); fxPiece(GG.ico, 0xffc040, g.position.x, g.position.y, g.position.z, .3, (kk, m) => { m.scale.setScalar(1 + kk * 4); m.material.opacity = 1 - kk; }); } };
   requestAnimationFrame(tick);
 }
 function mythSwing(K) {
@@ -10373,4 +10411,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794073751').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794076969').catch(()=>{});</script></body></html>
