@@ -771,6 +771,8 @@ button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);mar
 @media (max-height:420px){.skpvfig{width:160px;height:226px}}
 @media (orientation:portrait){.skpvbox.pvbox{flex-direction:column;gap:8px;padding:44px 18px 18px;overflow:auto}.pvbox .skpvfig{width:180px;height:240px}.pvbox .skpvt{align-items:center;text-align:center;max-width:none}.pvbox .skpvt em{align-self:center}}
 #qbag{position:absolute;right:0;top:calc(100% + 16px);display:flex;align-items:center;gap:6px;pointer-events:auto}
+#fpDir{position:fixed;top:46%;z-index:30;pointer-events:none;background:rgba(150,10,10,.78);color:#fff;font:800 14px sans-serif;padding:7px 11px;border-radius:10px;animation:fpdp .8s ease-in-out infinite}#fpDir.l{left:10px}#fpDir.r{right:10px}@keyframes fpdp{50%{opacity:.6}}
+#qbag .viewbtn .vic{font-size:20px;line-height:24px}#qbag .viewbtn small{font-size:8.5px!important;letter-spacing:0!important;white-space:nowrap}#qbag .viewbtn.pulse{animation:vpulse 1s ease-in-out infinite}@keyframes vpulse{50%{box-shadow:0 0 0 6px rgba(125,224,255,.45)}}
 #qbag .bagbtn{width:48px!important;height:48px!important;transform:none!important}#qbag .bagbtn .bagic{width:30px!important;height:30px!important;margin-top:0}#qbag .bagbtn small{font-size:9.5px;letter-spacing:.1em}
 /* phone held upright: the tray drops down under the map instead of covering the health bar */
 
@@ -1853,14 +1855,14 @@ function genChunk(cx, cz) {
     const Bp = biomeAt(x + rr(-16, 16), z + rr(-16, 16));        // near a border the two regions' props mix
     const a0 = L.p.length, w0 = W.p.length, r = propAt(L, W, Bp.tree, x, z, rr, R);
     if (r) { const tid = 'tr' + Math.round(x * 10) + '_' + Math.round(z * 10);
-      if (S.pk && S.pk[tid] > Date.now()) { L.p.length = L.n.length = L.c.length = a0; W.p.length = W.n.length = W.c.length = w0; }   // chopped down recently: still gone
+      if ((S.pk && S.pk[tid] > Date.now()) || (typeof treeUnderBuild === 'function' && treeUnderBuild({ x, z, r: r.r }))) { L.p.length = L.n.length = L.c.length = a0; W.p.length = W.n.length = W.c.length = w0; }   // chopped down recently: still gone
       else if (r.g === 'wood') { const o = addCircle(x, z, r.r, { g: r.g }); o.tv = { ch, a: a0, b: L.p.length, wa: w0, wb: W.p.length, id: tid }; ch.obs.push(o); }
       else ch.obs.push(addCircle(x, z, r.r, { g: r.g })); }
   }
   // stone piles: grey boulders the pickaxe breaks for 石头 / 石块 (their own random stream, so the rest of the chunk is unchanged)
   { let sd = hash2(Math.floor(x0 / CH) * 7 + 3, Math.floor(z0 / CH) * 11 + 5) || 1; const sr = () => { sd = (sd * 1103515245 + 12345) & 0x7fffffff; return sd / 0x7fffffff; }, sv = (a, b) => a + sr() * (b - a);
     const n = B.tall ? 1 : sr() < .7 ? 2 : 1, tint = B.snow ? 0xd8dde4 : 0x7e7c80;
-    for (let i = 0; i < n; i++) { const x = x0 + sv(5, CH - 5), z = z0 + sv(5, CH - 5); if (roadDist(x, z) < 3 || !free(x, z, 1.4, 1.4, .5) || nearSpecial(x, z, 0) || waterAt(x, z) > -1) continue; mark(x, z, 1.3, 1.3);
+    for (let i = 0; i < n; i++) { const x = x0 + sv(5, CH - 5), z = z0 + sv(5, CH - 5); if (roadDist(x, z) < 3 || !free(x, z, 1.4, 1.4, .5) || nearSpecial(x, z, 0) || waterAt(x, z) > -1 || (typeof treeUnderBuild === 'function' && treeUnderBuild({ x, z, r: 1.3 }))) continue; mark(x, z, 1.3, 1.3);
       const h = sv(1, 1.7); L.box(x, h / 2, z, sv(1.6, 2.1), h, sv(1.5, 2), tint, sv(-.1, .1), sv(0, 3), sv(-.1, .1)); L.box(x + sv(-.5, .5), h + .2, z + sv(-.4, .4), sv(.8, 1.2), .6, sv(.8, 1.1), 0x8e8c90, sv(-.2, .2), sv(0, 3), 0);
       L.box(x + sv(.7, 1.1), .3, z + sv(-.6, .6), .6, .6, .6, 0x6a686c, 0, sv(0, 3), 0); if (B.snow) L.box(x, h + .52, z, 1, .14, 1, 0xf2f6fa, 0, sv(0, 3), 0);
       ch.obs.push(addCircle(x, z, 1.1, { g: 'stone' })); } }
@@ -2542,6 +2544,20 @@ function audioInit() {
   if (AC && AC.state === 'suspended') AC.resume();
   if (AC) { voiceBankInit(); applyVol(); }
 }
+// iPhone: sound only unlocks inside a finished tap (touchend / click), and the ring/silent switch mutes Web Audio unless
+// an <audio> element is playing. So every tap tries until the audio is really running, with a silent clip that keeps it in "playback" mode.
+let _auEl = null;
+function audioUnlock() {
+  try { audioInit(); if (!AC) return;
+    const b = AC.createBuffer(1, 1, 22050), s = AC.createBufferSource(); s.buffer = b; s.connect(AC.destination); s.start(0);
+    if (!_auEl) { const n = 2205, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf), w = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+      w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 22050, true); v.setUint32(28, 44100, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+      _auEl = new Audio(URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }))); _auEl.loop = true; _auEl.setAttribute('playsinline', ''); _auEl.volume = .01; }
+    const p = _auEl.play(); if (p && p.catch) p.catch(() => { });
+  } catch (e) { }
+}
+['touchstart', 'touchend', 'pointerdown', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, () => { if (!AC || AC.state !== 'running' || !_auEl || _auEl.paused) audioUnlock(); }, { capture: true, passive: true }));
+document.addEventListener('visibilitychange', () => { if (!document.hidden && AC && AC.state !== 'running') try { AC.resume(); } catch (e) { } });
 // out(pan): a destination node, optionally panned left/right (-1..1)
 function out(pan) { if (!pan || !AC.createStereoPanner) return BUS; const p = AC.createStereoPanner(); p.pan.value = clamp(pan, -1, 1); p.connect(BUS); return p; }
 const _nb = {};
@@ -6515,11 +6531,17 @@ function islTreeSet(T, up) {
   if (!up) { if (T.o) { removeObstacle(T.o); T.o = null; } }
   else { T.o = addCircle(T.x, T.z, T.r, { g: 'wood' }); T.o.islT = T; }
 }
+// does any building's footprint (turned the way it stands, plus a little room) cover this tree?
+function treeUnderBuild(T) { try { return _tub(T); } catch (e) { return false; } }
+function _tub(T) { for (const b of builds) { if (!(b.hp > 0)) continue; const B = BT[b.type]; if (!B) continue; const dx = T.x - b.x, dz = T.z - b.z; if (Math.abs(dx) > 6 || Math.abs(dz) > 6) continue;
+    const c = Math.cos(b.rot || 0), s = Math.sin(b.rot || 0), lx = dx * c - dz * s, lz = dx * s + dz * c, m = (T.r || .5) + .6;
+    if (Math.abs(lx) < B.hw + m && Math.abs(lz) < Math.max(B.hd, .3) + m) return true; } return false; }
 function islTreeTick() {
   const now = Date.now();
   for (const T of ISL_TREES) { const want = !(S.pk[T.id] > now);
     if (!want && T.up) islTreeSet(T, false);
-    else if (want && !T.up) { const busy = builds.some(b => b.hp > 0 && Math.hypot(b.x - T.x, b.z - T.z) < 2.2) || Math.hypot(player.pos.x - T.x, player.pos.z - T.z) < 2; if (!busy) islTreeSet(T, true); else S.pk[T.id] = now + 60000; } }
+    else if (want && T.up && treeUnderBuild(T)) { islTreeSet(T, false); S.pk[T.id] = now + 60000; }      // a tree never stands inside something you built
+    else if (want && !T.up) { const busy = treeUnderBuild(T) || Math.hypot(player.pos.x - T.x, player.pos.z - T.z) < 2; if (!busy) islTreeSet(T, true); else S.pk[T.id] = now + 60000; } }
 }
 /* ---- animals and zombies fight each other ---- */
 function zPrey(z, dt) {
@@ -7563,6 +7585,7 @@ function skSt(k) { const K = S.skin && SKINS[S.skin]; return (K && K.st && K.st[
 // animate the outfit's moving parts and throw off sparkles
 const SKFX = { p: [], t: 0, geo: null, mats: null };
 function skinFxTick(dt) {
+  for (let i = BEAMS.length - 1; i >= 0; i--) { const b = BEAMS[i]; b.t += dt; const k = b.t / b.l; if (k >= 1) { scene.remove(b.m); b.m.material.dispose(); BEAMS.splice(i, 1); continue; } b.m.material.opacity = .75 * (1 - k); b.m.scale.x = b.m.scale.y = b.w * (1 - k * .6); }
   const T = S.t || 0;
   skinAnimate((pm && pm._outfit) || [], T);
   try { if (typeof wpnModel !== 'undefined' && wpnModel) { wskAnimate(wpnModel, T); const K = wsMyth();
@@ -7575,7 +7598,6 @@ function skinFxTick(dt) {
       const m = new THREE.Mesh(SKFX.geo, SKFX.mats[Math.floor(Math.random() * 4)].clone()); m.position.set(pm.g.position.x + Math.cos(a) * r, pm.g.position.y + .1 + Math.random() * 1.9, pm.g.position.z + Math.sin(a) * r); scene.add(m);
       SKFX.p.push({ m, life: 1.1 + Math.random() * .6, t: 0, vx: (Math.random() - .5) * .25, vy: .45 + Math.random() * .5, vz: (Math.random() - .5) * .25, s: .6 + Math.random() * .9 }); } }
   try { skinPTick(dt); } catch (e) { }
-  for (let i = BEAMS.length - 1; i >= 0; i--) { const b = BEAMS[i]; b.t += dt; const k = b.t / b.l; if (k >= 1) { scene.remove(b.m); b.m.material.dispose(); BEAMS.splice(i, 1); continue; } b.m.material.opacity = .75 * (1 - k); b.m.scale.x = b.m.scale.y = b.w * (1 - k * .6); }
   for (let i = SKFX.p.length - 1; i >= 0; i--) { const q = SKFX.p[i]; q.t += dt; const k = q.t / q.life;
     if (k >= 1) { scene.remove(q.m); q.m.material.dispose(); SKFX.p.splice(i, 1); continue; }
     q.m.position.x += q.vx * dt; q.m.position.y += q.vy * dt; q.m.position.z += q.vz * dt; q.m.rotation.y += dt * 4; const sc = q.s * (k < .2 ? k / .2 : 1 - (k - .2) / .8); q.m.scale.setScalar(Math.max(.01, sc)); q.m.material.opacity = 1 - k * .5; }
@@ -7675,8 +7697,9 @@ function fxSpark(x, y, z, c, o) { o = o || {}; if (SKFX.p.length > 140) return; 
   const m = new THREE.Mesh(SKFX.geo, new THREE.MeshBasicMaterial({ color: c, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); m.position.set(x, y, z); scene.add(m);
   const sp = o.sp == null ? .5 : o.sp; SKFX.p.push({ m, life: o.life || (.4 + Math.random() * .4), t: 0, vx: (Math.random() - .5) * sp, vy: o.vy == null ? (Math.random() - .3) * sp : o.vy, vz: (Math.random() - .5) * sp, s: o.s || (.6 + Math.random() * .8) }); }
 const _beamGeo = new THREE.BoxGeometry(1, 1, 1), BEAMS = [];
+setInterval(() => { const now = performance.now(); for (let i = BEAMS.length - 1; i >= 0; i--) if (now - (BEAMS[i].at || now) > 2000) { scene.remove(BEAMS[i].m); BEAMS[i].m.material.dispose(); BEAMS.splice(i, 1); } }, 1000);
 function mythBeam(ox, oy, oz, ex, ey, ez, c, w, life) { const m = new THREE.Mesh(_beamGeo, new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: .75, depthWrite: false, blending: THREE.AdditiveBlending }));
-  m.position.set((ox + ex) / 2, (oy + ey) / 2, (oz + ez) / 2); m.lookAt(ex, ey, ez); m.scale.set(w, w, Math.hypot(ex - ox, ey - oy, ez - oz)); scene.add(m); BEAMS.push({ m, t: 0, l: life, w }); }
+  m.position.set((ox + ex) / 2, (oy + ey) / 2, (oz + ez) / 2); m.lookAt(ex, ey, ez); m.scale.set(w, w, Math.hypot(ex - ox, ey - oy, ez - oz)); scene.add(m); BEAMS.push({ m, t: 0, l: life, w, at: performance.now() }); while (BEAMS.length > 60) { const o = BEAMS.shift(); scene.remove(o.m); o.m.material.dispose(); } }
 function mythShot(K, ox, oz, dx, dz, end, hit) {   // the bullet's star trail and the burst where it lands
   const ex = ox + dx * end, ez = oz + dz * end, PY = (typeof playerY === 'function' && playerY()) || 0; mythBeam(ox, 1.55 + PY, oz, ex, 1.5 + PY, ez, K.tr, .3, .2); mythBeam(ox, 1.55 + PY, oz, ex, 1.5 + PY, ez, K.tr2, .16, .16); mythBeam(ox, 1.55 + PY, oz, ex, 1.5 + PY, ez, 0xffffff, .07, .12);
   const n = Math.min(12, 4 + Math.floor(end / 2)); for (let i = 0; i < n; i++) { const t = Math.random(); fxSpark(ox + dx * end * t, 1.52 + PY + (Math.random() - .5) * .15, oz + dz * end * t, Math.random() < .5 ? K.tr : K.tr2, { sp: .6, life: .4 + Math.random() * .35, s: 2 + Math.random() * 1.6 }); }
@@ -8390,6 +8413,16 @@ function renderStory() {
 function storySave() { return [S.story.c, S.story.s, S.story.p, S.story.seen]; }
 function storyLoad(a) { const n = v => Number.isFinite(+v) ? Math.floor(+v) : 0; S.story = { c: 0, s: 0, p: 0, seen: -1 }; if (Array.isArray(a)) S.story = { c: Math.max(0, Math.min(STORY.length, n(a[0]))), s: Math.max(0, n(a[1])), p: Math.max(0, n(a[2])), seen: a[3] == null ? -1 : n(a[3]) };
   if (!stDone() && S.story.s >= stCh().steps.length) S.story.s = 0; setTimeout(stTrk, 0); }
+// after the prologue Old Chen teaches first person: a 视角 button appears beside the backpack (island only)
+function fpTeach() { S.fpNew = 1; storyTalk([['老陈', T2('还有一招：在海岛上可以换成「第一人称」，用自己的眼睛看世界。点右上角背包旁边的「视角」按钮就能切换，再点一下换回俯视。', 'One more trick: on the island you can switch to first person. Tap the View button next to the backpack (top right) to switch; tap again to go back.')],
+  ['老陈', T2('第一人称下：右半边屏幕滑动转头，准星靠近丧尸会自动吸附，按「射击」开火。守岛的时候试试。', 'In first person: swipe the right half of the screen to look around. The crosshair sticks to nearby zombies; tap Fire to shoot.')]]); try { saveGame(); } catch (e) { } }
+stAdvance = (orig => function () { const c0 = S.story.c; orig(); if (c0 === 0 && S.story.c >= 1) try { fpTeach(); } catch (e) { } })(stAdvance);
+setInterval(() => { try {
+  const box = $('qbag'); if (!box || !S.started) return; let b = $('bView');
+  if (!b) { b = document.createElement('button'); b.id = 'bView'; b.className = 'bagbtn viewbtn'; b.innerHTML = '<span class="vic">👁</span><small></small>'; box.insertBefore(b, box.firstChild);
+    b.addEventListener('click', e => { e.stopPropagation(); FP.en = !FP.en; S.fpNew = 0; try { localStorage.setItem('ember_fp', FP.en ? '1' : '0'); } catch (er) { } feed(FP.en ? T2('第一人称：右半屏滑动转头', 'First person: swipe right side to look') : T2('俯视视角', 'Top-down view'), '#7de0ff'); }); }
+  const show = fpUnl() && S.isl && !S.dead; b.style.display = show ? '' : 'none'; b.querySelector('small').textContent = FP.en ? T2('俯视', 'Top') : T2('第一人称', '1st'); b.classList.toggle('pulse', !!S.fpNew);
+} catch (e) { } }, 500);
 /* ============ storage: 储物箱 / 储物柜 you build on the island keep gear and items you don't carry ============
    All storage boxes share one store. Every 储物箱 adds 30 gear spaces, every 储物柜 60 (items have no limit).
    Walk up to one and press 「打开储物柜」. */
@@ -9058,7 +9091,7 @@ SKIN_BUILD.seraph = function (k) {
   // a cream covert row over them, flame-gold tips. They sweep back while you move and rise and fall slowly.
   both(s => {
     const piv = new THREE.Group(); piv.position.set(s * .14, 1.74, -.36); piv.scale.setScalar(1.05); put(piv, 'b');
-    const P = [[0, 0], [.6, .55], [1.55, .82], [2.35, .7]], seg = [], tot = [0];
+    const P = [[0, 0], [.42, .5], [1.05, .74], [1.5, .64]], seg = [], tot = [0];
     for (let i = 0; i < 3; i++) { const d = Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]); seg.push(d); tot.push(tot[i] + d); }
     const at = u => { const t = u * tot[3]; let i = 0; while (i < 2 && t > tot[i + 1]) i++; const k = (t - tot[i]) / seg[i]; return [P[i][0] + (P[i + 1][0] - P[i][0]) * k, P[i][1] + (P[i + 1][1] - P[i][1]) * k]; };
     for (let i = 0; i < 3; i++) { const [x0, y0] = P[i], [x1, y1] = P[i + 1], b = new THREE.Mesh(new THREE.BoxGeometry(seg[i] + .06, .09 - i * .015, .07), mat(GO));
@@ -9067,12 +9100,12 @@ SKIN_BUILD.seraph = function (k) {
       const f = new THREE.Mesh(new THREE.BoxGeometry(w, len, .028), m); f.position.set(s * (px + ca * len / 2), py + sa * len / 2, dz); f.rotation.z = s * (a - Math.PI / 2); piv.add(f);
       if (glowTip) { const tp = new THREE.Mesh(new THREE.BoxGeometry(w * .8, .14, .034), glowTip); tp.position.set(s * (px + ca * (len - .07)), py + sa * (len - .07), dz + .004); tp.rotation.z = f.rotation.z; piv.add(tp); }
       return f; };
-    const N = 20;
-    for (let i = 0; i < N; i++) { const u = .03 + i / (N - 1) * .97, len = .5 + Math.pow(u, 1.2) * .72 - (u > .94 ? (u - .94) * 3 : 0);
+    const N = 15;
+    for (let i = 0; i < N; i++) { const u = .03 + i / (N - 1) * .97, len = .4 + Math.pow(u, 1.2) * .46 - (u > .94 ? (u - .94) * 2 : 0);
       feather(u, len, .2, mat(i % 2 ? W : 0xfbf8f0), -.01 - i * .004, u > .55 ? (i % 2 ? F : F2) : null); }
-    for (let i = 0; i < 16; i++) { const u = .03 + i / 15 * .92; feather(u, .32 + u * .26, .2, mat(i % 2 ? 0xf0e2b8 : W2), .02 + i * .002, null); }
-    for (let i = 0; i < 9; i++) { const u = .02 + i / 8 * .85; feather(u, .24, .2, mat(GO), .045, null); }
-    const glowE = new THREE.Mesh(new THREE.BoxGeometry(.5, .5, .04), glow(0xff9a3a, .22)); const [tx, ty] = at(.9); glowE.position.set(s * (tx + .25), ty - .5, -.04); piv.add(glowE);
+    for (let i = 0; i < 12; i++) { const u = .03 + i / 11 * .92; feather(u, .26 + u * .18, .2, mat(i % 2 ? 0xf0e2b8 : W2), .02 + i * .002, null); }
+    for (let i = 0; i < 7; i++) { const u = .02 + i / 6 * .85; feather(u, .2, .2, mat(GO), .045, null); }
+    const glowE = new THREE.Mesh(new THREE.BoxGeometry(.38, .38, .04), glow(0xff9a3a, .22)); const [tx, ty] = at(.9); glowE.position.set(s * (tx + .18), ty - .38, -.04); piv.add(glowE);
     const bone0 = piv.children[0];
     bone0.onBeforeRender = () => { const T = performance.now() / 1000, mv = (typeof _capeMv === 'function' ? _capeMv() : 0);
       const sp = 1.6 + mv * 4.2, amp = .09 + mv * .3; piv.rotation.y = s * (.18 + .12 * mv); piv.rotation.z = s * (amp * Math.sin(T * sp) + .05 * mv); };   // swept back, beating harder while you move
@@ -9308,6 +9341,33 @@ function fpvTick(dt) {
 function fpvShot() { FPV.kick = 1; }
 // where first-person shots start (world coordinates), or null in third person
 function fpMuzzle() { if (!FPV.g || !FPV.g.visible || !FPV.mz) return null; const v = new THREE.Vector3(); FPV.mz.getWorldPosition(v); return v; }
+
+// aim help for first person (a phone screen is hard to aim on): the zombie nearest the crosshair, inside a small cone,
+// pulls the view gently toward its chest, and a shot fired while one is in the cone goes to it
+const FPA = { z: null, t: 0 };
+function fpAimAt() { const z = FPA.z; return z && !z.dead ? z : null; }
+function fpAssistTick(dt) {
+  FPA.z = null; if (!(typeof fpOn === 'function' && fpOn()) || S.dead) return;
+  const f = player.face, rng = Math.min(rangeNow ? rangeNow() + 4 : 30, 40); let best = null, bs = 1e9;
+  for (const z of zombies) { if (z.dead || (z.animal && !z.hostile && !(z.angry > 0))) continue; const dx = z.pos.x - player.pos.x, dz = z.pos.z - player.pos.z, d = Math.hypot(dx, dz); if (d > rng || d < .3) continue;
+    let a = Math.atan2(dx, dz) - f; a = Math.atan2(Math.sin(a), Math.cos(a)); const cone = .2 + Math.min(.35, 1.4 / d);   // closer = wider
+    if (Math.abs(a) > cone) continue; const sc = Math.abs(a) * 3 + d * .03; if (sc < bs) { bs = sc; best = { z, a, d }; } }
+  if (!best) return; FPA.z = best.z;
+  const firing = input.fire || keys.Space, moving = Math.hypot(input.mx || 0, input.mz || 0) > .1, pull = firing ? 5 : moving ? 1.6 : 2.4;
+  player.face += best.a * Math.min(1, dt * pull);
+  const eye = camera.position.y || 1.6, want = Math.atan2(1.15 * (best.z.sc || 1) - eye, best.d); FP.pitch += (want - FP.pitch) * Math.min(1, dt * pull * .8);
+}
+fpvTick = (orig => function (dt) { orig(dt); try { fpAssistTick(dt); } catch (e) { } })(fpvTick);
+
+// first person: an arrow at the screen edge points at the nearest raider you can't see (left / right / behind)
+function fpDirTick() { let el = document.getElementById('fpDir'); const on = typeof fpOn === 'function' && fpOn() && !S.dead && !S.paused;
+  let best = null, bd = 1e9; if (on) for (const z of zombies) { if (z.dead || (z.animal && !z.hostile && !(z.angry > 0))) continue; const d = Math.hypot(z.pos.x - player.pos.x, z.pos.z - player.pos.z); if (d < bd && d < 90) { bd = d; best = z; } }
+  let a = 0; if (best) { a = Math.atan2(best.pos.x - player.pos.x, best.pos.z - player.pos.z) - player.face; a = Math.atan2(Math.sin(a), Math.cos(a)); }
+  const show = best && Math.abs(a) > .55;
+  if (!el) { if (!show) return; el = document.createElement('div'); el.id = 'fpDir'; document.body.appendChild(el); }
+  el.style.display = show ? '' : 'none'; if (!show) return;
+  const left = a > 0; el.className = left ? 'l' : 'r'; el.textContent = (left ? '◀ ' : '') + (Math.abs(a) > 2.4 ? '身后 ' : '') + '丧尸 ' + Math.round(bd) + 'm' + (left ? '' : ' ▶'); }
+fpvTick = (orig => function (dt) { orig(dt); try { fpDirTick(); } catch (e) { } })(fpvTick);
 
 /* ============ reasons to come back: daily tasks, login streak, kill streaks, random events on the ground ============ */
 const dateKey = (d) => { d = d || new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
@@ -9593,19 +9653,21 @@ function shoot() {
   if (S.mag <= 0) { startReload(); return; }
   const W = curW();
   if (!(Math.random() < ts('save'))) S.mag--; S.fireCd = fireInterval(); sfx.shot(); try { fpvShot(); } catch (e) { } flash.visible = true; flashT = .05; S.shake = Math.max(S.shake, W.pel > 1 || W.pierce ? .16 : .07);
-  const [dirx, dirz] = aimDir(), mz = (wpnModel ? wpnModel.userData.muzzle : .8) * .9;
+  let [dirx, dirz] = aimDir(); { const A = typeof fpOn === 'function' && fpOn() ? fpAimAt() : null; if (A) { const ax = A.pos.x - player.pos.x, az = A.pos.z - player.pos.z, ad = Math.hypot(ax, az) || 1; dirx = ax / ad; dirz = az / ad; } }
+  const mz = (wpnModel ? wpnModel.userData.muzzle : .8) * .9;
   const ox = player.pos.x + dirx * mz, oz = player.pos.z + dirz * mz, base = weaponDmg();
   // first person: the bullet follows the camera up and down too (looking at the ground hits the ground)
-  const FPS = typeof fpOn === 'function' && fpOn(), eyeY = FPS ? camera.position.y : 1.5, tp = FPS ? Math.tan(FP.pitch) : 0, gnd = FPS && tp < -.002 ? Math.max(.4, eyeY / -tp - mz) : 1e9;
+  const FPS = typeof fpOn === 'function' && fpOn(), AS = FPS ? fpAimAt() : null, eyeY = FPS ? camera.position.y : 1.5, tp = FPS ? Math.tan(FP.pitch) : 0, gnd = FPS && tp < -.002 && !AS ? Math.max(.4, eyeY / -tp - mz) : 1e9;
   const yAt = d => eyeY + tp * (d + mz), PY = (typeof playerY === 'function' && playerY()) || 0;   // standing on a second floor or a stair: shots start up there
   for (let p = 0; p < W.pel; p++) {
-    const sp = rand(-1, 1) * (W.spr + (W.pel > 1 ? 0 : .01)), c = Math.cos(sp), s = Math.sin(sp), ndx = dirx * c - dirz * s, ndz = dirx * s + dirz * c;
+    const sp = rand(-1, 1) * (W.spr + (W.pel > 1 ? 0 : .01)) * (AS && W.pel <= 1 ? .35 : 1), c = Math.cos(sp), s = Math.sin(sp), ndx = dirx * c - dirz * s, ndz = dirx * s + dirz * c;
     const len = Math.min(gnd, PY > 1.4 ? upRayLen(ox, oz, ndx, ndz, W.rng, Math.round(PY / UPY)) : rayLen(ox, oz, ndx, ndz, W.rng)), hits = [];
-    for (const z of zombies) { if (z.dead) continue; const d = segHit({ t: 0, x: z.pos.x, z: z.pos.z, r: z.r * 1.15 }, ox, oz, ndx, ndz, len); if (d >= 0 && d < len) { if (FPS) { const y = yAt(d); if (y < -.1 || y > 2.3 * (z.sc || 1)) continue; } hits.push([d, z]); } }
+    for (const z of zombies) { if (z.dead) continue; const d = segHit({ t: 0, x: z.pos.x, z: z.pos.z, r: z.r * 1.15 }, ox, oz, ndx, ndz, len); if (d >= 0 && d < len) { if (FPS && z !== AS) { const y = yAt(d); if (y < -.1 || y > 2.3 * (z.sc || 1)) continue; } hits.push([d, z]); } }
     hits.sort((a, b) => a[0] - b[0]);
     const n = Math.min(hits.length, W.pierce || 1), end = n && !W.pierce ? hits[0][0] : len;
     { const MK = typeof wsMyth === 'function' ? wsMyth() : null, fm = (typeof fpMuzzle === 'function' ? fpMuzzle() : null) || (typeof tpMuzzle === 'function' ? tpMuzzle() : null);   // first person: the shot leaves your own gun
-      tracer(fm ? fm.x : ox, fm ? fm.y : 1.55 + PY, fm ? fm.z : oz, ox + ndx * end, FPS ? Math.max(.02, yAt(end)) : 1.45 + PY, oz + ndz * end, MK ? MK.tr : W.pierce ? 0xbfe6ff : 0xffe0a0); if (MK) try { mythShot(MK, ox, oz, ndx, ndz, end, n > 0, fm, p); } catch (e) { } }
+      { const L2 = FPS && fm ? Math.min(.35, 1.4 / Math.max(1, end)) : 0; fm && L2 && fm.set(fm.x + (ox + ndx * end - fm.x) * L2, fm.y + ((FPS ? Math.max(.02, yAt(end)) : 1.45 + PY) - fm.y) * L2, fm.z + (oz + ndz * end - fm.z) * L2); }   // first person: the streak starts a little ahead of the gun, not as a wide band across the screen
+      tracer(fm ? fm.x : ox, fm ? fm.y : 1.55 + PY, fm ? fm.z : oz, ox + ndx * end, FPS ? Math.max(.02, yAt(end)) : 1.45 + PY, oz + ndz * end, MK ? MK.tr : W.pierce ? 0xbfe6ff : 0xffe0a0); if (FPS) { const t = tracePool[(traceI - 1) % tracePool.length]; t.m.scale.x = t.m.scale.y = .3; } if (MK) try { mythShot(MK, ox, oz, ndx, ndz, end, n > 0, fm, p); } catch (e) { } }
     if (p === 0) mpShot(ox, oz, ndx, ndz, end);
     for (let i = 0; i < n; i++) {
       const z = hits[i][1], r = dmgRoll(z, base * Math.pow(.8, i)); hurtZombie(z, r.d, ndx, ndz); traitHit(z, r.d, r.crit); if (ts('burn') && !z.dead) { z.burnD = Math.max(z.burnT > 0 ? (z.burnD || 0) : 0, r.d * .1 * ts('burn')); z.burnT = 3; }
@@ -9744,6 +9806,23 @@ function rrect(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x 
 function mapPin(c, x, y, r, fill, txt, k) { c.fillStyle = 'rgba(0,0,0,.55)'; c.beginPath(); c.arc(x, y + .8 * k, r + 1.6 * k, 0, 7); c.fill(); c.fillStyle = fill; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); if (txt) { c.fillStyle = '#1a0d10'; c.font = '900 ' + Math.round(r * 1.3) + 'px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(txt, x, y + .5 * k); c.textBaseline = 'alphabetic'; } }
 // one renderer for the radar (circle, small) and the big map (square, labelled). k = canvas pixels per CSS pixel.
 let _mapK = 2;
+// the player's own buildings on the map, drawn like a floor plan: floors as planks, walls as dark lines, defences in colour
+function mapBuilds(c, tx, tz, sc, k, big) {
+  const near = builds.filter(b => (b.lv | 0) === 0 && BT[b.type] && Math.abs(b.x - player.pos.x) < 400 && Math.abs(b.z - player.pos.z) < 400);
+  const box = (b, hw, hd, fill, line, mh) => { c.save(); c.translate(tx(b.x), tz(b.z)); c.rotate(-(b.rot || 0)); const w = Math.max(1.2 * k, hw * 2 * sc), h = Math.max((mh || 1.2) * k, hd * 2 * sc);
+    c.fillStyle = fill; c.fillRect(-w / 2, -h / 2, w, h); if (line) { c.strokeStyle = line; c.lineWidth = Math.max(.6, .5 * k); c.strokeRect(-w / 2, -h / 2, w, h); } c.restore(); };
+  for (const b of near) { const T = BT[b.type]; if (T.k !== 'cell' && b.type !== 'farm' && b.type !== 'rug') continue;
+    if (b.type === 'farm') box(b, T.hw, T.hd, b.broken ? '#6a6058' : '#5d8a34', '#3f5e22');
+    else if (b.type === 'rug') { if (big) box(b, T.hw, T.hd, 'rgba(170,70,60,.7)'); }
+    else box(b, T.hw, T.hd, b.broken ? '#7a7068' : b.type === 'sfnd' ? '#b9b3a8' : '#c99a64', 'rgba(60,36,20,.55)'); }
+  for (const b of near) { const T = BT[b.type], br = b.broken;
+    if (T.k === 'edge' || T.k === 'door') box(b, T.hw, Math.max(T.hd, .22), br ? '#8a7a70' : b.type === 'iwall' ? '#4a4e58' : b.type === 'window' ? '#7ab8d0' : b.type === 'door' ? '#a86a3a' : '#4a2c18', null, 2.4);
+    else if (b.type === 'wall' || b.type === 'gate') box(b, T.hw, .22, br ? '#8a7a70' : b.type === 'gate' ? '#5a5e68' : '#7a5230', null, 2.2);
+    else if (b.type === 'hut') box(b, T.hw, T.hd, br ? '#7a7068' : '#b07a4a', '#5a3a22');
+    else if (b.type === 'turret' || b.type === 'fire' || b.type === 'pot') { const r = Math.max(2 * k, T.hw * sc); c.fillStyle = 'rgba(0,0,0,.55)'; c.beginPath(); c.arc(tx(b.x), tz(b.z), r + .8 * k, 0, 7); c.fill();
+      c.fillStyle = br ? '#8a7a70' : b.type === 'turret' ? '#4ac0ff' : b.type === 'fire' ? '#ffa030' : '#c08060'; c.beginPath(); c.arc(tx(b.x), tz(b.z), r, 0, 7); c.fill(); }
+    else if (big && T.cat === 'fu' && b.type !== 'rug' && b.type !== 'farm') box(b, T.hw, T.hd, 'rgba(90,60,40,.8)'); }
+}
 function drawMap(ctx, W, range, big, k) {
   k = k || 2; _mapK = k; mctx = ctx; const c = ctx, sc = W / range, half = range / 2 + 8, px = player.pos.x, pz = player.pos.z;
   const tx = x => W / 2 + (x - px) * sc, tz = z => W / 2 + (z - pz) * sc;
@@ -9768,7 +9847,7 @@ function drawMap(ctx, W, range, big, k) {
     c.fillStyle = '#9a7450'; c.fillRect(tx(HOME.x - 1.5), tz(PAD.z - 2), 3 * sc, (HOME.z - ISL_R + 4 - (PAD.z - 2)) * sc);
     for (const o of queryObstacles(HOME.x, HOME.z, ISL_R)) if (o.t === 0 && !o.ref && o.r < 1) { c.fillStyle = '#2f5226'; c.beginPath(); c.arc(tx(o.x), tz(o.z), Math.max(1.6 * k, 1.4 * sc), 0, 7); c.fill(); }
     c.strokeStyle = '#ff8a3a'; c.lineWidth = 2.2 * k; c.beginPath(); c.arc(tx(PAD.x), tz(PAD.z), Math.max(4 * k, 3.2 * sc), 0, 7); c.stroke();
-    for (const b of builds) { const w = Math.max(3 * k, BT[b.type].hw * 2 * sc); c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(tx(b.x) - w / 2 - k, tz(b.z) - w / 2 - k, w + 2 * k, w + 2 * k); c.fillStyle = b.type === 'hut' ? '#d8a070' : '#ffb060'; c.fillRect(tx(b.x) - w / 2, tz(b.z) - w / 2, w, w); }
+    mapBuilds(c, tx, tz, sc, k, big);
     if (big) { c.font = '700 ' + 12 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#ffd8b0'; c.fillText('码头', tx(PAD.x), tz(PAD.z) - 4 * sc - 7 * k); c.fillStyle = 'rgba(255,230,210,.6)'; c.fillText('海岛 · 没有感染', W / 2, 22 * k); }
   } else {
     // regions in their biome colours
@@ -9815,6 +9894,10 @@ function drawMap(ctx, W, range, big, k) {
           c.fillStyle = 'rgba(14,8,16,.72)'; rrect(c, cx - w / 2, cz - 19 * k, w, 38 * k, 8 * k); c.fill(); c.fillStyle = '#fff2e4'; c.fillText(t1, cx, cz - 3 * k); c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.fillStyle = 'hsl(' + (120 - (t - 1) * 13) + ',85%,72%)'; c.fillText(t2, cx, cz + 12 * k); }
         else if (sz > 34 * k) { c.fillStyle = 'rgba(14,8,16,.7)'; c.beginPath(); c.arc(cx, cz, 10 * k, 0, 7); c.fill(); c.fillStyle = 'hsl(' + (120 - (t - 1) * 13) + ',85%,72%)'; c.font = '900 ' + 11 * k + 'px sans-serif'; c.textBaseline = 'middle'; c.fillText(String(t), cx, cz + .5 * k); c.textBaseline = 'alphabetic'; } } }
   }
+  if (!S.isl) mapBuilds(c, tx, tz, sc, k, big);
+  // island defence: every raider is a red dot, and an arrow on the rim points at the ones off the map
+  if (typeof ID !== 'undefined' && ID.on) for (const z of ID.zs) { if (z.dead) continue; const zx = tx(z.pos.x), zz = tz(z.pos.z), r = (z.boss ? 3.4 : 2.4) * k;
+    c.fillStyle = 'rgba(0,0,0,.6)'; c.beginPath(); c.arc(zx, zz, r + k, 0, 7); c.fill(); c.fillStyle = (S.t * 4 | 0) % 2 ? '#ff2a2a' : '#ff6a4a'; c.beginPath(); c.arc(zx, zz, r, 0, 7); c.fill(); edgeMark(z, '#ff3a3a'); }
   drawExtraRadar(tx, tz, edgeMark); evRadar(c, tx, tz, k, edgeMark);
   // player: view cone + arrow
   c.save(); c.translate(W / 2, W / 2); c.rotate(-player.face + Math.PI);
@@ -9971,7 +10054,7 @@ function renderSettings() {
     const r = row(n), inp = document.createElement('input'), v = document.createElement('b'); inp.type = 'range'; inp.min = 0; inp.max = 100; inp.value = Math.round(VOL[k] * 100); v.className = 'val'; v.textContent = inp.value;
     inp.addEventListener('input', () => { VOL[k] = inp.value / 100; v.textContent = inp.value; audioInit(); applyVol(); }); r.appendChild(inp); r.appendChild(v); });
   const f = row('海岛视角'), fo = document.createElement('div'); fo.className = 'opts';
-  [[true, '第一人称'], [false, '俯视']].forEach(([k, n]) => { const b = document.createElement('button'); b.className = 'sbtn' + (FP.en === k ? ' on' : ''); b.textContent = n;
+  if (!fpUnl()) { fo.appendChild(Object.assign(document.createElement('small'), { textContent: '完成「序章」后解锁第一人称' })); } else [[true, '第一人称'], [false, '俯视']].forEach(([k, n]) => { const b = document.createElement('button'); b.className = 'sbtn' + (FP.en === k ? ' on' : ''); b.textContent = n;
     b.addEventListener('click', () => { FP.en = k; try { localStorage.setItem('ember_fp', k ? '1' : '0'); } catch (e) { } renderSettings(); }); fo.appendChild(b); });
   f.appendChild(fo);
   const lg = row('语言'), lo = document.createElement('div'); lo.className = 'opts'; lg.setAttribute('data-noi18n', '1'); lg.firstChild.textContent = LANG === 'en' ? 'Language' : '语言';
@@ -10045,8 +10128,10 @@ document.addEventListener('gesturestart', e => e.preventDefault());
 
 /* ============ first person on the sky island ============
    Drag anywhere on the screen (outside the joystick and buttons) to look around; the joystick walks where you look. */
-const FP = { pitch: -.12, id: null, lx: 0, ly: 0, was: false, en: (() => { try { return localStorage.getItem('ember_fp') !== '0'; } catch (e) { return true; } })() };
-const fpOn = () => S.isl && !S.dead && FP.en;
+const FP = { pitch: -.12, id: null, lx: 0, ly: 0, was: false, en: (() => { try { return localStorage.getItem('ember_fp') === '1'; } catch (e) { return false; } })() };
+// first person opens after the prologue (new players start in the top-down god view)
+const fpUnl = () => !!(S.story && S.story.c >= 1);
+const fpOn = () => S.isl && !S.dead && FP.en && fpUnl();
 canvas.addEventListener('pointerdown', e => { if (!fpOn() || S.paused) return; FP.id = e.pointerId; FP.lx = e.clientX; FP.ly = e.clientY; try { canvas.setPointerCapture(e.pointerId); } catch (er) { } });
 canvas.addEventListener('pointermove', e => { if (e.pointerId !== FP.id || !fpOn()) return; const dx = e.clientX - FP.lx, dy = e.clientY - FP.ly; FP.lx = e.clientX; FP.ly = e.clientY;
   player.face -= dx * .0065; FP.pitch = clamp(FP.pitch - dy * .0045, -1.05, .75); });
@@ -10055,6 +10140,7 @@ const fpEnd = e => { if (e.pointerId === FP.id) FP.id = null; }; canvas.addEvent
 /* ============ main loop ============ */
 const clock = new THREE.Clock(); let shakeX = 0, shakeZ = 0;
 const camPos = new THREE.Vector3(HOME.x, camH, HOME.z + camD);
+function SF(f, a, b, c) { try { return f(a, b, c); } catch (e) { showErr(e); } }
 function update(dt) {
   if (S.paused) return;
   S.t += dt;
@@ -10096,14 +10182,15 @@ function update(dt) {
     else poseMelee(R, 0, Math.sin(player.walk * 2) * .025 * Math.min(1, ml) + Math.sin(S.t * 2.2) * .008); }
   else { pm.body.rotation.y = 0; pm.body.rotation.x = 0; }
   swingTick(dt);
-  if (S.isl) islandTick(dt); try { idefTick(dt); } catch (e) { } regionTick(dt); portTick(); benchTick(); gearTick(dt); if (!S.isl) villageTick(dt); waterTick(dt); evTick(dt); streakTick(); houseTick(); zombieAudio(dt); bodyAudio(dt, ml > .05 && !S.paused); shadowTick(dt, player.pos.x, player.pos.z);
+  // every system runs on its own: one that breaks can't stop the others (effects that never vanish, frozen zombies)
+  if (S.isl) SF(islandTick, dt); SF(idefTick, dt); SF(regionTick, dt); SF(portTick); SF(benchTick); SF(gearTick, dt); if (!S.isl) SF(villageTick, dt); SF(waterTick, dt); SF(evTick, dt); SF(streakTick); SF(houseTick); SF(zombieAudio, dt); SF(bodyAudio, dt, ml > .05 && !S.paused); SF(shadowTick, dt, player.pos.x, player.pos.z);
   pm.g.position.x = player.pos.x; pm.g.position.z = player.pos.z; pm.g.rotation.y = player.face;
   if (!S.dead) { const wd = S.isl || S.up || roadDist(player.pos.x, player.pos.z) < .8 ? -1 : waterAt(player.pos.x, player.pos.z), py = playerY(); if (py != null && (S.climbA || Math.abs(pm.g.position.y - py) < .6)) pm.g.position.y = py; else pm.g.position.y += ((py != null ? py : wd > 0 ? -Math.min(wd, 1.3) * .55 : 0) - pm.g.position.y) * Math.min(1, dt * 8); }      // wading: you sink into rivers
   const sw = Math.sin(player.walk) * .75 * Math.min(1, ml);
   if (S.skin === 'seraph') { const b = Math.sin(S.t * 2.2) * .04; pm.legL.rotation.x = .1 + b; pm.legR.rotation.x = .32 - b; pm.body.position.y = .5 + Math.sin(S.t * 2.2) * .08; }   // floating: legs hang still, no walking   // the winged outfit floats, legs hanging
   else { pm.legL.rotation.x = sw; pm.legR.rotation.x = -sw; pm.body.position.y = Math.abs(Math.sin(player.walk)) * .07 * Math.min(1, ml); }
-  updateWorld(player.pos.x, player.pos.z);
-  updateEnemies(dt); zSpecialTick(dt); try { skinFxTick(dt); } catch (e) { } try { fpvTick(dt); } catch (e) { } merchTick(dt); updateLoot(dt); updateCrates(dt); updateBuilds(dt); updateGhost(); updateFx(dt);
+  SF(updateWorld, player.pos.x, player.pos.z);
+  SF(updateEnemies, dt); SF(zSpecialTick, dt); SF(skinFxTick, dt); SF(fpvTick, dt); SF(merchTick, dt); SF(updateLoot, dt); SF(updateCrates, dt); SF(updateBuilds, dt); SF(updateGhost); SF(updateFx, dt);
   // camera follow with shake
   S.shake = Math.max(0, S.shake - dt * 2.2);
   const tx = player.pos.x, tz = player.pos.z + camD, ty = camH + Math.max(0, pm.g.position.y);
@@ -10115,7 +10202,7 @@ function update(dt) {
     camera.position.set(player.pos.x + rand(-1, 1) * S.shake * .2, eye, player.pos.z);
     camera.lookAt(player.pos.x + Math.sin(f) * Math.cos(p) * 10, eye + Math.sin(p) * 10, player.pos.z + Math.cos(f) * Math.cos(p) * 10); }
   else camera.lookAt(camPos.x, 0.8 + Math.max(0, camPos.y - camH), camPos.z - camD * .96);
-  if (camera.updateMatrixWorld) camera.updateMatrixWorld(); staRingTick(dt); xpPopTick(dt); gatherTick(dt); try { felledTick(dt); } catch (e) { } foodSysTick(dt); climbTick(dt); farmTick(dt); dailyTick(dt);
+  if (camera.updateMatrixWorld) camera.updateMatrixWorld(); SF(staRingTick, dt); SF(xpPopTick, dt); SF(gatherTick, dt); SF(felledTick, dt); SF(foodSysTick, dt); SF(climbTick, dt); SF(farmTick, dt); SF(dailyTick, dt);
   miniT -= dt; if (miniT <= 0) { miniT = .07; drawMini(); }
   S.saveT += dt; if (S.saveT > 12) { S.saveT = 0; S.dirty = true; saveGame(); markLive(); }
   placeSky(camera);
@@ -10152,4 +10239,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794049055').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794058618').catch(()=>{});</script></body></html>
