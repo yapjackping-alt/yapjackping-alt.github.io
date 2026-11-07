@@ -7642,6 +7642,7 @@ function skinPreview(key) {
     if (SKPV.h) SKPV.sc.remove(SKPV.h.g); SKPV.sp.forEach(p => SKPV.sc.remove(p.m)); SKPV.sp = [];
     const h = makeHuman({ skin: 0xe0b090, shirt: 0x2d6f7a, pants: 0x2a2a33 }); dressPlayer(h); h._outfit = []; skinOn(h, h._outfit, key);
     SKPV.h = h; SKPV.sc.add(h.g); SKPV.key = key; SKPV.yaw = null; SKPV.t = 0;
+    { const far = key === 'seraph'; SKPV.cam.position.set(0, far ? 1.7 : 1.5, far ? 12.5 : 8.4); SKPV.cam.lookAt(0, far ? 1.55 : 1.32, 0); }   // the winged outfit needs room
     m.querySelector('.skpvfig').appendChild(SKPV.R.domElement);
     if (!SKPV.raf) SKPV.raf = requestAnimationFrame(skinPvLoop);
   } catch (e) { m.querySelector('.skpvfig').innerHTML = icHtml('skin:' + key, 'fig'); }
@@ -9044,25 +9045,33 @@ SKIN_BUILD.seraph = function (k) {
   for (let i = 0; i < 7; i++) { const a = i / 7 * 6.283, f = new THREE.Mesh(new THREE.ConeGeometry(.045, .2 + (i % 2) * .08, 5), i % 2 ? F2 : F); f.position.set(Math.cos(a) * .3, Math.sin(a) * .3, -.1); f.rotation.x = -Math.PI / 2; crown.add(f); }
   // shoulders: gold feather layers
   both((s, L, a) => { bx(.42, .22, .5, W, s * .48, 1.86, 0); bx(.44, .06, .52, GO, s * .48, 1.74, 0); for (let i = 0; i < 3; i++) cone(.09, .34, i % 2 ? GO2 : GO, s * (.52 + i * .06), 1.98 - i * .05, -.12 + i * .12, 'b', 0, 0, -s * (1.3 + i * .1)); });
-  // two pairs of great feathered wings, hinged at the back; they beat slowly, faster when you move
+  // the wing mount on the back
   bx(.42, .56, .08, W2, 0, 1.52, -.26); const core = gem(.09, F2, 0, 1.6, -.32);
   // floating: the game loop lifts the player; previews (bag, wardrobe) are lifted here
   core.onBeforeRender = () => { const b = core.parent; if (!b || (typeof pm !== 'undefined' && b === pm.body)) return; b.position.y = .28 + Math.sin(performance.now() / 450) * .06; };
+  // one great pair of angel wings: a gold wing-bone arching up and out, long feathers hanging from it (longest at the tip),
+  // a cream covert row over them, flame-gold tips. They sweep back while you move and rise and fall slowly.
   both(s => {
-    for (const [pairY, scl, pairZ] of [[1.66, 1, -.34], [1.36, .68, -.38]]) {
-      const piv = new THREE.Group(); piv.position.set(s * .16, pairY, pairZ); put(piv, 'b');
-      const n = pairY > 1.5 ? 9 : 6;
-      for (let i = 0; i < n; i++) {
-        const a = -.35 + i * (1.65 / (n - 1)), len = (.92 + Math.sin(i / (n - 1) * Math.PI) * .42) * scl, ca = Math.cos(a), sa = Math.sin(a);
-        const fe = new THREE.Mesh(new THREE.BoxGeometry(.13 * scl + .02, len, .03), mat(i % 3 === 2 ? W2 : W)); fe.position.set(s * ca * len / 2, sa * len / 2, -i * .006); fe.rotation.z = -s * (Math.PI / 2 - a); piv.add(fe);
-        const cov = new THREE.Mesh(new THREE.BoxGeometry(.15 * scl + .02, len * .5, .035), mat(i % 2 ? GO : 0xf0e2b8)); cov.position.set(s * ca * len * .25, sa * len * .25, .02); cov.rotation.z = fe.rotation.z; piv.add(cov);
-        const tip = new THREE.Mesh(new THREE.BoxGeometry(.11 * scl + .02, .16 * scl, .04), i % 2 ? F : F2); tip.position.set(s * ca * (len - .06), sa * (len - .06), .01); tip.rotation.z = fe.rotation.z; piv.add(tip);
-        const tg = new THREE.Mesh(new THREE.BoxGeometry(.2 * scl, .3 * scl, .05), glow(0xff9a3a, .35)); tg.position.copy(tip.position); tg.rotation.z = fe.rotation.z; piv.add(tg);
-        if (i === 0) fe.onBeforeRender = () => { const T = performance.now() / 1000, mv = (typeof _capeMv === 'function' ? _capeMv() : 0), sp = 1.6 + mv * 2.4, ph = pairY > 1.5 ? 0 : .7;
-          piv.rotation.y = s * (-.35 + .3 * Math.sin(T * sp + ph)); piv.rotation.z = s * .08 * Math.sin(T * sp + ph + .6); };
-      }
-      const bone = new THREE.Mesh(new THREE.BoxGeometry(.5 * scl, .08, .06), mat(GO)); bone.position.set(s * .25 * scl, .05, .03); bone.rotation.z = s * .5; piv.add(bone);
-    } });
+    const piv = new THREE.Group(); piv.position.set(s * .14, 1.72, -.34); piv.scale.setScalar(.85); put(piv, 'b');
+    const P = [[0, 0], [.48, .42], [1.2, .64], [1.62, .52]], seg = [], tot = [0];
+    for (let i = 0; i < 3; i++) { const d = Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]); seg.push(d); tot.push(tot[i] + d); }
+    const at = u => { const t = u * tot[3]; let i = 0; while (i < 2 && t > tot[i + 1]) i++; const k = (t - tot[i]) / seg[i]; return [P[i][0] + (P[i + 1][0] - P[i][0]) * k, P[i][1] + (P[i + 1][1] - P[i][1]) * k]; };
+    for (let i = 0; i < 3; i++) { const [x0, y0] = P[i], [x1, y1] = P[i + 1], b = new THREE.Mesh(new THREE.BoxGeometry(seg[i] + .06, .09 - i * .015, .07), mat(GO));
+      b.position.set(s * (x0 + x1) / 2, (y0 + y1) / 2, .03); b.rotation.z = s * Math.atan2(y1 - y0, x1 - x0); piv.add(b); }
+    const feather = (u, len, w, m, dz, glowTip) => { const [px, py] = at(u), a = -Math.PI / 2 + u * 1.25, ca = Math.cos(a), sa = Math.sin(a);
+      const f = new THREE.Mesh(new THREE.BoxGeometry(w, len, .028), m); f.position.set(s * (px + ca * len / 2), py + sa * len / 2, dz); f.rotation.z = s * (a - Math.PI / 2); piv.add(f);
+      if (glowTip) { const tp = new THREE.Mesh(new THREE.BoxGeometry(w * .8, .14, .034), glowTip); tp.position.set(s * (px + ca * (len - .07)), py + sa * (len - .07), dz + .004); tp.rotation.z = f.rotation.z; piv.add(tp); }
+      return f; };
+    const N = 15;
+    for (let i = 0; i < N; i++) { const u = .04 + i / (N - 1) * .96, len = .5 + Math.pow(u, 1.3) * .78 - (u > .93 ? (u - .93) * 3 : 0);
+      feather(u, len, .15, mat(i % 2 ? W : 0xfbf8f0), -.01 - i * .004, u > .55 ? (i % 2 ? F : F2) : null); }
+    for (let i = 0; i < 11; i++) { const u = .03 + i / 10 * .9; feather(u, .3 + u * .22, .14, mat(i % 2 ? 0xf0e2b8 : W2), .02 + i * .002, null); }
+    for (let i = 0; i < 7; i++) { const u = .02 + i / 6 * .8; feather(u, .17, .13, mat(GO), .045, null); }
+    const glowE = new THREE.Mesh(new THREE.BoxGeometry(.5, .5, .04), glow(0xff9a3a, .22)); const [tx, ty] = at(.9); glowE.position.set(s * (tx + .25), ty - .5, -.04); piv.add(glowE);
+    const bone0 = piv.children[0];
+    bone0.onBeforeRender = () => { const T = performance.now() / 1000, mv = (typeof _capeMv === 'function' ? _capeMv() : 0);
+      piv.rotation.y = s * (-.22 - .3 * mv); piv.rotation.z = s * (.07 * Math.sin(T * 1.5) - .05 * mv); };
+  });
   // arms and legs
   sleeves(R2, GO); both((s, L, a) => { bx(.29, .32, .29, W, 0, -.56, 0, a); bx(.3, .04, .3, GO, 0, -.42, 0, a); bx(.3, .03, .3, F, 0, -.7, 0, a); });
   pants(R2, W, .3); both((s, L) => { bx(.32, .44, .34, W, 0, -.7, 0, L); bx(.33, .04, .35, GO, 0, -.48, 0, L); bx(.03, .3, .02, F, 0, -.7, .18, L); cone(.05, .2, GO, s * .17, -.56, 0, L, 0, 0, -s * 1.4); });
@@ -9072,7 +9081,7 @@ SKIN_BUILD.seraph = function (k) {
 };
 // glowing feathers drifting down from the wing tips, embers rising off the crown
 SKIN_P.seraph = [
-  { pts: [[-1.35, 2.1, -.4], [1.35, 2.1, -.4], [-1.0, 2.6, -.4], [1.0, 2.6, -.4], [-.8, 1.4, -.45], [.8, 1.4, -.45]], rate: 9, life: 2.2, v: [0, -.45, -.1], sp: .3, col: [0xfff4d8, 0xffd27a, 0xffffff], sz: .07 },
+  { pts: [[-1.35, 1.3, -.45], [1.35, 1.3, -.45], [-.95, 1.15, -.42], [.95, 1.15, -.42], [-1.45, 1.95, -.4], [1.45, 1.95, -.4]], rate: 9, life: 2.2, v: [0, -.45, -.1], sp: .3, col: [0xfff4d8, 0xffd27a, 0xffffff], sz: .07 },
   { pts: [[-.2, 2.62, 0], [.2, 2.62, 0], [0, 2.62, -.25], [0, 2.62, .2]], rate: 14, life: .7, v: [0, 1, 0], sp: .15, col: [0xffd060, 0xff8a2a], sz: .05 },
   { pts: 'body', rate: 6, life: 1.4, v: [0, .5, 0], sp: .3, col: [0xffb04a, 0xfff0c0], sz: .045 }];
 
@@ -9983,7 +9992,7 @@ function update(dt) {
   pm.g.position.x = player.pos.x; pm.g.position.z = player.pos.z; pm.g.rotation.y = player.face;
   if (!S.dead) { const wd = S.isl || S.up || roadDist(player.pos.x, player.pos.z) < .8 ? -1 : waterAt(player.pos.x, player.pos.z), py = playerY(); if (py != null && (S.climbA || Math.abs(pm.g.position.y - py) < .6)) pm.g.position.y = py; else pm.g.position.y += ((py != null ? py : wd > 0 ? -Math.min(wd, 1.3) * .55 : 0) - pm.g.position.y) * Math.min(1, dt * 8); }      // wading: you sink into rivers
   const sw = Math.sin(player.walk) * .75 * Math.min(1, ml);
-  if (S.skin === 'seraph') { const k = .25; pm.legL.rotation.x = sw * k + .15; pm.legR.rotation.x = -sw * k + .25; pm.body.position.y = .5 + Math.sin(S.t * 2.2) * .08; }   // the winged outfit floats, legs hanging
+  if (S.skin === 'seraph') { const b = Math.sin(S.t * 2.2) * .04; pm.legL.rotation.x = .1 + b; pm.legR.rotation.x = .32 - b; pm.body.position.y = .5 + Math.sin(S.t * 2.2) * .08; }   // floating: legs hang still, no walking   // the winged outfit floats, legs hanging
   else { pm.legL.rotation.x = sw; pm.legR.rotation.x = -sw; pm.body.position.y = Math.abs(Math.sin(player.walk)) * .07 * Math.min(1, ml); }
   updateWorld(player.pos.x, player.pos.z);
   updateEnemies(dt); zSpecialTick(dt); try { skinFxTick(dt); } catch (e) { } try { fpvTick(dt); } catch (e) { } merchTick(dt); updateLoot(dt); updateCrates(dt); updateBuilds(dt); updateGhost(); updateFx(dt);
@@ -10035,4 +10044,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794046729').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794047343').catch(()=>{});</script></body></html>
