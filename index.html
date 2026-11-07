@@ -7620,7 +7620,7 @@ function skinFxTick(dt) {
       if (K && pm.g.visible && !S.paused && Math.random() < dt * (K.key === 'phoenix' || S.wsk[S.wp] === 'phoenix' ? 30 : 9)) { /* the phoenix gun sheds far more gold dust */ const v = new THREE.Vector3((Math.random() - .5) * .15, (Math.random() - .5) * .15, Math.random() * (wpnModel.userData.muzzle || .6)); wpnModel.localToWorld(v); fxSpark(v.x, v.y, v.z, Math.random() < .5 ? K.tr : K.tr2, { sp: .25, vy: .35, life: .6, s: 1.2 + Math.random() }); } } } catch (e) { }
   // sparkles rising around a mythic wearer (third person only)
   if (S.skin && SKINS[S.skin] && SKINS[S.skin].r >= 5 && pm.g.visible && !S.paused) {
-    if (!SKFX.geo) { SKFX.geo = new THREE.OctahedronGeometry(.035); SKFX.mm = {}; } SKFX.mats = SKFX.mm[S.skin] || (SKFX.mm[S.skin] = (SKINS[S.skin].fx || [0x7ff0ff, 0xc49aff, 0xffe08a, 0xffffff]).map(c => new THREE.MeshBasicMaterial({ color: c, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })));
+    if (!SKFX.geo) { SKFX.geo = new THREE.BoxGeometry(.04, .04, .04); SKFX.mm = {}; } SKFX.mats = SKFX.mm[S.skin] || (SKFX.mm[S.skin] = (SKINS[S.skin].fx || [0x7ff0ff, 0xc49aff, 0xffe08a, 0xffffff]).map(c => new THREE.MeshBasicMaterial({ color: c, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })));
     SKFX.t -= dt; const moving = Math.hypot(input.mx || 0, input.mz || 0) > .1;
     while (SKFX.t <= 0 && SKFX.p.length < 46) { SKFX.t += moving ? .03 : .07; const a = Math.random() * 6.283, r = .35 + Math.random() * .4;
       const m = new THREE.Mesh(SKFX.geo, SKFX.mats[Math.floor(Math.random() * 4)].clone()); m.position.set(pm.g.position.x + Math.cos(a) * r, pm.g.position.y + .1 + Math.random() * 1.9, pm.g.position.z + Math.sin(a) * r); scene.add(m);
@@ -7721,7 +7721,7 @@ function wskAnimate(g, T) { if (!g || !g.userData.myth) return; for (const o of 
     else if (u.wfx === 'orb') { const a = T * 2.6 + u.ph; o.position.set(u.c[0] + Math.cos(a) * u.r, u.c[1] + Math.sin(a) * u.r, u.c[2] + Math.sin(T * 1.7 + u.ph) * .06); o.rotation.z = T * 3; } } }
 // glowing sparks (shared by outfits, weapons and bullets)
 const _spMat = {};
-function fxSpark(x, y, z, c, o) { o = o || {}; if (SKFX.p.length > 140) return; if (!SKFX.geo) SKFX.geo = new THREE.OctahedronGeometry(.035);
+function fxSpark(x, y, z, c, o) { o = o || {}; if (SKFX.p.length > 140) return; if (!SKFX.geo) SKFX.geo = new THREE.BoxGeometry(.04, .04, .04);
   const m = new THREE.Mesh(SKFX.geo, new THREE.MeshBasicMaterial({ color: c, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); m.position.set(x, y, z); scene.add(m);
   const sp = o.sp == null ? .5 : o.sp; SKFX.p.push({ m, life: o.life || (.4 + Math.random() * .4), t: 0, vx: (Math.random() - .5) * sp, vy: o.vy == null ? (Math.random() - .3) * sp : o.vy, vz: (Math.random() - .5) * sp, s: o.s || (.6 + Math.random() * .8) }); }
 const _beamGeo = new THREE.BoxGeometry(1, 1, 1), BEAMS = [];
@@ -9163,51 +9163,7 @@ buildWeapon = (orig => function (id, t, skin) { const g = orig(id, t, skin), k =
   return g; })(buildWeapon);
 function wskExtra(g, k) {
   const bb = new THREE.Box3().setFromObject(g), sz = new THREE.Vector3(), ct = new THREE.Vector3(); bb.getSize(sz); bb.getCenter(ct);
-  if (k === 'phoenix') {   // 凤鸣: the whole gun becomes a phoenix — the barrel is its neck and the muzzle its head, the receiver its body,
-    // folded wings along the sides, and the stock is its tail: long ivory and crimson plumes with gold eyes, swaying
-    g.traverse(o => { if (o.isMesh) o.visible = false; });   // the plain shotgun underneath is replaced
-    const P = phxGeo(), M = (c, e, met, rough) => new THREE.MeshStandardMaterial({ color: c, roughness: rough == null ? .35 : rough, metalness: met || .1, emissive: c, emissiveIntensity: e || .1 });
-    const IV = M(0xffeccc, .16), IV2 = M(0xf0dcb4, .1), GD = M(0xe6b85a, .25, .85, .25), RD = M(0xa8102c, .2), DR = M(0x6a0818, .15), GL = new THREE.MeshBasicMaterial({ color: 0xffe9a8 });
-    const add = (geo, m, x, y, z, p) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); (p || g).add(o); return o; };
-    const zr = geo => geo.rotateX(Math.PI / 2);   // cylinders along the gun
-    // body: a smooth ivory form with gold filigree
-    add(new THREE.SphereGeometry(1, 24, 16), IV, 0, .005, .02).scale.set(.085, .105, .24);
-    for (const sd of [-1, 1]) { const pts = []; for (let i = 0; i <= 24; i++) { const t = i / 24; pts.push(new THREE.Vector3(sd * (.083 - Math.abs(t - .5) * .03), .02 + Math.sin(t * Math.PI * 1.7) * .035, .2 - t * .4)); }
-      add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 48, .006, 6, false), GD, 0, 0, 0);
-      const p2 = pts.slice(12).map(p => new THREE.Vector3(p.x, p.y - .045, p.z + .02)); add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(p2), 24, .004, 6, false), GD, 0, 0, 0); }
-    // neck (barrel): crimson lacquer, an ivory tube under it, gold bands, small overlapping neck feathers on top
-    add(zr(new THREE.CylinderGeometry(.03, .04, .68, 18)), RD, 0, .045, .53); add(zr(new THREE.CylinderGeometry(.02, .022, .55, 14)), IV2, 0, -.015, .46);
-    for (const z of [.26, .5, .74]) add(zr(new THREE.TorusGeometry(.043, .008, 8, 24)).rotateX(-Math.PI / 2), GD, 0, .045, z).rotation.x = 0;
-    for (let i = 0; i < 6; i++) { const sc = add(new THREE.SphereGeometry(.03, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), i % 2 ? IV : GD, 0, .072, .6 + i * .05); sc.scale.set(1, .5, 1.4); sc.rotation.x = -.35; }
-    // head at the muzzle: gold-and-ivory, a curved beak, crimson eyes, a crest of three flowing plumes sweeping back
-    const head = new THREE.Group(); head.position.set(0, .08, .93); head.scale.setScalar(1.45); g.add(head);
-    add(new THREE.SphereGeometry(1, 18, 12), IV, 0, 0, 0, head).scale.set(.042, .045, .07); add(new THREE.SphereGeometry(1, 14, 10), GD, 0, .012, -.01, head).scale.set(.044, .03, .055);
-    const beak = add(new THREE.ConeGeometry(.018, .085, 10).rotateX(Math.PI / 2), GD, 0, -.008, .09, head); beak.rotation.x = .25;
-    for (const e of [-1, 1]) add(new THREE.SphereGeometry(.009, 8, 6), RD, e * .033, .012, .035, head);
-    [[0, RD, .5, 1], [-1, DR, .62, .8], [1, DR, .62, .8], [-2, GD, .75, .6], [2, GD, .75, .6]].forEach(([i, m, rx, sc]) => { const c = add(P.crest3, m, i * .01, .035, -.03, head); c.rotation.set(rx - .1, i * .2, 0); c.scale.set(sc * .4, sc * .55, sc * .6); });
-    // grip: ivory wrapped in gold
-    const gr = add(new THREE.CylinderGeometry(.03, .034, .17, 12), IV2, 0, -.13, -.1); gr.rotation.x = .35; for (let i = 0; i < 3; i++) { const r = add(new THREE.TorusGeometry(.034, .006, 6, 16).rotateX(Math.PI / 2), GD, 0, -.09 - i * .045, -.085 - i * .016); r.rotation.x = .35; }
-    // wings folded along the sides: crimson coverts, ivory flight feathers, gold tips, rising up and sweeping back
-    for (const sd of [-1, 1]) { const wg = new THREE.Group(); wg.position.set(sd * .085, .06, .06); g.add(wg);
-      for (let i = 0; i < 6; i++) { const f = new THREE.Group(); f.rotation.set(.12 + i * .07, sd * (.18 + i * .07), sd * (Math.PI / 2 - .5)); wg.add(f);
-        const len = .3 + i * .035; add(P.tail3, i < 2 ? RD : IV, 0, 0, 0, f).scale.set(.6, 1, len / 1.95); if (i >= 2) add(P.tailS3, i % 2 ? RD : DR, 0, .02, -.04, f).scale.set(.3, .6, len / 1.5);
-        add(P.crest3, GD, 0, .015, -len * .92, f).scale.setScalar(.35); }
-      wg.children[0].children[0].onBeforeRender = () => { const T = performance.now() / 1000; wg.rotation.z = sd * Math.sin(T * 2) * .05; wg.rotation.x = Math.sin(T * 2 + 1) * .04; }; }
-    // the stock is the tail: five long plumes fanning back, each with a gold-and-crimson eye at its tip
-    const tail = new THREE.Group(); tail.position.set(0, -.01, -.2); g.add(tail);
-    [[-3, RD, .7], [-2, IV, .85], [-1, RD, .95], [0, IV, 1.1], [1, RD, .95], [2, IV, .85], [3, RD, .7]].forEach(([i, m, len]) => { const t = new THREE.Group(); t.rotation.set(-.08 + Math.abs(i) * .05, i * .11, 0); tail.add(t);
-      add(P.tail3, m, 0, 0, 0, t).scale.set(.62, 1, len / 1.95); if (m === IV) add(P.tailS3, RD, 0, .02, -.05, t).scale.set(.3, .6, len / 1.6);
-      add(new THREE.CylinderGeometry(.03, .03, .02, 16), GD, 0, .01, -len * .9, t); add(new THREE.CylinderGeometry(.016, .016, .028, 12), RD, 0, .012, -len * .9, t); });
-    tail.children[0].children[0].onBeforeRender = () => { const T = performance.now() / 1000; tail.children.forEach((t, i) => { t.rotation.x = -.08 + Math.abs(i - 3) * .05 + Math.sin(T * 1.6 + i) * .05; t.rotation.y = (i - 3) * .11 + Math.sin(T * 1.1 + i) * .03; }); };
-    // fire-gold glow along the tail and embers shed from the plume tips
-    const halo = add(new THREE.SphereGeometry(1, 20, 12), new THREE.MeshBasicMaterial({ color: 0xffb64a, transparent: true, opacity: .16, depthWrite: false, blending: THREE.AdditiveBlending }), 0, .02, -.45); halo.scale.set(.2, .06, .55);
-    halo.onBeforeRender = () => { const T = performance.now() / 1000; halo.material.opacity = .13 + Math.sin(T * 4) * .05; };
-    let nE = 0; const ev = new THREE.Vector3(); tail.children[3].children[0].onBeforeRender = () => { const now = performance.now(); if (now < nE || typeof scene === 'undefined') return; nE = now + 70;
-      let o = g; while (o.parent) o = o.parent; if (o !== scene) return; const t = tail.children[(Math.random() * 7) | 0]; ev.set(0, 0, -.9 * (t.children[0].scale.z * 1.95)); t.localToWorld(ev);
-      fxSpark(ev.x, ev.y, ev.z, [0xffe38a, 0xffc04a, 0xff5a3a][(Math.random() * 3) | 0], { sp: .25, vy: .25, life: .6, s: 1 + Math.random() }); };
-    // gold motes drifting round it
-    for (let i = 0; i < 7; i++) { const m = add(new THREE.OctahedronGeometry(.012), GL, 0, 0, 0); const ph = i * .9, r = .16 + (i % 3) * .05;
-      m.onBeforeRender = () => { const T = performance.now() / 1000; m.position.set(Math.cos(T * 1.2 + ph) * r, .03 + Math.sin(T * 1.9 + ph * 2) * .1, .2 + Math.sin(T * 1.2 + ph) * .55); m.rotation.y = T * 3; }; }
+  if (k === 'phoenix') { phxGun(g); return;
   } else {                 // stars along the blade, a soft violet edge
     const W = new THREE.MeshBasicMaterial({ color: 0xffffff }), C = new THREE.MeshBasicMaterial({ color: 0x7ff0ff }), V = new THREE.MeshBasicMaterial({ color: 0xc49aff });
     for (let i = 0; i < 9; i++) { const st = new THREE.Mesh(new THREE.OctahedronGeometry(.012 + (i % 3) * .005), [W, C, V][i % 3]);
@@ -9215,6 +9171,91 @@ function wskExtra(g, k) {
   }
 }
 
+/* ---- 凤鸣 shotgun, hand-built: a real shotgun silhouette in ivory lacquer and crimson, crisp bevelled parts, gold relief,
+   and phoenix feathers made like feathers (a bevelled vane, a gold quill down the middle, grooved barbs, a coloured tip).
+   Hundreds of small parts are baked into a few meshes so the phone draws it cheaply. */
+function bakeInto(src, dst) {
+  src.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(src.matrixWorld).invert(), by = new Map();
+  src.traverse(o => { if (!o.isMesh) return; const g2 = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(); g2.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld)); if (!by.has(o.material)) by.set(o.material, []); by.get(o.material).push(g2); });
+  for (const [mat, list] of by) { let n = 0; list.forEach(q => { n += q.attributes.position.count; }); const P = new Float32Array(n * 3), N = new Float32Array(n * 3); let at = 0;
+    list.forEach(q => { P.set(q.attributes.position.array, at * 3); if (q.attributes.normal) N.set(q.attributes.normal.array, at * 3); at += q.attributes.position.count; q.dispose(); });
+    const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.BufferAttribute(P, 3)); bg.setAttribute('normal', new THREE.BufferAttribute(N, 3)); bg.computeBoundingSphere(); dst.add(new THREE.Mesh(bg, mat)); }
+}
+// one feather lying along -z from its quill at the origin, flat in x/z, thickness in y
+function phxFeather(p, len, w, vane, tip, gold, barbM) {
+  const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.bezierCurveTo(w * .95, -len * .12, w, -len * .62, w * .22, -len * .97); sh.quadraticCurveTo(0, -len * 1.03, -w * .22, -len * .97); sh.bezierCurveTo(-w, -len * .62, -w * .95, -len * .12, 0, 0);
+  const ex = (shape, d, b) => new THREE.ExtrudeGeometry(shape, { depth: d, bevelEnabled: true, bevelThickness: b, bevelSize: b, bevelSegments: 2, curveSegments: 10 }).translate(0, 0, -d / 2).rotateX(Math.PI / 2);
+  const m = (geo, mat, x, y, z) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); p.add(o); return o; };
+  m(ex(sh, .003, Math.min(.004, w * .12)), vane, 0, 0, 0);
+  const t = new THREE.Shape(); t.moveTo(-w * .62, -len * .7); t.quadraticCurveTo(-w * .7, -len * .9, -w * .2, -len * .975); t.quadraticCurveTo(0, -len * 1.01, w * .2, -len * .975); t.quadraticCurveTo(w * .7, -len * .9, w * .62, -len * .7); t.quadraticCurveTo(0, -len * .78, -w * .62, -len * .7);
+  m(ex(t, .002, Math.min(.003, w * .1)), tip, 0, .0035, 0);                                                           // coloured tip
+  m(new THREE.CylinderGeometry(Math.max(.0018, w * .05), Math.max(.0028, w * .08), len * .96, 6).rotateX(Math.PI / 2), gold, 0, .0045, -len * .48);   // the quill
+  const nb = Math.max(4, Math.round(len / w * 1.6));
+  for (let i = 1; i <= nb; i++) { const u = i / (nb + 1), half = w * Math.sin(Math.min(1, u * 1.15) * Math.PI) * .82; if (half < w * .2) continue;     // grooved barbs either side
+    for (const sd of [-1, 1]) { const b = m(new THREE.BoxGeometry(half, .0016, Math.max(.0016, w * .035)), barbM, sd * half * .5, .0042, -len * u); b.rotation.y = sd * .55; } }
+}
+function phxGun(g) {
+  // 凤鸣 — styled like a collector-grade skin: a real shotgun in dark metal with silver plating, wrapped in sharp faceted
+  // crimson-and-gold crystal feathers (wings, crest, tail and front blades), crisp gold edge lines, and fire-energy flames behind.
+  g.traverse(o => { if (o.isMesh) o.visible = false; });
+  const St = (c, met, rough, em, ei) => new THREE.MeshStandardMaterial({ color: c, metalness: met, roughness: rough, flatShading: true, emissive: em || 0, emissiveIntensity: ei || 0 });
+  const DK = St(0x3a2c34, .35, .45, 0x120808, .3), DK2 = St(0x4a3a42, .3, .5), SV = St(0xeeeaf2, .35, .3, 0x302c34, .25), GD = St(0xf0bc52, .45, .3, 0x6a4410, .35),
+    C1 = St(0xd01434, .3, .2, 0xb00c28, .9), C2 = St(0xff5a2a, .3, .2, 0xe0401a, .8), C3 = St(0xffd27a, .4, .2, 0xd09030, .7), CORE = new THREE.MeshBasicMaterial({ color: 0xffd0a0 });
+  const EDGE = new THREE.LineBasicMaterial({ color: 0xffe2a0, transparent: true, opacity: .9 });
+  const add = (geo, mat, x, y, z, p, edge) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); (p || g).add(o); if (edge) o.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), EDGE)); return o; };
+  const side = (pts, depth, bev) => { const sh = new THREE.Shape(); sh.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) sh.lineTo(pts[i][0], pts[i][1]); sh.closePath();
+    return new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: !!bev, bevelThickness: bev || 0, bevelSize: bev || 0, bevelSegments: 1 }).translate(0, 0, -depth / 2).rotateY(-Math.PI / 2); };   // drawn as (z, y), extruded across x
+  const hex = (r, len, mat, x, y, z, edge) => add(new THREE.CylinderGeometry(r, r, len, 6).rotateX(Math.PI / 2), mat, x, y, z, g, edge);
+  // a faceted crystal shard pointing along +y: a blade outline with a raised ridge (one-step bevel gives the facets)
+  const shard = (len, w, t) => { const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(w * .5, len * .22); sh.lineTo(w * .28, len * .7); sh.lineTo(0, len); sh.lineTo(-w * .28, len * .7); sh.lineTo(-w * .5, len * .22); sh.closePath();
+    return new THREE.ExtrudeGeometry(sh, { depth: t * .4, bevelEnabled: true, bevelThickness: t, bevelSize: w * .06, bevelSegments: 1 }).translate(0, 0, -t * .2); };
+  const crys = (p, len, w, mat, x, y, z, rx, ry, rz) => { const o = add(shard(len, w, w * .12), mat, x, y, z, p, true); o.rotation.set(rx, ry, rz); return o; };
+  // ---- the gun ----
+  add(side([[-.18, -.07], [.2, -.07], [.25, -.03], [.25, .06], [.21, .095], [-.12, .095], [-.2, .05]], .088, .006), DK, 0, 0, 0, g, true);
+  for (const sd of [-1, 1]) { add(side([[-.14, -.045], [.18, -.045], [.22, -.01], [.19, .065], [-.07, .065], [-.15, .02]], .006), SV, sd * .047, 0, 0, g, true);
+    add(side([[-.09, .005], [.15, .005], [.175, .022], [.15, .038], [-.06, .038]], .004), C1, sd * .052, 0, 0);          // glowing crimson channel
+    add(side([[.03, -.035], [.12, -.035], [.1, -.012], [.04, -.012]], .004), GD, sd * .052, 0, 0); }
+  add(side([[-.1, .095], [.18, .095], [.15, .115], [-.06, .115]], .03), SV, 0, 0, 0, g, true);                           // top rail
+  hex(.026, .64, SV, 0, .045, .56, true); hex(.017, .52, DK2, 0, -.018, .5);
+  hex(.038, .2, DK, 0, -.012, .44, true); for (const z of [.36, .44, .52]) hex(.04, .012, GD, 0, -.012, z);
+  hex(.036, .07, GD, 0, .045, .9, true); for (const sd of [-1, 1]) add(side([[.86, .03], [.95, .03], [.99, .05], [.95, .07], [.86, .07]], .01), DK, sd * .04, 0, 0, g, true);   // muzzle brake fins
+  add(side([[-.1, -.07], [-.035, -.07], [-.075, -.22], [-.15, -.22]], .05, .004), DK, 0, 0, 0, g, true); add(side([[-.095, -.1], [-.07, -.1], [-.1, -.2], [-.125, -.2]], .054), SV, 0, 0, 0);
+  add(side([[-.05, -.07], [.03, -.07], [.03, -.08], [-.04, -.125], [-.06, -.115]], .012), SV, 0, 0, 0);                    // trigger guard
+  add(side([[-.19, .06], [-.19, -.07], [-.5, -.15], [-.57, -.13], [-.57, .015], [-.5, .045]], .07, .005), DK, 0, 0, 0, g, true);
+  for (const sd of [-1, 1]) { add(side([[-.23, .03], [-.23, -.045], [-.48, -.11], [-.53, -.1], [-.53, .0], [-.47, .02]], .005), SV, sd * .038, 0, 0, g, true); add(side([[-.27, .0], [-.46, -.06], [-.46, -.04], [-.27, .015]], .004), C2, sd * .042, 0, 0); }
+  // ---- crystal feathers ----
+  const tips = [], tip = (o, len) => { const t = new THREE.Object3D(); t.position.y = len; o.add(t); tips.push(t); };
+  // front blades over and under the barrel, swept forward like a beak
+  tip(crys(g, .36, .13, C1, 0, .06, .62, Math.PI / 2 - .3, 0, 0), .36); tip(crys(g, .26, .1, C2, 0, -.03, .6, Math.PI / 2 + .28, 0, 0), .26);
+  // crest on the top rail
+  [[-1, .13, C2, -.35], [0, .18, C1, 0], [1, .13, C2, .35]].forEach(([i, len, m, rz]) => tip(crys(g, len, .09, m, 0, .11, .12 - Math.abs(i) * .03, -.6, 0, rz), len));
+  // wings: four layered shards each side rising up and back, crimson deep inside, gold at the edge
+  const wings = [-1, 1].map(sd => { const w = new THREE.Group(); w.position.set(sd * .05, .07, .02); g.add(w);
+    [[.44, .17, C1, .25, .35], [.4, .16, C2, .5, .6], [.34, .15, C3, .75, .85], [.28, .13, C1, 1.0, 1.1], [.2, .11, C2, 1.25, 1.3]].forEach(([len, wd, m, a, sp], i) => tip(crys(w, len, wd, m, sd * .008 * i, 0, -i * .015, -a, 0, -sd * sp), len)); return [w, sd]; });
+  // tail: five long shards fanning back from the stock
+  const tail = new THREE.Group(); tail.position.set(0, -.04, -.56); g.add(tail);
+  [[-2, .3, C3], [-1, .42, C2], [0, .55, C1], [1, .42, C2], [2, .3, C3]].forEach(([i, len, m]) => tip(crys(tail, len, .14, m, 0, 0, 0, -Math.PI / 2 - .08 + Math.abs(i) * .1, 0, i * .32), len));
+  // shards hugging the barrel sides, pointing forward, and a long silver spike under the stock pointing back
+  for (const sd of [-1, 1]) { tip(crys(g, .3, .1, sd < 0 ? C1 : C2, sd * .035, .03, .3, Math.PI / 2 - .05, 0, sd * .35), .3); tip(crys(g, .2, .08, C3, sd * .045, .0, .5, Math.PI / 2 + .1, 0, sd * .5), .2); }
+  { const sp = crys(g, .5, .1, SV, 0, -.12, -.3, -Math.PI / 2 - .25, 0, 0); tip(sp, .5); }
+  // a glowing core gem set in the receiver side
+  for (const sd of [-1, 1]) add(new THREE.OctahedronGeometry(.016, 0), CORE, sd * .056, .02, .1);
+  // ---- fire-energy flames streaming behind the wings and tail ----
+  const flameGeo = (() => { const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(.06, .1); sh.lineTo(.03, .22); sh.lineTo(.07, .32); sh.lineTo(0, .48); sh.lineTo(-.03, .3); sh.lineTo(-.07, .2); sh.lineTo(-.02, .1); sh.closePath(); return new THREE.ShapeGeometry(sh); })();
+  const flames = [], FM = c => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: .55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const flame = (p, x, y, z, rx, ry, rz, s, c) => { const f = new THREE.Group(); f.position.set(x, y, z); f.rotation.set(rx, ry, rz); p.add(f); for (let k = 0; k < 2; k++) { const m = new THREE.Mesh(flameGeo, FM(c)); m.rotation.y = k * Math.PI / 2; f.add(m); } f.scale.setScalar(s); flames.push([f, s, Math.random() * 6]); };
+  wings.forEach(([w, sd]) => { flame(w, 0, .05, -.05, -1.1, 0, -sd * .7, .9, 0xff3a2a); flame(w, sd * .02, .1, -.1, -1.25, 0, -sd * .95, .7, 0xffa030); });
+  flame(tail, 0, 0, 0, -Math.PI / 2, 0, 0, 1.2, 0xff3a2a); flame(tail, 0, .02, 0, -Math.PI / 2 + .2, 0, .4, .8, 0xffa030); flame(tail, 0, .02, 0, -Math.PI / 2 + .2, 0, -.4, .8, 0xffa030);
+  g.userData.muzzle = .95;
+  // ---- animation + particles ----
+  let nx = 0; const v = new THREE.Vector3(), cols = [0xffd27a, 0xffe9b0, 0xff7a3a, 0xd8203a];
+  const root = g.children.find(o => o.isMesh && o.visible);
+  root.onBeforeRender = () => { const t = performance.now() / 1000;
+    wings.forEach(([w, sd]) => w.rotation.set(Math.sin(t * 2) * .05, 0, sd * Math.sin(t * 2) * .06)); tail.rotation.y = Math.sin(t * 1.3) * .06;
+    flames.forEach(([f, s, ph]) => { f.scale.set(s * (1 + Math.sin(t * 9 + ph) * .12), s * (1 + Math.sin(t * 13 + ph) * .25), s); f.children.forEach(m => { m.material.opacity = .4 + Math.sin(t * 11 + ph) * .15; }); });
+    const now = performance.now(); if (now < nx || typeof scene === 'undefined') return; nx = now + 40; let o = g; while (o.parent) o = o.parent; if (o !== scene) return;
+    for (let n = 0; n < 2; n++) { tips[(Math.random() * tips.length) | 0].getWorldPosition(v); fxSpark(v.x, v.y, v.z, cols[(Math.random() * cols.length) | 0], { sp: .3, vy: .3 + Math.random() * .25, life: .5 + Math.random() * .4, s: .8 + Math.random() * 1.1 }); } };
+}
 /* ---- the box ---- */
 const FG_MAT = (k, n) => [() => { const kk = k === 'zs' ? 'zs' + Math.max(1, Math.min(10, lvTier())) : k; return { n: ((ITEMS[kk] && ITEMS[kk].n) || kk) + ' ×' + n, f: () => gain(kk, n) }; }, null, (k === 'zs' ? T2('本区域材料', 'Region material') : (ITEMS[k] && ITEMS[k].n) || k) + ' ×' + n];
 const FG_WSK = k => [() => { const ids = W_ORDER.filter(w => wLv(w) > 0), id = ids[Math.floor(Math.random() * ids.length)] || 'pistol'; return { n: '武器外观「' + wskName(k, id) + '」', f: () => giveWSkin(k, id) }; }, null, '武器外观「' + WSKINS[k].n + '·随机武器」'];
@@ -9294,9 +9335,7 @@ function fxImpact(K, x, y, z, dx, dz, big) {
   const n = big ? (myth ? 10 : 6) : 3;
   for (let i = 0; i < n; i++) { const a = Math.atan2(-dx, -dz) + (Math.random() - .5) * 2.4, sp = 4 + Math.random() * 5; fxStreak(x, y, z, Math.sin(a) * sp, 1 + Math.random() * 3.5, Math.cos(a) * sp, [c1, c2, 0xffffff][i % 3], .28 + Math.random() * .2, .04); }
   // each mythic skin's own touch
-  if (K.key === 'phoenix') { const nW = big ? 5 : 2;
-    for (let i = 0; i < nW; i++) { const a = i / nW * 6.283 + Math.random() * .8; fxWisp(x, y - .15 + i * .06, z, a, { c: 0xffe38a, mist: 0xc0761a, s: (big ? .55 : .38) + Math.random() * .15, vx: Math.cos(a) * (big ? 1.2 : .7), vz: Math.sin(a) * (big ? 1.2 : .7), vy: .45, life: big ? 1.1 : .8 }); }
-    for (let i = 0; i < (big ? 16 : 6); i++) fxSpark(x, y, z, Math.random() < .7 ? 0xffe38a : 0xfff1c8, { sp: big ? 2.4 : 1.4, vy: 1, life: .6, s: 1.6 });
+  if (K.key === 'phoenix') { fxGoldMist(x, y, z, big);
   } else if (K.key === 'celest' && big) {
     for (let i = 0; i < 5; i++) { const a = i / 5 * 6.283; fxPiece(G.oct, i % 2 ? 0xc49aff : 0xffffff, x, y, z, .6, (k, m) => { const r = k * 1.3; m.position.set(x + Math.cos(a) * r, y + Math.sin(a) * r * .6 + .2, z + Math.sin(a) * r * .5); m.scale.setScalar(2.4 * (1 - k) + .2); m.rotation.y = k * 8; m.material.opacity = 1 - k * .8; }); }
   }
@@ -9400,24 +9439,40 @@ function fxPlume(x, y, z, dx, dz, end, delay) {
 // out behind it and curling away (the clouds of the painting, moving)
 const BOLT = { g: null, n: 0 };
 function fxBolt(x, y, z, dx, dz, end, delay, wisps) {
-  if (BOLT.n >= 14) return; BOLT.n++; if (!BOLT.g) BOLT.g = { s: new THREE.SphereGeometry(1, 16, 10) };
-  const G = BOLT.g, W = wispGeos(), g = new THREE.Group(), mats = [], M = (c, o) => { const m = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false }); mats.push([m, o]); return m; };
+  if (BOLT.n >= 14) return; BOLT.n++;
+  if (!BOLT.g) { const helix = (ph) => { const pts = []; for (let i = 0; i <= 60; i++) { const t = i / 60, a = ph + t * Math.PI * 4.2, r = .085 + t * .05; pts.push(new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, .12 - t * .95)); }
+      // the line ends in a little cloud curl, like the curls in the painting
+      const e = pts[pts.length - 1], a0 = ph + Math.PI * 4.2; for (let i = 1; i <= 26; i++) { const t = i / 26, a = a0 + t * Math.PI * 2.4, r = .07 * (1 - t * .85); pts.push(new THREE.Vector3(e.x + Math.cos(a) * r - Math.cos(a0) * .07, e.y + Math.sin(a) * r - Math.sin(a0) * .07, e.z - t * .02)); }
+      // the line is drawn as a chain of small cubes (pixel line), merged into one shape
+      const cv = new THREE.CatmullRomCurve3(pts), n = 70, parts = []; for (let i = 0; i < n; i++) { const p = cv.getPoint(i / (n - 1)), b = new THREE.BoxGeometry(.022, .022, .022).toNonIndexed(); b.translate(p.x, p.y, p.z); parts.push(b); }
+      let cnt = 0; parts.forEach(q => { cnt += q.attributes.position.count; }); const P = new Float32Array(cnt * 3), N = new Float32Array(cnt * 3); let at = 0;
+      parts.forEach(q => { P.set(q.attributes.position.array, at * 3); N.set(q.attributes.normal.array, at * 3); at += q.attributes.position.count; });
+      const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.BufferAttribute(P, 3)); bg.setAttribute('normal', new THREE.BufferAttribute(N, 3)); bg.userData.cnt = cnt; return bg; };
+    BOLT.g = { s: new THREE.BoxGeometry(2, 2, 2), h: [helix(0), helix(Math.PI * 2 / 3), helix(Math.PI * 4 / 3)] }; }
+  const G = BOLT.g, g = new THREE.Group(), mats = [], M = (c, o, add) => { const m = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending }); mats.push([m, o]); return m; };
   const mesh = (geo, m, sx, sy, sz, p) => { const o = new THREE.Mesh(geo, m); o.scale.set(sx, sy, sz); o.frustumCulled = false; (p || g).add(o); return o; };
-  mesh(G.s, M(0xffd36a, .28), .2, .2, .7); mesh(G.s, M(0xffe9a8, .9), .09, .09, .42); mesh(G.s, M(0xfffaf0, 1), .045, .045, .3);
-  // two gold clouds riding with the bullet, curling round it as it flies
-  const cl = [-1, 1].map((sd, i) => { const w = W[i + 1], c = new THREE.Group(); c.scale.set(.36, .36, .36 * sd); c.position.z = -.25; c.rotation.y = Math.PI; g.add(c);
-    const line = mesh(w.line, M(0xffe38a, .95), 1, 1, 1, c), mist = mesh(w.mist, M(0xc0761a, .5), 1, 1, 1, c); let dl = 3, dm = 3;
-    line.onBeforeRender = () => line.geometry.setDrawRange(0, dl); mist.onBeforeRender = () => mist.geometry.setDrawRange(0, dm);
-    return { c, set: e => { dl = Math.max(3, Math.floor(w.line.index.count * e / 3) * 3); dm = Math.max(3, Math.floor(w.mist.index.count * e / 3) * 3); }, sd }; });
+  mesh(G.s, M(0xffc24a, .3, true), .05, .05, .2); mesh(G.s, M(0xffd36a, .95), .03, .03, .14); mesh(G.s, M(0xffffff, 1), .016, .016, .1);
+  // three gold cloud-lines coiled round the bullet, turning as it flies (each line drawn on as it leaves the gun)
+  const coil = new THREE.Group(); g.add(coil); const hs = G.h.map((h, i) => { const o = mesh(h, M(i === 1 ? 0xfff1c8 : 0xffd36a, .95), 1, 1, 1, coil); let dr = 36; o.onBeforeRender = () => o.geometry.setDrawRange(0, dr); return { set: e => { dr = Math.max(36, Math.floor(h.userData.cnt * e / 36) * 36); } }; });
   g.position.set(x, y, z); g.rotation.y = Math.atan2(dx, dz); g.scale.setScalar(.01); g.renderOrder = 3; scene.add(g);
-  const t0 = performance.now() + (delay || 0) * 1000, life = .3, Ld = Math.max(3, end);
+  const t0 = performance.now() + (delay || 0) * 1000, life = .32, Ld = Math.max(3, end);
   const tick = () => { const now = performance.now(); if (now < t0) { requestAnimationFrame(tick); return; }
-    const k = Math.min(1, (now - t0) / (life * 1000 * (FXN.ts || 1))), T = now / 1000, X = x + dx * Ld * k, Z = z + dz * Ld * k, Y = y + Math.sin(k * Math.PI) * .05;
-    g.position.set(X, Y, Z); g.scale.setScalar(Math.min(1, k * 8));
-    cl.forEach(({ c, set, sd }) => { set(Math.min(1, .25 + k * 1.2)); c.rotation.z = sd * (T * 6 % 6.283); });   // they unfurl and turn as they fly
-    if (Math.random() < .8) fxSpark(X - dx * .3, Y + (Math.random() - .5) * .15, Z - dz * .3, Math.random() < .7 ? 0xffe38a : 0xfff1c8, { sp: .6, vy: .25, life: .3, s: 1.2 + Math.random() });
+    const k = Math.min(1, (now - t0) / (life * 1000 * (FXN.ts || 1))), T = now / 1000, X = x + dx * Ld * k, Z = z + dz * Ld * k, Y = y + Math.sin(k * Math.PI) * .04;
+    g.position.set(X, Y, Z); g.scale.setScalar(Math.min(1, k * 8)); coil.rotation.z = T * 9; hs.forEach(h => h.set(Math.min(1, .15 + k * 2.2)));
+    if (Math.random() < .9) fxSpark(X - dx * (.2 + Math.random() * .6), Y + (Math.random() - .5) * .16, Z - dz * (.2 + Math.random() * .6), Math.random() < .7 ? 0xffe38a : 0xfff1c8, { sp: .5, vy: .2, life: .3 + Math.random() * .2, s: 1 + Math.random() });
     if (k < 1) requestAnimationFrame(tick); else { scene.remove(g); mats.forEach(([m]) => m.dispose()); BOLT.n--; } };
   requestAnimationFrame(tick);
+}
+// where it lands the cloud-lines melt into gold mist: soft gold haze swelling out and rising, a few last curls unwinding in it
+const MIST = { g: null };
+function fxGoldMist(x, y, z, big) { if (!MIST.g) MIST.g = new THREE.BoxGeometry(1, 1, 1);
+  const n = big ? 16 : 7; for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, d = Math.random() * .25, m = new THREE.Mesh(MIST.g, new THREE.MeshBasicMaterial({ color: i % 3 ? 0xffd36a : 0xfff1c8, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    m.position.set(x + Math.cos(a) * d, y, z + Math.sin(a) * d); scene.add(m); FXN.n++; const t0 = performance.now(), life = (big ? 1.1 : .8) + Math.random() * .4, R = (big ? .32 : .22) * (.6 + Math.random() * .8), vx = Math.cos(a) * (big ? .9 : .5), vz = Math.sin(a) * (big ? .9 : .5);
+    const tick = () => { const k = Math.min(1, (performance.now() - t0) / (life * 1000 * (FXN.ts || 1))), e = 1 - Math.pow(1 - k, 2);
+      m.position.set(x + Math.cos(a) * d + vx * e, y + .1 + e * .5, z + Math.sin(a) * d + vz * e); m.scale.setScalar(R * (.3 + e)); m.rotation.set(e * 2 + i, e * 3, 0); m.material.opacity = (k < .2 ? k / .2 : 1 - (k - .2) / .8) * (big ? .55 : .45);
+      if (k < 1) requestAnimationFrame(tick); else { scene.remove(m); m.material.dispose(); FXN.n--; } }; requestAnimationFrame(tick); }
+  for (let i = 0; i < (big ? 3 : 1); i++) { const a = Math.random() * 6.283; fxWisp(x, y - .1, z, a, { c: 0xffe38a, mist: 0xd8a040, s: big ? .45 : .32, vx: Math.cos(a) * .6, vz: Math.sin(a) * .6, vy: .4, life: 1 }); }
+  for (let i = 0; i < (big ? 18 : 7); i++) fxSpark(x, y, z, Math.random() < .7 ? 0xffe38a : 0xfff1c8, { sp: big ? 2 : 1.2, vy: .8, life: .7, s: 1.5 });
 }
 function fxPhoenix(x, y, z, dx, dz, end, sc, delay) {
   if (PHX.n >= 14) return; PHX.n++; const G = phxGeo(), g = new THREE.Group(), mats = [];
@@ -10533,4 +10588,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794078792').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794079875').catch(()=>{});</script></body></html>
