@@ -717,6 +717,11 @@ input[type=text]::placeholder{color:var(--dim)}
 .wtrack{grid-column:1/-1;margin-top:6px;padding:8px 10px;border-radius:10px;background:rgba(120,200,255,.08);border:1px solid rgba(120,200,255,.3)}.wtrack b{color:#9fe8ff;font-size:13px}.wtbar{height:6px;border-radius:3px;background:rgba(255,255,255,.12);margin:5px 0;overflow:hidden}.wtbar i{display:block;height:100%;background:linear-gradient(90deg,#4ab8ff,#9fe8ff)}.wtrack small{display:block;color:#cfe3ef;font-size:11.5px;line-height:1.4}.wtrack .wtgot{color:#ffd27a}
 #idefHud{display:none;position:fixed;top:calc(env(safe-area-inset-top) + 64px);left:50%;transform:translateX(-50%);z-index:30;padding:6px 14px;border-radius:20px;background:rgba(40,10,10,.82);border:1.5px solid #ff7a4a;color:#ffd9c0;font-weight:900;font-size:13px;pointer-events:none;white-space:nowrap}
 #charStats div.wtrack{display:block;padding:8px 10px;background:rgba(120,200,255,.08);border-color:rgba(120,200,255,.3)}#charStats div.wtbar{display:block;padding:0;border:0;height:6px;border-radius:3px;background:rgba(255,255,255,.12)}#charStats .wtrack b{color:#9fe8ff}
+.wskl em{font-style:normal;font-size:11px;color:#1a1008;background:#ffcf7a;border-radius:8px;padding:1px 6px;margin-left:4px}.wskl .wsnx{display:block;margin-top:4px;color:#9fe8ff}
+button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);margin:0 auto 10px;text-align:left;cursor:pointer;font:inherit}button.wtrack b{white-space:nowrap}button.wtrack .wtbar{flex:1;margin:0}.wtgo{color:#9fe8ff;font-size:22px;line-height:1}
+.wtbox{max-height:80vh;display:flex;flex-direction:column;align-items:stretch;min-width:min(340px,90vw);padding-top:20px}.wtbox .gih{padding-right:40px}.wtlist{overflow:auto;display:flex;flex-direction:column;gap:5px;margin-top:8px}.wtrow{display:flex;gap:10px;align-items:center;padding:7px 10px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);font-size:13px;color:#cfc4b8}.wtrow i{font-style:normal;color:#9fe8ff;min-width:52px;font-weight:900}.wtrow em{margin-left:auto;font-style:normal;color:#8fe05a}.wtrow.got{background:rgba(143,224,90,.1);border-color:rgba(143,224,90,.4);color:#fff}
+#bSkill{right:172px;bottom:4px;width:58px;height:58px;border-color:#ffcf7a;background:conic-gradient(rgba(0,0,0,.6) var(--cd,0deg),rgba(120,70,20,.55) 0);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0}#bSkill b{font-size:11px;line-height:1.1;color:#ffe9c8;max-width:52px;text-align:center}#bSkill small{margin-top:1px;font-size:12px;color:#ffcf7a;font-weight:900}#bSkill.cool{border-color:rgba(255,255,255,.3)}#bSkill.on{box-shadow:0 0 0 3px rgba(255,207,122,.8),0 0 14px rgba(255,160,60,.8)}
+@media (orientation:portrait){#bSkill{right:198px!important;bottom:30px!important}}
 .srow.qr{flex-wrap:wrap}.srow.qr>:first-child{flex:0 0 84px;min-width:0;overflow:hidden}.qctl{display:flex;flex-direction:column;gap:4px;min-width:190px;flex:1 1 190px;align-items:stretch}
 .qrow{display:flex;align-items:center;gap:6px}.qrow input[type=range]{flex:1;accent-color:#ffb04d;height:26px;min-width:60px}
 .qb{width:30px;height:30px;border-radius:8px;border:1.5px solid rgba(255,255,255,.2);background:rgba(0,0,0,.3);color:#ffe9c8;font-size:18px;font-weight:900;line-height:1;padding:0}.qb:disabled{opacity:.35}
@@ -760,6 +765,7 @@ input[type=text]::placeholder{color:var(--dim)}
 .skpvx{position:absolute;right:8px;top:8px;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:rgba(0,0,0,.4);color:#fff;font-size:16px}
 .rwc.pvok{cursor:pointer}.rwc.pvok small{color:#7de0ff!important}
 @media (max-height:420px){.skpvfig{width:160px;height:226px}}
+@media (orientation:portrait){.skpvbox.pvbox{flex-direction:column;gap:8px;padding:44px 18px 18px;overflow:auto}.pvbox .skpvfig{width:180px;height:240px}.pvbox .skpvt{align-items:center;text-align:center;max-width:none}.pvbox .skpvt em{align-self:center}}
 #qbag{position:absolute;right:0;top:calc(100% + 16px);display:flex;align-items:center;gap:6px;pointer-events:auto}
 #qbag .bagbtn{width:48px!important;height:48px!important;transform:none!important}#qbag .bagbtn .bagic{width:30px!important;height:30px!important;margin-top:0}#qbag .bagbtn small{font-size:9.5px;letter-spacing:.1em}
 /* phone held upright: the tray drops down under the map instead of covering the health bar */
@@ -885,9 +891,10 @@ input[type=text]::placeholder{color:var(--dim)}
 
 <div class="overlay scroll" id="weapon">
   <h2>武器库</h2>
+  <button id="wTrack" class="wtrack"></button>
   <div id="wList"></div>
   <div id="wDetail"></div>
-  <div class="snote">每把武器单独升级，材料够就能升。每把武器需要的材料都不一样；Lv.5、10、15、20 是突破，需要首领之心。每 5 级武器外观会进化一次。</div>
+  <div class="snote">每把武器单独升级。每 5 级是一次大突破，需要那个区域首领的印记，武器技能也会跟着变强；其他等级只要普通材料和区域材料。每 10 级武器外观进化一次。</div>
   <div class="btnrow"><button class="go ghost" id="wClose">关闭</button></div>
 </div>
 
@@ -4176,7 +4183,7 @@ function upFade(dt) {
 function updateBuilds(dt) {
   try { upFade(dt); } catch (e) { }
   for (const b of builds) {
-    if (b.type === 'turret') {
+    if (b.type === 'turret' && !b.broken) {
       b.cd -= dt; let best = null, bd = ts('sentry') ? 31 : 22;
       for (const z of zombies) { if (z.dead || (z.animal && !z.hostile && !(z.angry > 0))) continue; const d = Math.hypot(z.pos.x - b.x, z.pos.z - b.z); if (d < bd) { bd = d; best = z; } }
       if (best) {
@@ -4606,6 +4613,7 @@ function statLine(id, L) {
 }
 function renderWeapon() {
   const list = $('wList'); list.innerHTML = '';
+  { const t = $('wTrack'); if (t) t.innerHTML = wtHtml(); }
   if (!wSel || !WEAP[wSel]) wSel = S.wp;
   W_ORDER.forEach(id => {
     const L = wLv(id), c = document.createElement('button'); c.className = 'wcard' + (id === wSel ? ' sel' : '') + (L ? '' : ' locked') + (id === S.wp ? ' eq' : '') + (weaponReady(id) ? ' ready' : '');
@@ -5030,7 +5038,7 @@ function serialize() {
   return { v: 2, wv: 5, level: S.level, xp: S.xp, tv: 4, tal: S.tal, daily: S.daily, weekly: S.weekly, login: S.login, bs: S.bestStreak || 0, st: S.st, ach: S.ach, title: S.title || '', ws: S.ws, wp: S.wp, wpp: S.wpPrev, isl: S.isl ? 1 : 0, gx: S.gx, gz: S.gz, px: +player.pos.x.toFixed(1), pz: +player.pos.z.toFixed(1),
     wood: S.wood, metal: S.metal, reserve: S.reserve, med: S.med, core: S.core, coin: S.coin, inv: S.inv, bossKills: S.bossKills, kills: S.kills, lcd: S.lairCd, cro: Object.keys(S.crOpen).slice(-300),
     gear: S.gear, ginv: S.ginv, pcap: S.pcap, diff: S.diff || 'normal', fd: foodSave(), dl: dailySave(), fm: farmSave(), sh: shopSave(), fx: fixSave(),
-    builds: builds.filter(b => b.hp > 0 && !b.home).map(b => b.lv > 0 ? [b.type, b.x, b.z, b.rot, b.lv] : [b.type, b.x, b.z, b.rot]) };
+    builds: builds.filter(b => b.hp > 0 && !b.home).map(b => b.broken ? [b.type, b.x, b.z, b.rot, b.lv | 0, 1] : b.lv > 0 ? [b.type, b.x, b.z, b.rot, b.lv] : [b.type, b.x, b.z, b.rot]) };
 }
 function applySave(d) {
   // saves read back from the cloud arrive as frozen (read-only) objects: work on a private copy, otherwise every
@@ -5067,7 +5075,7 @@ function applySave(d) {
     builds.slice().forEach(b => { if (!b.home) dropBuild(b); });
     const mv = d.wv >= 4 ? [0, 0] : [HOME.x - 0, HOME.z - 8];
     d.builds.forEach(b => { if (!Array.isArray(b) || !BT[b[0]] || !Number.isFinite(+b[1]) || !Number.isFinite(+b[2])) return; const x = +b[1] + mv[0], z = +b[2] + mv[1];
-      const onIsl = Math.hypot(x - HOME.x, z - HOME.z) < ISL_R + 20; if ((onIsl && (Math.hypot(x - HOME.x, z - HOME.z) > ISL_R + 8 || Math.hypot(x - PAD.x, z - PAD.z) < 5.5)) || (!onIsl && !(d.wv >= 4)) || (!(b[4] > 0) && overlapsAny(x, z, .3, .3, 0))) return; addBuild(b[0], x, z, +b[3] || 0, false, +b[4] > 0 ? +b[4] : 0); });
+      const onIsl = Math.hypot(x - HOME.x, z - HOME.z) < ISL_R + 20; if ((onIsl && (Math.hypot(x - HOME.x, z - HOME.z) > ISL_R + 8 || Math.hypot(x - PAD.x, z - PAD.z) < 5.5)) || (!onIsl && !(d.wv >= 4)) || (!(b[4] > 0) && overlapsAny(x, z, .3, .3, 0))) return; const nb = addBuild(b[0], x, z, +b[3] || 0, false, +b[4] > 0 ? +b[4] : 0); if (b[5] === 1 && nb) try { buildBreak(nb); } catch (e) { } });
   }
   try { foodLoad(d); } catch (e) { console.warn('food load', e); }
   try { dailyLoad(d); } catch (e) { console.warn('daily load', e); }
@@ -7620,7 +7628,7 @@ function skinPreview(key) {
   const old = $('skpv'); if (old && old.parentNode) old.parentNode.removeChild(old);
   const m = document.createElement('div'); m.id = 'skpv'; m.className = 'skpv r' + K.r;
   const RN = ['普通', '优秀', '稀有', '史诗', '传说', '神话'];
-  m.innerHTML = '<div class="skpvbox"><button class="skpvx" aria-label="关闭">✕</button><div class="skpvfig"></div><div class="skpvt"><b>' + K.n + '</b><em class="wr r' + K.r + '">' + RN[K.r] + '</em><span>' + K.d + '</span>' +
+  m.innerHTML = '<div class="skpvbox pvbox"><button class="skpvx" aria-label="关闭">✕</button><div class="skpvfig"></div><div class="skpvt"><b>' + K.n + '</b><em class="wr r' + K.r + '">' + RN[K.r] + '</em><span>' + K.d + '</span>' +
     (K.stt ? '<span class="sst">神话属性：' + K.stt + '</span>' : '<span class="sst dim">只改外观，不加属性</span>') + '<small>' + (S.skins.includes(key) ? '已拥有 · 在「背包 · 外观衣柜」换上' : '左右拖动可以转动角色') + '</small></div></div>';
   document.body.appendChild(m);
   const close = () => { if (m.parentNode) m.parentNode.removeChild(m); SKPV.key = ''; };
@@ -7694,7 +7702,7 @@ function wskPreview(k, id) {
   const K = WSKINS[k]; if (!K) return; id = WEAP[id] ? id : 'rifle';
   const old = $('skpv'); if (old && old.parentNode) old.parentNode.removeChild(old);
   const m = document.createElement('div'); m.id = 'skpv'; m.className = 'skpv r' + K.r; const RN = ['普通', '优秀', '稀有', '史诗', '传说', '神话'];
-  m.innerHTML = '<div class="skpvbox"><button class="skpvx" aria-label="关闭">✕</button><div class="skpvfig wpvfig"></div><div class="skpvt"><b>' + K.n + ' · ' + WEAP[id].n + '</b><em class="wr r' + K.r + '">' + RN[K.r] + '</em><span>' + K.d + '</span>' +
+  m.innerHTML = '<div class="skpvbox pvbox"><button class="skpvx" aria-label="关闭">✕</button><div class="skpvfig wpvfig"></div><div class="skpvt"><b>' + K.n + ' · ' + WEAP[id].n + '</b><em class="wr r' + K.r + '">' + RN[K.r] + '</em><span>' + K.d + '</span>' +
     '<span class="sst">属性：' + K.stt + '</span><small>' + (S.wskOwn.includes(k + ':' + id) ? '已拥有 · 在背包点这把武器换上' : '抽到时会随机给你的一把武器 · 左右拖动可以转动') + '</small></div></div>';
   document.body.appendChild(m);
   const close = () => { if (m.parentNode) m.parentNode.removeChild(m); SKPV.key = ''; };
@@ -8794,91 +8802,141 @@ const WMIX = {
   blade:   [['metal', 3, 1.2], ['steel', 0, .12], ['vine', 1, .5], ['flesh', 1, .7]]
 };
 const wSealFor = L => L === WMAX - 1 ? 'seal10' : L >= 5 && L % 5 === 0 ? 'seal' + (L / 5) : null;
+const wBreak = L => L > 0 && (L % 5 === 0 || L === WMAX - 1);
+// normal levels: the weapon's two main materials + that region's zombie material + coins.
+// every 5th level is a big breakthrough: all four of its materials (doubled), steel / crystal, and the region boss's seal
 (() => {
   for (const id of W_ORDER) { const buy = (WUP[id] && WUP[id][0]) || {}; const A = [buy];
-    for (let L = 1; L < WMAX; L++) { const r = Math.min(10, Math.floor(L / 5) + 1), o = {};
-      for (const [k, b, g] of WMIX[id]) { const n = Math.round(b + g * L); if (n > 0) o[k] = n; }
-      o['zs' + r] = 2 + (L % 5);
-      if (L >= 15 && !o.steel) o.steel = Math.floor((L - 10) / 6);
-      if (L >= 30) o.crystal = Math.floor((L - 25) / 8);
-      o.coin = Math.round(20 * Math.pow(L + 1, 1.5) / 5) * 5;
+    for (let L = 1; L < WMAX; L++) { const r = Math.min(10, Math.floor(L / 5) + 1), o = {}, big = wBreak(L);
+      WMIX[id].forEach(([k, b, g], i) => { if (!big && i >= 2) return; const n = Math.round((b + g * L) * (big ? 2 : 1)); if (n > 0) o[k] = (o[k] || 0) + n; });
+      o['zs' + r] = big ? 8 + r : 2 + (L % 5);
+      if (big) { o.steel = (o.steel || 0) + 1 + Math.floor(L / 10); if (L >= 25) o.crystal = 1 + Math.floor((L - 25) / 10); }
+      o.coin = Math.round(20 * Math.pow(L + 1, 1.5) * (big ? 2 : 1) / 5) * 5;
       const sl = wSealFor(L); if (sl) o[sl] = 1;
       A.push(o); }
     WUP[id] = A; }
-  for (let i = 1; i <= 10; i++) if (ITEMS['seal' + i]) ITEMS['seal' + i].use = i < 10 ? '武器 Lv.' + (i * 5) + ' → ' + (i * 5 + 1) + ' 突破的必需品（每把武器都要）。' : '武器 Lv.49 → 50（满级）突破的必需品。';
+  for (let i = 1; i <= 10; i++) if (ITEMS['seal' + i]) ITEMS['seal' + i].use = i < 10 ? T2('武器 Lv.' + (i * 5) + ' → ' + (i * 5 + 1) + ' 大突破的必需品（每把武器都要）。', 'Needed for the weapon Lv.' + (i * 5) + ' → ' + (i * 5 + 1) + ' breakthrough (every weapon).') : T2('武器 Lv.49 → 50（满级）大突破的必需品。', 'Needed for the weapon Lv.49 → 50 (max) breakthrough.');
 })();
 
-/* ---- weapon skills: each weapon has its own; the strongest weapons get the mildest skills ---- */
+/* ---- weapon skills: an active skill on its own button. Every 5-level breakthrough makes it stronger (rank 0–10).
+   The strongest weapons get the mildest skills, the weakest the strongest. ---- */
+const wsRank = id => Math.min(10, Math.floor(Math.max(0, wLv(id)) / 5));
+const pc = v => Math.round(v * 100) + '%';
 const WSK = {
-  rifle:   { n: '穿甲弹', d: '每第 8 发命中的子弹伤害 +50%。', pw: .04 },
-  shotgun: { n: '震荡弹', d: '每颗弹丸有 8% 几率把丧尸震晕 0.7 秒（首领不会被震晕）。', pw: .05 },
-  blade:   { n: '残影斩', d: '挥刀命中后 12% 几率立刻再补一刀（60% 伤害）。', pw: .07 },
-  sniper:  { n: '致命标记', d: '命中会标记目标 6 秒；再次命中被标记的目标伤害 +35%。', pw: .12 },
-  pistol:  { n: '神射手', d: '每发子弹 20% 几率爆头，造成 2 倍伤害。', pw: .2 },
-  axe:     { n: '旋风斩', d: '每第 4 次挥砍变成旋风斩：身边所有敌人额外受到 90% 伤害。', pw: .22 },
-  pick:    { n: '碎甲', d: '命中会敲碎护甲 4 秒：你对它的所有伤害 +30%（换武器也算）。对首领一样有效。', pw: .24 }
+  pistol:  { n: T2('神枪连射', 'Deadeye'), cd: 18, pw: .2, v: r => [4 + .3 * r, 2 + .1 * r], d: (a) => T2(a[0].toFixed(1) + ' 秒内每一枪都是爆头，伤害 ×' + a[1].toFixed(1) + '。', 'For ' + a[0].toFixed(1) + ' s every shot is a headshot: damage ×' + a[1].toFixed(1) + '.') },
+  rifle:   { n: T2('狂暴扫射', 'Frenzy Fire'), cd: 20, pw: .05, v: r => [5 + .3 * r, .1 + .02 * r], d: (a) => T2(a[0].toFixed(1) + ' 秒内射速 +35%，伤害 +' + pc(a[1]) + '。', 'For ' + a[0].toFixed(1) + ' s: fire rate +35%, damage +' + pc(a[1]) + '.') },
+  sniper:  { n: T2('致命一击', 'Killshot'), cd: 14, pw: .12, v: r => [3 + .25 * r], d: (a) => T2('下一枪伤害 ×' + a[0].toFixed(2) + '（8 秒内有效，穿透的目标都算）。', 'Your next shot deals ×' + a[0].toFixed(2) + ' (within 8 s, every target it pierces).') },
+  shotgun: { n: T2('震荡爆破', 'Concussion Blast'), cd: 16, pw: .07, v: r => [5 + .4 * r, 1 + .05 * r], d: (a) => T2('向前方 9 米扇形轰出冲击波：' + a[0].toFixed(1) + ' 倍伤害，把丧尸震晕 ' + a[1].toFixed(2) + ' 秒并击退。', 'A blast in a 9 m cone in front: ' + a[0].toFixed(1) + '× damage, stuns zombies for ' + a[1].toFixed(2) + ' s and knocks them back.') },
+  blade:   { n: T2('残影瞬斩', 'Phantom Dash'), cd: 12, pw: .06, v: r => [1.6 + .12 * r], d: (a) => T2('向前冲刺 6 米，斩中路上所有敌人：' + a[0].toFixed(2) + ' 倍伤害。', 'Dash 6 m forward, cutting every enemy on the way: ' + a[0].toFixed(2) + '× damage.') },
+  axe:     { n: T2('旋风斩', 'Whirlwind'), cd: 15, pw: .22, v: r => [1.6 + .15 * r], d: (a) => T2('原地连转 3 圈，每圈对身边 4 米内所有敌人造成 ' + a[0].toFixed(2) + ' 倍伤害。', 'Spin 3 times; each spin deals ' + a[0].toFixed(2) + '× damage to every enemy within 4 m.') },
+  pick:    { n: T2('大地粉碎', 'Earthshatter'), cd: 16, pw: .24, v: r => [2.5 + .2 * r, .3 + .02 * r], d: (a) => T2('砸地震碎周围 5 米：' + a[0].toFixed(1) + ' 倍伤害，并敲碎护甲 6 秒（你对它的伤害 +' + pc(a[1]) + '，首领也有效）。', 'Smash the ground (5 m): ' + a[0].toFixed(1) + '× damage and shatter armour for 6 s (your damage to them +' + pc(a[1]) + ', bosses too).') }
 };
-function wSkillHtml(id) { const k = WSK[id]; if (!k) return '';
-  return '<div class="wskl"><b>' + T2('武器技能 · ', 'Weapon skill · ') + k.n + '</b><small>' + k.d + '</small></div>'; }
-// called for every hit you land (in dmgRoll), returns the new damage
+S.wsCd = {}; S.wsB = null;
+const wsLeft = id => Math.max(0, (S.wsCd[id] || 0) - S.t);
+function wSkillHtml(id) { const k = WSK[id]; if (!k) return ''; const r = wsRank(id), nx = Math.min(10, r + 1);
+  return '<div class="wskl"><b>' + T2('武器技能 · ', 'Weapon skill · ') + k.n + ' <em>' + T2('技能 ' + r + ' 级', 'Rank ' + r) + '</em></b><small>' + k.d(k.v(r)) + T2(' 冷却 ' + k.cd + ' 秒。', ' Cooldown ' + k.cd + ' s.') + '</small>' +
+    (r < 10 ? '<small class="wsnx">' + T2('下次大突破（Lv.' + (nx * 5) + '）→ ', 'Next breakthrough (Lv.' + (nx * 5) + ') → ') + k.d(k.v(nx)) + '</small>' : '') + '</div>'; }
+// every hit you land goes through here (from dmgRoll)
 function wSkillRoll(z, d) {
-  const id = S.wp;
-  if (z.brkT > S.t) d *= 1.3;                                                   // armour broken by the pickaxe
-  if (id === 'pistol' && Math.random() < .2) { d *= 2; try { burst(z.pos.x, 2 * (z.sc || 1), z.pos.z, 0xff5040, 6, 3); } catch (e) { } }
-  else if (id === 'rifle') { S.wskN = (S.wskN || 0) + 1; if (S.wskN % 8 === 0) { d *= 1.5; try { burst(z.pos.x, 1.4 * (z.sc || 1), z.pos.z, 0x9fe8ff, 4, 2); } catch (e) { } } }
-  else if (id === 'shotgun') { if (!z.boss && Math.random() < .08) { z.stagger = Math.max(z.stagger || 0, .7); z.stunT = S.t + .7; } }
-  else if (id === 'sniper') { if (z.mkT > S.t) { d *= 1.35; z.mkT = 0; try { burst(z.pos.x, 2 * (z.sc || 1), z.pos.z, 0xff3a6a, 8, 3); } catch (e) { } } else z.mkT = S.t + 6; }
-  else if (id === 'pick') z.brkT = S.t + 4;
+  if (z.brkT > S.t) d *= 1 + (z.brkM || .3);
+  const B = S.wsB; if (!B || B.id !== S.wp) return d;
+  if (B.id === 'pistol' && S.t < B.t) { d *= B.m; try { burst(z.pos.x, 2 * (z.sc || 1), z.pos.z, 0xff5040, 5, 3); } catch (e) { } }
+  else if (B.id === 'rifle' && S.t < B.t) d *= 1 + B.m;
+  else if (B.id === 'sniper' && S.t < B.t) { d *= B.m; B.used = S.t; try { burst(z.pos.x, 2 * (z.sc || 1), z.pos.z, 0xff3a6a, 10, 4); } catch (e) { } }
   return d;
 }
-// after a melee swing landed (axe whirlwind, blade after-image)
-function wSkillSwing(hit, base, dx, dz) {
-  const id = S.wp, W = curW();
-  if (id === 'axe') { S.axeN = (S.axeN || 0) + 1; if (S.axeN % 4) return;
-    let n = 0; for (const z of zombies) { if (z.dead) continue; if (Math.hypot(z.pos.x - player.pos.x, z.pos.z - player.pos.z) > W.rng + 1.2 + z.r) continue; const r = dmgRoll(z, base * .9); hurtZombie(z, r.d, z.pos.x - player.pos.x, z.pos.z - player.pos.z); n++; }
-    try { burst(player.pos.x, 1, player.pos.z, 0xffb04d, 18, 6); S.shake = Math.max(S.shake, .14); } catch (e) { } if (n) feed(T2('旋风斩！', 'Whirlwind!'), '#ffb04d'); }
-  else if (id === 'blade' && hit.length && Math.random() < .12) {
-    setTimeout(() => { if (S.dead) return; for (const z of hit) if (!z.dead) { const r = dmgRoll(z, base * .6); hurtZombie(z, r.d, dx, dz); try { burst(z.pos.x, 1.4 * (z.sc || 1), z.pos.z, 0xbfe6ff, 5, 3); } catch (e) { } } }, 130); }
+function wSkillSwing() { }
+function wsAoe(pred, mul, dx, dz, after) { const base = weaponDmg(); let n = 0;
+  for (const z of zombies) { if (z.dead || !pred(z)) continue; const r = dmgRoll(z, base * mul); hurtZombie(z, r.d, dx, dz); if (after) after(z); n++; } return n; }
+function wsCast() {
+  const id = S.wp, K = WSK[id]; if (!K || S.dead || S.paused || wLv(id) <= 0) return;
+  if (wsLeft(id) > 0) { feed(T2('技能冷却中：', 'Skill cooling down: ') + Math.ceil(wsLeft(id)) + T2(' 秒', ' s'), '#ff9b8a'); return; }
+  const a = K.v(wsRank(id)), [dx, dz] = aimDir(), px = player.pos.x, pz = player.pos.z; S.wsCd[id] = S.t + K.cd; S.idleT = 0;
+  const near = (z, R) => Math.hypot(z.pos.x - player.pos.x, z.pos.z - player.pos.z) < R + (z.r || .5);
+  if (id === 'pistol') S.wsB = { id, t: S.t + a[0], m: a[1] };
+  else if (id === 'rifle') { S.wsB = { id, t: S.t + a[0], m: a[1] }; S.frenzyT = Math.max(S.frenzyT || 0, a[0]); }
+  else if (id === 'sniper') S.wsB = { id, t: S.t + 8, m: a[0] };
+  else if (id === 'shotgun') { wsAoe(z => { const ex = z.pos.x - px, ez = z.pos.z - pz, d = Math.hypot(ex, ez); return d < 9 + (z.r || .5) && (ex * dx + ez * dz) / (d || 1) > .5; }, a[0], dx, dz,
+      z => { if (!z.boss) { z.stagger = Math.max(z.stagger || 0, a[1]); z.knx = dx * 9; z.knz = dz * 9; } });
+    for (let i = 1; i <= 4; i++) burst(px + dx * i * 2, 1, pz + dz * i * 2, 0xffd08a, 6, 4); S.shake = Math.max(S.shake, .3); }
+  else if (id === 'blade') { const hit = new Set();
+    for (let i = 0; i < 10; i++) { player.pos.x += dx * .6; player.pos.z += dz * .6; if (!S.up) collide(player.pos, player.r);
+      for (const z of zombies) if (!z.dead && !hit.has(z) && near(z, 1.6)) hit.add(z); burst(player.pos.x, 1.1, player.pos.z, 0xbfe6ff, 2, 2); }
+    wsAoe(z => hit.has(z), a[0], dx, dz); S.shake = Math.max(S.shake, .15); }
+  else if (id === 'axe') { for (let k = 0; k < 3; k++) setTimeout(() => { if (S.dead) return; wsAoe(z => near(z, 4), a[0], dx, dz); player.face += 2.1; burst(player.pos.x, 1, player.pos.z, 0xffb04d, 14, 6); S.shake = Math.max(S.shake, .12); try { sfx.swing(); } catch (e) { } }, k * 300); }
+  else if (id === 'pick') { wsAoe(z => near(z, 5), a[0], dx, dz, z => { z.brkT = S.t + 6; z.brkM = a[1]; }); burst(px, .3, pz, 0x9a8a7a, 26, 7); S.shake = Math.max(S.shake, .35); }
+  try { sfx.boom ? sfx.boom() : sfx.hit(); } catch (e) { } if (isMelee()) { S.swingD = RIG[id].dur; S.swingT = RIG[id].dur; }
+  feed(K.n + '！', '#ffcf7a'); wsHud();
 }
+function wsHud() {
+  const b = $('bSkill'); if (!b || !b.querySelector) return; const id = S.wp, K = WSK[id]; if (!K || !S.started) { b.style.display = 'none'; return; } b.style.display = '';
+  const left = wsLeft(id), k = left / K.cd, B = S.wsB, on = B && B.id === id && S.t < B.t && !(B.id === 'sniper' && B.used);
+  if (B && B.id === 'sniper' && B.used && S.t > B.used + .05) S.wsB = null;
+  b.querySelector('b').textContent = K.n.length > 4 ? K.n.split(' ')[0] : K.n; b.querySelector('small').textContent = left > 0 ? Math.ceil(left) : T2('技能', 'Skill');
+  b.style.setProperty('--cd', (k * 360) + 'deg'); b.classList.toggle('cool', left > 0); b.classList.toggle('on', !!on);
+}
+(() => { const act = $('act'); if (!act || !act.appendChild || !document.createElement) return; const b = document.createElement('button'); b.className = 'btn'; b.id = 'bSkill'; b.innerHTML = '<b></b><small></small>';
+  if (b.addEventListener) b.addEventListener('click', () => { try { audioInit(); } catch (e) { } wsCast(); });
+  act.appendChild(b); const wt = $('wTrack'); if (wt && wt.addEventListener) wt.addEventListener('click', () => { try { sfx.pick(); } catch (e) { } wtPop(); });
+  setInterval(() => { try { wsHud(); } catch (e) { } }, 200); })();
 
-/* ---- all-weapon level track: the sum of every weapon's level; every 10 levels gives a small bonus ---- */
-const WT_STEP = [['dmg', .01, '伤害 +1%'], ['hp', 15, '生命 +15'], ['crit', .005, '暴击 +0.5%'], ['hpPct', .01, '生命 +1%'], ['spd', .005, '移速 +0.5%']];
+/* ---- all-weapon level: the sum of every weapon's level; every 10 levels gives a small bonus.
+   Shown on the weapon page; tap it to see every step. ---- */
+const WT_STEP = [['dmg', .01, T2('伤害 +1%', 'Damage +1%')], ['hp', 15, T2('生命 +15', 'HP +15')], ['crit', .005, T2('暴击 +0.5%', 'Crit +0.5%')], ['hpPct', .01, T2('生命 +1%', 'HP +1%')], ['spd', .005, T2('移速 +0.5%', 'Speed +0.5%')]];
 const wtTotal = () => W_ORDER.reduce((a, id) => a + wLv(id), 0);
 const wtSteps = () => Math.floor(wtTotal() / 10);
 function wtSt(k) { const n = wtSteps(); let v = 0; for (let i = 0; i < n; i++) { const s = WT_STEP[i % WT_STEP.length]; if (s[0] === k) v += s[1]; } return v; }
-function wtHtml() {
-  const tot = wtTotal(), n = wtSteps(), next = WT_STEP[n % WT_STEP.length], maxN = W_ORDER.length * WMAX;
-  const sum = {}; for (let i = 0; i < n; i++) { const s = WT_STEP[i % WT_STEP.length]; sum[s[0]] = (sum[s[0]] || 0) + s[1]; }
-  const fmt = (k, v) => k === 'hp' ? '生命 +' + v : ({ dmg: '伤害', crit: '暴击', hpPct: '生命', spd: '移速' }[k]) + ' +' + (Math.round(v * 1000) / 10) + '%';
-  return '<div class="wtrack"><b>' + T2('武器总等级 ', 'All-weapon level ') + tot + ' / ' + maxN + '</b><div class="wtbar"><i style="width:' + (tot % 10) * 10 + '%"></i></div>' +
-    '<small>' + T2('所有武器的等级加起来，每满 10 级送一个小加成。', 'Every 10 total weapon levels gives a small bonus.') + (tot < maxN ? T2(' 下一个（' + (n + 1) * 10 + ' 级）：', ' Next (' + (n + 1) * 10 + '): ') + next[2] : '') + '</small>' +
-    (n ? '<small class="wtgot">' + T2('已获得：', 'Earned: ') + Object.keys(sum).map(k => fmt(k, sum[k])).join(' · ') + '</small>' : '') + '</div>';
+function wtHtml() { const tot = wtTotal(), maxN = W_ORDER.length * WMAX;
+  return '<b>' + T2('武器总等级 ', 'All-weapon level ') + tot + ' / ' + maxN + '</b><div class="wtbar"><i style="width:' + (tot % 10) * 10 + '%"></i></div><span class="wtgo">›</span>'; }
+function wtPop() {
+  const old = $('wtPop'); if (old && old.parentNode) old.parentNode.removeChild(old);
+  const m = document.createElement('div'); m.className = 'skpv'; m.id = 'wtPop'; const bx = document.createElement('div'); bx.className = 'skpvbox wtbox'; m.appendChild(bx);
+  const tot = wtTotal(), n = W_ORDER.length * WMAX / 10;
+  let h = '<button class="skpvx" aria-label="关闭">✕</button><b class="gih">' + T2('武器总等级 ', 'All-weapon level ') + tot + '</b><div class="wtlist">';
+  for (let i = 0; i < n; i++) { const s = WT_STEP[i % WT_STEP.length], got = tot >= (i + 1) * 10; h += '<div class="wtrow' + (got ? ' got' : '') + '"><i>' + ((i + 1) * 10) + T2(' 级', '') + '</i><span>' + s[2] + '</span>' + (got ? '<em>✓</em>' : '') + '</div>'; }
+  bx.innerHTML = h + '</div>'; bx.querySelector('.skpvx').addEventListener('click', () => m.remove()); m.addEventListener('click', e => { if (e.target === m) m.remove(); }); document.body.appendChild(m);
+  const first = bx.querySelector('.wtrow:not(.got)'); if (first && first.scrollIntoView) first.scrollIntoView({ block: 'center' });
 }
 
 /* ---- 战力: everything that adds damage or toughness counts (weapon + its skill, talents, gear, skins, weapon
    skins, pass, all-weapon track) plus your dogs (the ones following you in full, the ones at home a third) */
 function petPower() { let v = 0; try { for (const p of S.pets || []) v += petDmg(p) / .95 * 1.1 * (p.mode === 'follow' ? 1 : .33); } catch (e) { } return v; }
 function combatPower() {
-  let dps = 0; for (const id of W_ORDER) if (wLv(id) > 0) dps = Math.max(dps, weaponDps(id) * (1 + ((WSK[id] && WSK[id].pw) || 0) * .5));
+  let dps = 0; for (const id of W_ORDER) if (wLv(id) > 0) dps = Math.max(dps, weaponDps(id) * (1 + ((WSK[id] && WSK[id].pw) || 0) * .5 * (1 + wsRank(id) * .1)));
   const def = typeof gst === 'function' ? gst('def') : 0;
   return Math.round(dps * 2.2 + petPower() * 2.2 + maxHpNow() * 1.5 * (1 + Math.min(.6, def || 0)) + maxStaNow() * 0.4 + moveSpeed() * 8 + S.level * 10);
 }
-/* ============ 海岛防守: once a day the dead swim over to your island ============
-   Start it from 「每日」→「今日」 while you're on the island. It costs a little material, then three waves come
-   ashore from every side; the last one brings an elite brute. The zombies' level follows your 战力 (the region
-   your power can handle, middle of its level band), so it is a fair, medium fight. Your walls and turrets help.
-   Hold out (kill every wave) for the reward; die or leave the island and it's lost for the day. */
-const IDEF_COST = { wood: 30, stone: 30, flesh: 10 };
-const ID = { on: false, wave: 0, left: 0, queue: 0, t: 0, spT: 0, tier: 1, lv: 1, zs: [] };
-const idefDone = () => S.idef && S.idef.d === dateKey();
+/* ============ 海岛防守: every night at 20:00 the dead swim over to your island — it always happens ============
+   At 20:00 (your phone's time) a raid hits the island. If you're on the island, three waves come ashore and you
+   fight them (their level follows your 战力, middle of the band your power can handle). If you're out on the
+   ground you get 60 seconds to sail home. Not online, not home in time, or you fall: the island is raided —
+   some of your buildings are broken (repair costs only a little wood) and part of the stored supplies is lost.
+   Hold out for the reward. */
+const IDEF_H = 20, IDEF_WARN = 60, IDEF_LOSS = .2;
+const ID = { on: false, wave: 0, left: 0, queue: 0, t: 0, spT: 0, tier: 1, lv: 1, zs: [], pend: 0, key: '' };
+// the raid this moment belongs to: today's 20:00 once it has passed, otherwise yesterday's
+function raidAt(now) { const d = new Date(now || Date.now()), t = new Date(d); t.setHours(IDEF_H, 0, 0, 0); if (d < t) t.setDate(t.getDate() - 1); return t; }
+const raidKey = now => dateKey(raidAt(now));
+function nextRaid() { const t = raidAt(); t.setDate(t.getDate() + 1); return t.getTime() - Date.now(); }
 function idefTier() { const cp = combatPower(); let t = 1; for (let k = 2; k <= 10; k++) if (recCP(k) <= cp) t = k; return t; }
-function idefCanStart() { if (idefDone()) return '今天已经防守过了，明天再来'; if (!S.isl) return '要在海岛上才能开始'; if (ID.on) return '防守进行中';
-  for (const k in IDEF_COST) if (matHave(k) < IDEF_COST[k]) return '材料不够：' + Object.keys(IDEF_COST).map(q => ITEMS[q] ? ITEMS[q].n + ' ×' + IDEF_COST[q] : q).join('、'); return ''; }
+
+/* ---- the clock: checked every few seconds and right after loading */
+function idefCheck() {
+  if (!S.started || ID.on || ID.pend) return;
+  const key = raidKey();
+  if (!S.idef) { S.idef = { d: key, r: 0 }; return; }          // a new character / an older save: start counting from here
+  if (S.idef.d === key) return;
+  const age = Date.now() - raidAt().getTime(); ID.key = key;
+  if (age > 3 * 60000 || S.dead) { idefRaid(T2('你不在的时候，海岛被丧尸袭击了', 'While you were away, zombies raided the island')); return; }
+  if (S.isl) idefStart(); else { ID.pend = S.t + IDEF_WARN; banner(T2('海岛遭到袭击！', 'The island is under attack!'), T2(IDEF_WARN + ' 秒内回岛防守，不然建筑会被破坏、物资会被抢', 'Get home within ' + IDEF_WARN + ' s or buildings break and supplies are lost'), 4); try { sfx.growl(); } catch (e) { } }
+  idefHud();
+}
+setTimeout(() => { setInterval(() => { try { idefCheck(); } catch (e) { } }, 4000); }, 3000);
+
 function idefStart() {
-  const why = idefCanStart(); if (why) { feed(why, '#ff9b8a'); return; }
-  for (const k in IDEF_COST) matAdd(k, -IDEF_COST[k]);
-  ID.tier = idefTier(); ID.lv = Math.max(1, 10 * (ID.tier - 1) + 4); ID.on = true; ID.wave = 0; ID.zs = []; ID.t = 0; S.idef = { d: dateKey(), r: 0 };
-  try { closePanel('hub'); } catch (e) { } banner(T2('海岛防守', 'Island Defense'), T2('丧尸要上岸了！守住 3 波 · 敌人 Lv.' + ID.lv, 'Zombies are coming ashore! Hold 3 waves · enemy Lv.' + ID.lv), 3); try { sfx.growl(); } catch (e) { }
+  ID.pend = 0; ID.tier = idefTier(); ID.lv = Math.max(1, 10 * (ID.tier - 1) + 4); ID.on = true; ID.wave = 0; ID.zs = []; ID.t = 0; S.idef = { d: ID.key || raidKey(), r: 0 };
+  try { document.querySelectorAll('.overlay.show').forEach(o => o.classList.remove('show')); S.paused = false; } catch (e) { }
+  banner(T2('海岛防守', 'Island Defense'), T2('丧尸要上岸了！守住 3 波 · 敌人 Lv.' + ID.lv, 'Zombies are coming ashore! Hold 3 waves · enemy Lv.' + ID.lv), 3); try { sfx.growl(); } catch (e) { }
   idefNext(); saveGame(); idefHud();
 }
 function idefNext() { ID.wave++; ID.queue = [6, 9, 12][ID.wave - 1] + Math.floor(ID.tier / 3); ID.spT = 2.5; ID.t = 0; if (ID.wave > 1) banner(T2('第 ' + ID.wave + ' 波', 'Wave ' + ID.wave), ID.wave === 3 ? T2('最后一波，带着精英壮汉', 'Final wave, with an elite brute') : T2('更多丧尸上岸了', 'More zombies come ashore'), 2.2); }
@@ -8892,8 +8950,9 @@ function idefSpawn() {
   ID.zs.push(zb); ID.queue--;
 }
 function idefTick(dt) {
+  if (ID.pend) { if (S.isl && !S.dead) idefStart(); else if (S.t > ID.pend || S.dead) { ID.pend = 0; idefRaid(T2('你没赶回海岛', 'You didn\'t make it home')); } idefHud(); return; }
   if (!ID.on) return;
-  if (S.dead || !S.isl) { idefEnd(false, S.dead ? '你倒下了' : '你离开了海岛'); return; }
+  if (S.dead || !S.isl) { idefEnd(false, S.dead ? T2('你倒下了', 'You fell') : T2('你离开了海岛', 'You left the island')); return; }
   ID.t += dt; if (ID.queue > 0) { ID.spT -= dt; if (ID.spT <= 0) { ID.spT = .7; idefSpawn(); } }
   for (const z of ID.zs) if (!z.dead) z.horde = true;      // they never give up
   ID.zs = ID.zs.filter(z => !z.dead && !z.removed); ID.left = ID.zs.length + ID.queue;
@@ -8901,22 +8960,54 @@ function idefTick(dt) {
   idefHud();
 }
 function idefEnd(win, why) {
-  ID.on = false; for (const z of ID.zs) if (!z.dead) { scene.remove(z.g); z.removed = true; z.dead = true; } ID.zs = []; S.idef = { d: dateKey(), r: win ? 1 : 2 }; idefHud();
-  if (!win) { banner(T2('防守失败', 'Defense failed'), T2((why || '') + '，明天再来', 'Try again tomorrow'), 3); saveGame(); return; }
+  ID.on = false; for (const z of ID.zs) if (!z.dead) { scene.remove(z.g); z.removed = true; z.dead = true; } ID.zs = []; idefHud();
+  if (!win) { idefRaid(why); return; }
+  S.idef = { d: ID.key || raidKey(), r: 1 };
   const t = ID.tier, c = 120 * t + 100; S.coin += c; matAdd('stone', 15 + 3 * t); matAdd('wood', 15 + 3 * t); matAdd('metal', 6 + t); matAdd('steel', 1 + Math.floor(t / 3)); matAdd('estone', 2);
   try { addGem(20, '海岛防守'); } catch (e) { } try { seaXp(60); } catch (e) { }
-  let extra = ''; if (Math.random() < .35) { try { dropGear(makeGear(t, Math.max(1, S.level), 3, .5), player.pos.x, player.pos.z); extra = ' · 史诗以上装备 ×1'; } catch (e) { } }
-  banner(T2('守住了！', 'Held!'), T2('余烬币 +' + c + ' · 晶石 +20 · 石头、木头、铁片、精钢锭、强化石' + extra, 'Coins +' + c + ' · gems +20 · stone, wood, iron, steel, Enhance Stones' + (extra ? ' · Epic+ gear' : '')), 4); try { sfx.build(); } catch (e) { } refreshHud(); saveGame();
+  let extra = ''; if (Math.random() < .35) { try { dropGear(makeGear(t, Math.max(1, S.level), 3, .5), player.pos.x, player.pos.z); extra = T2(' · 史诗以上装备 ×1', ' · Epic+ gear'); } catch (e) { } }
+  banner(T2('守住了！', 'Held!'), T2('余烬币 +' + c + ' · 晶石 +20 · 石头、木头、铁片、精钢锭、强化石', 'Coins +' + c + ' · gems +20 · stone, wood, iron, steel, Enhance Stones') + extra, 4); try { sfx.build(); } catch (e) { } refreshHud(); saveGame();
+}
+// the raid got through: some buildings break, part of the storage is carried off
+function idefRaid(why) {
+  S.idef = { d: ID.key || raidKey(), r: 2 }; ID.pend = 0;
+  const cand = builds.filter(b => !b.home && !b.broken && b.hp > 0); let nb = 0;
+  for (const b of cand) if (Math.random() < .45) { buildBreak(b); nb++; }
+  const lost = []; const M = (S.stash && S.stash.m) || {};
+  for (const k in M) { const n = Math.floor(M[k] * IDEF_LOSS); if (n > 0) { M[k] -= n; if (!M[k]) delete M[k]; lost.push((ITEMS[k] ? ITEMS[k].n : k) + ' ×' + n); } }
+  banner(T2('海岛被破坏了', 'The island was raided'), (why ? why + T2('。', '. ') : '') + T2(nb + ' 处建筑坏了（用一点木头就能修）' + (lost.length ? '，储物柜被抢走两成物资' : ''), nb + ' buildings broke (a little wood repairs them)' + (lost.length ? ', 20% of stored supplies lost' : '')), 5);
+  if (lost.length) feed(T2('被抢走：', 'Lost: ') + lost.slice(0, 6).join('、') + (lost.length > 6 ? '…' : ''), '#ff9b8a');
+  idefHud(); saveGame();
+}
+/* ---- broken buildings: sagging and dark, turrets don't fire; 2 wood each to repair */
+const brokeMat = new THREE.MeshLambertMaterial({ color: 0x2a2220, transparent: true, opacity: .55, flatShading: true });
+function buildBreak(b) {
+  if (b.broken) return; b.broken = true; b.g.scale.y = .62; b.g.rotation.z = (Math.random() - .5) * .18;
+  const s = box(1.2, .08, 1.2, brokeMat, 0, 1.6, 0, b.g); s.userData.ruin = true; for (let i = 0; i < 3; i++) { const c = box(.25, .25, .25, mat(0x3a302a), (Math.random() - .5) * 1.6, .12, (Math.random() - .5) * 1.6, b.g); c.userData.ruin = true; }
+}
+function buildFix(b) { if (!b.broken) return; b.broken = false; b.g.scale.y = 1; b.g.rotation.z = 0; b.g.children.filter(c => c.userData && c.userData.ruin).forEach(c => b.g.remove(c)); b.hp = b.max; }
+const brokenList = () => builds.filter(b => b.broken);
+function repairAll() {
+  const L = brokenList(), cost = L.length * 2; if (!L.length) return;
+  if (matHave('wood') < cost) { feed(T2('木头不够：修好全部要 ' + cost + ' 个木头', 'Not enough wood: ' + cost + ' needed'), '#ff9b8a'); return; }
+  matAdd('wood', -cost); L.forEach(buildFix); feed(T2('修好了 ' + L.length + ' 处建筑（木头 -' + cost + '）', 'Repaired ' + L.length + ' buildings (wood -' + cost + ')'), '#8fd16f'); try { sfx.build(); } catch (e) { } saveGame(); try { renderHub(); } catch (e) { }
 }
 function idefHud() {
   let d = $('idefHud'); if (!d && document.body && document.body.appendChild) { d = document.createElement('div'); d.id = 'idefHud'; document.body.appendChild(d); }
-  if (!d) return; if (!ID.on) { d.style.display = 'none'; return; }
+  if (!d) return;
+  if (ID.pend) { d.style.display = 'block'; d.textContent = T2('海岛遭袭！' + Math.max(0, Math.ceil(ID.pend - S.t)) + ' 秒内回岛', 'Island attacked! Home in ' + Math.max(0, Math.ceil(ID.pend - S.t)) + ' s'); return; }
+  if (!ID.on) { d.style.display = 'none'; return; }
   d.style.display = 'block'; d.textContent = T2('海岛防守 · 第 ' + ID.wave + ' / 3 波 · 剩余 ' + ID.left, 'Island defense · wave ' + ID.wave + ' / 3 · ' + ID.left + ' left');
 }
+const idLeft = ms => { const m = Math.max(0, Math.round(ms / 60000)); return m >= 60 ? Math.floor(m / 60) + T2(' 小时 ', 'h ') + (m % 60) + T2(' 分', 'm') : m + T2(' 分钟', ' min'); };
 function idefRow(box) {
-  const why = idefCanStart(), done = idefDone(), r = S.idef && S.idef.r;
-  hubRow(box, '海岛防守（每天一次）', done ? (r === 1 ? '今天守住了！明天还有。' : r === 2 ? '今天失败了，明天再来。' : '进行中…') : T2('消耗 木头 ×30 · 石头 ×30 · 腐肉块 ×10。3 波丧尸从四面八方上岸，等级跟着你的战力（现在大约 Lv.' + (10 * (idefTier() - 1) + 4) + '）。守住奖励：余烬币、晶石 ×20、材料、强化石，还有机会拿史诗以上装备。死了或离开海岛就算失败。', 'Costs Wood ×30 · Stone ×30 · Rotten Flesh ×10. Three waves come ashore from every side; their level follows your power (about Lv.' + (10 * (idefTier() - 1) + 4) + ' now). Hold out for coins, 20 gems, materials, Enhance Stones and a chance at Epic+ gear. Dying or leaving the island loses it.'),
-    done ? '#8fd16f' : '#ffc94a', ID.on ? '进行中' : done ? '明天再来' : '开始防守', idefStart, !!why);
+  const r = S.idef && S.idef.d === raidKey() ? S.idef.r : 0, nb = brokenList().length;
+  hubRow(box, T2('海岛防守 · 每晚 8 点', 'Island Defense · 8 pm nightly'),
+    (ID.on ? T2('正在防守！', 'Defending now!') : r === 1 ? T2('上一次守住了。', 'You held last time.') : r === 2 ? T2('上一次海岛被破坏了。', 'The island was raided last time.') : '') +
+    T2('下一次袭击：' + idLeft(nextRaid()) + '后。到时在海岛上就会开打（等级跟着你的战力），守住有奖励；不在线或没赶回来，建筑会被破坏、储物柜物资会被抢走两成。',
+      ' Next raid in ' + idLeft(nextRaid()) + '. Be on the island to fight (level follows your power) and win a reward; offline or away, buildings break and 20% of stored supplies is lost.'),
+    r === 2 ? '#ff9b8a' : '#ffc94a');
+  if (nb) hubRow(box, T2('修复建筑', 'Repair buildings'), T2(nb + ' 处建筑坏了 · 需要木头 ×' + nb * 2, nb + ' broken · wood ×' + nb * 2), '#ff9b8a', T2('一键修复', 'Repair all'), repairAll, matHave('wood') < nb * 2);
 }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
@@ -9596,7 +9687,7 @@ function renderCharStats() {
     ['受到伤害', ts('armor') ? '-' + Math.round(Math.min(.6, ts('armor')) * 100) + '%' : '正常'], ['每秒回血', ts('regen') ? ts('regen').toFixed(1) : '0'], ['医疗包回复', medHeal()],
     ['击败丧尸', S.kills], ['击败首领', S.bossKills], ['连杀纪录', S.bestStreak || 0], ['联机人数', S.mpn > 1 ? S.mpn + ' 人' : '单人']
   ];
-  $('charStats').innerHTML = st.map(x => '<div><i>' + x[0] + '</i><b>' + x[1] + '</b></div>').join('') + (typeof wtHtml === 'function' ? wtHtml() : '');
+  $('charStats').innerHTML = st.map(x => '<div><i>' + x[0] + '</i><b>' + x[1] + '</b></div>').join('');
 }
 function buyNode(id) {
   const n = TREE_BY[id]; if (!n) return; const blk = nodeBlock(n); if (blk) { feed(blk, '#ff9b8a'); return; }
@@ -9809,4 +9900,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794042630').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794044108').catch(()=>{});</script></body></html>
