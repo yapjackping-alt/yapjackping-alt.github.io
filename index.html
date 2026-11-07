@@ -3061,7 +3061,12 @@ function playerEffort(heavy) {
 function bodyAudio(dt, moving) {
   if (!AC || S.paused || S.dead || !_vbDone) return;
   const k = Math.floor(player.walk / Math.PI);
-  if (k !== PV.step) { PV.step = k; if (moving) playerStep(S.sprint); }
+  if (S.skin === 'seraph') {   // floating on wings: no footsteps, a whoosh on every wing beat (same rhythm as the wings)
+    const mv = Math.min(1, Math.hypot(input.mx || 0, input.mz || 0)), per = 6.283 / (1.6 + mv * 4.2);
+    PV.flT = (PV.flT == null ? per : PV.flT) - dt; if (PV.flT <= 0) { PV.flT = per; if (mv > .1) { const v = .1 + mv * .08;
+      sfxNoise(.34, v, 260, { type: 'bandpass', f1: 1300, q: .9 }); sfxNoise(.26, v * .6, 1300, { f1: 240, delay: .14 }); sfxTone(95, 55, .18, v * .6, 'sine'); }
+      else if (Math.random() < .35) sfxNoise(.4, .05, 300, { type: 'bandpass', f1: 900, q: .8 }); }
+  } else if (k !== PV.step) { PV.step = k; if (moving) playerStep(S.sprint); }
   const r = S.sta / (S.maxSta || 100), hard = S.exhausted || r < .12, mid = false;          // breathe audibly only when really out of breath
   if (!hard && !mid) { PV.brT = Math.min(PV.brT, .4); return; }
   PV.brT -= dt; if (PV.brT > 0) return;
@@ -10106,4 +10111,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794048166').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794048420').catch(()=>{});</script></body></html>
