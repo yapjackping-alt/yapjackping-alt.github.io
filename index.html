@@ -7642,7 +7642,7 @@ function skinPreview(key) {
     if (SKPV.h) SKPV.sc.remove(SKPV.h.g); SKPV.sp.forEach(p => SKPV.sc.remove(p.m)); SKPV.sp = [];
     const h = makeHuman({ skin: 0xe0b090, shirt: 0x2d6f7a, pants: 0x2a2a33 }); dressPlayer(h); h._outfit = []; skinOn(h, h._outfit, key);
     SKPV.h = h; SKPV.sc.add(h.g); SKPV.key = key; SKPV.yaw = null; SKPV.t = 0;
-    { const far = key === 'seraph'; SKPV.cam.position.set(0, far ? 1.7 : 1.5, far ? 12.5 : 8.4); SKPV.cam.lookAt(0, far ? 1.55 : 1.32, 0); }   // the winged outfit needs room
+    { const far = key === 'seraph'; SKPV.cam.position.set(0, far ? 1.8 : 1.5, far ? 15 : 8.4); SKPV.cam.lookAt(0, far ? 1.55 : 1.32, 0); }   // the winged outfit needs room
     m.querySelector('.skpvfig').appendChild(SKPV.R.domElement);
     if (!SKPV.raf) SKPV.raf = requestAnimationFrame(skinPvLoop);
   } catch (e) { m.querySelector('.skpvfig').innerHTML = icHtml('skin:' + key, 'fig'); }
@@ -9052,8 +9052,8 @@ SKIN_BUILD.seraph = function (k) {
   // one great pair of angel wings: a gold wing-bone arching up and out, long feathers hanging from it (longest at the tip),
   // a cream covert row over them, flame-gold tips. They sweep back while you move and rise and fall slowly.
   both(s => {
-    const piv = new THREE.Group(); piv.position.set(s * .14, 1.72, -.34); piv.scale.setScalar(.85); put(piv, 'b');
-    const P = [[0, 0], [.48, .42], [1.2, .64], [1.62, .52]], seg = [], tot = [0];
+    const piv = new THREE.Group(); piv.position.set(s * .14, 1.74, -.36); piv.scale.setScalar(1.18); put(piv, 'b');
+    const P = [[0, 0], [.5, .5], [1.25, .78], [1.7, .66]], seg = [], tot = [0];
     for (let i = 0; i < 3; i++) { const d = Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]); seg.push(d); tot.push(tot[i] + d); }
     const at = u => { const t = u * tot[3]; let i = 0; while (i < 2 && t > tot[i + 1]) i++; const k = (t - tot[i]) / seg[i]; return [P[i][0] + (P[i + 1][0] - P[i][0]) * k, P[i][1] + (P[i + 1][1] - P[i][1]) * k]; };
     for (let i = 0; i < 3; i++) { const [x0, y0] = P[i], [x1, y1] = P[i + 1], b = new THREE.Mesh(new THREE.BoxGeometry(seg[i] + .06, .09 - i * .015, .07), mat(GO));
@@ -9062,15 +9062,15 @@ SKIN_BUILD.seraph = function (k) {
       const f = new THREE.Mesh(new THREE.BoxGeometry(w, len, .028), m); f.position.set(s * (px + ca * len / 2), py + sa * len / 2, dz); f.rotation.z = s * (a - Math.PI / 2); piv.add(f);
       if (glowTip) { const tp = new THREE.Mesh(new THREE.BoxGeometry(w * .8, .14, .034), glowTip); tp.position.set(s * (px + ca * (len - .07)), py + sa * (len - .07), dz + .004); tp.rotation.z = f.rotation.z; piv.add(tp); }
       return f; };
-    const N = 15;
-    for (let i = 0; i < N; i++) { const u = .04 + i / (N - 1) * .96, len = .5 + Math.pow(u, 1.3) * .78 - (u > .93 ? (u - .93) * 3 : 0);
-      feather(u, len, .15, mat(i % 2 ? W : 0xfbf8f0), -.01 - i * .004, u > .55 ? (i % 2 ? F : F2) : null); }
-    for (let i = 0; i < 11; i++) { const u = .03 + i / 10 * .9; feather(u, .3 + u * .22, .14, mat(i % 2 ? 0xf0e2b8 : W2), .02 + i * .002, null); }
-    for (let i = 0; i < 7; i++) { const u = .02 + i / 6 * .8; feather(u, .17, .13, mat(GO), .045, null); }
+    const N = 16;
+    for (let i = 0; i < N; i++) { const u = .03 + i / (N - 1) * .97, len = .62 + Math.pow(u, 1.15) * 1.0 - (u > .94 ? (u - .94) * 3 : 0);
+      feather(u, len, .24, mat(i % 2 ? W : 0xfbf8f0), -.01 - i * .004, u > .55 ? (i % 2 ? F : F2) : null); }
+    for (let i = 0; i < 13; i++) { const u = .03 + i / 12 * .92; feather(u, .42 + u * .35, .23, mat(i % 2 ? 0xf0e2b8 : W2), .02 + i * .002, null); }
+    for (let i = 0; i < 9; i++) { const u = .02 + i / 8 * .85; feather(u, .24, .2, mat(GO), .045, null); }
     const glowE = new THREE.Mesh(new THREE.BoxGeometry(.5, .5, .04), glow(0xff9a3a, .22)); const [tx, ty] = at(.9); glowE.position.set(s * (tx + .25), ty - .5, -.04); piv.add(glowE);
     const bone0 = piv.children[0];
     bone0.onBeforeRender = () => { const T = performance.now() / 1000, mv = (typeof _capeMv === 'function' ? _capeMv() : 0);
-      piv.rotation.y = s * (-.22 - .3 * mv); piv.rotation.z = s * (.07 * Math.sin(T * 1.5) - .05 * mv); };
+      const sp = 1.6 + mv * 4.2, amp = .09 + mv * .3; piv.rotation.y = s * (.18 + .12 * mv); piv.rotation.z = s * (amp * Math.sin(T * sp) + .05 * mv); };   // swept back, beating harder while you move
   });
   // arms and legs
   sleeves(R2, GO); both((s, L, a) => { bx(.29, .32, .29, W, 0, -.56, 0, a); bx(.3, .04, .3, GO, 0, -.42, 0, a); bx(.3, .03, .3, F, 0, -.7, 0, a); });
@@ -10106,4 +10106,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794047880').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794048166').catch(()=>{});</script></body></html>
