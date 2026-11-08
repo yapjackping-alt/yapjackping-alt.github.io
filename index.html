@@ -723,20 +723,11 @@ input[type=text]::placeholder{color:var(--dim)}
 .wskl em{font-style:normal;font-size:11px;color:#1a1008;background:#ffcf7a;border-radius:8px;padding:1px 6px;margin-left:4px}.wskl .wsnx{display:block;margin-top:4px;color:#9fe8ff}
 button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);margin:0 auto 10px;text-align:left;cursor:pointer;font:inherit}button.wtrack b{white-space:nowrap}button.wtrack .wtbar{flex:1;margin:0}.wtgo{color:#9fe8ff;font-size:22px;line-height:1}
 .wtbox{max-height:80vh;display:flex;flex-direction:column;align-items:stretch;min-width:min(340px,90vw);padding-top:20px}.wtbox .gih{padding-right:40px}.wtlist{overflow:auto;display:flex;flex-direction:column;gap:5px;margin-top:8px}.wtrow{display:flex;gap:10px;align-items:center;padding:7px 10px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);font-size:13px;color:#cfc4b8}.wtrow i{font-style:normal;color:#9fe8ff;min-width:52px;font-weight:900}.wtrow em{margin-left:auto;font-style:normal;color:#8fe05a}.wtrow.got{background:rgba(143,224,90,.1);border-color:rgba(143,224,90,.4);color:#fff}
-/* weapon skill: sits at the fire button's top-right; a gold ring that refills as the cooldown runs out */
-#bSkill{right:4px;bottom:104px;width:60px;height:60px;border:0;background:radial-gradient(circle at 50% 38%,#4a2a18 0,#1c0f12 70%);box-shadow:0 0 0 2px rgba(0,0,0,.55),0 4px 10px rgba(0,0,0,.5);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0;overflow:visible}
-#bSkill .skr{position:absolute;inset:-3px;border-radius:50%;background:conic-gradient(from 0deg,#fff1c2,#ffcf7a 30%,#ff9a3a 60%,#ffd98a 85%,#fff1c2);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3.5px));mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3.5px));pointer-events:none}
-#bSkill.cool .skr{background:conic-gradient(rgba(255,255,255,.18) var(--cd,0deg),#ffcf7a 0)}
-#bSkill::after{content:'';position:absolute;inset:5px;border-radius:50%;border:1px solid rgba(255,214,150,.35);pointer-events:none}
-#bSkill b{font-size:11.5px;line-height:1.1;color:#fff3dc;max-width:50px;text-align:center;letter-spacing:.02em;text-shadow:0 1px 2px #000;position:relative}
-#bSkill small{margin-top:2px;font-size:10px;color:#ffcf7a;font-weight:900;position:relative;letter-spacing:.08em}
-#bSkill.cool b{color:#b9a89a}#bSkill.cool small{font-size:15px;color:#fff;letter-spacing:0}
-#bSkill:not(.cool){animation:skRdy 1.6s ease-in-out infinite}
-@keyframes skRdy{0%,100%{box-shadow:0 0 0 2px rgba(0,0,0,.55),0 0 6px rgba(255,170,60,.35)}50%{box-shadow:0 0 0 2px rgba(0,0,0,.55),0 0 16px rgba(255,190,80,.85)}}
-#bSkill.on{animation:none;box-shadow:0 0 0 3px rgba(255,207,122,.9),0 0 22px rgba(255,160,60,.95)}
-#bSkill.tap{transform:scale(.9)}
-#bSprint{right:172px!important;bottom:6px!important}
-@media (orientation:portrait){#bSkill{right:16px!important;bottom:132px!important}#bSprint{right:196px!important;bottom:28px!important}}
+/* weapon skill: half on top of the fire button's top-right edge, an ordinary round button with a cooldown sweep */
+#bSkill{right:-15px;bottom:55px;width:52px;height:52px;z-index:2;background:conic-gradient(rgba(0,0,0,.55) var(--cd,0deg),rgba(36,18,28,.72) 0);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0}
+#bSkill .skr{display:none}
+#bSkill b{font-size:10.5px;line-height:1.1;color:var(--ink);max-width:46px;text-align:center}#bSkill small{margin-top:1px;font-size:10px;color:var(--dim);font-weight:700}
+#bSkill.cool small{font-size:13px;color:#fff}#bSkill.on{border-color:#ffd9a8;box-shadow:0 0 10px rgba(255,160,60,.8)}#bSkill.tap{background:rgba(255,122,47,.5)}
 .packc{box-sizing:border-box;width:min(560px,100%);margin:6px auto;padding:14px;border-radius:16px;border:2px solid #ffc94a;background:linear-gradient(160deg,rgba(255,201,74,.18),rgba(20,10,16,.95) 60%);box-shadow:0 0 22px rgba(255,201,74,.25)}.packc.got{opacity:.6}
 .pkh{display:flex;justify-content:space-between;align-items:center}.pkh b{font-size:19px;color:#ffe2a0}.pkh em{font-style:normal;font-size:12px;background:#ff5a4a;color:#fff;border-radius:8px;padding:2px 8px}
 .pkws{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 0}.pkw{display:flex;flex-direction:column;align-items:center;padding:4px;border-radius:10px;background:rgba(0,0,0,.25)}.pkw img,.pkw svg,.pkw canvas{width:100%;max-height:44px;object-fit:contain}.pkw small{font-size:11px;color:#e8d8cc}
@@ -11068,4 +11059,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794097690').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794098198').catch(()=>{});</script></body></html>
