@@ -5381,7 +5381,7 @@ function onPeersChange(ch) {
   const seen = new Set(); let n = 0;
   for (const p of ch.peers) { if (p.kind !== 'viewer') continue; n++; if (p.isMe) { if (p.sameTab !== false) MP.me = p.peer; continue; } seen.add(p.peer); syncRemote(p); }
   for (const [id, o] of MP.others) if (!seen.has(id)) { scene.remove(o.g); MP.others.delete(id); }
-  S.mpn = n; refreshHud();
+  if (S.mpn !== n) { S.mpn = n; refreshHud(); }
 }
 function onRemoteShot(m) {
   if (m.isMe || !m.data || S.isl) return;
@@ -6112,7 +6112,8 @@ function onSnap(m) {
     if (!Array.isArray(r) || r.length < 10 || !r.slice(0, 9).every(Number.isFinite)) continue;
     const [id, ti, x10, z10, f100, hpp, lv, bi, el2, btp] = r; seen.add(id); let z = COOP.mirrors.get(id);
     if (!z) z = makeMirror(id, ti, x10 / 10, z10 / 10, clamp(lv, 1, 100), BUFF_IDX[bi] || null, !!el2, clamp(btp | 0, 0, BOSS_TYPES.length - 1));
-    if (!z) continue; z.tx = x10 / 10; z.tz = z10 / 10; z.tf = f100 / 100; z.hp = Math.max(0, z.max * hpp / 100); z.seen = S.t;
+    if (!z) continue; { const ag = S.t - (z.seen || 0); if (z.seen && ag > .05 && ag < 1) { z.vx = clamp((x10 / 10 - z.tx) / ag, -12, 12); z.vz = clamp((z10 / 10 - z.tz) / ag, -12, 12); } }
+    z.tx = x10 / 10; z.tz = z10 / 10; z.tf = f100 / 100; z.hp = Math.max(0, z.max * hpp / 100); z.seen = S.t;
   }
   for (const [id, z] of COOP.mirrors) if (!seen.has(id) && !z.dead) { z.gone = (z.gone || 0) + 1; if (z.gone > 6) dropMirror(z); } else if (seen.has(id)) z.gone = 0;
   if (boss && boss.mirror) refreshBossHud();
@@ -6131,7 +6132,8 @@ function makeMirror(id, ti, x, z, lv, buff, elite, btp) {
 function dropMirror(z) { COOP.mirrors.delete(z.nid); scene.remove(z.g); z.removed = true; z.dead = true; if (z === boss) { boss = null; el.boss.style.display = 'none'; } }
 function mirrorUpdate(z, dt) {
   if (z.dead) { z.deadT += dt; z.g.rotation.x = -Math.min(1.55, z.deadT * 5); if (z.deadT > 3) { COOP.mirrors.delete(z.nid); scene.remove(z.g); z.removed = true; if (z === boss) boss = null; } return; }
-  const k = 1 - Math.exp(-10 * dt), dx = z.tx - z.pos.x, dz = z.tz - z.pos.z, mv = Math.hypot(dx, dz);
+  const ag = Math.min(.3, S.t - (z.seen || S.t)), ex = z.tx + (z.vx || 0) * ag, ez = z.tz + (z.vz || 0) * ag;      // carry on along its last movement until the next snapshot
+  const k = 1 - Math.exp(-12 * dt), dx = ex - z.pos.x, dz = ez - z.pos.z, mv = Math.hypot(dx, dz);
   if (mv > 12) { z.pos.x = z.tx; z.pos.z = z.tz; } else { z.pos.x += dx * k; z.pos.z += dz * k; }
   let d = z.tf - z.face; d = Math.atan2(Math.sin(d), Math.cos(d)); z.face += d * k; z.g.rotation.y = z.face;
   z.anim = (z.anim || 0) + dt * Math.min(8, mv * 6);
@@ -11005,6 +11007,59 @@ mpInit = (orig => async function (code) {
 })(mpInit);
 window.addEventListener('pagehide', () => { try { if (NET.room) netBye(RTDB + '/rooms/' + NET.room.key, NET.peer); } catch (e) { } });
 document.addEventListener('visibilitychange', () => { if (document.hidden && NET.room) netBye(RTDB + '/rooms/' + NET.room.key, NET.peer); });
+
+/* ---- what others see of you: your outfit, weapon skin and gear looks; and smoother movement ---- */
+const GL_SLOTS = ['helm', 'armor', 'gloves', 'pants', 'boots', 'pack'];
+const myLook = () => GL_SLOTS.map(s => { const it = S.gear && S.gear[s]; return it ? it[1] + '.' + (it[3] | 0) : ''; }).join(',');
+let _cpC = 0, _cpT = -9;
+mpTick = function (dt) {
+  if (!MP.on || !S.started) return;
+  MP.tPres -= dt; if (MP.tPres > 0) return;
+  const dx = player.pos.x - MP.lx, dz = player.pos.z - MP.lz, moved = Math.hypot(dx, dz) > .05, el = Math.max(.05, S.t - (MP.lt || 0));
+  if (!moved && S.t - (MP.lt || 0) < 1) return;        // standing still: just a heartbeat every second
+  MP.tPres = .18; MP.lt = S.t; const vx = moved ? dx / el : 0, vz = moved ? dz / el : 0; MP.lx = player.pos.x; MP.lz = player.pos.z;
+  if (S.t - _cpT > 3) { _cpT = S.t; try { _cpC = combatPower(); } catch (e) { } }
+  MP.room.presence({ n: S.name, x: +player.pos.x.toFixed(1), z: +player.pos.z.toFixed(1), vx: +clamp(vx, -20, 20).toFixed(1), vz: +clamp(vz, -20, 20).toFixed(1), f: +player.face.toFixed(2), mv: moved ? 1 : 0, lv: S.level, cp: _cpC, d: S.dead ? 1 : 0, i: S.isl ? 1 : 0,
+    w: S.wp, wt: wTier(Math.max(1, wLv(S.wp))), ws: (S.wsk && S.wsk[S.wp]) || '', sk: S.skin || '', gl: myLook() }).catch(() => { });
+};
+function remoteDress(o, sk, gl) {
+  const h = o.h; if (h._outfit) for (const m of h._outfit) if (m.parent) m.parent.remove(m); h._outfit = [];
+  if (sk && SKIN_BUILD[sk]) { try { skinOn(h, h._outfit, sk); } catch (e) { } return; }
+  if (h._base) h._base.forEach(m => { m.visible = true; });
+  const gear = {}; String(gl || '').split(',').forEach((v, i) => { if (!v || i >= GL_SLOTS.length) return; const [q, st] = v.split('.').map(n => n | 0); gear[GL_SLOTS[i]] = [0, clamp(q, 0, GQ.length - 1), 0, Math.max(0, st)]; });
+  const keep = S.skin; S.skin = ''; try { outfitOn(h, gear); } catch (e) { } S.skin = keep;
+}
+syncRemote = function (p) {
+  const pr = p.presence || {}, name = cleanName(pr.n) || '幸存者', lv = clamp(+pr.lv || 1, 1, 99) | 0;
+  const x = clamp(+pr.x || 0, -1e6, 1e6), z = clamp(+pr.z || 0, -1e6, 1e6);
+  let o = MP.others.get(p.peer);
+  if (!o) { o = makeRemote(name, lv, p.peer); o.g.position.set(x, 0, z); MP.others.set(p.peer, o); }
+  else if (o.name !== name || o.lv !== lv) { o.name = name; o.lv = lv; setRemoteLabel(o); }
+  if (o.tx !== x || o.tz !== z || o.rt == null) o.rt = Date.now();
+  o.tx = x; o.tz = z; o.vx = clamp(+pr.vx || 0, -20, 20); o.vz = clamp(+pr.vz || 0, -20, 20); o.tf = +pr.f || 0; o.mv = !!pr.mv; o.dead = !!pr.d; o.isl = !!pr.i;
+  const sk = SKINS[pr.sk] ? pr.sk : '', gl = String(pr.gl || '').slice(0, 80), lk = sk + '|' + gl;
+  if (lk !== o.lk) { o.lk = lk; remoteDress(o, sk, gl); }
+  const wid = WEAP[pr.w] ? pr.w : 'rifle', wt = clamp(+pr.wt | 0, 0, 4), ws = WSKINS[pr.ws] ? pr.ws : '', wk = wid + wt + ws;
+  if (wk !== o.wk) { o.wk = wk; while (o.wg.children.length) o.wg.remove(o.wg.children[0]); try { o.wg.add(buildWeapon(wid, wt, ws || null)); } catch (e) { o.wg.add(buildWeapon(wid, wt, null)); } }
+};
+remotesTick = function (dt) {
+  const now = Date.now();
+  for (const o of MP.others.values()) {
+    const p = o.g.position, ag = Math.min(.35, (now - (o.rt || now)) / 1000), ex = o.tx + (o.vx || 0) * ag, ez = o.tz + (o.vz || 0) * ag;
+    const k = 1 - Math.exp(-12 * dt), dist = Math.hypot(ex - p.x, ez - p.z);
+    if (dist > 25) { p.x = ex; p.z = ez; } else { p.x += (ex - p.x) * k; p.z += (ez - p.z) * k; }
+    let d = o.tf - o.g.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); o.g.rotation.y += d * k;
+    const spd = Math.hypot(o.vx || 0, o.vz || 0), moving = o.mv || spd > .5 || dist > .3; if (moving) o.walk += dt * Math.min(14, 6 + spd);
+    const sw = moving ? Math.sin(o.walk) * .75 : 0; o.h.legL.rotation.x = sw; o.h.legR.rotation.x = -sw;
+    o.g.rotation.x = o.dead ? -1.4 : 0; o.g.visible = !(o.isl || S.isl);
+  }
+};
+/* ---- 战力 counts what you have, not what is running right now (food buffs, frenzy, being tired or slowed) ---- */
+combatPower = (o => function () {
+  const keep = [S.fbuf, S.frenzyT, S.exhausted, S.slowT, S.swiftT, typeof SW !== 'undefined' ? SW.b : null];
+  S.fbuf = {}; S.frenzyT = 0; S.exhausted = false; S.slowT = 0; S.swiftT = 0; if (typeof SW !== 'undefined') SW.b = null;
+  try { return o(); } finally { [S.fbuf, S.frenzyT, S.exhausted, S.slowT, S.swiftT] = keep; if (typeof SW !== 'undefined') SW.b = keep[5]; }
+})(combatPower);
 /* ============ room chat + computer (keyboard) help ============
    · Chat: everyone in the same online room can talk. A 聊天 button (Enter on a computer) opens a small box at the
      bottom left with the recent messages, quick phrases and a text field; it does not pause the game. New messages
@@ -12119,4 +12174,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794113438').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794114709').catch(()=>{});</script></body></html>
