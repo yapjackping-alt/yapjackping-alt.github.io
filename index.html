@@ -1,7 +1,7 @@
 <!doctype html><html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="余烬末日">
+<meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="apple-mobile-web-app-title" content="余烬末日">
 <meta name="theme-color" content="#0a0608"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon-180.png"><link rel="icon" href="icon-192.png">
 <style>html,body{margin:0;height:100%;background:#0a0608;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}</style>
 </head><body>
@@ -941,8 +941,8 @@ button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);mar
 .dn{position:absolute;left:0;top:0;display:none;font:900 15px/1 var(--font-hud);color:#fff;white-space:nowrap;text-shadow:0 0 3px #000,0 2px 2px rgba(0,0,0,.8);will-change:transform,opacity}
 .dn.crit{font-size:22px;color:#ffd23a;text-shadow:0 0 6px rgba(255,120,0,.9),0 2px 2px #000;letter-spacing:.02em}
 .dn.thun{color:#9fe8ff;font-size:14px}.dn.dot{color:#ff9a4a;font-size:12px}.dn.wet{color:#8ac8ff}.dn.turret{color:#c8c8c8;font-size:11px;opacity:.85}.dn.hurt{color:#ff4a3a;font-size:16px}.dn.heal{color:#7fe08a}
-#bRoll{right:10px;bottom:126px;width:50px;height:50px}#bRoll svg{width:28px;height:28px}#bRoll.cool{opacity:.45}
-@media (orientation:portrait){#bRoll{right:22px!important;bottom:137px!important}}
+#bRoll{right:10px;bottom:108px;width:50px;height:50px}#bChat{white-space:nowrap}#bRoll svg{width:28px;height:28px}#bRoll.cool{opacity:.45}
+@media (orientation:portrait){#bRoll{right:18px!important;bottom:137px!important}}
 body.chatOn #chatFeed{display:none}#chatFull{display:flex;align-items:center}
 #chatBox.full{left:0;right:0;top:0;bottom:0;width:auto;max-height:none;border-radius:0;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);box-sizing:border-box}#chatBox.full .chd b{font-size:15px}#chatBox.full #chatLog{font-size:15px}
 #encTxt{display:none;position:fixed;left:50%;top:calc(var(--st,0px) + 96px);transform:translateX(-50%);z-index:8;pointer-events:none;padding:5px 14px;border-radius:10px;background:rgba(70,40,10,.85);border:1px solid #ffc94a;color:#fff2d8;font-weight:800;font-size:13.5px;white-space:nowrap}#encTxt b{color:#ffd98a}
@@ -11420,10 +11420,8 @@ function rollTick(dt) {
   if (ROLL.t <= 0) return; ROLL.t -= dt; const step = ROLL.dist / ROLL.dur * dt, ox = player.pos.x, oz = player.pos.z;
   player.pos.x += ROLL.dx * step; player.pos.z += ROLL.dz * step; try { collide(player.pos, .45); } catch (e) { }
   if (!isFinite(player.pos.x)) { player.pos.x = ox; player.pos.z = oz; }
-  const k = 1 - Math.max(0, ROLL.t) / ROLL.dur; pm.g.rotation.x = k * Math.PI * 2; pm.g.position.y = Math.sin(k * Math.PI) * .45; pm.g.rotation.y = player.face;
-  if (ROLL.t <= 0) { pm.g.rotation.x = 0; pm.g.position.y = 0; }
 }
-try { const H = $('hud'); if (H && H.appendChild) { const b = document.createElement('button'); b.className = 'btn ico'; b.id = 'bRoll'; b.setAttribute('aria-label', '翻滚'); b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 13.5a7.5 7.5 0 1 1-2.2-6.8" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><path d="M17.6 3.4l.2 3.7-3.7.3" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.6" cy="9.4" r="1.6" fill="none" stroke="#fff" stroke-width="1.5"/><path d="M11.4 11.2c1.6.5 2.3 1.9 1.6 3.3-.6 1.2-2.2 1.6-3.4.9M9.4 15.4l-1.6 1.9M12.9 13.8l2 .4" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'; H.appendChild(b);
+try { const H = ($('bFire') && $('bFire').parentNode) || $('hud'); if (H && H.appendChild) { const b = document.createElement('button'); b.className = 'btn ico'; b.id = 'bRoll'; b.setAttribute('aria-label', '翻滚'); b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 13.5a7.5 7.5 0 1 1-2.2-6.8" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><path d="M17.6 3.4l.2 3.7-3.7.3" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.6" cy="9.4" r="1.6" fill="none" stroke="#fff" stroke-width="1.5"/><path d="M11.4 11.2c1.6.5 2.3 1.9 1.6 3.3-.6 1.2-2.2 1.6-3.4.9M9.4 15.4l-1.6 1.9M12.9 13.8l2 .4" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'; H.appendChild(b);
   b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); rollGo(); }); } } catch (e) { }
 window.addEventListener('keydown', e => { if (e.repeat || !S.started) return; const typing = e.target && /input|textarea/i.test(e.target.tagName || ''); if (typing) return; if (e.code === 'KeyF') rollGo(); });
 try { if (typeof PC_KEYS !== 'undefined') PC_KEYS.splice(3, 0, ['F', '翻滚（翻滚时不会受伤）']); } catch (e) { }
@@ -11475,6 +11473,14 @@ function encTick(dt) {
 drawExtraRadar = (orig => function (tx, tz, edgeMark) { orig(tx, tz, edgeMark); try { const c = ENC.cur; if (!c || S.isl || c.type !== 'gold' || c.z.dead) return; const k = _mapK || 2; edgeMark({ x: c.z.pos.x, z: c.z.pos.z }, '#ffd98a'); mapPin(mctx, tx(c.z.pos.x), tz(c.z.pos.z), 5.5 * k, '#ffd98a', '宝', k); } catch (e) { } })(drawExtraRadar);
 
 petsTick = (o => function (dt) { o(dt); try { numTick(dt); burnNums(dt); } catch (e) { } try { rollTick(dt); } catch (e) { } try { encTick(dt); } catch (e) { console.warn(e); } })(petsTick);
+
+// the roll pose: a forward somersault around the body's middle (not the feet), so the head never dips under the ground.
+// Runs after the main loop has placed the character for this frame.
+zSpecialTick = (o => function (dt) { o(dt); try { const g = pm.g;
+  if (ROLL.t > 0) { const k = 1 - ROLL.t / ROLL.dur, a = k * Math.PI * 2, c = 1.05, f = player.face, base = (typeof playerY === 'function' && playerY()) || 0;
+    g.rotation.order = 'YXZ'; g.rotation.y = f; g.rotation.x = a;
+    g.position.y = base + c - c * Math.cos(a) + Math.sin(k * Math.PI) * .35; g.position.x = player.pos.x - Math.sin(f) * c * Math.sin(a); g.position.z = player.pos.z - Math.cos(f) * c * Math.sin(a); ROLL.posed = 1; }
+  else if (ROLL.posed) { ROLL.posed = 0; g.rotation.x = 0; g.rotation.order = 'XYZ'; g.position.x = player.pos.x; g.position.z = player.pos.z; } } catch (e) { } })(zSpecialTick);
 /* ============ 图纸残页 · 蓝图抽奖机 · 配件补给箱 · 五阶炮塔 ============
    Every monster can drop 图纸残页: each 5 kills rolls 0-5 of them (elites and bosses drop more). The 蓝图抽奖机 on the
    island turns them into blueprints; some buildings now need one before you can build them (anything you had already
@@ -13058,4 +13064,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794152418').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794153143').catch(()=>{});</script></body></html>
