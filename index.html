@@ -6085,7 +6085,7 @@ if ($('rotHint')) { $('rotX').addEventListener('click', () => { rotDismissed = t
 const COOP = { host: null, follow: null, nid: 0, tSnap: 0, tElect: 0, mirrors: new Map(), hq: new Map(), tHit: 0, rh: null, denied: false, lastSnap: 0 };
 const ZT_IDX = ['walker', 'runner', 'brute', '_boss', 'crawler', 'spitter', 'bomber', 'screamer', 'shield', 'healer'], BUFF_IDX = [null, 'swift', 'rage', 'poison', 'frost', 'armor', 'tough', 'burst', 'evade', 'ember'];
 const coopActive = () => MP.on && !S.isl && !COOP.denied;
-const groundMates = () => [...MP.others.entries()].filter(([, o]) => !o.isl && !o.dead && Math.hypot(o.tx - player.pos.x, o.tz - player.pos.z) < 160);
+const groundMates = () => [...MP.others.entries()].filter(([, o]) => !o.isl && !o.dead && Math.hypot(o.tx - player.pos.x, o.tz - player.pos.z) < (S.dun ? 400 : 160));
 // zombies chase whoever is nearest: you, or (on the host) a teammate
 function zTarget(z) {
   let best = { x: player.pos.x, z: player.pos.z, peer: null, d: S.dead ? 1e9 : Math.hypot(player.pos.x - z.pos.x, player.pos.z - z.pos.z) };
@@ -6100,7 +6100,7 @@ function nearestPlayerDist(z) {
 // landing next to a teammate who would be host: don't spawn my own welcome wave
 function coopWouldFollow(x, z) {
   if (!MP.on || COOP.denied || !MP.me) return false;
-  return [...MP.others.entries()].some(([p, o]) => !o.isl && !o.dead && p < MP.me && Math.hypot(o.tx - x, o.tz - z) < 160);
+  return [...MP.others.entries()].some(([p, o]) => !o.isl && !o.dead && p < MP.me && Math.hypot(o.tx - x, o.tz - z) < (S.dun ? 400 : 160));
 }
 function coopElect(dt) {
   COOP.tElect -= dt; if (COOP.tElect > 0) return; COOP.tElect = .5;
@@ -12107,14 +12107,14 @@ function dDoor(id, ax, x, z, w, col) { const M = dunMats(), g = new THREE.Group(
   const o = addBox(dX(x), dZ(z), (ax === 'x' ? w : WT) / 2, (ax === 'x' ? WT : w) / 2); DUN.obs.push(o);
   DUN.doors[id] = { g, o, lt, open: false, t: 0 }; }
 function doorOpen(id) { const D = DUN.doors[id]; if (!D || D.open) return; D.open = true; removeObstacle(D.o); D.lt.material.color.setHex(0x5aff7a); try { sfxNoise(.8, .15, 500); sfxTone(300, 600, .3, .1, 'square'); } catch (e) { } }
-function dInt(x, z, lab, ok, fn, r) { const I = { x: dX(x), z: dZ(z), r: r || 2.4, lab, ok, fn, used: false }; DUN.ints.push(I); return I; }
+function dInt(x, z, lab, ok, fn, r, o) { const I = Object.assign({ id: 'i' + DUN.ints.length, x: dX(x), z: dZ(z), r: r || 2.4, lab, ok, fn, used: false }, o || {}); DUN.ints.push(I); return I; }
 function dPick(x, z, kind, col, fn) { const g = new THREE.Group(); g.position.set(x, 0, z); DUN.G.add(g);
   const it = new THREE.Mesh(new THREE.OctahedronGeometry(.22, 0), new THREE.MeshBasicMaterial({ color: col })); it.position.y = 1.1; g.add(it);
   const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,255,255,.9)', 'rgba(255,255,255,0)'), color: col, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); gl.scale.set(1.6, 1.6, 1); gl.position.y = 1.1; g.add(gl);
   const beam = box(.06, 3, .06, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: .35 }), 0, 1.5, 0, g);
-  DUN.picks.push({ g, it, x: dX(x), z: dZ(z), kind, fn, taken: false }); }
+  DUN.picks.push({ id: kind + '@' + x + ',' + z, g, it, x: dX(x), z: dZ(z), kind, fn, taken: false, sh: kind === 'key' || kind === 'fuse' }); }
 function dCrate(x, z, tier) { try { const t = TIERS[Math.min(TIERS.length - 1, tier)], id = 'dun:' + Date.now() + ':' + DUN.crates.length; addCrate(id, t, dX(x), dZ(z)); DUN.crates.push(id); } catch (e) { } }
-function dAnchor(x, z) { DUN.anch.push([dX(x), dZ(z)]); dBox(.5, .12, .5, dunMats().lamp, x, DUN_H - .05, z).userData.lampFx = 1; }
+function dAnchor(x, z) { DUN.anch.push([dX(x), dZ(z)]); }
 function dBlood(x, z, w, d, r) { const m = dBox(w, .01, d, dunMats().blood, x, .04, z); m.rotation.y = r || 0; m.userData.noCast = 1; }
 // furniture
 function fBed(x, z, r) { const M = dunMats(), g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = r || 0; DUN.G.add(g);
@@ -12221,7 +12221,7 @@ function dz(type, x, z, lv, chase) { try { const zb = spawnZombie(type, dX(x), d
 const dLv = () => rint(DUN_LV[0], DUN_LV[0] + 3);
 function dunSetup() {
   const st = DUN.st = { stage: 0, fuse: 0, terms: {}, waveT: 0, wv: 0, bossOn: false, boss: null, done: false };
-  const B = 150, say = k => storyTalk(DUN_TXT[k]);
+  const B = 150, say = k => { storyTalk(DUN_TXT[k]); if (dunAuth()) dunSend('dunT', { k }); };
   // rooms that come alive the first time you walk in
   const R = (id, f) => { const r = DUN.rooms.find(q => q.id === id); if (r) r.enter = f; };
   R('lobby', () => { dz('walker', 24, -6, dLv()); dz('walker', 36, -9, dLv()); dz('crawler', 30, -13, dLv()); dz('walker', 34, -3, dLv()); });
@@ -12252,18 +12252,18 @@ function dunSetup() {
    ['lab', B + 10.6, -4, Math.PI / 2, 'vial'], ['lab', B + 45.4, -12, -Math.PI / 2, 'vial'], ['file', B + 23.4, -42, -Math.PI / 2], ['safe', B + 32.6, -36, Math.PI / 2, 'card'], ['file', B - 1.4, -26, Math.PI / 2, 'steth'],
    ['tool', B + 51.4, -8, -Math.PI / 2], ['lab', B + 46.6, -40, Math.PI / 2, 'vial'], ['lab', B + 81.4, -18, -Math.PI / 2, 'vial']].forEach(c => dCab(c[0], c[1], c[2], c[3], c[4]));
   // doors, switches, terminals, lifts
-  dInt(30, -14.6, '刷门禁卡', () => st.stage === 1, () => { doorOpen('ward'); st.stage = 2; say('door'); });
+  dInt(30, -14.6, '刷门禁卡', () => st.stage === 1, () => { doorOpen('ward'); st.stage = 2; say('door'); }, 0, { sh: 1, goal: 1 });
   dInt(30, -14.6, '需要门禁卡', () => st.stage === 0, () => { feed('门锁着，要保安室的门禁卡', '#ff9b8a'); });
-  dInt(66.6, -20, '接通电源', () => st.stage === 3, () => { st.stage = 4; st.waveT = 0; st.wv = 0; say('power'); dunPower(true); });
+  dInt(66.6, -20, '接通电源', () => st.stage === 3, () => { st.stage = 4; st.waveT = 0; st.wv = 0; say('power'); dunPower(true); }, 0, { sh: 1, goal: 3 });
   dInt(66.6, -20, '配电箱（缺保险丝）', () => st.stage < 3, () => { feed('配电箱缺了保险丝（' + st.fuse + ' / 3）', '#ff9b8a'); });
-  dInt(-5, -20, '坐电梯去地下二层', () => st.stage === 5, () => dunTo(B + 5, -16, () => { st.stage = 6; }), 3);
+  dInt(-5, -20, '坐电梯去地下二层', () => st.stage >= 5, () => dunTo(B + 5, -16, () => { if (dunAuth()) { if (st.stage === 5) st.stage = 6; } else dunSend('dunA', { op: 'b2' }); }), 3, { goal: 5 });
   dInt(-5, -20, '电梯（没电）', () => st.stage < 4, () => { feed('电梯没电', '#ff9b8a'); }, 3);
   const term = (k, tx, tz, txt) => dInt(tx, tz, '读取终端', () => st.stage >= 6 && !st.terms[k], () => { st.terms[k] = 1; say(txt); const n = Object.keys(st.terms).length; feed('终端记录 ' + n + ' / 3', '#5ad8ff');
-    if (n >= 3 && st.stage === 6) { st.stage = 7; doorOpen('cold'); setTimeout(() => say('terms'), 400); } });
+    if (n >= 3 && st.stage === 6) { st.stage = 7; doorOpen('cold'); setTimeout(() => say('terms'), 400); } }, 0, { sh: 1, goal: 6 });
   term('a', B + 28, -17, 't1'); term('b', B + 14.2, -33, 't2'); term('c', B + 36, -34.2, 't3');
   dInt(B + 8.6, -31.6, '打开保险柜', () => !S.dg.safe && Object.keys(S.dg.rec).length >= 4, () => { S.dg.safe = 1; say('safe'); dunSafe(); });
   dInt(B + 8.6, -31.6, '保险柜（要 4 位密码）', () => !S.dg.safe && Object.keys(S.dg.rec).length < 4, () => { feed('四位密码。录音里好像藏着数字（' + Object.keys(S.dg.rec).length + ' / 4）', '#ff9b8a'); });
-  dInt(B + 81, -29, '坐电梯撤离', () => st.stage === 9, () => dunWin());
+  dInt(B + 81, -29, '坐电梯撤离', () => st.stage === 9, () => dunWin(), 0, { goal: 9 });
 }
 function dunPower(on) { DUN.powered = on; for (const L of DUN.lights) L.color.setHex(on ? 0xfff2d8 : 0xff3a2a);
   DUN.G.traverse(o => { if (o.userData && o.userData.lampFx) o.material = on ? dunMats().lampW : dunMats().lamp; }); if (DUN.pbox) DUN.pbox.material = new THREE.MeshBasicMaterial({ color: on ? 0x5aff7a : 0xff3a2a });
@@ -12277,7 +12277,7 @@ function dunBoss() { const st = DUN.st; st.bossOn = true; const B = 150;
   try { const h = boss.h, Y = h.hip, coat = new THREE.MeshLambertMaterial({ color: 0xe8ece8 }), st2 = new THREE.MeshLambertMaterial({ color: 0x8a1a1a });
     box(.74, 1.25, .46, coat, 0, Y + .2, 0, h.body); box(.2, .5, .02, st2, .16, Y + .5, .24, h.body); box(.3, .3, .02, st2, -.15, Y - .1, .24, h.body); box(.3, .06, .02, new THREE.MeshLambertMaterial({ color: 0x5ad8ff }), -.18, Y + .75, .24, h.body);
     for (const a of [h.armL, h.armR]) box(.26, .6, .26, coat, 0, -.35, 0, a); box(.5, .14, .5, new THREE.MeshLambertMaterial({ color: 0x2a1a14 }), 0, Y + 1.35, -.05, h.body); } catch (e) { }
-  storyTalk(DUN_TXT.boss); banner('零号病人 · 林曼', '最终首领 · 打倒她，结束这一切', 3.5); refreshBossHud(); }
+  storyTalk(DUN_TXT.boss); dunSend('dunT', { k: 'boss' }); banner('零号病人 · 林曼', '最终首领 · 打倒她，结束这一切', 3.5); refreshBossHud(); }
 function dunSafe() { try { const sl = pick(['mz', 'gr', 'bl', 'hd', 'el']), kd = rint(0, 2); S.av.push([sl, kd, 4]); addGem(50, '林医生的保险柜'); gain('heart', 1);
     banner('林医生的保险柜', '黄金配件「' + ATT_K[sl][kd].n + '」（在配件库）· 晶石 ×50 · 首领之心', 4); if (DUN.safeM) DUN.safeM.material = new THREE.MeshBasicMaterial({ color: 0x5aff7a }); saveGame(); } catch (e) { console.warn(e); } }
 function dunWin() { const st = DUN.st; if (st.done) return; st.done = true; const first = !S.dg.first; S.dg.c = (S.dg.c || 0) + 1;
@@ -12338,24 +12338,30 @@ function dunTick(dt) {
   if (!S.dun || !DUN.st) { if (!S.isl && !S.dun && S.started && Math.abs(player.pos.x - DUN.x - 100) < 160 && Math.abs(player.pos.z - DUN.z + 20) < 60) goIsland(true); return; }
   const st = DUN.st, px = player.pos.x, pz = player.pos.z; S.spawnT = 1e9; S.hordeT = 1e9; S.landT = S.t;
   // rooms
-  for (const r of DUN.rooms) if (!r.seen && px > r.x0 && px < r.x1 && pz > r.z0 && pz < r.z1) { r.seen = true; if (r.enter) try { r.enter(); } catch (e) { console.warn(e); } if (r.n) feed('进入 ' + r.n, '#c9a0ff'); }
+  const settling = typeof MP !== 'undefined' && MP.on && MP.others.size && Date.now() - (DUN.enterW || 0) < 2500;
+  if (!settling) for (const r of DUN.rooms) if (!r.seen && px > r.x0 && px < r.x1 && pz > r.z0 && pz < r.z1) { r.seen = true; if (r.n) feed('进入 ' + r.n, '#c9a0ff'); if (dunAuth()) dunFire(r); else dunSend('dunA', { op: 'room', id: r.id }); }
   // pickups
   for (const p of DUN.picks) { if (p.taken) continue; p.it.rotation.y += dt * 2; p.it.position.y = 1.1 + Math.sin(S.t * 3 + p.x) * .12;
-    if (!S.dead && Math.hypot(px - p.x, pz - p.z) < 1.6) { p.taken = true; DUN.G.remove(p.g); burst(p.x, 1.1, p.z, 0xffffff, 12, 4); try { sfx.pick(); } catch (e) { } try { p.fn(); } catch (e) { console.warn(e); } } }
+    if (!S.dead && Math.hypot(px - p.x, pz - p.z) < 1.6) { p.taken = true; DUN.G.remove(p.g); burst(p.x, 1.1, p.z, 0xffffff, 12, 4); try { sfx.pick(); } catch (e) { }
+      if (p.sh && !dunAuth()) dunSend('dunA', { op: 'pick', id: p.id }); else try { p.fn(); } catch (e) { console.warn(e); } } }
   // doors sink
   for (const k in DUN.doors) { const D = DUN.doors[k]; if (D.open && D.t < 1) { D.t = Math.min(1, D.t + dt * 1.6); D.g.position.y = -DUN_H * D.t; } }
   // the wave after the power comes back
-  if (st.stage === 4) { st.waveT += dt; const W = [[0, 6], [15, 7], [30, 8]];
+  const AU = dunAuth();
+  if (st.stage === 4 && !AU) st.waveT = Math.min(45, st.waveT + dt);
+  if (st.stage === 4 && AU) { st.waveT += dt; const W = [[0, 6], [15, 7], [30, 8]];
     while (st.wv < W.length && st.waveT >= W[st.wv][0]) { const n = W[st.wv][1]; for (let i = 0; i < n; i++) { const e = i % 2, x = e ? 56 + rand(0, 1) : -4 + rand(0, 1), z = -20 + rand(-2.5, 2.5); dz(pick(['walker', 'runner', 'walker', 'crawler', 'runner']), x, z, dLv(), 1); }
       st.wv++; banner('第 ' + st.wv + ' 波', '尸群从走廊两头冲过来了', 2); try { sfx.growl(); } catch (e) { } }
-    if (st.waveT >= 45) { st.stage = 5; doorOpen('lift'); storyTalk(DUN_TXT.lift); banner('电梯启动了', '去走廊西头坐电梯', 3); } }
+    if (st.waveT >= 45) { st.stage = 5; doorOpen('lift'); say2('lift'); banner('电梯启动了', '去走廊西头坐电梯', 3); } }
   // nothing may live outside the building
   DUN.strayT = (DUN.strayT || 0) - dt; if (DUN.strayT <= 0) { DUN.strayT = .8;
     for (let i = zombies.length - 1; i >= 0; i--) { const z = zombies[i]; if (z.dead || z.mirror || z.boss) continue; const x = z.pos.x, zz = z.pos.z;
       if (!DUN.rooms.some(r => x > r.x0 - 1.5 && x < r.x1 + 1.5 && zz > r.z0 - 1.5 && zz < r.z1 + 1.5)) { scene.remove(z.g); zombies.splice(i, 1); } } }
-  if (st.stage === 7 && st.bossOn) st.stage = 8;
-  if (st.stage === 8 && st.boss && st.boss.dead) { st.stage = 9; doorOpen('exit'); storyTalk(DUN_TXT.win);
-    if (!S.colx.coat && Math.random() < COLX.coat.ch) { const bx = st.boss.pos.x - DUN.x, bz = st.boss.pos.z - DUN.z; dPick(bx, bz, 'col', 0xff7ad8, () => colGet('coat')); banner('首领掉落了收藏品！', COLX.coat.n, 3); } }
+  if (AU && st.stage === 7 && st.bossOn) st.stage = 8;
+  if (AU && st.stage === 8 && st.boss && st.boss.dead) { st.stage = 9; doorOpen('exit'); say2('win'); DUN.bx = st.boss.pos.x; DUN.bz = st.boss.pos.z; }
+  if (AU && st.bossOn && st.stage >= 7 && st.stage < 9 && !(st.boss && !st.boss.mirror && !st.boss.removed) && !(boss && !boss.mirror)) { st.bossOn = false; dunBoss(); }   // the old leader left mid-fight
+  if (st.stage === 9 && !DUN.coatRolled) { DUN.coatRolled = 1; if (!S.colx.coat && Math.random() < COLX.coat.ch) { const bx = (DUN.bx != null ? DUN.bx : dX(220)) - DUN.x, bz = (DUN.bz != null ? DUN.bz : dZ(-29)) - DUN.z; dPick(bx, bz, 'col', 0xff7ad8, () => colGet('coat')); banner('首领掉落了收藏品！', COLX.coat.n, 3); } }
+  if (AU && typeof MP !== 'undefined' && MP.on && MP.others.size) { DUN.syncT = (DUN.syncT || 0) - dt; if (DUN.syncT <= 0) { DUN.syncT = .5; dunSync(); } }
   // tubes glow
   if (DUN.tubes) for (const g of DUN.tubes) g.material.opacity = .45 + Math.sin(S.t * 2) * .1;
   // interact button
@@ -12383,12 +12389,13 @@ drawExtraRadar = (o => function (tx, tz, edgeMark) { if (!S.dun || !DUN.st) retu
   c.fillStyle = '#0a0a0e'; c.fillRect(0, 0, W, W);
   for (const r of DUN.rooms) { if (!r.seen) continue; c.fillStyle = r.id === 'cold' ? '#3a5a6a' : r.id === 'lab' || r.id === 'obs' || r.id === 'arc' ? '#2e3a40' : '#4a5248'; c.fillRect(tx(r.x0), tz(r.z0), (r.x1 - r.x0) * sc, (r.z1 - r.z0) * sc);
     c.strokeStyle = 'rgba(200,220,210,.5)'; c.lineWidth = k * .6; c.strokeRect(tx(r.x0), tz(r.z0), (r.x1 - r.x0) * sc, (r.z1 - r.z0) * sc); }
-  for (const p of DUN.picks) if (!p.taken) { const col = p.kind === 'tape' || p.kind === 'col' ? '#ff7ad8' : p.kind === 'key' ? '#5ad8ff' : '#ffd060'; mapPin(c, tx(p.x), tz(p.z), 4 * k, col, '', k); }
-  for (const I of DUN.ints) if (I.ok() && !/需要|缺|没电|要 4 位/.test(I.lab)) { mapPin(c, tx(I.x), tz(I.z), 4.5 * k, '#7dff9a', '!', k); edgeMark({ x: I.x, z: I.z }, '#7dff9a'); }
+  const sg = DUN.st.stage;
+  for (const p of DUN.picks) if (!p.taken && ((p.kind === 'key' && sg === 0) || (p.kind === 'fuse' && sg === 2))) { mapPin(c, tx(p.x), tz(p.z), 4.5 * k, p.kind === 'key' ? '#5ad8ff' : '#ffd060', '', k); edgeMark({ x: p.x, z: p.z }, p.kind === 'key' ? '#5ad8ff' : '#ffd060'); }
+  for (const I of DUN.ints) if (I.goal === sg && I.ok()) { mapPin(c, tx(I.x), tz(I.z), 4.5 * k, '#7dff9a', '!', k); edgeMark({ x: I.x, z: I.z }, '#7dff9a'); }
   for (const z of zombies) { if (z.dead) continue; c.fillStyle = z.boss ? '#ff2a5a' : '#ff5a4a'; c.beginPath(); c.arc(tx(z.pos.x), tz(z.pos.z), (z.boss ? 3.5 : 2) * k, 0, 7); c.fill(); } } catch (e) { } })(drawExtraRadar);
 // the interact button + a little style
 try { if (document.createElement && document.body) { const H = $('hud'); if (H && H.appendChild) { const b = document.createElement('button'); b.className = 'btn2'; b.id = 'bDunI'; H.appendChild(b);
-    b.addEventListener('click', () => { const I = DUN.cur; if (!I || !I.ok()) return; try { audioInit(); } catch (e) { } try { I.fn(); } catch (e) { console.warn(e); } try { dunTrk(); } catch (e) { } }); }
+    b.addEventListener('click', () => { const I = DUN.cur; if (!I || !I.ok()) return; try { audioInit(); } catch (e) { } if (I.sh && !dunAuth()) { dunSend('dunA', { op: 'int', id: I.id }); feed('已通知队长', '#c9a0ff'); return; } try { I.fn(); } catch (e) { console.warn(e); } try { dunTrk(); } catch (e) { } }); }
   const st = document.createElement('style'); st.textContent = '#bDunI{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--sb) + 96px);display:none;border-color:#c9a0ff;background:rgba(40,20,60,.9);color:#f0e4ff;font-size:15px;white-space:nowrap}' +
     '.dunsub{display:block;opacity:.7;font-size:11px;margin-top:2px}.dunrow{border-color:rgba(201,160,255,.6)!important;background:linear-gradient(90deg,rgba(80,40,120,.35),rgba(20,10,30,.2))!important}';
   document.head.appendChild(st); } } catch (e) { }
@@ -12414,7 +12421,7 @@ function dunGuide() { if (!S.dun || !DUN.st) return; const st = DUN.st, old = $(
     '<div class="dunnow"><small>现在要做</small><b>' + DUN_GOAL[st.stage] + '</b><p>' + DUN_HOW[st.stage] + '</p></div><ol class="dunlist">' +
     DUN_GOAL.map((g, i) => '<li class="' + (i < st.stage ? 'ok' : i === st.stage ? 'on' : '') + '">' + (i < st.stage ? '✓ ' : '') + g + '</li>').join('') + '</ol>' +
     '<div class="dunsec">隐藏任务：录音 ' + rec + ' / 4' + (S.dg.safe ? ' · 保险柜已打开' : ' · 四段录音各藏一个数字，集齐后去地下二层「林医生办公室」打开保险柜') + '</div>' +
-    '<div class="dunsec">小地图：绿色「!」是可以互动的地方，黄点是保险丝，粉点是录音，蓝点是门禁卡。中途按「回岛」离开，这一趟的进度不保存。</div></div>';
+    '<div class="dunsec">小地图：绿色「!」是现在要去的地方，黄点是保险丝，蓝点是门禁卡。中途按「回岛」离开，这一趟的进度不保存。</div></div>';
   document.body.appendChild(m); const close = () => m.remove(); m.addEventListener('click', e => { if (e.target === m) close(); }); m.querySelector('.dunmx').addEventListener('click', close); }
 /* ---- the dungeon page (from the pier) ---- */
 function openDunPage() { try { audioInit(); } catch (e) { } const old = $('dunPageM'); if (old) old.remove(); const rc = recCP(2), cp = combatPower(), ok = cp >= rc * .8, rec = Object.keys(S.dg.rec).length;
@@ -12576,6 +12583,80 @@ try { const st = document.createElement('style'); st.textContent = '.duncol{marg
   '.duncol>div{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.duncol span{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;border-radius:8px;background:rgba(0,0,0,.25);text-align:center}.duncol span .ic{width:34px;height:34px}.duncol em{font-style:normal;font-size:20px;opacity:.35;height:34px;line-height:34px}' +
   '.duncol span b{font-size:11.5px!important;line-height:1.2}.duncol i{font-style:normal;font-size:10px;opacity:.6}.duncol span.own b{color:#ff9ae0}.lps.rare{animation:lrare 1s ease-in-out infinite alternate}@keyframes lrare{to{box-shadow:inset 0 -18px 22px -10px var(--rc),0 0 14px var(--rc)}}';
   document.head.appendChild(st); } catch (e) { }
+
+/* ---- playing it together: up to 4 people. The co-op host (the same one who runs the zombies) owns the story state:
+   rooms waking up, the key and fuses, doors, the wave, terminals, the boss. Everyone else asks it and mirrors what it
+   sends back. Tapes, the safe, cupboards, collectibles and rewards stay personal. ---- */
+const dunAuth = () => !(typeof MP !== 'undefined' && MP.on && COOP.follow);
+function dunSend(topic, data) { try { if (typeof MP !== 'undefined' && MP.on) coopSend(topic, data); } catch (e) { } }
+function say2(k) { storyTalk(DUN_TXT[k]); if (dunAuth()) dunSend('dunT', { k }); }
+function dunFire(r) { if (!r || r.fired) return; r.fired = 1; if (r.enter) try { r.enter(); } catch (e) { console.warn(e); } }
+DUN.inside = new Set(); DUN.inT = new Map(); DUN.since = 0;
+function dunSync() { const st = DUN.st; if (!st || !S.dun) return;
+  dunSend('dunS', { s: st.stage, f: st.fuse, t: Object.keys(st.terms), w: Math.round(st.waveT * 10) / 10, d: Object.keys(DUN.doors).filter(k => DUN.doors[k].open), p: DUN.picks.filter(p => p.sh && p.taken).map(p => p.id),
+    r: DUN.rooms.filter(r => r.fired).map(r => r.id), pw: DUN.powered ? 1 : 0, bo: st.bossOn ? 1 : 0, bx: DUN.bx != null ? Math.round(DUN.bx) : null, bz: DUN.bz != null ? Math.round(DUN.bz) : null }); }
+function onDunS(m) { if (!m || m.isMe || !S.dun || !DUN.st || dunAuth() || m.peer !== COOP.follow) return; const d = m.data || {}, st = DUN.st;
+  if (Number.isFinite(d.s) && d.s >= st.stage) st.stage = clamp(d.s | 0, 0, 9); if (Number.isFinite(d.f)) st.fuse = clamp(d.f | 0, 0, 3);
+  if (Array.isArray(d.t)) d.t.forEach(k => { if (/^[abc]$/.test(k)) st.terms[k] = 1; }); if (Number.isFinite(d.w) && st.stage === 4) st.waveT = d.w;
+  if (Array.isArray(d.d)) d.d.forEach(k => { if (DUN.doors[k]) doorOpen(k); }); if (d.pw && !DUN.powered) dunPower(true); if (d.bo) st.bossOn = true;
+  if (Array.isArray(d.p)) d.p.forEach(id => { const p = DUN.picks.find(q => q.id === id); if (p && !p.taken) { p.taken = true; DUN.G.remove(p.g); } });
+  if (Array.isArray(d.r)) d.r.forEach(id => { const r = DUN.rooms.find(q => q.id === id); if (r) r.fired = 1; });
+  if (Number.isFinite(d.bx)) { DUN.bx = d.bx; DUN.bz = d.bz; } }
+function onDunA(m) { if (!m || m.isMe || !S.dun || !DUN.st || !dunAuth()) return; const d = m.data || {}, st = DUN.st;
+  if (d.op === 'room') dunFire(DUN.rooms.find(r => r.id === d.id));
+  else if (d.op === 'pick') { const p = DUN.picks.find(q => q.id === d.id && q.sh); if (p && !p.taken) { p.taken = true; DUN.G.remove(p.g); try { p.fn(); } catch (e) { } } }
+  else if (d.op === 'int') { const I = DUN.ints.find(q => q.id === d.id && q.sh); if (I && I.ok()) try { I.fn(); } catch (e) { } }
+  else if (d.op === 'b2') { if (st.stage === 5) st.stage = 6; }
+  dunSync(); }
+function onDunT(m) { if (!m || m.isMe || !S.dun || dunAuth()) return; const k = m.data && m.data.k; if (DUN_TXT[k]) storyTalk(DUN_TXT[k]); }
+function onDunI(m) { if (!m || m.isMe || !m.data) return; const d = m.data;
+  if (d.op === 'in' || d.op === 'here') { DUN.inside.add(m.peer); DUN.inT.set(m.peer, Number(d.t) || Date.now()); if (d.op === 'in' && S.dun) dunSend('dunI', { op: 'here', t: DUN.since }); }
+  else if (d.op === 'out') { DUN.inside.delete(m.peer); DUN.inT.delete(m.peer); }
+  else if (d.op === 'inv' && !S.dun && !S.dead && S.started) dunInvite(String(d.nm || '队友').slice(0, 16), m.peer); }
+coopWire = (o => function (r) { o(r); try { r.on('dunA', onDunA); r.on('dunS', onDunS); r.on('dunT', onDunT); r.on('dunI', onDunI); } catch (e) { } })(coopWire);
+function dunPartyN() { return DUN.inside.size + (S.dun ? 1 : 0); }
+function dunInvite(nm, peer) { const old = $('dunInvM'); if (old) old.remove(); const m = document.createElement('div'); m.id = 'dunInvM'; m.className = 'dunm';
+  m.innerHTML = '<div class="dunmb" style="text-align:center"><b class="dunmh">组队邀请</b><p style="font-size:14px;line-height:1.6">「' + nm.replace(/[<>&]/g, '') + '」邀请你一起进入副本<br><b style="color:#ffd98a">圣心医院 · 零号病人</b></p><div style="display:flex;gap:8px"><button class="go ghost dunno" style="flex:1">不了</button><button class="go dunyes" style="flex:1">加入</button></div></div>';
+  document.body.appendChild(m); const close = () => m.remove(); const t = setTimeout(close, 25000);
+  m.querySelector('.dunno').addEventListener('click', () => { clearTimeout(t); close(); });
+  m.querySelector('.dunyes').addEventListener('click', () => { clearTimeout(t); close(); if (DUN.inside.size >= 4) { feed('副本里已经有 4 个人了', '#ff9b8a'); return; } try { closePanel('port'); } catch (e) { } dunTravel('和队友一起进入', '圣心医院 · 零号病人', dunEnter); }); }
+dunEnter = (o => function () { o(); if (S.dun) { DUN.since = Date.now(); DUN.enterT = S.t; DUN.enterW = Date.now(); dunSend('dunI', { op: 'in', t: DUN.since }); dunSend('dunA', { op: 'sync' }); } })(dunEnter);
+dunCleanup = (o => function () { const was = DUN.on; o(); if (was) { dunSend('dunI', { op: 'out' }); DUN.coatRolled = 0; DUN.bx = DUN.bz = null; } })(dunCleanup);
+onDunA = (o => function (m) { if (m && m.data && m.data.op === 'sync') { if (S.dun && dunAuth()) dunSync(); return; } return o(m); })(onDunA);
+// mirrors of the host's zombies: the region kinds keep their own look, dogs don't bring a pack, the boss keeps its name
+try { for (const k of RZ) if (k && !ZT_IDX.includes(k)) ZT_IDX.push(k); } catch (e) { }
+makeMirror = (o => function (id, ti, x, z, lv, buff, elite, btp) { _packing = true; let zb; try { zb = o(id, ti, x, z, lv, buff, elite, btp); } finally { _packing = false; }
+  if (zb && zb.boss && S.dun) { zb.title = '零号病人 · 林曼'; el.bossName.textContent = zb.title + ' Lv.' + lv; } return zb; })(makeMirror);
+// the dungeon page gets a party button when teammates are in your room
+openDunPage = (o => function () { o(); try { const m = $('dunPageM'); if (!m || typeof MP === 'undefined' || !MP.on || !MP.others.size) return; const go = m.querySelector('.dungo'); if (!go) return;
+  const ins = DUN.inside.size, box = document.createElement('div'); box.className = 'dunparty';
+  box.innerHTML = '<small>组队 · 最多 4 人</small><span>房间里还有 ' + MP.others.size + ' 位队友' + (ins ? ' · 已有 ' + ins + ' 人在副本里，进去会自动和他们一起' : '') + '</span>';
+  const inv = document.createElement('button'); inv.className = 'go dunpgo'; inv.textContent = ins >= 4 ? '副本已满 4 人' : '组队进入（邀请房间里的队友）'; inv.disabled = ins >= 4;
+  inv.addEventListener('click', () => { m.remove(); dunSend('dunI', { op: 'inv', nm: S.name || '队友' }); feed('已邀请房间里的队友', '#c9a0ff'); dunTravel('正在进入副本', '圣心医院 · 零号病人', dunEnter); });
+  box.appendChild(inv); go.parentNode.insertBefore(box, go); go.textContent = ins >= 4 ? '副本已满' : '单人进入'; go.disabled = ins >= 4; } catch (e) { console.warn(e); } })(openDunPage);
+
+/* ---- the pier menu gets three tabs: 区域 · 活动 · 副本 ---- */
+let portTab = 'reg';
+renderPort = (o => function () { o(); try { const box = $('portList'); if (!box) return; const rows = [...box.children];
+  const kind = r => r.classList.contains('dunrow') ? 'dun' : /护送|周王|挑战|活动|商队/.test(r.textContent || '') ? 'ev' : 'reg';
+  const tabs = document.createElement('div'); tabs.className = 'tabs porttabs';
+  [['reg', '区域'], ['ev', '活动'], ['dun', '副本']].forEach(([k, n]) => { const b = document.createElement('button'); b.className = 'sbtn' + (portTab === k ? ' on' : ''); const c = rows.filter(r => kind(r) === k).length; b.textContent = n + (c ? ' · ' + c : '');
+    b.addEventListener('click', () => { portTab = k; renderPort(); }); tabs.appendChild(b); });
+  rows.forEach(r => { r.style.display = kind(r) === portTab ? '' : 'none'; }); box.insertBefore(tabs, box.firstChild); } catch (e) { console.warn(e); } })(renderPort);
+try { const st = document.createElement('style'); st.textContent = '.porttabs{position:sticky;top:0;z-index:2;display:flex;gap:6px;justify-content:center;padding:4px 0 8px;background:inherit}.porttabs .sbtn{flex:1;max-width:140px}' +
+  '.dunparty{margin:8px 0;padding:8px 10px;border-radius:10px;background:rgba(125,224,255,.08);border:1px solid rgba(125,224,255,.35);display:flex;flex-direction:column;gap:6px}.dunparty small{color:#9fe8ff;font-weight:800;font-size:12px}.dunparty span{font-size:12.5px}.dunpgo{width:100%}';
+  document.head.appendChild(st); } catch (e) { }
+
+// inside the dungeon the host is whoever has been in there longest (so a teammate joining late never resets the run)
+coopElect = (o => function (dt) { if (!S.dun || typeof MP === 'undefined' || !MP.on || !MP.me) return o(dt);
+  COOP.tElect -= dt; if (COOP.tElect > 0) return; COOP.tElect = .5; const prevFollow = COOP.follow;
+  const cand = [[DUN.since || 0, MP.me]]; for (const p of DUN.inside) { const ob = MP.others.get(p); if (ob && !ob.isl && !ob.dead) cand.push([DUN.inT.get(p) || 0, p]); }
+  cand.sort((a, b) => a[0] - b[0] || (a[1] < b[1] ? -1 : 1)); COOP.host = cand[0][1]; COOP.follow = COOP.host === MP.me ? null : COOP.host;
+  if (COOP.follow && !prevFollow) { for (const z of zombies) if (!z.mirror && !z.animal) scene.remove(z.g); for (let i = zombies.length - 1; i >= 0; i--) if (!zombies[i].mirror && !zombies[i].animal) zombies.splice(i, 1);
+    if (boss && !boss.mirror) boss = null; feed('和队友组队中：丧尸和进度由队长同步', '#7de0ff'); }
+  if (!COOP.follow && prevFollow) { for (const z of zombies) if (z.mirror) scene.remove(z.g); for (let i = zombies.length - 1; i >= 0; i--) if (zombies[i].mirror) zombies.splice(i, 1);
+    COOP.mirrors.clear(); if (boss && boss.mirror) { boss = null; el.boss.style.display = 'none'; } if (cand.length > 1) feed('你现在是副本队长', '#7de0ff'); }
+  try { $('coopTxt').textContent = cand.length > 1 ? (COOP.follow ? '副本组队 · ' + cand.length + ' 人' : '副本队长 · ' + cand.length + ' 人') : ''; } catch (e) { } })(coopElect);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -13603,4 +13684,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794164210').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794165491').catch(()=>{});</script></body></html>
