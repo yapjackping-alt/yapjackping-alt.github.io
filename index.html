@@ -12768,26 +12768,39 @@ const SK_RN = { 5: ['神话', '#ff4d8d'], 4: ['传说', '#ffc94a'], 3: ['史诗'
 let _skArm = '', _skArmT = 0;
 function skinBuy(k, b) { const P = SKIN_PRICE[SKINS[k].r]; if (S.skins.includes(k)) return;
   if (_skArm !== k || Date.now() - _skArmT > 3000) { _skArm = k; _skArmT = Date.now();   // first tap arms the button, second tap buys
-    if (b) { b.classList.add('armed'); b.innerHTML = '再点一次确认 · ' + P + ' 晶石'; setTimeout(() => { if (_skArm === k && Date.now() - _skArmT >= 2900) { _skArm = ''; b.classList.remove('armed'); b.innerHTML = icHtml('gem:1') + ' ' + P + ' 晶石'; } }, 3000); } return; }
+    if (b) { b.classList.add('armed'); b.innerHTML = '再点一次确认 · ' + P + ' 晶石'; setTimeout(() => { if (_skArm === k && Date.now() - _skArmT >= 2900) { _skArm = ''; b.classList.remove('armed'); b.innerHTML = skPrice(P); } }, 3000); } return; }
   _skArm = ''; if (FREE_TEST && S.gem < P) addGem(100000 - S.gem, '测试版补满'); if (!payGem(P)) return;
-  giveSkin(k); try { sfx.build(); } catch (e) { } saveGame(); const box = $('mallList'), y = box ? box.scrollTop : 0; renderMall(); if (box) box.scrollTop = y; }
+  giveSkin(k); try { sfx.build(); } catch (e) { } saveGame(); const m = $('skDetM'); if (m) m.remove(); const box = $('mallList'), y = box ? box.scrollTop : 0; renderMall(); if (box) box.scrollTop = y; }
+const skPrice = P => '<span class="skgem">' + icHtml('gem:1') + '</span>' + P;
+// a grid of small boxes like the storage locker; tap one for the details and the buy button
 function skinShopRender(box, el2) {
-  box.appendChild(el2('div', 'snote', '直接用晶石买，不用抽。买下马上可以在「背包 · 外观衣柜」里换上。点图片可以预览。'));
-  const list = el2('div', 'skshop');
-  SKIN_SHOP().forEach((k, i) => { const K = SKINS[k], R = SK_RN[K.r], own = S.skins.includes(k), P = SKIN_PRICE[K.r], arm = _skArm === k && Date.now() - _skArmT < 3000;
-    const c = el2('div', 'skcard' + (i === 0 ? ' hot' : '') + (own ? ' own' : '')); c.style.setProperty('--qc', R[1]);
-    c.innerHTML = (i === 0 ? '<em class="sktag">直售限定 · 新品</em>' : '') + '<div class="skpic">' + icHtml('skin:' + k, 'big') + '</div><b>' + K.n + '</b><small style="color:' + R[1] + '">' + R[0] + (K.stt ? ' · ' + K.stt : '') + '</small><p>' + (K.d || '') + '</p>';
-    c.querySelector('.skpic').addEventListener('click', () => { try { skinPreview(k); } catch (e) { } });
-    const b = el2('button', 'sbtn skbuy' + (arm ? ' armed' : ''), own ? '已拥有' : arm ? '再点一次确认 · ' + P + ' 晶石' : icHtml('gem:1') + ' ' + P + ' 晶石'); b.disabled = own;
-    b.addEventListener('click', () => skinBuy(k, b)); c.appendChild(b); list.appendChild(c); });
-  box.appendChild(list);
+  box.appendChild(el2('div', 'snote', '直接用晶石买，不用抽。点格子看详情；买下后在「背包 · 外观衣柜」换上。'));
+  const g = el2('div', 'skgrid');
+  SKIN_SHOP().forEach(k => { const K = SKINS[k], R = SK_RN[K.r], own = S.skins.includes(k), P = SKIN_PRICE[K.r];
+    const t = el2('button', 'sktile' + (own ? ' own' : '')); t.style.setProperty('--qc', R[1]);
+    t.innerHTML = '<em class="sktag">' + (own ? '已拥有' : '限定') + '</em><div class="skpic">' + icHtml('skin:' + k) + '</div><b>' + K.n + '</b><small>' + (own ? '已拥有' : skPrice(P)) + '</small>';
+    t.addEventListener('click', () => skinDetail(k)); g.appendChild(t); });
+  box.appendChild(g);
 }
-try { const st = document.createElement('style'); st.textContent = '.skshop{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:8px}' +
-  '.skcard{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 10px;border-radius:14px;border:1.5px solid var(--qc);background:radial-gradient(circle at 50% 25%,color-mix(in srgb,var(--qc) 22%,transparent),rgba(14,8,16,.92) 70%);text-align:center}' +
-  '.skcard.hot{grid-column:1/-1;box-shadow:0 0 22px color-mix(in srgb,var(--qc) 45%,transparent)}.skcard.hot .skpic{height:180px}.skcard.own{opacity:.7}' +
-  '.skpic{height:130px;display:flex;align-items:center;justify-content:center;cursor:pointer}.skpic .ic,.skpic img{height:100%;width:auto;max-width:100%}' +
-  '.skcard b{font-size:16px}.skcard small{font-size:11.5px;font-weight:700}.skcard p{margin:2px 0 4px;font-size:11.5px;line-height:1.45;opacity:.8}.skbuy{min-width:140px}.skbuy.armed{background:#ff7a2f;color:#fff}' +
-  '.sktag{position:absolute;left:10px;top:10px;font-style:normal;font-size:11px;font-weight:900;padding:3px 8px;border-radius:8px;background:#ff4d8d;color:#fff}';
+function skinDetail(k) { const old = $('skDetM'); if (old) old.remove(); const K = SKINS[k], R = SK_RN[K.r], own = S.skins.includes(k), P = SKIN_PRICE[K.r];
+  const m = document.createElement('div'); m.id = 'skDetM'; m.className = 'skdet';
+  m.innerHTML = '<div class="skdetb" style="--qc:' + R[1] + '"><button class="skx" aria-label="关闭">✕</button><div class="skpic big">' + icHtml('skin:' + k, 'big') + '</div><div class="sktx"><b>' + K.n + '</b><small style="color:' + R[1] + '">' + R[0] + (K.stt ? ' · ' + K.stt : '') + '</small><p>' + (K.d || '') + '</p>' +
+    '<div class="skbtns"><button class="sbtn ghostb sk3d">3D 预览</button><button class="sbtn skbuy"' + (own ? ' disabled' : '') + '>' + (own ? '已拥有' : skPrice(P)) + '</button></div></div></div>';
+  document.body.appendChild(m); const close = () => m.remove(); m.addEventListener('click', e => { if (e.target === m) close(); }); m.querySelector('.skx').addEventListener('click', close);
+  m.querySelector('.sk3d').addEventListener('click', () => { try { skinPreview(k); } catch (e) { } });
+  const b = m.querySelector('.skbuy'); b.addEventListener('click', () => skinBuy(k, b)); }
+try { const st = document.createElement('style'); st.textContent =
+  '.skgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;margin-top:8px}' +
+  '.sktile{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px 6px;border-radius:12px;border:1.5px solid var(--qc);background:radial-gradient(circle at 50% 35%,color-mix(in srgb,var(--qc) 24%,transparent),rgba(14,8,16,.92) 72%);color:#f3e6d6;font:inherit;cursor:pointer}' +
+  '.sktile .skpic{height:88px;display:flex;align-items:center;justify-content:center}.sktile .skpic .ic,.sktile .skpic img{height:100%;width:auto;max-width:100%}.sktile b{font-size:12.5px}.sktile small{font-size:11.5px;font-weight:800;color:#9fe8ff;display:flex;align-items:center;gap:3px}.sktile.own{opacity:.6}' +
+  '.sktag{position:absolute;left:4px;top:4px;font-style:normal;font-size:9.5px;font-weight:900;padding:1px 5px;border-radius:6px;background:var(--qc);color:#140a10}' +
+  '.skgem{display:inline-flex;width:15px;height:15px;vertical-align:-3px;margin-right:2px}.skgem .ic,.skgem img,.skgem svg{width:15px!important;height:15px!important}' +
+  '.skdet{position:fixed;inset:0;z-index:62;display:flex;align-items:center;justify-content:center;background:rgba(6,4,10,.8);padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));box-sizing:border-box}' +
+  '.skdetb{position:relative;display:flex;gap:14px;align-items:center;width:min(620px,100%);max-height:100%;overflow:auto;padding:16px;border-radius:16px;border:1.5px solid var(--qc);background:radial-gradient(circle at 25% 40%,color-mix(in srgb,var(--qc) 28%,transparent),rgba(14,8,16,.97) 70%);color:#f3e6d6;box-sizing:border-box}' +
+  '.skdetb .skpic.big{flex:none;width:170px;height:230px;display:flex;align-items:center;justify-content:center}.skdetb .skpic.big .ic,.skdetb .skpic.big img{height:100%;width:auto;max-width:100%}' +
+  '.sktx{display:flex;flex-direction:column;gap:4px;text-align:left}.sktx b{font-size:20px}.sktx small{font-size:12px;font-weight:800}.sktx p{margin:4px 0;font-size:12.5px;line-height:1.55;opacity:.85}.skbtns{display:flex;gap:8px;margin-top:4px}.skbtns .sbtn{flex:1;display:flex;align-items:center;justify-content:center;gap:3px}.skbuy.armed{background:#ff7a2f;color:#fff}' +
+  '.skx{position:absolute;right:8px;top:8px;width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.4);color:#fff}' +
+  '@media (orientation:portrait){.skdetb{flex-direction:column}.skdetb .skpic.big{width:150px;height:200px}.sktx{text-align:center}}';
   document.head.appendChild(st); } catch (e) { }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
@@ -13816,4 +13829,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794170114').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794170373').catch(()=>{});</script></body></html>
