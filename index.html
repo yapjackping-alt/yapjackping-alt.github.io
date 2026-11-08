@@ -6386,7 +6386,7 @@ let padBeam = null, padRing = null;
     const isl = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.5, 1.6, 14), mat(0xd8c08a)); isl.position.set(x, -.6, z); islandG.add(isl);
     const hl = new THREE.Mesh(new THREE.IcosahedronGeometry(r * .7, 0), mat(0x4f7e3c)); hl.scale.y = .5; hl.position.set(x, .4, z); islandG.add(hl); }
   for (let i = 0; i < 26; i++) { const g = new THREE.Mesh(new THREE.CylinderGeometry(rr(2, 6), rr(2, 6), .06, 9), mat(i % 2 ? 0x5f7a42 : 0x7d9856)); g.position.set(rr(-55, 55), .03, rr(-55, 55)); islandG.add(g); }
-  for (let i = 0; i < 90; i++) { const a = rr(0, 6.28), d = rr(6, ISL_R - 3); box(.16, .16, .16, mat([0xffd070, 0xff8a8a, 0xffffff, 0xc8a0ff][i % 4]), Math.cos(a) * d, .1, Math.sin(a) * d, islandG); }
+  for (let i = 0; i < 90; i++) { rr(0, 6.28); rr(6, ISL_R - 3); }   // (the little ground cubes looked like stuck particles; the draws stay so the island layout is unchanged)
   // hill with a rocky cliff, a waterfall into the pond, and a stream that spills off the island's edge
   const P = ISLW.pond, H = ISLW.hill;
   makePond(P.x, P.z, 4.4, { parent: islandG });
@@ -12787,7 +12787,7 @@ function skinDetail(k) { const old = $('skDetM'); if (old) old.remove(); const K
   m.innerHTML = '<div class="skdetb" style="--qc:' + R[1] + '"><button class="skx" aria-label="关闭">✕</button><div class="skpic big">' + icHtml('skin:' + k, 'big') + '</div><div class="sktx"><b>' + K.n + '</b><small style="color:' + R[1] + '">' + R[0] + (K.stt ? ' · ' + K.stt : '') + '</small><p>' + (K.d || '') + '</p>' +
     '<div class="skbtns"><button class="sbtn ghostb sk3d">3D 预览</button><button class="sbtn skbuy"' + (own ? ' disabled' : '') + '>' + (own ? '已拥有' : skPrice(P)) + '</button></div></div></div>';
   document.body.appendChild(m); const close = () => m.remove(); m.addEventListener('click', e => { if (e.target === m) close(); }); m.querySelector('.skx').addEventListener('click', close);
-  m.querySelector('.sk3d').addEventListener('click', () => { try { skinPreview(k); } catch (e) { } });
+  m.querySelector('.sk3d').addEventListener('click', () => { m.remove(); try { skinPreview(k); } catch (e) { } });
   const b = m.querySelector('.skbuy'); b.addEventListener('click', () => skinBuy(k, b)); }
 try { const st = document.createElement('style'); st.textContent =
   '.skgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;margin-top:8px}' +
@@ -12913,7 +12913,204 @@ SKIN_P.aster = [
 SKIN_BY_N[SKINS.aster.n] = 'aster';
 
 // ---- 登记进商城「外观直售」：传说档，1280 晶石（价格表在 z_skinshop.js 的 SKIN_PRICE，按稀有度取） ----
-SKIN_DIRECT.push('aster');/* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
+SKIN_DIRECT.push('aster');/* ============ 换翅膀系统 + 新翅膀「粉蝶幻翼」（传说 · 带属性：移动速度 +15%、生命 +4%、减伤 +2%） ============
+   参考你发的图：上面一对大翅薄如蝉纱，粉→淡紫→浅蓝渐变，边缘描着粉色翅脉，翅尖上翘；
+   下面一对由层层粉白羽瓣叠成，向下散开。
+
+   【规则】翅膀是独立于外观的「背饰」，在「背包 · 外观衣柜」里最下面的「翅膀」一栏装上 / 卸下，也在
+   「商城 · 外观直售」里买。已经自带翅膀的外观（炽天之翼、天穹神裔，以及以后描述里写了「翅 / 翼」的外观）
+   不可更换翅膀：穿着它们时，翅膀栏按钮变灰，新翅膀也不会画出来；脱下后新翅膀自动回来。
+
+   【接入方法】放进 src/ember/ ，在 build.sh 里加在 z_skinshop.js 之后、x_fp.js 之前（和 z_aster.js 谁先谁后都行）：
+        ... z_skinshop.js z_aster.js z_wings.js x_fp.js ...
+   不改任何别的文件；下面所有对原函数的改动都是「包起来」的写法。
+
+   【用到的游戏里已有的东西（已对过交接包源码）】
+   S、SKINS、pm、THREE、$()、feed、banner、saveGame、payGem、addGem、FREE_TEST、sfx.build、
+   renderBag、renderMall、skPrice、SK_RN、SKIN_PRICE、_capeMv、redressPlayer、DOLL
+   被包起来的原函数：outfitOn（l_gear + r_shop）、skinFxTick、renderWardrobe、skinShopRender、wearSkin、shopSave、shopLoad
+   - 假设：别的玩家（联机）的外观走 z_net.js 里的 skinOn，不经过 outfitOn(h, gear)；
+     所以这里只给 pm 和背包人偶（gear === S.gear）加翅膀。联机时别人看不到你的翅膀——要看到的话，
+     需要交接的 AI 把 wingBuild(h) 接到 z_net.js 的远程玩家穿衣处（并同步 S.wing）。
+   - 假设：存档里 shopSave() 返回的对象会原样存、shopLoad(d) 读 d.sh（读过 r_shop.js，是这样）。
+*/
+const WING_PRICE = 1980;   // 比神话外观（3280）便宜；带属性，所以比传说外观（1280）贵一档
+const WINGS = { fairy: { n: '粉蝶幻翼', d: '一对粉蝶般的幻翼：上面一对大翅薄如蝉纱，从粉色渐变成淡紫、浅蓝，边缘描着粉色翅脉；下面一对由层层粉白羽瓣叠成。翅膀会随脚步扇动，翅尖不时闪光。穿着自带翅膀的外观时，不能更换翅膀。', st: { spd: .15, hpPct: .04, def: .02 }, stt: '移动速度 +15%、生命 +4%、减伤 +2%' } };
+S.wingOwn = []; S.wing = '';
+const WING_SVG = '<svg viewBox="0 0 100 80" style="height:100%;width:auto;max-width:100%" aria-hidden="true"><defs><linearGradient id="wgg" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#f6a9c9"/><stop offset=".6" stop-color="#e2d4ff"/><stop offset="1" stop-color="#bfe4ff"/></linearGradient></defs>' +
+  [0, 1].map(m => '<g' + (m ? ' transform="translate(100 0) scale(-1 1)"' : '') + ' stroke="#ff8fbd" stroke-width="1.1"><path fill="url(#wgg)" fill-opacity=".7" d="M48 50C40 36 38 20 30 6 16 16 8 30 14 42 22 48 36 52 48 50Z"/><path fill="#ffc4dc" fill-opacity=".85" d="M48 52C38 56 26 62 22 76 34 74 44 66 48 52Z"/><path fill="#ffe6f0" fill-opacity=".9" d="M48 54C42 64 38 72 40 78 46 72 48 64 48 54Z"/><path fill="none" stroke-opacity=".5" d="M48 50C36 36 26 24 20 18M48 50C34 42 24 40 16 40"/></g>').join('') + '</svg>';
+
+// 自带翅膀的外观：不能换翅膀（返回外观名；没有则返回空）
+function wingBlockName() { const K = S.skin && SKINS[S.skin]; return K && (S.skin === 'seraph' || S.skin === 'myth' || /[翅翼]/.test(K.d || '')) ? K.n : ''; }
+
+// ---- 翅膀模型：形状只建一次，所有人偶共用 ----
+const WG = {};
+function wingGeo() {
+  if (WG.up) return WG;
+  const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.bezierCurveTo(.15, .45, .1, .9, .28, 1.28); sh.quadraticCurveTo(.62, 1.1, 1.02, 1.0); sh.bezierCurveTo(1.0, .6, .7, .26, .34, .12); sh.lineTo(0, 0);
+  const g = new THREE.ShapeGeometry(sh, 16), P = g.attributes.position, n = P.count, col = new Float32Array(n * 3), c0 = new THREE.Color(0xf6a9c9), c1 = new THREE.Color(0xe2d4ff), c2 = new THREE.Color(0xbfe4ff), c = new THREE.Color();
+  let mx = 0; for (let i = 0; i < n; i++) mx = Math.max(mx, Math.hypot(P.getX(i), P.getY(i)));
+  for (let i = 0; i < n; i++) { const t = Math.min(1, Math.hypot(P.getX(i), P.getY(i)) / (mx || 1)); if (t < .5) c.copy(c0).lerp(c1, t * 2); else c.copy(c1).lerp(c2, (t - .5) * 2); col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3)); WG.up = g;
+  const pts = sh.getPoints(30); WG.edge = new THREE.BufferGeometry().setFromPoints(pts);
+  const vs = []; for (let i = 3; i < pts.length - 2; i += 5) vs.push(0, 0, .002, pts[i].x, pts[i].y, .002); WG.vein = new THREE.BufferGeometry(); WG.vein.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vs), 3));
+  WG.upM = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: .6, side: THREE.DoubleSide, depthWrite: false });
+  WG.edgeM = new THREE.LineBasicMaterial({ color: 0xff8fbd, transparent: true, opacity: .95 }); WG.veinM = new THREE.LineBasicMaterial({ color: 0xffd0e6, transparent: true, opacity: .5 });
+  WG.pet = [0xffbfd9, 0xffe3ef, 0xf79dc3].map(c => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: .82, side: THREE.DoubleSide, depthWrite: false }));
+  WG.petG = []; for (let i = 0; i < 7; i++) { const L = .95 - i * .05, w = .17, s = new THREE.Shape(); s.moveTo(0, 0); s.bezierCurveTo(L * .2, w * .9, L * .7, w, L, 0); s.bezierCurveTo(L * .7, -w * .6, L * .2, -w * .7, 0, 0); WG.petG.push(new THREE.ShapeGeometry(s, 10)); }
+  WG.tipM = new THREE.MeshBasicMaterial({ color: 0xffe8f4, transparent: true, opacity: .9, depthWrite: false, blending: THREE.AdditiveBlending });
+  return WG;
+}
+function wingBuild(h) {
+  const W = wingGeo(); h._wing = h._wing || [];
+  [-1, 1].forEach(s => {
+    // 上翅：大翅 + 粉色边线 + 翅脉 + 两点会闪的光
+    const up = new THREE.Group(); up.position.set(s * .12, 1.66, -.4); up.userData = { wing: 1, s, base: .45, ph: 0 };
+    const w = new THREE.Group(); w.scale.set(s * .95, .95, .95); up.add(w);
+    w.add(new THREE.Mesh(W.up, W.upM)); w.add(new THREE.LineLoop(W.edge, W.edgeM)); w.add(new THREE.LineSegments(W.vein, W.veinM));
+    [[.28, 1.28], [1.02, 1.0]].forEach((p, i) => { const t = new THREE.Mesh(new THREE.OctahedronGeometry(.05), W.tipM); t.position.set(p[0], p[1], .01); t.userData.tw = i * 1.7; w.add(t); });
+    h.body.add(up); h._wing.push(up);
+    // 下翅：七片粉白羽瓣向下散开
+    const lo = new THREE.Group(); lo.position.set(s * .1, 1.5, -.4); lo.userData = { wing: 1, s, base: .35, ph: .8 };
+    const v = new THREE.Group(); v.scale.set(s * .9, .9, .9); lo.add(v);
+    for (let i = 0; i < 7; i++) { const m = new THREE.Mesh(W.petG[i], W.pet[i % 3]); m.rotation.z = -.1 - i * .2; m.position.z = i * .004; v.add(m); }
+    h.body.add(lo); h._wing.push(lo);
+  });
+}
+function wingOn(h) {
+  if (h._wing) h._wing.forEach(m => { if (m.parent) m.parent.remove(m); }); h._wing = [];
+  if (!S.wing || !WINGS[S.wing] || !S.wingOwn.includes(S.wing) || wingBlockName()) return;
+  wingBuild(h);
+}
+function wingAnim(list, T) {
+  const mv = typeof _capeMv === 'function' ? _capeMv() : 0, sp = 1.8 + mv * 4.2, amp = .12 + mv * .2;
+  if (WG.upM) WG.upM.opacity = .56 + .08 * Math.sin(T * 1.6);
+  list.forEach(p => { const u = p.userData; if (!u.wing) return; p.rotation.y = u.s * (u.base + mv * .15 + amp * Math.sin(T * sp + u.ph)); p.rotation.z = u.s * .07 * Math.sin(T * sp * .5 + u.ph);
+    p.children[0].children.forEach(t => { if (t.userData.tw != null) t.scale.setScalar(.4 + .9 * Math.max(0, Math.sin(T * 2.4 + t.userData.tw))); }); });
+}
+
+// ---- 包起来的原函数 ----
+// 穿衣服时顺便穿翅膀（只管玩家自己和背包人偶，不管联机的别人）
+outfitOn = (o => function (h, gear) { o(h, gear); try { if (h === pm || gear === S.gear) wingOn(h); } catch (e) { console.warn(e); } })(outfitOn);
+// 每帧：扇翅膀
+skinFxTick = (o => function (dt) { o(dt); try { if (pm && pm._wing && pm._wing.length) wingAnim(pm._wing, S.t || 0); } catch (e) { } })(skinFxTick);
+// 存档：翅膀拥有 + 正在戴的
+shopSave = (o => function () { const r = o(); r.wg = { o: S.wingOwn, w: S.wing }; return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); const w = d && d.sh && d.sh.wg; S.wingOwn = w && Array.isArray(w.o) ? w.o.filter(k => WINGS[k]) : []; S.wing = w && WINGS[w.w] && S.wingOwn.includes(w.w) ? w.w : ''; setTimeout(redressPlayer, 0); })(shopLoad);
+// 换上自带翅膀的外观时，提示一句
+wearSkin = (o => function (k) { o(k); try { if (S.wing && wingBlockName()) feed('这套外观自带翅膀，「' + WINGS[S.wing].n + '」先收起来', '#ffc94a'); } catch (e) { } })(wearSkin);
+
+// 翅膀属性：只在翅膀真的背在身上时生效（穿炽天之翼等自带翅膀的外观时不生效，也不会和它叠加）
+function wingActive() { return !!(S.wing && WINGS[S.wing] && S.wingOwn.includes(S.wing) && !wingBlockName()); }
+skSt = (o => function (k) { return o(k) + (wingActive() && WINGS[S.wing].st[k] || 0); })(skSt);
+
+// ---- 装上 / 卸下 / 购买 ----
+function wingRefresh() { const m = $('wgDetM'); if (m) m.remove(); const mb = $('mallList'); if (mb) { const y = mb.scrollTop; renderMall(); mb.scrollTop = y; } if ($('bag') && $('bag').classList.contains('show')) renderBag(); }
+function wingEquip() { const blk = wingBlockName(); if (blk) { feed('「' + blk + '」自带翅膀，不能更换翅膀', '#ff9b8a'); return; }
+  S.wing = S.wing === 'fairy' ? '' : 'fairy'; redressPlayer(); feed(S.wing ? '背上了「' + WINGS.fairy.n + '」' : '已卸下翅膀', '#ffc94a'); wingRefresh(); saveGame(); }
+let _wgArm = 0;
+function wingBuy(b) { if (S.wingOwn.includes('fairy')) return;
+  if (Date.now() - _wgArm > 3000) { _wgArm = Date.now(); if (b) { const t0 = b.innerHTML; b.classList.add('armed'); b.innerHTML = '再点一次确认 · ' + WING_PRICE + ' 晶石'; setTimeout(() => { if (Date.now() - _wgArm >= 2900) { _wgArm = 0; b.classList.remove('armed'); b.innerHTML = t0; } }, 3000); } return; }
+  _wgArm = 0; if (FREE_TEST && S.gem < WING_PRICE) addGem(100000 - S.gem, '测试版补满'); if (!payGem(WING_PRICE)) return;
+  S.wingOwn.push('fairy'); const blk = wingBlockName(); if (!blk) S.wing = 'fairy';
+  try { sfx.build(); } catch (e) { } banner('获得翅膀：' + WINGS.fairy.n, blk ? '当前外观自带翅膀，脱下后可在衣柜里背上' : '已经背上，可在「背包 · 外观衣柜」卸下', 3);
+  redressPlayer(); saveGame(); wingRefresh(); }
+
+// ---- 衣柜：最下面加「翅膀」一栏 ----
+// (the wardrobe now has its own 翅膀 tab, see z_wardrobe.js)
+function wingWardrobe(box) {
+  const el2 = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+  const own = S.wingOwn.includes('fairy'), on = S.wing === 'fairy', blk = wingBlockName();
+  box.appendChild(el2('div', 'wtitle', '<b>翅膀</b><span>' + (own ? '已拥有 1 款' : '还没有翅膀') + '</span>'));
+  const wrap = el2('div', 'wardrobe'), pv = el2('div', 'wpv r4', '<div class="wfig">' + WING_SVG + '</div><b>' + WINGS.fairy.n + '</b><em class="wr r4">传说</em><span>' + WINGS.fairy.d + '</span><span class="sst">翅膀属性：' + WINGS.fairy.stt + '</span>');
+  const b = el2('button', 'go' + (blk || (own && !on) ? '' : ''), blk ? '「' + blk + '」自带翅膀，不能更换' : own ? (on ? '卸下翅膀' : '背上翅膀') : '购买 · ' + WING_PRICE + ' 晶石');
+  if (blk) b.disabled = true; else if (own) b.addEventListener('click', wingEquip); else b.addEventListener('click', () => wingBuy(b));
+  pv.appendChild(b); wrap.appendChild(pv); box.appendChild(wrap);
+  box.appendChild(el2('div', 'snote', '翅膀自带属性加成（背上才生效）。自带翅膀的外观（炽天之翼、天穹神裔）不能更换翅膀。'));
+}
+
+// ---- 商城「外观直售」：外观格子下面加一格翅膀 ----
+skinShopRender = (o => function (box, el2) { o(box, el2); try { wingShop(box, el2); } catch (e) { console.warn(e); } })(skinShopRender);
+function wingShop(box, el2) {
+  const own = S.wingOwn.includes('fairy'), R = SK_RN[4];
+  box.appendChild(el2('div', 'snote', '翅膀：单独买，单独背，带属性加成。自带翅膀的外观不能更换翅膀。'));
+  const g = el2('div', 'skgrid'), t = el2('button', 'sktile' + (own ? ' own' : '')); t.style.setProperty('--qc', R[1]);
+  t.innerHTML = '<em class="sktag">' + (own ? '已拥有' : '限定') + '</em><div class="skpic">' + WING_SVG + '</div><b>' + WINGS.fairy.n + '</b><small>' + (own ? '已拥有' : skPrice(WING_PRICE)) + '</small>';
+  t.addEventListener('click', wingDetail); g.appendChild(t); box.appendChild(g);
+}
+function wingDetail() {
+  const old = $('wgDetM'); if (old) old.remove(); const own = S.wingOwn.includes('fairy'), R = SK_RN[4];
+  const m = document.createElement('div'); m.id = 'wgDetM'; m.className = 'skdet';
+  m.innerHTML = '<div class="skdetb" style="--qc:' + R[1] + '"><button class="skx" aria-label="关闭">✕</button><div class="skpic big">' + WING_SVG + '</div><div class="sktx"><b>' + WINGS.fairy.n + '</b><small style="color:' + R[1] + '">' + R[0] + ' · 翅膀</small><p>' + WINGS.fairy.d + '</p><p style="color:#9fe8ff">属性：' + WINGS.fairy.stt + '</p><div class="skbtns"><button class="sbtn skbuy"' + (own ? ' disabled' : '') + '>' + (own ? '已拥有' : skPrice(WING_PRICE)) + '</button></div></div></div>';
+  document.body.appendChild(m); m.addEventListener('click', e => { if (e.target === m) m.remove(); }); m.querySelector('.skx').addEventListener('click', () => m.remove());
+  const b = m.querySelector('.skbuy'); b.addEventListener('click', () => wingBuy(b));
+}/* ============ 外观衣柜（全屏）：上面两个分页「皮肤 · 翅膀」，点一下就换上 ============
+   从背包里点「衣柜」打开。左边（竖屏是上面）是选中那一件的大图和说明，右边是一格一格的衣柜。
+   已拥有的：点格子直接换上。没有的：显示去哪里拿。 */
+let wrTab = 'skin', wrSel = null, wrWing = null;
+const WD_RN = ['普通', '优秀', '稀有', '史诗', '传说', '神话'];
+function openWardrobe(tab) { if (tab) wrTab = tab; try { audioInit(); } catch (e) { } wrSel = S.skin || ''; wrWing = S.wing || ''; openPanel('wardrobeP', renderWardrobeP); }
+function wdGo(where) { try { closePanel('wardrobeP'); } catch (e) { } try { BAGPOP = false; closePanel('bag'); } catch (e) { } if (where === 'pass') mallTab = 'pass'; else if (where === 'skin') mallTab = 'skin'; else { mallTab = 'gacha'; } openPanel('mall', renderMall); }
+function renderWardrobeP() {
+  const box = $('wdList'); if (!box) return; box.innerHTML = '';
+  const el2 = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+  const tabs = el2('div', 'tabs wdtabs'); [['skin', '皮肤'], ['wing', '翅膀']].forEach(([k, n]) => { const b = el2('button', 'sbtn' + (wrTab === k ? ' on' : ''), n); b.addEventListener('click', () => { wrTab = k; renderWardrobeP(); }); tabs.appendChild(b); }); box.appendChild(tabs);
+  const wrap = el2('div', 'wdwrap'); box.appendChild(wrap);
+  if (wrTab === 'skin') {
+    const ks = Object.keys(SKINS); if (wrSel == null || (wrSel && !SKINS[wrSel])) wrSel = S.skin || '';
+    const K = SKINS[wrSel], own = !wrSel || S.skins.includes(wrSel), worn = (S.skin || '') === wrSel;
+    const pv = el2('div', 'wdpv' + (K ? ' r' + K.r : ''), '<div class="wdfig">' + icHtml('skin:' + (wrSel || 'none'), 'fig') + '</div><b>' + (K ? K.n : '默认装扮') + '</b>' + (K ? '<em class="wr r' + K.r + '">' + WD_RN[K.r] + '</em>' : '') +
+      '<span>' + (K ? K.d : '不穿外观时，身上显示你穿的装备。') + '</span>' + (K && K.stt ? '<span class="sst">属性：' + K.stt + '</span>' : K ? '<span class="sst dim">只改外观，不加属性</span>' : ''));
+    const acts = el2('div', 'wdacts');
+    if (!K) { const b = el2('button', 'go' + (S.skin ? '' : ' ghost'), S.skin ? '脱下外观，显示装备' : '正在显示装备'); b.disabled = !S.skin; b.addEventListener('click', () => { wearSkin(''); renderWardrobeP(); }); acts.appendChild(b); }
+    else if (own) { const b = el2('button', 'go', worn ? '脱下外观' : '穿上'); b.addEventListener('click', () => { wearSkin(wrSel); renderWardrobeP(); }); acts.appendChild(b); }
+    else { const src = (typeof SKIN_DIRECT !== 'undefined' && SKIN_DIRECT.includes(wrSel)) ? 'skin' : K.pass ? 'pass' : 'gacha';
+      const b = el2('button', 'go', { skin: '去商城 · 外观直售', pass: '去商城 · 赛季手册', gacha: '去商城 · 补给抽奖' }[src]); b.addEventListener('click', () => wdGo(src)); acts.appendChild(b); }
+    if (K) { const p3 = el2('button', 'go ghost', '3D 预览'); p3.addEventListener('click', () => { try { skinPreview(wrSel); } catch (e) { } }); acts.appendChild(p3); }
+    pv.appendChild(acts); wrap.appendChild(pv);
+    const side = el2('div', 'wdside'); side.appendChild(el2('div', 'wdhead', '已拥有 ' + S.skins.length + ' / ' + ks.length + ' · 点一下就换上'));
+    const grid = el2('div', 'wdgrid');
+    [''].concat(ks.sort((a, b) => (S.skins.includes(b) - S.skins.includes(a)) || SKINS[b].r - SKINS[a].r)).forEach(k => { const KK = SKINS[k], ow = !k || S.skins.includes(k), on = (S.skin || '') === k;
+      const c = el2('button', 'wdcell' + (k === wrSel ? ' sel' : '') + (ow ? '' : ' lock') + (KK ? ' r' + KK.r : ''), '<div class="wdci">' + icHtml('skin:' + (k || 'none')) + '</div><b>' + (KK ? KK.n : '默认') + '</b>' + (on ? '<i>穿着</i>' : ow ? '' : '<i class="lk">未拥有</i>'));
+      c.addEventListener('click', () => { wrSel = k; if (ow && !on) { wearSkin(k); } renderWardrobeP(); }); grid.appendChild(c); });
+    side.appendChild(grid); wrap.appendChild(side);
+  } else {
+    const ks = Object.keys(WINGS); if (wrWing == null || (wrWing && !WINGS[wrWing])) wrWing = S.wing || ''; const blk = wingBlockName();
+    const W = WINGS[wrWing], own = !wrWing || S.wingOwn.includes(wrWing), on = (S.wing || '') === wrWing;
+    const pv = el2('div', 'wdpv' + (W ? ' r4' : ''), '<div class="wdfig">' + (W ? WING_SVG : '<em class="wdnone">无</em>') + '</div><b>' + (W ? W.n : '不背翅膀') + '</b>' + (W ? '<em class="wr r4">传说</em>' : '') + '<span>' + (W ? W.d : '不背翅膀时，背后什么都没有。') + '</span>' + (W ? '<span class="sst">翅膀属性：' + W.stt + '（背上才生效）</span>' : ''));
+    const acts = el2('div', 'wdacts');
+    if (blk) acts.appendChild(el2('div', 'snote', '你现在穿的「' + blk + '」自带翅膀，不能更换翅膀；脱下它之后就能背上。'));
+    if (!W) { const b = el2('button', 'go' + (S.wing ? '' : ' ghost'), S.wing ? '卸下翅膀' : '没有背翅膀'); b.disabled = !S.wing; b.addEventListener('click', () => { S.wing = ''; redressPlayer(); saveGame(); renderWardrobeP(); }); acts.appendChild(b); }
+    else if (own) { const b = el2('button', 'go', on ? '卸下翅膀' : '背上'); b.disabled = !!blk; b.addEventListener('click', () => { S.wing = on ? '' : wrWing; redressPlayer(); saveGame(); feed(S.wing ? '背上了「' + W.n + '」' : '已卸下翅膀', '#ffc94a'); renderWardrobeP(); }); acts.appendChild(b); }
+    else { const b = el2('button', 'go', '去商城 · 外观直售'); b.addEventListener('click', () => wdGo('skin')); acts.appendChild(b); }
+    pv.appendChild(acts); wrap.appendChild(pv);
+    const side = el2('div', 'wdside'); side.appendChild(el2('div', 'wdhead', '已拥有 ' + S.wingOwn.length + ' / ' + ks.length + ' · 点一下就背上'));
+    const grid = el2('div', 'wdgrid');
+    [''].concat(ks).forEach(k => { const WW = WINGS[k], ow = !k || S.wingOwn.includes(k), onn = (S.wing || '') === k;
+      const c = el2('button', 'wdcell' + (k === wrWing ? ' sel' : '') + (ow ? '' : ' lock') + (WW ? ' r4' : ''), '<div class="wdci">' + (WW ? WING_SVG : '<em class="wdnone">无</em>') + '</div><b>' + (WW ? WW.n : '不背') + '</b>' + (onn ? '<i>背着</i>' : ow ? '' : '<i class="lk">未拥有</i>'));
+      c.addEventListener('click', () => { wrWing = k; if (ow && !onn && !blk) { S.wing = k; redressPlayer(); saveGame(); } renderWardrobeP(); }); grid.appendChild(c); });
+    side.appendChild(grid); wrap.appendChild(side);
+  }
+}
+// the bag's 衣柜 button opens this page instead of the small side panel
+bagPick = (o => function (k, el) { if (k === 'skin') { openWardrobe(); return; } return o(k, el); })(bagPick);
+// after buying from the shop the open wardrobe (if any) stays right
+wearSkin = (o => function (k) { o(k); try { if ($('wardrobeP') && $('wardrobeP').classList.contains('show')) { if ($('bag') && $('bag').classList.contains('show')) renderBag(); } } catch (e) { } })(wearSkin);
+try { if (document.createElement && document.body) {
+  const o = document.createElement('div'); o.className = 'overlay scroll'; o.id = 'wardrobeP'; o.innerHTML = '<h2>外观衣柜</h2><div id="wdList"></div>';
+  const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => { closePanel('wardrobeP'); try { if ($('bag') && $('bag').classList.contains('show')) { S.paused = true; renderBag(); } } catch (e) { } }); o.appendChild(x); document.body.appendChild(o);
+  const st = document.createElement('style'); st.textContent = '#wardrobeP{z-index:24}#wdList{width:min(980px,100%);display:flex;flex-direction:column;gap:10px;padding:0 4px 20px;box-sizing:border-box}.wdtabs{justify-content:center}.wdtabs .sbtn{min-width:110px}' +
+    '.wdwrap{display:grid;grid-template-columns:minmax(220px,36%) 1fr;gap:12px;align-items:start}.wdpv{position:sticky;top:0;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px;border-radius:14px;border:1.5px solid rgba(255,255,255,.18);background:radial-gradient(circle at 50% 30%,rgba(255,200,140,.14),rgba(14,8,16,.92) 70%);text-align:center}' +
+    '.wdpv.r5{border-color:#ff4d8d}.wdpv.r4{border-color:#ffc94a}.wdpv.r3{border-color:#c28bff}.wdfig{height:210px;display:flex;align-items:center;justify-content:center}.wdfig .ic,.wdfig img,.wdfig svg{height:100%;width:auto;max-width:100%}' +
+    '.wdpv b{font-size:18px}.wdpv span{font-size:12px;line-height:1.5;opacity:.85}.wdpv .sst{color:#ffc94a;opacity:1;font-weight:800}.wdpv .sst.dim{color:#aaa;font-weight:400}.wdacts{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;width:100%}.wdacts .go{flex:1;min-width:120px}' +
+    '.wdside{display:flex;flex-direction:column;gap:6px}.wdhead{font-size:12px;opacity:.75;text-align:left}.wdgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}' +
+    '.wdcell{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px;border-radius:12px;border:1.5px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);color:#f3e6d6;font:inherit;cursor:pointer}' +
+    '.wdcell.r5{border-color:rgba(255,77,141,.7)}.wdcell.r4{border-color:rgba(255,201,74,.7)}.wdcell.r3{border-color:rgba(194,139,255,.7)}.wdcell.sel{box-shadow:0 0 0 2px #fff inset;background:rgba(255,255,255,.12)}.wdcell.lock{opacity:.45}' +
+    '.wdci{height:82px;display:flex;align-items:center;justify-content:center}.wdci .ic,.wdci img,.wdci svg{height:100%;width:auto;max-width:100%}.wdcell b{font-size:11.5px}.wdcell i{position:absolute;right:4px;top:4px;font-style:normal;font-size:9.5px;font-weight:900;padding:1px 5px;border-radius:6px;background:#8fe05a;color:#102010}.wdcell i.lk{background:rgba(0,0,0,.6);color:#ccc}' +
+    '.wdnone{font-style:normal;font-size:30px;opacity:.4}' +
+    '@media (orientation:portrait){.wdwrap{grid-template-columns:1fr}.wdpv{position:static}.wdfig{height:170px}}';
+  document.head.appendChild(st); } } catch (e) { }
+/* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
    Bullets in first person start from this muzzle, so you can see your shots. */
@@ -13940,4 +14137,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794171848').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794172418').catch(()=>{});</script></body></html>
