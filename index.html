@@ -2425,7 +2425,7 @@ const WEAP = {
   pistol:  { n: '手枪', cls: 'gun', dmg: 26, iv: .26, mag: 12, mg: .5, rel: 1.0, rng: 26, spr: .025, pel: 1, crit: .08, d: '轻巧可靠，弹匣小但换弹快，省子弹。' },
   rifle:   { n: '步枪', cls: 'gun', dmg: 19, iv: .11, mag: 30, mg: 1.2, rel: 1.6, rng: 30, spr: .05, pel: 1, d: '全自动，持续火力最强，也最费子弹。' },
   sniper:  { n: '狙击枪', cls: 'gun', dmg: 120, iv: 1.15, mag: 5, mg: .2, rel: 2.3, rng: 46, spr: 0, pel: 1, pierce: 3, crit: .1, d: '射程最远，一发穿透 3 个敌人，打 Boss 的利器。' },
-  shotgun: { n: '散弹枪', cls: 'gun', dmg: 17, iv: .75, mag: 6, mg: .25, rel: 2.1, rng: 15, spr: .2, pel: 7, kb: 3, d: '近距离一枪 7 发弹丸，还能把敌人轰退。' },
+  shotgun: { n: '散弹枪', cls: 'gun', dmg: 12, iv: .75, mag: 6, mg: .25, rel: 2.1, rng: 10, spr: .2, pel: 7, kb: 3, d: '近距离一枪 7 发弹丸，还能把敌人轰退。' },
   axe:     { n: '斧头', cls: 'melee', dmg: 60, iv: .65, rng: 2.9, arc: 1.9, hits: 3, sta: 6, gather: 'wood', d: '大范围劈砍，一次最多砍中 3 个；砍枯树能得木头。' },
   pick:    { n: '镐子', cls: 'melee', dmg: 52, iv: .72, rng: 2.7, arc: 1.4, hits: 2, sta: 7, gather: 'metal', ap: .35, d: '对壮汉和 Boss 额外 +35% 伤害；敲岩石能得石头和石块，敲废墟和废车能得铁片。' },
   blade:   { n: '武士刀', cls: 'melee', dmg: 36, iv: .36, rng: 3.2, arc: 2.4, hits: 5, sta: 4, leech: .015, d: '日本武士刀，双手持握。出刀最快、横斩范围最大，最多砍 5 个，命中回少量血。' }
@@ -13403,4 +13403,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794161220').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794161636').catch(()=>{});</script></body></html>
