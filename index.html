@@ -925,6 +925,17 @@ button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);mar
 #keyHint{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:4px;z-index:6;gap:10px;align-items:center;padding:4px 10px;border-radius:10px;background:rgba(0,0,0,.45);font-size:11.5px;color:#d8d0c8;pointer-events:auto;white-space:nowrap}
 #keyHint b{display:inline-block;min-width:18px;padding:0 5px;margin-right:4px;border-radius:4px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);color:#fff;font:700 11px var(--font-hud);text-align:center}#keyHint button{background:none;border:0;color:#a89888;cursor:pointer;font-size:12px}
 .kcap{display:inline-flex;align-items:center;justify-content:center;min-width:44px;padding:6px 8px;border-radius:8px;background:linear-gradient(180deg,#4a4248,#2a2428);border:1px solid rgba(255,255,255,.3);box-shadow:0 3px 0 #120e10;color:#fff;font:800 13px/1.25 var(--font-hud);text-align:center}
+/* ---- friends ---- */
+#chatTabs{display:flex;gap:4px;margin-right:8px}#chatTabs button{position:relative;font-size:12px;padding:3px 10px;border-radius:8px;border:1px solid rgba(159,232,255,.3);background:transparent;color:#a8c8d8;cursor:pointer}#chatTabs button.on{background:rgba(159,232,255,.2);color:#fff}
+#chatTabs button[data-n]:not([data-n=""])::after{content:attr(data-n);position:absolute;right:-6px;top:-6px;min-width:15px;height:15px;border-radius:8px;background:#ff5a4a;color:#fff;font-size:10px;line-height:15px;text-align:center}
+.chd{gap:4px}.chd b{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#chatBox.frmode #chatQuick,#chatBox.frmode .cin{display:none}
+.frback{background:none;border:0;color:#9fe8ff;font-size:13px;cursor:pointer;padding:0 4px 0 0}
+.frme{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:9px;background:rgba(159,232,255,.08)}.frme span{font-size:11px;color:#9fc8dc}.frme b{flex:1;font:800 16px var(--font-hud);color:#fff;letter-spacing:.12em}.frme button,.frsearch button,.frrow button{flex:none;font-size:12px;padding:5px 10px;border-radius:8px;border:0;background:linear-gradient(180deg,#9fe8ff,#3aa8e0);color:#08202c;font-weight:800;cursor:pointer}
+.frsearch{display:flex;gap:6px}.frsearch input{flex:1;min-width:0;font-size:16px;padding:6px 9px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.35);color:#fff;text-transform:uppercase;letter-spacing:.1em;outline:none}
+.frsub{font-size:11px;color:#8ab0c4;letter-spacing:.14em;margin-top:4px}
+.frrow{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:9px;background:rgba(255,255,255,.05)}.frrow>i{flex:none;width:9px;height:9px;border-radius:50%;background:#5a6670}.frrow>i.on{background:#6fe08a;box-shadow:0 0 6px #6fe08a}
+.frrow>div{flex:1;min-width:0}.frrow b{display:block;font-size:13px;color:#eef6fa}.frrow b em{font-style:normal;font-size:10px;background:#ff5a4a;color:#fff;border-radius:7px;padding:0 5px;margin-left:4px}.frrow small{display:block;font-size:10.5px;color:#9fb4c0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.frrow button.no{background:rgba(255,255,255,.1);color:#d8c0c0}.frrow button.go2{background:linear-gradient(180deg,#ffe9a8,#ffb54a)}.frrow.req{background:rgba(255,190,80,.1)}
 </style>
 
 <canvas id="c"></canvas>
@@ -11156,6 +11167,178 @@ if (IS_PC) {
       k.querySelector('button').addEventListener('click', () => { k.remove(); try { localStorage.setItem('ember_keyhint', '0'); } catch (e) { } }); document.body.appendChild(k);
       setInterval(() => { k.style.display = S.started && !S.paused ? 'flex' : 'none'; }, 500); } }
 }
+/* ============ friends and private messages ============
+   Every account has a short player ID (the first 8 letters of its guest / Google account id). In the chat box's
+   好友 tab you can look someone up by their ID and send a friend request; once they accept you are friends on both
+   sides, you see whether they are online and which room they are in, can join their room, and can send them private
+   messages (these arrive even if you are in different rooms or one of you is on the island).
+   Database layout (rules in the reply to the developer):
+     users/<ID>            public card: account id, name, level, power, last seen, room
+     inbox/<uid>/r/<from>  friend requests to <uid>
+     inbox/<uid>/m/<pair>  newest private message of each conversation (this is what streams live)
+     friends/<uid>/<uid2>  friend list
+     dm/<pair>/<pushid>    private message history (pair = the two account ids, sorted, joined by "_") */
+const FR = { list: {}, reqs: {}, unread: {}, msgs: [], es: null, hb: -999, found: null, busy: false, ok: false };
+const myCode = () => (FB.uid || '').slice(0, 8).toUpperCase();
+const pairOf = (a, b) => [a, b].sort().join('_');
+const frOnline = u => u && u.on && Date.now() - u.on < 150000;
+async function rget(path) { const t = await fbToken(); const r = await fetch(RTDB + '/' + path + '.json?auth=' + t); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }
+async function rput(path, v, method) { const t = await fbToken(); const r = await fetch(RTDB + '/' + path + '.json?auth=' + t, { method: method || 'PUT', body: JSON.stringify(v) }); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }
+// my public card, refreshed every minute while playing
+async function frBeat() { try { await fbToken(); if (!FB.uid) return; await rput('users/' + myCode(), { u: FB.uid, n: S.name || '幸存者', lv: S.level | 0, cp: (typeof _cpC !== 'undefined' && _cpC) || 0, on: { '.sv': 'timestamp' }, rm: MP.code || '' }); FR.ok = true; } catch (e) { } }
+async function frStream() {
+  try { await fbToken(); } catch (e) { return; } if (!FB.uid || FR.es) return;
+  const open = async () => { let t; try { t = await fbToken(); } catch (e) { setTimeout(open, 8000); return; }
+    const es = FR.es = new EventSource(RTDB + '/inbox/' + FB.uid + '.json?auth=' + t); let first = true;
+    const on = patch => ev => { let j; try { j = JSON.parse(ev.data); } catch (e) { return; } if (!j) return; frApply(j.path || '/', j.data, patch, first); first = false; };
+    es.addEventListener('put', on(false)); es.addEventListener('patch', on(true));
+    es.addEventListener('auth_revoked', () => { FB.exp = 0; try { es.close(); } catch (e) { } FR.es = null; open(); });
+    es.addEventListener('cancel', () => { try { es.close(); } catch (e) { } FR.es = null; setTimeout(open, 15000); }); };
+  open();
+}
+function frApply(path, data, patch, first) {
+  const seg = path.split('/').filter(Boolean);
+  const takeReq = (from, v) => { if (v) FR.reqs[from] = v; else delete FR.reqs[from]; };
+  const takeMsg = (pair, v) => { if (!v || v.f === FB.uid) return; const cur = CHAT.mode === 'dm' && CHAT.dm && pairOf(FB.uid, CHAT.dm.u) === pair;
+    if (cur) { FR.msgs.push(v); } else if (!first) { FR.unread[v.f] = (FR.unread[v.f] || 0) + 1; feed('好友 ' + (cleanName(v.n) || '') + '：' + chatClean(v.t), '#ffd98a'); try { if (AC) sfxTone(990, 1480, .1, .05, 'sine'); } catch (e) { } }
+    else if (v.at && v.at > (FR.seen[pair] || 0)) FR.unread[v.f] = (FR.unread[v.f] || 0) + 1; };
+  if (!seg.length) { if (!patch) FR.reqs = {}; const d = data || {}; for (const k in (d.r || {})) takeReq(k, d.r[k]); for (const k in (d.m || {})) takeMsg(k, d.m[k]); }
+  else if (seg[0] === 'r') { if (seg.length === 1) { if (!patch) FR.reqs = {}; for (const k in (data || {})) takeReq(k, data[k]); } else takeReq(seg[1], data);
+    if (!first && seg.length === 2 && data) feed((cleanName(data.n) || '有人') + ' 想加你为好友（聊天 → 好友）', '#9fe8ff'); }
+  else if (seg[0] === 'm') { if (seg.length === 1) { for (const k in (data || {})) takeMsg(k, data[k]); } else takeMsg(seg[1], data); }
+  frBadge(); if (CHAT.open) chatRender();
+}
+FR.seen = (() => { try { return JSON.parse(localStorage.getItem('ember_dmseen') || '{}') || {}; } catch (e) { return {}; } })();
+function frSeen(u) { const p = pairOf(FB.uid, u); FR.seen[p] = Date.now(); delete FR.unread[u]; try { localStorage.setItem('ember_dmseen', JSON.stringify(FR.seen)); } catch (e) { } frBadge(); }
+const frUnreadN = () => Object.values(FR.unread).reduce((a, b) => a + b, 0) + Object.keys(FR.reqs).length;
+function frBadge() { const b = $('bChat'); if (b) b.classList.toggle('dot', frUnreadN() > 0 || b.classList.contains('dot') && !CHAT.open); const t = document.querySelector && document.querySelector('#chatTabs [data-m="fr"]'); if (t) t.dataset.n = frUnreadN() || ''; }
+async function frLoad() { try { FR.list = (await rget('friends/' + FB.uid)) || {}; const codes = Object.values(FR.list).map(f => f.c).filter(Boolean);
+    const cards = await Promise.all(codes.map(c => rget('users/' + c).catch(() => null))); codes.forEach((c, i) => { const u = cards[i]; for (const k in FR.list) if (FR.list[k].c === c && u) FR.list[k].card = u; }); } catch (e) { FR.err = '连不上服务器'; }
+  if (CHAT.open && CHAT.mode === 'fr') chatRender(); }
+async function frSearch(code) {
+  code = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8); FR.found = null; FR.ferr = '';
+  if (code.length < 8) { FR.ferr = '玩家 ID 是 8 位字母和数字'; chatRender(); return; }
+  if (code === myCode()) { FR.ferr = '这是你自己的 ID'; chatRender(); return; }
+  try { const u = await rget('users/' + code); if (!u || !u.u) FR.ferr = '找不到这个玩家'; else FR.found = Object.assign({ c: code }, u); } catch (e) { FR.ferr = '查找失败，网络不好或服务器规则还没更新'; }
+  chatRender();
+}
+async function frRequest(u) { try { await rput('inbox/' + u.u + '/r/' + FB.uid, { c: myCode(), n: S.name || '幸存者', lv: S.level | 0, t: { '.sv': 'timestamp' } }); feed('已发送好友申请给 ' + cleanName(u.n), '#9fe8ff'); FR.found = null; chatRender(); } catch (e) { feed('发送失败（' + e.message + '）', '#ff9b8a'); } }
+async function frAccept(from, ok) {
+  const r = FR.reqs[from]; if (!r) return;
+  try { if (ok) { await rput('friends/' + FB.uid + '/' + from, { c: r.c, n: cleanName(r.n), t: { '.sv': 'timestamp' } }); await rput('friends/' + from + '/' + FB.uid, { c: myCode(), n: S.name || '幸存者', t: { '.sv': 'timestamp' } }); }
+    await rput('inbox/' + FB.uid + '/r/' + from, null, 'DELETE'); delete FR.reqs[from]; feed(ok ? '已经和 ' + cleanName(r.n) + ' 成为好友' : '已拒绝', '#9fe8ff'); frBadge(); frLoad(); } catch (e) { feed('操作失败（' + e.message + '）', '#ff9b8a'); }
+}
+async function frRemove(u) { try { await rput('friends/' + FB.uid + '/' + u, null, 'DELETE'); await rput('friends/' + u + '/' + FB.uid, null, 'DELETE').catch(() => { }); delete FR.list[u]; chatRender(); } catch (e) { feed('删除失败', '#ff9b8a'); } }
+async function dmOpen(u) { const f = FR.list[u]; if (!f) return; CHAT.mode = 'dm'; CHAT.dm = { u, n: f.n, c: f.c }; FR.msgs = []; frSeen(u); chatRender();
+  try { const t = await fbToken(); const r = await fetch(RTDB + '/dm/' + pairOf(FB.uid, u) + '.json?orderBy=%22$key%22&limitToLast=40&auth=' + t); const d = r.ok ? await r.json() : null;
+    FR.msgs = d ? Object.keys(d).sort().map(k => d[k]) : []; } catch (e) { }
+  if (CHAT.mode === 'dm' && CHAT.dm && CHAT.dm.u === u) chatRender(); }
+async function dmSend(text) {
+  const D = CHAT.dm; if (!D) return; text = chatClean(text); if (!text) return;
+  if (Date.now() - CHAT.last < 1000) { feed('说慢一点', '#ff9b8a'); return; } CHAT.last = Date.now();
+  const m = { f: FB.uid, c: myCode(), n: S.name || '幸存者', t: text, at: Date.now() }; FR.msgs.push(m); chatRender();
+  try { const p = pairOf(FB.uid, D.u); await rput('dm/' + p, Object.assign({}, m, { at: { '.sv': 'timestamp' } }), 'POST'); await rput('inbox/' + D.u + '/m/' + p, Object.assign({}, m, { at: { '.sv': 'timestamp' } })); }
+  catch (e) { feed('私聊发送失败（' + e.message + '）', '#ff9b8a'); }
+}
+
+/* ---- the chat box gets tabs: 房间 / 好友, and a private conversation view ---- */
+CHAT.mode = 'room';
+chatSend = (o => function (text) { if (CHAT.mode === 'dm') return dmSend(text); if (CHAT.mode === 'fr') { CHAT.mode = 'room'; } return o(text); })(chatSend);
+chatRender = (o => function () {
+  const box = $('chatBox'); if (!box) return; box.classList.toggle('frmode', CHAT.mode === 'fr');
+  document.querySelectorAll('#chatTabs button').forEach(b => b.classList.toggle('on', b.dataset.m === (CHAT.mode === 'dm' ? 'fr' : CHAT.mode)));
+  if (CHAT.mode === 'room') { o(); return; }
+  const L = $('chatLog'), h = $('chatHead'); L.innerHTML = '';
+  if (CHAT.mode === 'dm') { const D = CHAT.dm, f = FR.list[D.u], on = f && frOnline(f.card); h.innerHTML = '';
+    const back = document.createElement('button'); back.className = 'frback'; back.textContent = '‹ 好友'; back.addEventListener('click', () => { CHAT.mode = 'fr'; chatRender(); }); h.appendChild(back);
+    const t = document.createElement('span'); t.textContent = ' ' + D.n + (on ? ' · 在线' : ' · 离线'); h.appendChild(t);
+    if (!FR.msgs.length) { const n = document.createElement('div'); n.className = 'cnone'; n.textContent = '还没有消息。说点什么吧，对方不在线也能收到。'; L.appendChild(n); }
+    for (const m of FR.msgs) { const mine = m.f === FB.uid, d = document.createElement('div'); d.className = 'cl' + (mine ? ' me' : ''); const b = document.createElement('b'); b.textContent = mine ? '我' : cleanName(m.n); const s = document.createElement('span'); s.textContent = chatClean(m.t); d.appendChild(b); d.appendChild(s); L.appendChild(d); }
+    L.scrollTop = L.scrollHeight; return; }
+  // friends tab
+  h.textContent = '好友';
+  const me = document.createElement('div'); me.className = 'frme'; me.innerHTML = '<span>我的玩家 ID</span><b>' + (myCode() || '登录中…') + '</b>';
+  const cp = document.createElement('button'); cp.textContent = '复制'; cp.addEventListener('click', () => { try { navigator.clipboard.writeText(myCode()); feed('已复制你的玩家 ID：' + myCode(), '#9fe8ff'); } catch (e) { } }); me.appendChild(cp); L.appendChild(me);
+  const sr = document.createElement('div'); sr.className = 'frsearch'; sr.innerHTML = '<input id="frIn" maxlength="8" placeholder="输入好友的玩家 ID" autocomplete="off" autocapitalize="characters"><button>搜索</button>';
+  const fi = sr.querySelector('input'); fi.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') frSearch(fi.value); }); fi.addEventListener('keyup', e => e.stopPropagation());
+  sr.querySelector('button').addEventListener('click', () => frSearch(fi.value)); L.appendChild(sr);
+  if (FR.ferr) { const n = document.createElement('div'); n.className = 'cnone'; n.textContent = FR.ferr; L.appendChild(n); }
+  if (FR.found) { const u = FR.found, r = document.createElement('div'); r.className = 'frrow'; const already = !!FR.list[u.u];
+    r.innerHTML = '<i class="' + (frOnline(u) ? 'on' : '') + '"></i><div><b>' + cleanName(u.n) + '</b><small>Lv.' + (u.lv | 0) + ' · 战力 ' + (u.cp | 0) + ' · ' + (frOnline(u) ? '在线' : '离线') + '</small></div>';
+    const b = document.createElement('button'); b.textContent = already ? '已是好友' : '加好友'; b.disabled = already; b.addEventListener('click', () => frRequest(u)); r.appendChild(b); L.appendChild(r); }
+  const reqs = Object.keys(FR.reqs);
+  if (reqs.length) { const t = document.createElement('div'); t.className = 'frsub'; t.textContent = '好友申请'; L.appendChild(t);
+    reqs.forEach(k => { const q = FR.reqs[k], r = document.createElement('div'); r.className = 'frrow req'; r.innerHTML = '<i></i><div><b>' + cleanName(q.n) + '</b><small>Lv.' + (q.lv | 0) + ' · ID ' + String(q.c || '').slice(0, 8) + '</small></div>';
+      const a = document.createElement('button'); a.textContent = '同意'; a.addEventListener('click', () => frAccept(k, true)); const n = document.createElement('button'); n.className = 'no'; n.textContent = '拒绝'; n.addEventListener('click', () => frAccept(k, false)); r.appendChild(a); r.appendChild(n); L.appendChild(r); }); }
+  const ks = Object.keys(FR.list).sort((a, b) => (frOnline(FR.list[b].card) - frOnline(FR.list[a].card)) || ((FR.unread[b] || 0) - (FR.unread[a] || 0)));
+  const t = document.createElement('div'); t.className = 'frsub'; t.textContent = '我的好友 · ' + ks.length; L.appendChild(t);
+  if (!ks.length) { const n = document.createElement('div'); n.className = 'cnone'; n.textContent = '还没有好友。把你的玩家 ID 发给朋友，或者在上面搜索他的 ID。'; L.appendChild(n); }
+  ks.forEach(k => { const f = FR.list[k], u = f.card, on = frOnline(u), r = document.createElement('div'); r.className = 'frrow';
+    r.innerHTML = '<i class="' + (on ? 'on' : '') + '"></i><div><b>' + cleanName((u && u.n) || f.n) + (FR.unread[k] ? ' <em>' + FR.unread[k] + '</em>' : '') + '</b><small>' + (u ? 'Lv.' + (u.lv | 0) + ' · ' : '') + (on ? '在线' + (u.rm ? ' · 房间 ' + u.rm : ' · 公共大厅') : '离线') + '</small></div>';
+    const m = document.createElement('button'); m.textContent = '私聊'; m.addEventListener('click', () => dmOpen(k)); r.appendChild(m);
+    if (on && (u.rm || '') !== (MP.code || '')) { const j = document.createElement('button'); j.className = 'go2'; j.textContent = '去他房间'; j.addEventListener('click', () => { lsSet('ember_room', u.rm || ''); try { $('roomCode').value = u.rm || ''; } catch (e) { } mpSwitch(u.rm || ''); feed('正在加入 ' + cleanName(u.n) + ' 的房间', '#9fe8ff'); }); r.appendChild(j); }
+    const x = document.createElement('button'); x.className = 'no'; x.textContent = '✕'; x.title = '删除好友'; x.addEventListener('click', () => { if (!x.dataset.s) { x.dataset.s = 1; x.textContent = '删除？'; return; } frRemove(k); }); r.appendChild(x);
+    L.appendChild(r); });
+}).bind(null)(chatRender);
+chatToggle = (o => function (on) { o(on); if (CHAT.open && CHAT.mode !== 'room') { if (CHAT.mode === 'fr') frLoad(); chatRender(); } })(chatToggle);
+try { const box = $('chatBox'); if (box && box.querySelector) { const hd = box.querySelector('.chd'); const tabs = document.createElement('div'); tabs.id = 'chatTabs';
+  [['room', '房间'], ['fr', '好友']].forEach(([m, n]) => { const b = document.createElement('button'); b.dataset.m = m; b.textContent = n; b.addEventListener('click', () => { CHAT.mode = m; if (m === 'fr') { FR.ferr = ''; frLoad(); } chatRender(); }); tabs.appendChild(b); });
+  hd.insertBefore(tabs, hd.firstChild); } } catch (e) { }
+// the chat button is always there once you play (friends work without a room)
+chatTick = (o => function (dt) { o(dt); const btn = $('bChat'); if (btn && S.started) btn.style.display = 'block';
+  FR.hb -= dt; if (S.started && FR.hb <= 0) { FR.hb = 60; frBeat(); frStream(); } })(chatTick);
+/* ============ more building pieces ============
+   石墙 / 石窗 (stone blocks in relief), 玻璃墙 (a single clear pane like one side of the fish tank: only the outline
+   shows, and glass walls in a row join into one long pane), 半墙 (half height), 矮墙 (a quarter of a wall) and a
+   吊灯 (a chandelier that hangs from the ceiling height and lights the room). */
+BT.swall = { name: '石墙', cat: 'st', k: 'edge', cost: { wood: 2, metal: 7 }, hp: 820, hw: 1.5, hd: .22, ob: [[0, 0, 1.5, .22]], desc: '一块块石头砌的墙，很结实' };
+BT.swin = { name: '石窗', cat: 'st', k: 'edge', cost: { wood: 2, metal: 7 }, hp: 700, hw: 1.5, hd: .22, ob: [[0, 0, 1.5, .22]], desc: '带玻璃窗的石墙' };
+BT.gwall = { name: '玻璃墙', cat: 'st', k: 'edge', cost: { wood: 1, metal: 5 }, hp: 260, hw: 1.5, hd: .1, ob: [[0, 0, 1.5, .1]], desc: '完全透明，只看得到边框。并排放会连成一整面' };
+BT.hwall = { name: '半墙', cat: 'st', k: 'edge', cost: { wood: 3 }, hp: 220, hw: 1.5, hd: .18, ob: [[0, 0, 1.5, .18]], desc: '一半高的木墙，做栏杆、吧台都行' };
+BT.qwall = { name: '矮墙', cat: 'st', k: 'edge', cost: { wood: 2 }, hp: 160, hw: 1.5, hd: .18, ob: [[0, 0, 1.5, .18]], desc: '只有半墙一半高，围花园、做台阶边' };
+BT.chand = { name: '吊灯', cat: 'fu', k: 'free', cost: { wood: 2, metal: 4 }, hp: 60, hw: .5, hd: .5, ob: [], pass: true, desc: '挂在天花板的高度，晚上照亮整间屋子' };
+const WALL_H = 2.7, GW = { edge: new THREE.MeshBasicMaterial({ color: 0xe8fbff, transparent: true, opacity: .9 }), pane: new THREE.MeshLambertMaterial({ color: 0xcff2ff, transparent: true, opacity: .07, depthWrite: false, side: THREE.DoubleSide }) };
+function stoneCourse(g, x0, x1, y0, y1, depth, seed) {
+  // staggered stone blocks, each pushed out a little differently so the wall has relief
+  const R = mulberry32(seed || 9), rowH = .34, rows = Math.max(1, Math.round((y1 - y0) / rowH)), h = (y1 - y0) / rows, cols = [stone, stone2, mat(0x97938c), mat(0x7c7872)];
+  for (let r = 0; r < rows; r++) { let x = x0 - (r % 2 ? .3 : 0); while (x < x1 - .02) { const w = Math.min(x1, x + .5 + R() * .3) - Math.max(x0, x); if (w > .05) { const cx = Math.max(x0, x) + w / 2, d = depth + R() * .06;
+      box(w - .035, h - .035, d, cols[(R() * cols.length) | 0], cx, y0 + h * (r + .5), (R() - .5) * .02, g); } x += .5 + R() * .3; } }
+}
+buildMesh = (orig => function (type) {
+  if (!['swall', 'swin', 'gwall', 'hwall', 'qwall', 'chand'].includes(type)) return orig(type);
+  const g = new THREE.Group();
+  if (type === 'swall') { stoneCourse(g, -1.5, 1.5, 0, WALL_H, .38, 11); box(3.04, .14, .44, stone2, 0, WALL_H - .07, 0, g); box(3.04, .16, .44, stone2, 0, .08, 0, g); }
+  else if (type === 'swin') { stoneCourse(g, -1.5, 1.5, 0, 1.0, .38, 21); stoneCourse(g, -1.5, 1.5, 2.0, WALL_H, .38, 22); stoneCourse(g, -1.5, -.95, 1.0, 2.0, .38, 23); stoneCourse(g, .95, 1.5, 1.0, 2.0, .38, 24);
+    box(2.0, .14, .48, stone2, 0, 1.0, 0, g); box(2.0, .12, .44, stone2, 0, 2.0, 0, g); box(.08, 1, .1, mat(0x3a3a40), 0, 1.5, 0, g); box(1.9, .08, .1, mat(0x3a3a40), 0, 1.5, 0, g);
+    box(1.88, .94, .04, new THREE.MeshLambertMaterial({ color: 0xa8d8f0, transparent: true, opacity: .35 }), 0, 1.5, 0, g); }
+  else if (type === 'gwall') { const inner = new THREE.Group(); g.add(inner); g.userData.glass = inner; glassFill(inner, false, false); }
+  else if (type === 'hwall' || type === 'qwall') { const H = type === 'hwall' ? WALL_H / 2 : WALL_H / 4;
+    box(.2, H, .3, beam, -1.45, H / 2, 0, g); box(.2, H, .3, beam, 1.45, H / 2, 0, g); box(3.04, .12, .36, beam, 0, H - .06, 0, g);
+    const n = 6, w = 2.7 / n; for (let i = 0; i < n; i++) box(w - .03, H - .14, .2, i % 2 ? plank : plank2, -1.35 + w * (i + .5), (H - .12) / 2 + .02, 0, g); }
+  else if (type === 'chand') { const top = UPY - .04, dk = mat(0x2a2a30), gold = mat(0xc8a050), fl = new THREE.MeshBasicMaterial({ color: 0xffe0a0 });
+    box(.3, .06, .3, dk, 0, top - .03, 0, g); for (let i = 0; i < 5; i++) box(.05, .12, .05, i % 2 ? gold : dk, 0, top - .12 - i * .13, 0, g);
+    const y = top - .82; box(.12, .2, .12, gold, 0, y, 0, g); box(1.0, .05, .05, dk, 0, y - .06, 0, g); box(.05, .05, 1.0, dk, 0, y - .06, 0, g);
+    for (const [x, z] of [[.5, 0], [-.5, 0], [0, .5], [0, -.5], [.35, .35], [-.35, .35], [.35, -.35], [-.35, -.35]]) { box(.1, .05, .1, gold, x, y - .04, z, g); box(.05, .14, .05, mat(0xf0e8d8), x, y + .06, z, g); box(.05, .07, .05, fl, x, y + .17, z, g); }
+    for (const [x, z] of [[.35, .35], [-.35, .35], [.35, -.35], [-.35, -.35]]) box(.04, .04, .5, dk, x * .5, y - .06, z * .5, g).rotation.y = Math.atan2(x, z);
+    const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,224,160,.9)', 'rgba(255,200,120,0)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); gl.scale.set(2.2, 1.4, 1); gl.position.y = y + .1; g.add(gl);
+    if (_lamps < 6) { _lamps++; const L = new THREE.PointLight(0xffd8a0, 1.3, 13); L.position.y = y; g.add(L); g.userData.lit = 1; } }
+  return g;
+})(buildMesh);
+// glass: just the outline; the ends between two glass walls in a row are left open so they read as one pane
+function glassFill(g, joinL, joinR) {
+  while (g.children.length) g.remove(g.children[0]);
+  const e = .04, bar = (w, h, d, x, y) => { const m = box(w, h, d, GW.edge, x, y, 0, g); m.castShadow = false; m.userData.noCast = 1; };
+  bar(3, e, e, 0, e / 2); bar(3, e, e, 0, WALL_H - e / 2);
+  if (!joinL) bar(e, WALL_H, e, -1.5, WALL_H / 2); if (!joinR) bar(e, WALL_H, e, 1.5, WALL_H / 2);
+  const p = new THREE.Mesh(new THREE.PlaneGeometry(3, WALL_H), GW.pane); p.position.y = WALL_H / 2; p.renderOrder = 4; g.add(p);
+}
+const gwAt = (x, z, lv) => builds.find(b => b.type === 'gwall' && b.hp > 0 && (b.lv | 0) === lv && Math.abs(b.x - x) < .1 && Math.abs(b.z - z) < .1);
+function glassRefresh(b) { if (!b || !b.g || !b.g.userData.glass) return; const c = Math.round(Math.cos(b.rot)), s = Math.round(Math.sin(b.rot)), lv = b.lv | 0;
+  const nb = k => { const o = gwAt(b.x + k * 3 * c, b.z - k * 3 * s, lv); return o && Math.abs(Math.sin(o.rot - b.rot)) < .1; };
+  glassFill(b.g.userData.glass, nb(-1), nb(1)); }
+function glassAround(b) { glassRefresh(b); const c = Math.round(Math.cos(b.rot)), s = Math.round(Math.sin(b.rot)); for (const k of [-1, 1]) glassRefresh(gwAt(b.x + k * 3 * c, b.z - k * 3 * s, b.lv | 0)); }
+addBuild = (orig => function (type, x, z, rot, free, lv) { const b = orig(type, x, z, rot, free, lv); if (type === 'gwall' && b) glassAround(b); return b; })(addBuild);
+dropBuild = (orig => function (b) { const gw = b && b.type === 'gwall'; const r = orig(b); if (gw) { const c = Math.round(Math.cos(b.rot)), s = Math.round(Math.sin(b.rot)); for (const k of [-1, 1]) glassRefresh(gwAt(b.x + k * 3 * c, b.z - k * 3 * s, b.lv | 0)); } return r; })(dropBuild);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -12174,4 +12357,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794114709').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794115764').catch(()=>{});</script></body></html>
