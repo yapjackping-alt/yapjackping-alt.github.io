@@ -6167,7 +6167,8 @@ function renderParty() {
   const box = $('partyBox'); if (!box) return; box.innerHTML = '';
   const code = (lsGet('ember_room') || '').trim();
   const head = document.createElement('div'); head.className = 'snote';
-  const why = MP.why === 'noroom' ? '你这台设备连不上联机：<b>用「任何人都能打开的链接」进来的人，或者没登录 claude.ai 的人，都不能联机</b>（只能单人玩）。请游戏主人在分享菜单里<b>输入你的邮箱单独邀请你</b>，权限选「可参与」或以上，然后你登录这个邮箱的 claude.ai 账号再打开链接。'
+  const why = /^net:/.test(MP.why || '') ? (MP.why === 'net:nodb' ? '联机服务器还没开通（开发者需要在 Firebase 建好实时数据库）。' : MP.why === 'net:denied' ? '联机服务器拒绝连接（数据库规则还没设好）。' : '连不上联机服务器，请检查网络后在下面点「进入」重试。')
+    : MP.why === 'noroom' ? '你这台设备连不上联机：<b>用「任何人都能打开的链接」进来的人，或者没登录 claude.ai 的人，都不能联机</b>（只能单人玩）。请游戏主人在分享菜单里<b>输入你的邮箱单独邀请你</b>，权限选「可参与」或以上，然后你登录这个邮箱的 claude.ai 账号再打开链接。'
     : MP.why === 'nohost' ? (window.EMBER_APP ? '联机功能会在之后的版本加入。现在是单人模式，存档保存在这台手机上。' : '要在 claude.ai 里打开这个游戏才能联机（直接打开 HTML 文件不行）。')
     : /^join:not_permitted/.test(MP.why || '') ? '你没有进房间的权限：请主人在分享菜单里把你设成「可参与」或以上。' : '';
   head.innerHTML = !MP.on ? '联机未连接。' + (why ? '<br>' + why : '') : '当前房间：<b style="color:#7de0ff">' + (MP.code || '公共大厅') + '</b> · 在线 ' + Math.max(1, S.mpn) + ' 人。你和朋友填同一个房间码就会在一起。';
@@ -10914,6 +10915,80 @@ shopLoad = (o => function (d) { o(d); S.atts = []; S.watt = {}; S.attN = 1; try 
     const o2 = A.v === 2 ? { a: w.a | 0, b: w.b | 0, e: w.e | 0 } : { a: w.mz | 0, b: w.gr | 0, e: w.ec | 0 };
     if (A.v !== 2) { for (const [sk, lvk] of [['a', 'lv'], ['b', 'lv'], ['e', 'el']]) { const a = attById(o2[sk]); if (a) a[4] = Math.max(a[4], clamp(w[lvk] | 0 || 1, 1, ATT_MAX)); } }
     S.watt[id] = { a: 0, b: 0, e: 0 }; for (const [sk, t] of sl) { const a = attById(o2[sk]); if (a && a[1] === t) S.watt[id][sk] = a[0]; } } } } catch (e) { } })(shopLoad);
+/* ============ online play over Firebase Realtime Database ============
+   The web version, the phone version and the claude.ai page all meet in the same rooms. A room lives at
+   /rooms/<code> (the public lobby is "lobby"):
+     p/<peer>          each player's presence (name, position, weapon …), rewritten a few times a second
+     ev/<peer>/<slot>  that player's recent messages (co-op zombie snapshots, hits, kills, trades), in a ring of slots
+   Everyone streams the room with Server-Sent Events. Players who go quiet for a few seconds are dropped, and a
+   leaving player deletes their own entries. This gives the same room interface the rest of the game already uses
+   (on / emit / presence / onPeers / join / leave), so co-op, trading and teleporting work unchanged. */
+const RTDB = 'https://emberdoom-default-rtdb.asia-southeast1.firebasedatabase.app';
+const NET = { peer: 'p' + Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 7), room: null, err: '' };
+const netKey = c => (c || 'lobby').replace(/[^a-z0-9_-]/g, '').slice(0, 40) || 'lobby';
+function netRoom(code) {
+  const key = netKey(code), base = RTDB + '/rooms/' + key, me = NET.peer, subs = {}, peersFns = [], P = new Map();   // peer -> {presence, seen}
+  let es = null, alive = true, ready = false, seq = 0, tok = '', lastErr = 0;
+  const R = {
+    key,
+    on(topic, fn) { (subs[topic] = subs[topic] || []).push(fn); },
+    onPeers(fn) { peersFns.push(fn); fire(); },
+    async emit(topic, data) { if (!alive) return; const t = await fbToken(); const slot = topic + (seq++ % 12);
+      const r = await fetch(base + '/ev/' + me + '/' + slot + '.json?auth=' + t, { method: 'PUT', body: JSON.stringify({ t: topic, d: data, n: seq }) }); if (!r.ok) throw { code: 'net_' + r.status }; },
+    async presence(obj) { if (!alive) return; const t = await fbToken(); const r = await fetch(base + '/p/' + me + '.json?auth=' + t, { method: 'PUT', body: JSON.stringify(Object.assign({}, obj, { u: FB.uid || '' })) }); if (!r.ok) throw { code: 'net_' + r.status }; },
+    async join(c) { return netRoom(c); },
+    leave() { alive = false; try { es && es.close(); } catch (e) { } clearInterval(R._iv); netBye(base, me); }
+  };
+  function fire() { const peers = [{ peer: me, kind: 'viewer', isMe: true, sameTab: true, presence: {} }];
+    for (const [peer, o] of P) peers.push({ peer, kind: 'viewer', isMe: false, presence: o.presence });
+    for (const fn of peersFns) try { fn({ peers }); } catch (e) { console.warn(e); } }
+  function setPeer(peer, v) { if (peer === me) return; if (v && typeof v === 'object') { P.set(peer, { presence: v, seen: Date.now() }); } else P.delete(peer); }
+  function dispatch(peer, v) { if (peer === me || !v || typeof v !== 'object' || !v.t) return; const L = subs[v.t]; if (!L) return; const m = { peer, isMe: false, data: v.d };
+    const o = P.get(peer); if (o) o.seen = Date.now(); for (const fn of L) try { fn(m); } catch (e) { console.warn(e); } }
+  // a "put"/"patch" at some path inside the room
+  function apply(path, data, patch) {
+    const seg = path.split('/').filter(Boolean);
+    if (!seg.length) {      // the whole room: only take presence from it (old messages are history)
+      if (!patch) P.clear(); const p = data && data.p; if (p) for (const k in p) setPeer(k, p[k]); fire(); return; }
+    if (seg[0] === 'p') {
+      if (seg.length === 1) { if (!patch) P.clear(); if (data) for (const k in data) setPeer(k, data[k]); fire(); return; }
+      if (seg.length === 2) { setPeer(seg[1], data); fire(); return; }
+      const o = P.get(seg[1]); if (o) { o.presence[seg[2]] = data; o.seen = Date.now(); fire(); } return; }
+    if (seg[0] === 'ev' && ready) {
+      if (seg.length === 3) { dispatch(seg[1], data); return; }
+      if (seg.length === 2 && data) { for (const k in data) dispatch(seg[1], data[k]); return; }
+    }
+  }
+  async function open() {
+    if (!alive) return; try { tok = await fbToken(); } catch (e) { NET.err = 'auth'; setTimeout(open, 5000); return; }
+    try { es && es.close(); } catch (e) { } ready = false;
+    es = new EventSource(base + '.json?auth=' + tok);
+    const onData = patch => ev => { let j; try { j = JSON.parse(ev.data); } catch (e) { return; } if (!j) return; apply(j.path || '/', j.data, patch); if (!ready) setTimeout(() => { ready = true; }, 300); NET.err = ''; };
+    es.addEventListener('put', onData(false)); es.addEventListener('patch', onData(true));
+    es.addEventListener('auth_revoked', () => { FB.exp = 0; open(); });
+    es.addEventListener('cancel', () => { NET.err = 'denied'; try { es.close(); } catch (e) { } setTimeout(open, 8000); });
+    es.onerror = () => { if (Date.now() - lastErr > 4000) { lastErr = Date.now(); NET.err = NET.err || 'conn'; } };
+  }
+  // drop players who went quiet
+  R._iv = setInterval(() => { const now = Date.now(); let ch = false; for (const [k, o] of P) if (now - o.seen > 9000) { P.delete(k); ch = true; } if (ch) fire(); }, 2000);
+  open(); return R;
+}
+function netBye(base, me) { try { fbToken().then(t => { fetch(base + '/p/' + me + '.json?auth=' + t, { method: 'DELETE', keepalive: true }); fetch(base + '/ev/' + me + '.json?auth=' + t, { method: 'DELETE', keepalive: true }); }); } catch (e) { } }
+// is the database there? (an unreachable or missing database means: stay with what we had)
+async function netCheck() { try { const t = await fbToken(); const r = await fetch(RTDB + '/rooms/lobby/p.json?shallow=true&auth=' + t); return r.ok ? '' : r.status === 401 || r.status === 403 ? 'denied' : r.status === 404 ? 'nodb' : 'http' + r.status; } catch (e) { return 'conn'; } }
+mpInit = (orig => async function (code) {
+  MP.why = ''; const bad = await netCheck();
+  if (bad) { NET.err = bad; await orig(code); if (!MP.on) MP.why = 'net:' + bad; return; }
+  try { if (MP.room && MP.room.leave) MP.room.leave(); } catch (e) { }
+  for (const [, o] of MP.others) scene.remove(o.g); MP.others.clear();
+  const c = code && /^[a-z0-9][a-z0-9_.-]{0,47}$/.test(code) ? code : '';
+  if (code && !c) feed('房间码只能用小写字母和数字，已进入公共大厅', '#ff9b8a');
+  const r = netRoom(c); NET.room = r; MP.lobby = r; MP.room = r; MP.on = true; MP.code = c; MP.me = NET.peer; MP.lx = player.pos.x; MP.lz = player.pos.z; MP.tPres = 0; MP.net = true;
+  r.on('shot', onRemoteShot); coopWire(r); r.onPeers(onPeersChange);
+  feed(c ? '已加入房间 ' + c : '已进入公共大厅', '#7de0ff');
+})(mpInit);
+window.addEventListener('pagehide', () => { try { if (NET.room) netBye(RTDB + '/rooms/' + NET.room.key, NET.peer); } catch (e) { } });
+document.addEventListener('visibilitychange', () => { if (document.hidden && NET.room) netBye(RTDB + '/rooms/' + NET.room.key, NET.peer); });
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -11932,4 +12007,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794111498').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794112102').catch(()=>{});</script></body></html>
