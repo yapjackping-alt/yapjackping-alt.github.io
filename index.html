@@ -891,6 +891,21 @@ button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);mar
 .fglv{display:inline-block;font-size:10px;color:#9fe8ff;border:1px solid rgba(159,232,255,.5);border-radius:5px;padding:0 5px;margin-right:6px;vertical-align:middle}
 .flvbox{padding:10px 12px;border-radius:12px;border:1px solid rgba(159,232,255,.35);background:linear-gradient(120deg,rgba(40,140,200,.22),rgba(10,30,50,.4))}.flvbox>div{display:flex;align-items:center;gap:10px}.flvbox b{font-size:16px;color:#bff0ff;white-space:nowrap}.flvbox span{font-size:11px;color:#9fc8dc;white-space:nowrap}
 .flvbox i{flex:1;height:8px;border-radius:4px;background:rgba(0,0,0,.4);overflow:hidden}.flvbox u{display:block;height:100%;background:linear-gradient(90deg,#3aa8e0,#9fe8ff)}.flvbox em{display:block;font-style:normal;font-size:11px;color:#d8eef8;margin-top:5px}.flvbox small{font-size:10px;color:#8ab0c4}
+/* ---- weapon attachments ---- */
+.attsec{margin:12px 0 4px;padding:12px;border-radius:14px;border:1px solid rgba(184,196,208,.28);background:linear-gradient(160deg,rgba(120,140,170,.12),rgba(0,0,0,.25));display:flex;flex-direction:column;gap:8px}
+.atth{display:flex;align-items:baseline;gap:10px}.atth b{font-size:16px;color:#e8eef4;letter-spacing:.1em}.atth span{font-size:11px;color:#a8b4c0}
+.attlv{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;padding:7px 10px;border-radius:10px;background:rgba(0,0,0,.28)}
+.attlv b{font-size:13px;color:#dfe6ee}.attlv b em{font-style:normal;color:#ffd98a;font-size:15px}.attlv b small{color:#8a96a2;font-weight:400}.attlv i{display:block;height:5px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;margin:4px 0 3px}.attlv u{display:block;height:100%;background:linear-gradient(90deg,#8aa0b8,#e8f0f8)}.attlv>div>small{font-size:10.5px;color:#a0acb8}
+.attcost{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;max-width:240px}.attcost span{display:inline-flex;align-items:center;gap:3px;font-size:11px;padding:2px 6px;border-radius:6px;background:rgba(0,0,0,.35)}.attcost span.ok{color:#9fe08a}.attcost span.no{color:#ff8a7a}.attcost .ic{width:16px;height:16px}
+.attg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.attc{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 6px;border-radius:11px;border:1px solid rgba(255,255,255,.12);border-top:2px solid var(--qc,#556);background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(0,0,0,.3));color:var(--ink);font-family:var(--font-body);text-align:center;cursor:pointer}
+.attc em{font-style:normal;font-size:10px;color:#a8b4c0;letter-spacing:.12em}.attc .ic{width:48px;height:48px}.attc b{font-size:13px}.attc small{font-size:10.5px}.attc span{font-size:10px;color:#d8e0e8;line-height:1.35}.attc span i{font-style:normal;font-weight:800}
+.attc.empty{border-style:dashed;opacity:.8}.attplus{width:48px;height:48px;display:flex;align-items:center;justify-content:center;font-size:26px;color:#8a96a2;border:1px dashed rgba(255,255,255,.25);border-radius:10px}
+.attc.q4,.attc.q5{box-shadow:0 0 14px color-mix(in srgb,var(--qc) 45%,transparent)}
+.attel{display:flex;gap:10px;align-items:center;padding:7px 10px;border-radius:10px;background:rgba(0,0,0,.3);border-left:3px solid var(--ec)}.attel b{font-size:20px;color:var(--ec);font-weight:900}.attel span{font-size:11.5px;color:#e0e8f0;line-height:1.4}
+#attPick{z-index:61}.attrow{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:11px;border:1px solid rgba(255,255,255,.1);border-left:3px solid var(--qc);background:rgba(255,255,255,.04)}.attrow.on{background:rgba(255,201,74,.1);border-color:rgba(255,201,74,.5)}
+.attrow .ic{width:44px;height:44px;flex:none}.attrow .sn{flex:1;min-width:0}.attrow .sn b{font-size:14px;display:block}.attrow .sn span{font-size:11.5px;color:#d0d8e0}.attrow .sn span em{font-style:normal;color:#ffb07a}.attrow .sn small{display:block;font-size:10.5px;color:#a8b4c0;margin-top:2px}
+@media (max-width:520px){.attlv{grid-template-columns:1fr auto}.attcost{grid-column:1/-1;justify-content:flex-start;max-width:none}.attg{gap:5px}.attc .ic{width:40px;height:40px}}
 </style>
 
 <canvas id="c"></canvas>
@@ -2605,7 +2620,7 @@ const input = { mx: 0, mz: 0, fire: false };
 /* derived stats: weapon level + talent tree + player level + what you wear */
 const gst = k => ((typeof GEAR_READY !== 'undefined' && GEAR_READY) ? gearStat(k) : 0) + (typeof skSt === 'function' ? skSt(k) : 0) + (S.fbuf && S.fbuf[k] && S.fbuf[k].t > 0 ? S.fbuf[k].v : 0) + (typeof passSt === 'function' ? passSt(k) : 0) + (typeof wtSt === 'function' ? wtSt(k) : 0) + (typeof titleSt === 'function' ? titleSt(k) : 0);      // gear + food buffs
 const weaponDmg = id => { id = id || S.wp; return WEAP[id].dmg * wLvMul(Math.max(1, wLv(id))) * (1 + (S.level - 1) * 0.015) * (1 + ts('dmg')) * (WEAP[id].cls === 'melee' ? 1 + ts('melee') : 1) * (1 + gst('dmg')) * (S.para ? 1 + .005 * S.para : 1) * (1 + wsSt(id, 'dmg')); };
-const magSizeNow = id => { id = id || S.wp; const W = WEAP[id]; if (W.cls === 'melee') return 0; return W.mag + Math.floor(W.mg * (Math.max(1, wLv(id)) - 1)) + Math.round(ts('mag') * W.mag / 30); };
+const magSizeNow = id => { id = id || S.wp; const W = WEAP[id]; if (W.cls === 'melee') return 0; return Math.round((W.mag + Math.floor(W.mg * (Math.max(1, wLv(id)) - 1)) + Math.round(ts('mag') * W.mag / 30)) * (1 + (typeof attSt === 'function' ? attSt(id, 'mag') : 0))); };
 const fireInterval = id => { const W = WEAP[id || S.wp]; return W.iv / (1 + ts('rate') + gst('rate') + wsSt(id || S.wp, 'rate') + (S.frenzyT > 0 ? .35 : 0)) * (W.cls === 'melee' && S.exhausted ? 1.6 : 1); };
 const maxHpNow = () => Math.round((120 + (S.level - 1) * 8 + ts('hp') + gst('hp')) * (1 + ts('hpPct') + gst('hpPct')) * (S.para ? 1 + .005 * S.para : 1));
 const maxStaNow = () => Math.round(100 + ts('sta') + gst('sta'));
@@ -7321,7 +7336,7 @@ const weekBossTp = () => weekIdx() % BOSS_TYPES.length;
 S.wb = '';
 function weeklyBossKill(b) {
   if (S.wb === 'w' + weekIdx()) { if (Math.random() < .5) gain('estone', 1); feed('周王本周奖励已领过', '#ffc94a'); return; }
-  S.wb = 'w' + weekIdx(); stInc('wb'); gain('heart', 2); gain('estone', 6); gain('crystal', 2); gain('coin', 300); giveGear(3); seaXp(120);
+  S.wb = 'w' + weekIdx(); stInc('wb'); gain('heart', 2); try { gain('apart', 25); gain('elem', 5); } catch (e) { } gain('estone', 6); gain('crystal', 2); gain('coin', 300); giveGear(3); seaXp(120);
   banner('击败本周周王！', '首领之心 ×2 · 强化石 ×6 · 史诗装备 · 下周一换新的周王', 4.5);
 }
 // the nearest lair of this week's boss type, around the region that fits your level
@@ -7357,7 +7372,7 @@ function waveEnd(win) {
   if (kind === 'end') { const best = Math.max(0, n - 1); stMax('wave', best); if (best > (S.sea.best || 0)) { S.sea.best = best; lbSubmit(); }
     banner('无尽尸潮结束', '撑过了 ' + best + ' 波' + (best >= (S.sea.best || 0) ? '（本赛季最好成绩）' : ' · 本赛季最好 ' + S.sea.best + ' 波'), 3.5); saveGame(); return; }
   if (!win) { banner('挑战失败', '离开了挑战区域或倒下了，明天之前都可以再来', 3); return; }
-  const t = lvTier(), first = S.dch.d !== dateKey(), team = typeof groundMates === 'function' && groundMates().length ? 1.5 : 1; S.dch = { d: dateKey(), n: (first ? 0 : S.dch.n) + 1 }; stInc('dch');
+  const t = lvTier(), first = S.dch.d !== dateKey(), team = typeof groundMates === 'function' && groundMates().length ? 1.5 : 1; S.dch = { d: dateKey(), n: (first ? 0 : S.dch.n) + 1 }; stInc('dch'); if (first) try { gain('apart', 6); gain('elem', 1); } catch (e) { }
   if (first) { gain('coin', Math.round(80 * t * team)); gain('estone', Math.round(2 * team)); gain('powder', 3); gain('steel', 1); giveGear(2); seaXp(60); questTick('event', 1); }
   else { gain('coin', Math.round(20 * t * team)); if (Math.random() < .2) gain('estone', 1); seaXp(10); }
   banner('挑战完成！', (first ? '今日首次通关大奖已到手' : '今天已经拿过大奖，这次是小奖励') + (team > 1 ? ' · 组队加成 ×1.5' : ''), 3.5); sfx.build(); saveGame(); hubBadge();
@@ -7452,12 +7467,12 @@ function renderHub() {
     { const done = S.dch.d === dateKey(), t = lvTier();
       hubRow(box, '今日挑战 · ' + dchName(), (done ? '今天已通关 ' + S.dch.n + ' 次，再打只有小奖励。' : '走进金色圆圈开始，守住 3 波。') + regionLabel(t) + ' · 和队友一起打奖励 ×1.5', done ? '#8fd16f' : '#ffc94a',
         done ? '再打一次' : S.isl ? '去码头坐船' : '在地图上看', () => { if (S.isl) { closePanel('hub'); feed('去码头，船上选「今日挑战」', '#ffc94a'); } else { const p = dchSpot(); feed('今日挑战在你的' + dirName(p.x - player.pos.x, p.z - player.pos.z) + '方向约 ' + Math.round(Math.hypot(p.x - player.pos.x, p.z - player.pos.z)) + ' 米（地图上金色「挑」）', '#ffc94a'); showOnMap(p); } }, false, '挑',
-        done ? ['已完成'] : ['余烬币 ' + 80 * t, '强化石 ×2', '高级以上装备', '赛季经验 60']); }
+        done ? ['已完成'] : ['余烬币 ' + 80 * t, '强化石 ×2', '高级以上装备', '精密零件 ×6', '元素晶核 ×1']); }
     h3('每周');
     { const T = BOSS_TYPES[weekBossTp()], got = S.wb === 'w' + weekIdx();
       hubRow(box, '周王 · ' + T.name, '这周所有「' + T.name + '」都更强（生命 ×1.5、伤害 ×1.25）。五个首领轮流当周王，周一零点换。', got ? '#8fd16f' : '#ff7a5a',
         got ? '本周已领' : '找最近的巢穴', () => { const l = weekLair(); if (!l) { feed('附近没找到它的巢穴', '#ff9b8a'); return; } WV.lair = l; if (!S.isl) showOnMap(l); feed(T.name + '的巢穴在' + regionLabel(tierAt(l.x, l.z)) + (S.isl ? ' · 去码头选「前往周王巢穴」' : ' · 你的' + dirName(l.x - player.pos.x, l.z - player.pos.z) + '方向约 ' + Math.round(Math.hypot(l.x - player.pos.x, l.z - player.pos.z)) + ' 米'), '#ffc94a'); }, got, '王',
-        got ? ['本周已完成'] : ['首领之心 ×2', '强化石 ×6', '腐化晶体 ×2', '史诗装备', '300 币']); }
+        got ? ['本周已完成'] : ['首领之心 ×2', '强化石 ×6', '腐化晶体 ×2', '史诗装备', '精密零件 ×25', '元素晶核 ×5']); }
     try { if (typeof cvRow === 'function') cvRow(box); } catch (e) { console.warn(e); }
     h3('海岛');
     try { idefRow(box); } catch (e) { console.warn(e); }
@@ -10071,7 +10086,7 @@ function cvEnd(win, why) {
   for (const c of C.carts) scene.remove(c.g); for (const m of C.men) scene.remove(m.h.g); cvHud();
   if (!win) { banner('护送失败', why || '商队被丧尸毁了。这周还能再试', 3.5); return; }
   const t = lvTier(), first = !cvDone(); stInc('cv'); burst(player.pos.x, 1.4, player.pos.z, 0xffc94a, 30, 6); sfx.build();
-  if (first) { S.cv.w = 'w' + weekIdx(); gain('coin', 400 * t); gain('estone', 4); gain('crystal', 1); giveGear(4); giveGear(3); if (typeof seaXp === 'function') seaXp(100);
+  if (first) { S.cv.w = 'w' + weekIdx(); gain('coin', 400 * t); gain('estone', 4); gain('crystal', 1); giveGear(4); giveGear(3); if (typeof seaXp === 'function') seaXp(100); try { gain('apart', 20); gain('elem', 4); attDrop(t, 1, 3); } catch (e) { }
     const lock = Object.keys(BP).filter(k => !S.bp[k]); let bpTxt;
     if (lock.length) { const k = pick(lock); S.bp[k] = 1; bpTxt = '蓝图「' + BP[k].n + '」（在建造 · 防御里）'; } else { gain('heart', 1); gain('estone', 6); bpTxt = '首领之心 + 强化石 ×6（蓝图已集齐）'; }
     banner('商队安全抵达！', '黄金装备 + 史诗装备 · ' + bpTxt + ' · 余烬币 ' + 400 * t, 5.5); }
@@ -10116,7 +10131,7 @@ function cvRow(box) {
   const done = cvDone(), t = lvTier();
   hubRow(box, '流浪商队 · 每周一次', CV.on ? '正在护送，跟着商队走到终点。' : '护送商队走 ' + CV_LEN + ' 米：商队离你太远会停下等你，有丧尸靠近也会停下，被围攻会损坏。', done ? '#8fd16f' : '#e0a060',
     CV.on ? '护送中' : done ? '再护送一次' : S.isl ? '去码头坐船' : '现在出发', () => { if (S.isl) { closePanel('hub'); feed('去码头，船上选「护送流浪商队」', '#ffc94a'); return; } closePanel('hub'); cvStart(); }, !!CV.on, '商',
-    done ? ['本周大奖已领', '再护送：余烬币 ' + 120 * t] : ['黄金装备', '史诗装备', '随机蓝图', '余烬币 ' + 400 * t, '强化石 ×4']);
+    done ? ['本周大奖已领', '再护送：余烬币 ' + 120 * t] : ['黄金装备', '史诗装备', '随机蓝图', '史诗以上配件', '精密零件 ×20', '元素晶核 ×4']);
 }
 renderPort = (orig => function () { orig();
   const box = $('portList'); if (!box || !box.insertBefore) return; const row = shopRow('护送流浪商队', cvDone() ? '本周大奖已领（再护送有小奖励）' : '每周第一次护送：黄金装备 + 蓝图', '#e0a060'), b = document.createElement('button');
@@ -10713,6 +10728,179 @@ function engineTick(dt) {
   ENG.v.gain.setTargetAtTime((.13 + k * .1) * VOL.sfx, t, .1);
 }
 petsTick = (o => function (dt) { o(dt); try { engineTick(dt); if (S.boat || SW.b) S.sprint = false; } catch (e) { } })(petsTick);
+/* ============ weapon attachments ============
+   Every weapon has three slots: 枪口, 弹匣/握把 and 元素核心. Attachments drop with the same grades as gear
+   (普通 … 神话). The levels belong to the weapon's slots, not to the attachment: whatever you put in, it gets the
+   slot's level, and a level once reached stays forever.
+   · 配件等级 (1-50) is shared by the 枪口 and 弹匣/握把 slots. It costs 精密零件 + 余烬币 (and 首领之心 at 10/20/30/40).
+   · 元素等级 (1-50) is the element slot's own level. It costs 元素晶核 + 余烬币. The core decides the element:
+     火 sets zombies on fire, 雷 chains lightning to nearby zombies, 水 soaks them (slower, and they take more damage).
+   Both get steeply more expensive as they go up. Everything counts toward 战力. */
+const ATT_MAX = 50;
+const AQM = [1, 1.4, 1.9, 2.6, 3.5, 4.7];
+const ATT_K = {
+  mz: [{ n: '枪口制退器', st: { dmg: .04 }, c: 0x8a96a2 }, { n: '补偿器', st: { crit: .02 }, c: 0x6a8aa8 }, { n: '消音器', st: { dmg: .02, critDmg: .08 }, c: 0x3a3e44 }],
+  gr: [{ n: '扩容弹匣', st: { mag: .12 }, c: 0x5a6a4a }, { n: '快拔弹匣', st: { reload: .06 }, c: 0x8a6a3a }, { n: '战术握把', st: { rate: .04 }, c: 0x4a4a52 }],
+  el: [{ n: '烈焰核心', el: 'fire', st: { dmg: .02 }, c: 0xff6a2a }, { n: '雷霆核心', el: 'thun', st: { dmg: .02 }, c: 0x9fe8ff }, { n: '潮汐核心', el: 'water', st: { dmg: .02 }, c: 0x3a9aff }]
+};
+const EL_N = { fire: ['火', '#ff7a3a'], thun: ['雷', '#9fe8ff'], water: ['水', '#5ab0ff'] };
+const SLOT_N = (s, melee) => s === 'mz' ? (melee ? '刃锋' : '枪口') : s === 'gr' ? (melee ? '握柄' : '弹匣 / 握把') : '元素核心';
+const ATT_STN = { dmg: '伤害', crit: '暴击率', critDmg: '暴击伤害', mag: '弹匣容量', reload: '换弹速度', rate: '攻速' };
+S.atts = []; S.watt = {}; S.attN = 1;
+MAT.apart = { n: '精密零件', c: '#b8c4d0', r: 0 }; MAT.elem = { n: '元素晶核', c: '#c084ff', r: 0 };
+ITEMS.apart = { n: '精密零件', r: 2, cat: 'mat', d: '精细加工的枪械零件，用来提升武器的配件等级。', use: '在武器页面的「配件」里升级配件等级（枪口和弹匣共用）', src: '打倒精英和首领、开物资箱、分解配件、流浪商队、周王、今日挑战' };
+ITEMS.elem = { n: '元素晶核', r: 3, cat: 'mat', d: '封着火、雷、水力量的晶体，用来提升武器的元素等级。', use: '在武器页面的「配件」里升级元素等级', src: '打倒首领（精英偶尔掉）、分解元素核心、流浪商队、周王' };
+if (!('apart' in S.inv)) S.inv.apart = 0; if (!('elem' in S.inv)) S.inv.elem = 0;
+SELL_PRICE.apart = 6; SELL_PRICE.elem = 30;
+
+const attW = id => S.watt[id] || (S.watt[id] = { lv: 1, el: 1, mz: 0, gr: 0, ec: 0 });
+const attById = u => S.atts.find(a => a[0] === u);
+const attKind = a => ATT_K[a[1]][a[2]];
+const attIc = a => a[1] === 'el' ? 'att_el' + attKind(a).el + a[2] : 'att_' + a[1] + a[2];
+const attLvF = lv => 1 + (lv - 1) * .03;
+// what one attachment gives at a given slot level
+function attStats(a, lv) { const K = attKind(a), o = {}; for (const k in K.st) o[k] = K.st[k] * AQM[a[3]] * attLvF(lv); return o; }
+function attSt(id, k) { if (!id || !S.watt[id]) return 0; const w = S.watt[id], melee = WEAP[id] && WEAP[id].cls === 'melee'; let v = 0;
+  for (const [s, lv] of [['mz', w.lv], ['gr', w.lv], ['ec', w.el]]) { const a = w[s] && attById(w[s]); if (!a) continue; const st = attStats(a, lv);
+    if (st[k]) v += st[k]; if (melee && k === 'dmg' && st.mag) v += st.mag * .3; }
+  return v; }
+wsSt = (o => function (id, k) { return o(id, k) + attSt(id, k); })(wsSt);
+// element of a weapon and how strong it is
+function attEl(id) { const w = S.watt[id], a = w && w.ec && attById(w.ec); if (!a) return null; return { el: attKind(a).el, q: a[3], p: (1 + .35 * a[3]) * attLvF(w.el) }; }
+const EL_DPS = { fire: .08, thun: .1, water: .06 };
+weaponDps = (o => function (id) { const E = attEl(id); return o(id) * (E ? 1 + EL_DPS[E.el] * E.p : 1); })(weaponDps);
+function elDesc(el, q, p) {
+  if (el === 'fire') return '命中有 ' + Math.round((.35 + .03 * q) * 100) + '% 机会点燃丧尸，3 秒内每秒烧掉 ' + Math.round(8 * p) + '% 伤害；被烧死的丧尸会爆出火焰溅到旁边';
+  if (el === 'thun') return '命中有 ' + Math.round((.14 + .02 * q) * 100) + '% 机会放出闪电，连锁打 ' + (2 + Math.floor(q / 2)) + ' 只附近的丧尸，每只 ' + Math.round(35 * p) + '% 伤害';
+  return '命中让丧尸湿透 3 秒：移动变慢，受到的所有伤害 +' + Math.round(5 * p) + '%';
+}
+
+/* ---- the elements in combat ---- */
+traitHit = (o => function (z, d, crit) { o(z, d, crit); try { attElHit(z, d); } catch (e) { } })(traitHit);
+function attElHit(z, d) {
+  const E = attEl(S.wp); if (!E || !z || z.dead) return;
+  if (E.el === 'fire') { if (Math.random() < .35 + .03 * E.q) { z.burnD = Math.max(z.burnT > 0 ? (z.burnD || 0) : 0, d * .08 * E.p); z.burnT = 3; z.elFire = S.t + 3; burst(z.pos.x, 1.3 * z.sc, z.pos.z, 0xff7a2a, 4, 2.5); } }
+  else if (E.el === 'thun') { if (Math.random() < .14 + .02 * E.q) { let from = z; const hit = new Set([z]);
+    for (let n = 0; n < 2 + Math.floor(E.q / 2); n++) { let best = null, bd = 7; for (const o of zombies) { if (o.dead || hit.has(o) || o.animal) continue; const dd = Math.hypot(o.pos.x - from.pos.x, o.pos.z - from.pos.z); if (dd < bd) { bd = dd; best = o; } }
+      if (!best) break; hit.add(best); tracer(from.pos.x, 1.3 * from.sc, from.pos.z, best.pos.x, 1.3 * best.sc, best.pos.z, 0x9fe8ff); burst(best.pos.x, 1.3 * best.sc, best.pos.z, 0xc8f4ff, 5, 3); hurtZombie(best, d * .35 * E.p, 0, 0); from = best; }
+    if (hit.size > 1 && AC) try { sfxNoise(.12, .06, 4200); } catch (e) { } } }
+  else { z.slowT = Math.max(z.slowT || 0, 1.2 + .2 * E.q); z.wetT = S.t + 3; z.wetK = .05 * E.p; if (Math.random() < .3) burst(z.pos.x, 1.2 * z.sc, z.pos.z, 0x6ab8ff, 3, 2); }
+}
+hurtZombie = (o => function (z, dmg, dx, dz) { if (z && z.wetT > S.t) dmg *= 1 + (z.wetK || 0); return o(z, dmg, dx, dz); })(hurtZombie);
+
+/* ---- drops ---- */
+let _attRoll = 0;
+function attMake(slot, q, kind) { const a = [S.attN++, slot, kind == null ? rint(0, 2) : kind, clamp(q, 0, 5)]; S.atts.push(a); return a; }
+function attDrop(tier, bonus, minQ) { const q = Math.max(minQ || 0, Math.min(5, rollQuality(tier, bonus || 0))), slot = pick(['mz', 'gr', 'el']), a = attMake(slot, q);
+  const K = attKind(a); feed('获得配件：' + GQ[q].n + ' · ' + K.n, GQ[q].c); if (q >= 4) banner('稀有配件！', GQ[q].n + ' · ' + K.n + '（去武器页面装上）', 3); return a; }
+killZombie = (o => function (z) { const mine = z && !z.dead && !z.animal && !z.mirror && !z.hitBy; o(z);
+  if (!mine) return;
+  try { const E = attEl(S.wp); if (E && E.el === 'fire' && z.elFire > S.t) { burst(z.pos.x, 1, z.pos.z, 0xff7a2a, 16, 5); const dd = weaponDmg(S.wp) * .3 * E.p;
+    for (const o2 of zombies) if (!o2.dead && !o2.animal && o2 !== z && Math.hypot(o2.pos.x - z.pos.x, o2.pos.z - z.pos.z) < 3) { hurtZombie(o2, dd, 0, 0); o2.burnD = Math.max(o2.burnD || 0, dd * .2); o2.burnT = 2; } } } catch (e) { }
+  try { const t = tierAt(z.pos.x, z.pos.z);
+    if (z.boss) { gain('apart', rint(6, 12) + t); gain('elem', rint(1, 3)); attDrop(t, 1.5, 2); }
+    else if (z.elite) { gain('apart', rint(2, 3)); if (Math.random() < .2) gain('elem', 1); if (Math.random() < .08) attDrop(t, .5); }
+    else { if (Math.random() < .06) gain('apart', 1); if (Math.random() < .0025) attDrop(t); } } catch (e) { } })(killZombie);
+openCrate = (o => function (c) { const was = c && !c.open; const r = o(c); try { if (was && Math.random() < .3) { gain('apart', rint(1, 3)); if (Math.random() < .07) attDrop(S.isl ? 1 : tierAt(player.pos.x, player.pos.z)); } } catch (e) { } return r; })(openCrate);
+
+/* ---- upgrading the slot levels ---- */
+const attCost = lv => ({ apart: Math.ceil(2 + lv * .8 + lv * lv * .06), coin: Math.round(150 * lv + 25 * lv * lv), heart: lv % 10 === 0 ? lv / 10 : 0 });
+const elCost = lv => ({ elem: Math.ceil(1 + lv * .25 + lv * lv * .012), coin: Math.round(200 * lv + 30 * lv * lv), heart: lv % 10 === 0 ? lv / 10 : 0 });
+const costOk = c => Object.keys(c).every(k => !c[k] || (k === 'coin' ? S.coin >= c[k] : matHave(k) >= c[k]));
+function costPay(c) { for (const k in c) { if (!c[k]) continue; if (k === 'coin') S.coin -= c[k]; else matAdd(k, -c[k]); } }
+function attUp(id, which) {
+  const w = attW(id), key = which === 'el' ? 'el' : 'lv', lv = w[key]; if (lv >= ATT_MAX) return;
+  const c = which === 'el' ? elCost(lv) : attCost(lv); if (!costOk(c)) { feed('材料不够', '#ff9b8a'); return; }
+  costPay(c); w[key]++; sfx.build(); burst(player.pos.x, 1.2, player.pos.z, which === 'el' ? 0xc084ff : 0xb8c4d0, 12, 5);
+  feed(WEAP[id].n + (which === 'el' ? ' 元素等级' : ' 配件等级') + ' → Lv.' + w[key], '#ffc94a');
+  if (id === S.wp) { S.magSize = magSizeNow(); } refreshHud(); renderWeapon(); saveGame();
+}
+function attEquip(id, slot, u) {
+  const w = attW(id), sk = slot === 'el' ? 'ec' : slot;
+  if (u) for (const wid in S.watt) { const o = S.watt[wid]; for (const s of ['mz', 'gr', 'ec']) if (o[s] === u) o[s] = 0; }
+  w[sk] = u || 0; if (id === S.wp) S.magSize = magSizeNow(); refreshHud(); saveGame();
+}
+const attOn = u => { for (const wid in S.watt) { const o = S.watt[wid]; for (const s of ['mz', 'gr', 'ec']) if (o[s] === u) return wid; } return null; };
+const attScrapV = a => a[1] === 'el' ? { elem: [1, 2, 3, 5, 8, 12][a[3]], apart: [1, 2, 3, 5, 8, 12][a[3]] } : { apart: [2, 4, 8, 16, 32, 64][a[3]] };
+function attScrap(u) { const i = S.atts.findIndex(a => a[0] === u); if (i < 0) return; const a = S.atts[i], v = attScrapV(a); const on = attOn(u); if (on) attEquip(on, a[1], 0);
+  S.atts.splice(i, 1); for (const k in v) gain(k, v[k]); }
+
+/* ---- UI: a section on the weapon page, and a picker ---- */
+const statTxt = o => Object.keys(o).map(k => (ATT_STN[k] || k) + ' +' + (o[k] * 100).toFixed(1) + '%').join(' · ');
+function costHtml(c) { return Object.keys(c).filter(k => c[k]).map(k => { const have = k === 'coin' ? S.coin : matHave(k), ok = have >= c[k], m = k === 'coin' ? { n: '余烬币' } : MAT[k] || { n: k };
+  return '<span class="' + (ok ? 'ok' : 'no') + '">' + (k === 'coin' ? '' : svgIcon(k)) + m.n + ' ' + have + '/' + c[k] + '</span>'; }).join(''); }
+function attSection(id) {
+  const W = WEAP[id], melee = W.cls === 'melee', w = attW(id), sec = document.createElement('div'); sec.className = 'attsec';
+  if (!wLv(id)) { sec.innerHTML = '<div class="atth"><b>配件</b><span>先制作这把武器才能装配件</span></div>'; return sec; }
+  const E = attEl(id);
+  sec.innerHTML = '<div class="atth"><b>配件</b><span>等级跟着武器的配件槽走，换配件也不会掉</span></div>';
+  const lvRow = (label, key, lv, cost, sub) => { const r = document.createElement('div'); r.className = 'attlv';
+    r.innerHTML = '<div><b>' + label + ' <em>Lv.' + lv + '</em><small> / ' + ATT_MAX + '</small></b><i><u style="width:' + (lv / ATT_MAX * 100) + '%"></u></i><small>' + sub + '</small></div>' + (lv < ATT_MAX ? '<div class="attcost">' + costHtml(cost) + '</div>' : '<div class="attcost"><span class="ok">已满级</span></div>');
+    if (lv < ATT_MAX) { const b = document.createElement('button'); b.className = 'sbtn'; b.textContent = lv % 10 === 0 ? '突破' : '升级'; b.disabled = !costOk(cost); b.addEventListener('click', () => attUp(id, key)); r.appendChild(b); }
+    sec.appendChild(r); };
+  lvRow('配件等级', 'lv', w.lv, attCost(w.lv), SLOT_N('mz', melee) + '和' + SLOT_N('gr', melee) + '共用 · 每级效果 +3%');
+  lvRow('元素等级', 'el', w.el, elCost(w.el), '元素核心专用 · 每级效果 +3%');
+  const grid = document.createElement('div'); grid.className = 'attg';
+  for (const s of ['mz', 'gr', 'el']) { const sk = s === 'el' ? 'ec' : s, a = w[sk] && attById(w[sk]), lv = s === 'el' ? w.el : w.lv, c = document.createElement('button');
+    c.className = 'attc' + (a ? ' q' + a[3] : ' empty'); if (a) c.style.setProperty('--qc', GQ[a[3]].c);
+    if (a) { const K = attKind(a); c.innerHTML = '<em>' + SLOT_N(s, melee) + '</em>' + svgIcon(attIc(a)) + '<b>' + K.n + '</b><small style="color:' + GQ[a[3]].c + '">' + GQ[a[3]].n + ' · Lv.' + lv + '</small><span>' + (K.el ? '<i style="color:' + EL_N[K.el][1] + '">' + EL_N[K.el][0] + '属性</i> ' : '') + statTxt(attStats(a, lv)) + '</span>'; }
+    else c.innerHTML = '<em>' + SLOT_N(s, melee) + '</em><div class="attplus">＋</div><b>空</b><small>' + S.atts.filter(x => x[1] === s).length + ' 个可装</small>';
+    c.addEventListener('click', () => attPick(id, s)); grid.appendChild(c); }
+  sec.appendChild(grid);
+  if (E) { const d = document.createElement('div'); d.className = 'attel'; d.style.setProperty('--ec', EL_N[E.el][1]); d.innerHTML = '<b>' + EL_N[E.el][0] + '</b><span>' + elDesc(E.el, E.q, E.p) + '</span>'; sec.appendChild(d); }
+  else { const d = document.createElement('div'); d.className = 'snote'; d.textContent = '装上元素核心可以选择火、雷、水三种属性。配件从精英、首领、物资箱、流浪商队里获得。'; sec.appendChild(d); }
+  return sec;
+}
+const ATP = { id: null, s: null };
+function attPick(id, s) { ATP.id = id; ATP.s = s; renderAttPick(); $('attPick').classList.add('show'); $('attPick').scrollTop = 0; }
+function renderAttPick() {
+  const box = $('attList'), id = ATP.id, s = ATP.s, w = attW(id), sk = s === 'el' ? 'ec' : s, lv = s === 'el' ? w.el : w.lv, melee = WEAP[id].cls === 'melee'; if (!box) return; box.innerHTML = '';
+  $('attPickT').textContent = WEAP[id].n + ' · ' + SLOT_N(s, melee) + '（Lv.' + lv + '）';
+  const L = S.atts.filter(a => a[1] === s).sort((a, b) => (b[0] === w[sk]) - (a[0] === w[sk]) || b[3] - a[3] || a[2] - b[2]);
+  if (!L.length) { const n = document.createElement('div'); n.className = 'snote'; n.textContent = '还没有这种配件。打精英和首领、开物资箱、护送流浪商队都有机会获得。'; box.appendChild(n); }
+  L.forEach(a => { const K = attKind(a), on = w[sk] === a[0], other = !on && attOn(a[0]), row = document.createElement('div'); row.className = 'attrow' + (on ? ' on' : ''); row.style.setProperty('--qc', GQ[a[3]].c);
+    row.innerHTML = svgIcon(attIc(a)) + '<div class="sn"><b style="color:' + GQ[a[3]].c + '">' + GQ[a[3]].n + ' · ' + K.n + '</b><span>' + (K.el ? '<i style="color:' + EL_N[K.el][1] + ';font-style:normal">' + EL_N[K.el][0] + '属性</i> · ' : '') + statTxt(attStats(a, lv)) + (other ? ' · <em>装在' + WEAP[other].n + '上</em>' : '') + '</span>' + (K.el ? '<small>' + elDesc(K.el, a[3], (1 + .35 * a[3]) * attLvF(lv)) + '</small>' : '') + '</div>';
+    const b = document.createElement('button'); b.className = 'sbtn'; b.textContent = on ? '卸下' : '装上'; b.addEventListener('click', () => { attEquip(id, s, on ? 0 : a[0]); sfx.pick(); renderAttPick(); renderWeapon(); }); row.appendChild(b);
+    const x = document.createElement('button'); x.className = 'sbtn ghostb'; const v = attScrapV(a); x.textContent = '分解'; x.title = Object.keys(v).map(k => MAT[k].n + '×' + v[k]).join(' ');
+    x.addEventListener('click', () => { if (a[3] >= 4 && !x.dataset.sure) { x.dataset.sure = 1; x.textContent = '再点确认'; return; } attScrap(a[0]); feed('分解得到 ' + Object.keys(v).map(k => MAT[k].n + ' ×' + v[k]).join('、'), '#b8c4d0'); renderAttPick(); renderWeapon(); saveGame(); }); row.appendChild(x);
+    box.appendChild(row); });
+}
+{ if (document.createElement && document.body && document.body.appendChild) { const o = document.createElement('div'); o.className = 'overlay scroll'; o.id = 'attPick'; o.innerHTML = '<h2 id="attPickT">配件</h2><div id="attList" class="slist"></div>';
+  const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => o.classList.remove('show')); o.appendChild(x); document.body.appendChild(o); } }
+renderWeapon = (o => function () { o(); try { const box = $('wDetail'), id = wSel; if (!box || !id || !WEAP[id]) return; const sec = attSection(id), sk = box.querySelector('.wskh'); if (sk) box.insertBefore(sec, sk); else box.appendChild(sec); } catch (e) { console.warn(e); } })(renderWeapon);
+
+/* ---- icons ---- */
+(function attIcons() {
+  if (typeof ICON_URL === 'undefined' || !document.createElement) return; let R;
+  try { const c = document.createElement('canvas'); R = new THREE.WebGLRenderer({ canvas: c, alpha: true, antialias: true, preserveDrawingBuffer: true }); } catch (e) { return; }
+  try { R.setPixelRatio(1); R.setClearColor && R.setClearColor(0, 0); R.setSize(128, 128, false); const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xffe8d0, 0x3a2a48, 1.1));
+    const L = new THREE.DirectionalLight(0xffffff, 1); L.position.set(-2, 3, 3); sc.add(L); const cam = new THREE.PerspectiveCamera(28, 1, .1, 50);
+    const shot = (g, key) => { const hold = new THREE.Group(); hold.add(g); hold.rotation.set(.45, -.7, 0); sc.add(hold); hold.updateMatrixWorld(true);
+      const bb = new THREE.Box3().setFromObject(hold), c = new THREE.Vector3(), z = new THREE.Vector3(); bb.getCenter(c); bb.getSize(z); hold.position.sub(c);
+      const r = Math.max(z.x, z.y, z.z) * .62; cam.position.set(0, 0, r / Math.tan(14 * Math.PI / 180) + z.z * .3); cam.lookAt(0, 0, 0); cam.updateProjectionMatrix(); R.render(sc, cam); ICON_URL[key] = R.domElement.toDataURL('image/png'); sc.remove(hold); };
+    const dk = mat(0x2a2c30), mid = mat(0x6a727a), lt = mat(0xb8c0c8);
+    { const g = new THREE.Group(); box(.5, .5, 1.2, dk, 0, 0, 0, g); for (let i = 0; i < 3; i++) box(.56, .56, .1, mid, 0, 0, -.4 + i * .4, g); box(.3, .3, .2, mat(0x111111), 0, 0, .65, g); shot(g, 'att_mz0'); }
+    { const g = new THREE.Group(); box(.46, .46, 1.0, mid, 0, 0, 0, g); for (let i = 0; i < 4; i++) box(.5, .12, .14, dk, 0, .2, -.35 + i * .23, g); shot(g, 'att_mz1'); }
+    { const g = new THREE.Group(); box(.5, .5, 1.6, dk, 0, 0, 0, g); box(.54, .54, .12, mid, 0, 0, .6, g); box(.54, .54, .12, mid, 0, 0, -.6, g); shot(g, 'att_mz2'); }
+    { const g = new THREE.Group(); box(.4, 1.3, .7, mat(0x4a5a3a), 0, 0, 0, g); box(.44, .14, .74, dk, 0, -.62, 0, g); box(.3, .2, .5, mat(0xc8a040), 0, .72, .05, g); shot(g, 'att_gr0'); }
+    { const g = new THREE.Group(); box(.4, 1.0, .6, mat(0x8a6a3a), 0, 0, 0, g); box(.5, .18, .3, mat(0xff8a2a), 0, -.55, 0, g); box(.3, .2, .45, mat(0xc8a040), 0, .58, .05, g); shot(g, 'att_gr1'); }
+    { const g = new THREE.Group(); box(.36, 1.0, .5, dk, 0, -.1, 0, g); for (let i = 0; i < 3; i++) box(.4, .08, .54, mid, 0, -.4 + i * .25, 0, g); box(.5, .2, .9, lt, 0, .5, 0, g); shot(g, 'att_gr2'); }
+    [['fire', 0xff6a2a, 0xffd04a], ['thun', 0x6ad8ff, 0xffffff], ['water', 0x2a7aff, 0x9fe8ff]].forEach(([e, c1, c2], i) => { const g = new THREE.Group();
+      box(.9, .2, .9, dk, 0, -.6, 0, g); box(.7, .12, .7, mid, 0, -.44, 0, g); const cr = box(.62, .62, .62, new THREE.MeshBasicMaterial({ color: c1 }), 0, .05, 0, g); cr.rotation.set(.6, .6, 0);
+      const c2m = box(.3, .3, .3, new THREE.MeshBasicMaterial({ color: c2 }), 0, .05, 0, g); c2m.rotation.set(.2, .9, .3);
+      for (const [x, z] of [[-.38, -.38], [.38, -.38], [-.38, .38], [.38, .38]]) box(.08, .7, .08, lt, x, -.1, z, g); shot(g, 'att_el' + e + i); });
+    { const g = new THREE.Group(); box(.8, .18, .5, lt, 0, 0, 0, g); box(.2, .5, .2, mid, -.2, .3, 0, g); box(.45, .1, .1, dk, .15, .2, .15, g); box(.12, .12, .5, mat(0xc8a040), .3, .12, -.1, g); shot(g, 'apart'); }
+    { const g = new THREE.Group(); [0xff6a2a, 0x9fe8ff, 0x3a9aff].forEach((c, i) => { const m = box(.42, .42, .42, new THREE.MeshBasicMaterial({ color: c }), (i - 1) * .42, i === 1 ? .25 : 0, 0, g); m.rotation.set(.5, .5 + i, 0); }); box(1.4, .12, .6, mat(0x4a3a5a), 0, -.3, 0, g); shot(g, 'elem'); }
+  } catch (e) { }
+  try { R.dispose(); R.forceContextLoss && R.forceContextLoss(); } catch (e) { }
+})();
+
+shopSave = (o => function () { const r = o(); try { r.att = { a: S.atts, w: S.watt, n: S.attN }; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.atts = []; S.watt = {}; S.attN = 1; try { const A = d && d.sh && d.sh.att; if (A) {
+  if (Array.isArray(A.a)) S.atts = A.a.filter(a => Array.isArray(a) && ATT_K[a[1]] && ATT_K[a[1]][a[2] | 0]).slice(0, 500).map(a => [a[0] | 0, a[1], a[2] | 0, clamp(a[3] | 0, 0, 5)]);
+  S.attN = Math.max(1, A.n | 0, ...S.atts.map(a => a[0] + 1));
+  if (A.w && typeof A.w === 'object') for (const id in A.w) { if (!WEAP[id]) continue; const w = A.w[id]; S.watt[id] = { lv: clamp(w.lv | 0 || 1, 1, ATT_MAX), el: clamp(w.el | 0 || 1, 1, ATT_MAX), mz: w.mz | 0, gr: w.gr | 0, ec: w.ec | 0 };
+    for (const s of ['mz', 'gr', 'ec']) { const a = attById(S.watt[id][s]); if (!a || a[1] !== (s === 'ec' ? 'el' : s)) S.watt[id][s] = 0; } } } } catch (e) { } })(shopLoad);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -11731,4 +11919,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794109949').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794111073').catch(()=>{});</script></body></html>
