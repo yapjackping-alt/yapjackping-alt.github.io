@@ -12802,7 +12802,118 @@ try { const st = document.createElement('style'); st.textContent =
   '.skx{position:absolute;right:8px;top:8px;width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.4);color:#fff}' +
   '@media (orientation:portrait){.skdetb{flex-direction:column}.skdetb .skpic.big{width:150px;height:200px}.sktx{text-align:center}}';
   document.head.appendChild(st); } catch (e) { }
-/* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
+/* ============ 外观直售时装「银霭紫苑」（传说 · 只改外观，不加属性） ============
+   参考你发的图：银紫长发、敞开的银白长风衣、薄纱蕾丝衬衣、薰衣草色袖口、白手套、浅灰长裤、
+   粉色系带白靴、银链吊坠、肩头一簇紫粉小花、左眼戴花环单片眼镜，风衣下摆拖着发光的薰衣草色长摆。
+   全部用方块 / 八面体 / 圆环搭成，和「星渊帝皇」同一套写法。
+
+   【接入方法】
+   1. 把本文件放进 src/ember/ ，在 build.sh 的文件列表里，加在 z_skinshop.js 的后面、x_fp.js 的前面：
+        ... z_abyss.js z_skinshop.js z_aster.js x_fp.js ...
+      （必须在 z_skinshop.js 之后：本文件要往它的 SKIN_DIRECT 里登记。）
+   2. 不用改任何别的文件，没有包装任何原函数。
+
+   【本文件用到的游戏里已有的东西（已对过交接包源码，都存在）】
+   - SKINS / SKIN_BUILD / SKIN_P / SKIN_BY_N （r_shop.js、z_abyss.js 同样的用法）
+   - SKIN_DIRECT （z_skinshop.js，直售列表，const 数组，用 push 登记）
+   - SKIN_PRICE[4] = 1280 晶石 （传说档价格，z_skinshop.js 里已有，不用改）
+   - 构建器 k 里的 bx / cone / gem / G / both / torso / sleeves / pants / cape / put （r_shop.js 的 skinKit）
+   - mat(颜色) 、THREE
+   - 假设：商城格子 / 衣柜 / 3D预览的小图标，是游戏自己按 SKIN_BUILD 自动生成的（abyss 没有单独写图标，所以应该是自动的）
+   - 假设：英文版文字表 x_i18n.js 里没有这件外观的英文名，英文界面会显示中文名（想要英文名再让交接的AI加一行）
+*/
+SKINS.aster = {
+  n: '银霭紫苑', r: 4,
+  fx: [0xd8c8ff, 0xf4b8dc, 0xffffff, 0xb9a6f0],
+  d: '银紫的长发垂在肩上，左眼戴着一枚缠满小花的银链单片眼镜；银白长风衣敞开着，露出薄纱蕾丝衬衣和一枚紫晶吊坠，袖口翻着薰衣草色的边；肩头别着一簇紫粉色的小花，粉色丝带系住白靴；风衣的长摆缀满碎光，跟着脚步飘起，花瓣和光尘不停落下，身边绕着几片转动的花瓣。只改外观，不加属性。'
+};
+
+SKIN_BUILD.aster = function (k) {
+  const { bx, cone, gem, G, both, torso, sleeves, pants, cape, put } = k;
+  const WH = 0xeeedf5, WH2 = 0xd3d0e3, LV = 0xa99be0, LV2 = 0x8573cf, LA = 0xcdc3ea,
+    PK = 0xf0b4d4, GR = 0xc9c9d6, GR2 = 0xa9a9bd, SI = 0xdfe0ea, BK = 0x1a1822, HR = 0xe4e0f0, HR2 = 0xc6bfe0;
+  const glow = (c, op) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const add = (geo, m, x, y, z, p, fx, ph) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); put(o, p); if (fx) { o.userData.fx = fx; o.userData.ph = ph || 0; } return o; };
+  const SQ = [G(0xffffff), G(0xcdbbff), G(0xf4b8dc)];   // 碎光亮片
+
+  // 一朵五瓣小花：up=true 朝上（放肩头），否则朝前（放胸口 / 脸旁）
+  const flower = (x, y, z, p, r, c1, c2, up) => {
+    for (let i = 0; i < 5; i++) { const a = i / 5 * 6.283, cx = Math.cos(a) * r * .75, cy = Math.sin(a) * r * .75;
+      if (up) bx(r * .9, r * .15, r * .55, c1, x + cx, y, z + cy, p, 0, -a, 0); else bx(r * .9, r * .55, r * .15, c1, x + cx, y + cy, z, p, 0, 0, a); }
+    gem(r * .38, G(c2), x, y + (up ? r * .12 : 0), z + (up ? 0 : r * .12), p, 1);
+  };
+
+  // 风衣长摆：5 节铰链小片，会随风 / 脚步飘（用游戏自带的 'cape' 动画），缀着碎光亮片
+  const tail = (x, top, len, w, z, out, cols) => {
+    const n = 5, sh = len / n; let par = null;
+    for (let i = 0; i < n; i++) {
+      const g = new THREE.Group(); g.userData.fx = 'cape'; g.userData.ph = i + (x > 0 ? 2 : 0); g.userData.base = i ? 0 : .05;
+      g.position.set(i ? out : x, i ? -sh : top, i ? 0 : z); put(g, 'b'); if (par) par.add(g);
+      const ww = w * (1 + i * .07), m = new THREE.Mesh(new THREE.BoxGeometry(ww, sh + .01, .04), mat(cols[i % cols.length])); m.position.y = -sh / 2; g.add(m);
+      for (let j = 0; j < 2; j++) { const q = new THREE.Mesh(new THREE.BoxGeometry(.03, .03, .012), SQ[(i + j) % 3]); q.position.set((((i * 7 + j * 5) % 9) - 4) / 9 * ww * .8, -sh * (.3 + .4 * j), .026); g.add(q); }
+      if (i === n - 1) { const e = new THREE.Mesh(new THREE.BoxGeometry(ww + .02, .05, .05), mat(LV2)); e.position.y = -sh; g.add(e); }
+      par = g;
+    }
+  };
+
+  // ---- 躯干：薄纱蕾丝衬衣 + 敞开的银白风衣（左右两片翻领，中间露出衬衣） ----
+  torso(LA);
+  [1.2, 1.3, 1.4, 1.5, 1.6, 1.7].forEach(y => bx(.2, .018, .02, WH, 0, y, .235));      // 蕾丝横纹
+  bx(.7, .86, .06, WH, 0, 1.42, -.24);                                                   // 风衣后片
+  both(s => {
+    bx(.25, .84, .06, WH, s * .23, 1.42, .24); bx(.025, .84, .07, LV, s * .112, 1.42, .255);   // 前襟 + 薰衣草色门襟边
+    bx(.04, .86, .46, WH, s * .36, 1.42, 0);                                              // 风衣侧片
+    bx(.05, .78, .02, BK, s * .29, 1.45, .28);                                            // 黑色肩带
+    bx(.16, .22, .1, WH, s * .14, 1.74, .24, 'b', 0, 0, -s * .3);                         // 翻领
+    bx(.018, .3, .018, SI, s * .075, 1.6, .262, 'b', 0, 0, s * .28);                      // 银链（V 形）
+  });
+  gem(.05, G(0xcdbbff), 0, 1.44, .275, 'b', 1.5); gem(.022, SI, 0, 1.5, .27, 'b', 1); gem(.022, SI, 0, 1.56, .27, 'b', 1);   // 紫晶吊坠 + 银珠
+  bx(.74, .1, .5, WH2, 0, 1.02, 0); flower(0, 1.02, .27, 'b', .08, PK, 0xffffff);         // 腰带 + 腰间小花
+
+  // ---- 头：银紫长发 + 脸 + 左眼花环单片眼镜 ----
+  bx(.5, .14, .52, HR, 0, 2.3, -.01); bx(.5, .12, .08, HR, 0, 2.24, .25);                // 头顶 + 刘海
+  bx(.2, .12, .06, HR2, -.14, 2.2, .27, 'b', 0, 0, .25); bx(.16, .1, .06, HR2, .16, 2.2, .27, 'b', 0, 0, -.2);   // 斜刘海
+  bx(.5, .62, .1, HR, 0, 1.98, -.27); bx(.46, .5, .08, HR2, 0, 1.55, -.31);              // 后发（垂到背上）
+  both(s => { bx(.1, .62, .14, HR, s * .27, 1.95, .02); bx(.08, .5, .1, HR2, s * .28, 1.66, .0); });   // 两侧长发
+  bx(.07, .05, .02, 0x6a5aa8, .1, 2.06, .225); bx(.07, .05, .02, 0x6a5aa8, -.1, 2.06, .225);   // 眼睛
+  bx(.1, .025, .02, HR2, .1, 2.13, .225); bx(.1, .025, .02, HR2, -.1, 2.13, .225); bx(.08, .02, .02, 0xb87a80, 0, 1.93, .225);
+  const rg = new THREE.Mesh(new THREE.TorusGeometry(.075, .012, 5, 14), mat(SI)); rg.position.set(-.1, 2.06, .235); put(rg, 'b');   // 单片眼镜圈
+  bx(.015, .26, .015, SI, -.2, 1.9, .235, 'b', 0, 0, -.25); gem(.025, G(0xcdbbff), -.25, 1.78, .235, 'b', 1.3);                  // 银链 + 小坠
+  flower(-.2, 2.15, .24, 'b', .07, PK, 0xa99be0); flower(-.14, 2.21, .25, 'b', .05, 0xffffff, PK); flower(-.25, 2.07, .24, 'b', .05, LV, 0xffffff);
+  flower(.2, 2.32, .1, 'b', .07, LV, PK, true);                                           // 发顶右侧一朵小花
+
+  // ---- 肩甲 + 肩头花簇 ----
+  both(s => { bx(.36, .14, .46, WH, s * .47, 1.85, 0); bx(.38, .04, .48, LV, s * .47, 1.76, 0); bx(.02, .3, .02, SI, s * .5, 2.05, -.05, 'b', 0, 0, -s * .35); });
+  flower(-.5, 1.95, 0, 'b', .11, PK, LV, true); flower(-.36, 1.97, .1, 'b', .07, LV, 0xffffff, true); flower(-.58, 1.93, -.1, 'b', .06, 0xffffff, PK, true);
+  flower(.5, 1.95, .05, 'b', .08, LV, PK, true);
+
+  // ---- 背后披风 + 前面两侧的风衣长摆（两层：白色里层 + 薰衣草碎光外层） ----
+  cape(.66, 1.5, WH, { y: 1.78, z: -.36, tilt: .08, flare: .06, inner: LA, edge: LV, lines: [-.2, 0, .2], lc: LV });
+  both(s => { tail(s * .39, 1.04, .95, .26, .06, s * .03, [WH, WH2]); tail(s * .44, 1.04, 1.05, .3, -.08, s * .04, [LV, 0xb9acec, 0xc9bef0]); });
+
+  // ---- 手臂（白手套 + 薰衣草色翻袖）/ 腿（浅灰长裤 + 粉丝带系白靴） ----
+  sleeves(WH, 0xfafafa);
+  both((s, L, a) => { bx(.3, .16, .3, LV, 0, -.58, 0, a); bx(.31, .03, .31, WH2, 0, -.49, 0, a); bx(.27, .03, .27, SI, 0, -.68, 0, a); });
+  pants(GR, 0xf4f2f8, .34);
+  both((s, L) => { bx(.3, .05, .32, GR2, 0, -.4, 0, L); bx(.02, .5, .02, GR2, 0, -.4, .15, L); bx(.32, .045, .41, LV, 0, -.66, .05, L);
+    [-.72, -.8, -.88].forEach(y => bx(.12, .025, .02, PK, 0, y, .255, L)); bx(.025, .26, .02, PK, 0, -.8, .255, L); });
+
+  // ---- 身边绕转的 4 片花瓣 + 脚下淡紫光圈 ----
+  [0xf4b8dc, 0xcdbbff, 0xffffff, 0xf4b8dc].forEach((c, i) => { const o = gem(.05, G(c), 0, 1.1, .6, 'b', 1.5); o.userData.fx = 'orbit'; o.userData.ph = i * 1.57; });
+  const r1 = add(new THREE.RingGeometry(.58, .66, 32), glow(0xb9a6f0, .35), 0, .05, 0, 'g', 'aura'); r1.rotation.x = -Math.PI / 2;
+  const r2 = add(new THREE.RingGeometry(.36, .4, 5), glow(0xf4b8dc, .4), 0, .06, 0, 'g', 'aura2'); r2.rotation.x = -Math.PI / 2;
+};
+
+// 光尘：肩头和发梢飘落粉紫花瓣，全身升起细碎光点，走动时风衣下摆洒光
+SKIN_P.aster = [
+  { pts: [[-.45, 2.0, 0], [.45, 2.0, 0], [0, 2.4, -.1], [-.2, 2.2, .2]], rate: 7, life: 2, v: [0, -.35, 0], sp: .25, col: [0xf4b8dc, 0xd8c8ff, 0xffffff], sz: .045 },
+  { pts: 'body', rate: 5, life: 1.4, v: [0, .35, 0], sp: .25, col: [0xcdbbff, 0xffffff], sz: .035 },
+  { pts: [[-.55, .5, .1], [.55, .5, .1], [0, .6, -.45]], rate: 5, life: 1, v: [0, .2, 0], sp: .2, col: [0xffffff, 0xb9a6f0], sz: .035, moving: 1 }
+];
+SKIN_BY_N[SKINS.aster.n] = 'aster';
+
+// ---- 登记进商城「外观直售」：传说档，1280 晶石（价格表在 z_skinshop.js 的 SKIN_PRICE，按稀有度取） ----
+SKIN_DIRECT.push('aster');/* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
    Bullets in first person start from this muzzle, so you can see your shots. */
@@ -13829,4 +13940,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794170373').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794171270').catch(()=>{});</script></body></html>
