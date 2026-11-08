@@ -888,6 +888,9 @@ button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);mar
 .fgten em{position:absolute;right:0;top:0;bottom:0;width:20%;background:repeating-linear-gradient(45deg,rgba(255,80,60,.35) 0 4px,transparent 4px 8px)}
 .fgpro u{background:linear-gradient(90deg,#3aa8e0,#9fe8ff)}#fishGame small{display:block;font-size:11px;color:#c8e4f0;margin-top:3px}
 #bSwim{position:absolute;right:calc(var(--sr) + 214px);bottom:calc(var(--sb) + 150px);display:none;font-size:16px;min-width:86px;border-color:#9fe8ff;background:rgba(20,90,130,.92);color:#fff}
+.fglv{display:inline-block;font-size:10px;color:#9fe8ff;border:1px solid rgba(159,232,255,.5);border-radius:5px;padding:0 5px;margin-right:6px;vertical-align:middle}
+.flvbox{padding:10px 12px;border-radius:12px;border:1px solid rgba(159,232,255,.35);background:linear-gradient(120deg,rgba(40,140,200,.22),rgba(10,30,50,.4))}.flvbox>div{display:flex;align-items:center;gap:10px}.flvbox b{font-size:16px;color:#bff0ff;white-space:nowrap}.flvbox span{font-size:11px;color:#9fc8dc;white-space:nowrap}
+.flvbox i{flex:1;height:8px;border-radius:4px;background:rgba(0,0,0,.4);overflow:hidden}.flvbox u{display:block;height:100%;background:linear-gradient(90deg,#3aa8e0,#9fe8ff)}.flvbox em{display:block;font-style:normal;font-size:11px;color:#d8eef8;margin-top:5px}.flvbox small{font-size:10px;color:#8ab0c4}
 </style>
 
 <canvas id="c"></canvas>
@@ -2614,7 +2617,7 @@ const rangeNow = () => isMelee() ? 7 : curW().rng;
 const lootMul = () => 1 + ts('loot');
 const rareMul = () => (1 + ts('rare')) * (ts('chosen') ? 1.5 : 1) * (1 + (typeof passSt === 'function' ? passSt('drop') : 0));
 const medHeal = () => 50 + ts('medHeal');
-const xpNeed = l => Math.round(100 + 60 * l + 12 * l * l + .15 * l * l * l);      // slower levelling
+const xpNeed = l => Math.round(150 + 90 * l + 20 * l * l + .3 * l * l * l);      // levelling is slow on purpose (about 1.5× early, 1.8× late)
 // sustained damage per second of a weapon against a small group
 function weaponDps(id) {
   const W = WEAP[id], hit = W.cls === 'melee' ? Math.min(W.hits, 2.5) * .85 : (W.pel > 1 ? W.pel * .7 : 1) * (W.pierce ? 1.5 : 1);
@@ -10164,6 +10167,13 @@ const FISH_BY = {}; FISH.forEach(f => { FISH_BY[f.id] = f; });
 const FISH_R = [null, ['普通', '#d6cfc6'], ['少见', '#7de08a'], ['稀有', '#5aa9ff'], ['史诗', '#c084ff'], ['传说', '#ffc94a']];
 const HAB_N = { shore: '海边浅水和码头', sea: '坐船出海', deep: '坐船去 150 米外的深海', pond: '海岛的池塘', river: '大陆的河流' };
 S.fishLog = {};          // best kg per species
+// fishing level 1-30: each level makes fishing a little easier
+S.fishXp = 0;
+const FLV_MAX = 30, fneed = l => Math.round(50 * Math.pow(l, 1.45));
+function fishLv() { let l = 1, x = S.fishXp; while (l < FLV_MAX && x >= fneed(l)) { x -= fneed(l); l++; } return l; }
+function fishLvXp() { let l = 1, x = S.fishXp; while (l < FLV_MAX && x >= fneed(l)) { x -= fneed(l); l++; } return [x, l < FLV_MAX ? fneed(l) : 0]; }
+const fL = () => fishLv() - 1;
+function fishPerks(l) { l = (l || fishLv()) - 1; return ['等鱼咬钩快 ' + Math.round(l * 1.5) + '%', '收杆时间 +' + (l * .02).toFixed(2) + ' 秒', '鱼线变紧慢 ' + Math.round(l * 1.2) + '%', '收线快 ' + Math.round(l * 1.5) + '%', '稀有鱼 +' + Math.round(l * 2.5) + '%']; }
 S.tanks = {};            // "x,z,lv" -> [fish ids]
 const fk = id => 'fi_' + id;
 // every fish is a raw food in the bag
@@ -10191,23 +10201,129 @@ matAdd = (o => function (k, n) {
   if (typeof FOOD_KEYS !== 'undefined') FOOD_KEYS.push(k); });
 COL.push({ n: '鱼类图鉴', ks: FISH.map(f => ['fish:' + f.id, f.n]), rw: { heart: 2, estone: 10, coin: 2000 } });
 
-/* ---- fish models (boxes) ---- */
+/* ---- fish models: every species is built from box "slices" along its body (a voxel look), with its own
+   outline, two-tone colouring, pattern, fins, tail and extras ---- */
+const FPRO = {   // body height per slice, nose → tail (1 = body length); w = width relative to height
+  fusi: { h: [.13, .2, .25, .27, .27, .25, .21, .16, .11, .07], w: .5 },
+  slim: { h: [.09, .14, .17, .18, .18, .17, .14, .11, .08, .05], w: .55 },
+  deep: { h: [.18, .3, .38, .42, .42, .38, .31, .22, .13, .08], w: .42 },
+  disc: { h: [.22, .42, .56, .62, .62, .56, .44, .28, .14, .08], w: .22 },
+  round: { h: [.26, .44, .54, .58, .58, .54, .44, .3, .16, .08], w: .95 },
+  heavy: { h: [.22, .32, .37, .39, .39, .36, .31, .24, .16, .1], w: .62 },
+  long: { h: [.11, .15, .17, .17, .17, .17, .16, .15, .13, .11, .08, .06], w: .75 },
+  shark: { h: [.08, .14, .19, .22, .22, .2, .17, .13, .09, .06, .045], w: .62 },
+  torp: { h: [.12, .19, .24, .26, .26, .24, .2, .14, .08, .05, .035], w: .58 }
+};
+const FSPEC = {
+  sard: { p: 'slim', top: 0x2e5a7a, bel: 0xe4ecf2, tail: 'fork', dor: [4, 5, .07], pat: 'dots', pc: 0x1a2a3a },
+  mack: { p: 'torp', top: 0x2a5a6e, bel: 0xdfe6e8, tail: 'fork', dor: [3, 4, .08], fl: 1, pat: 'wavy', pc: 0x0e2230 },
+  bass: { p: 'fusi', top: 0x5a6a72, bel: 0xd8dde0, tail: 'square', dor: [2, 6, .12], spiny: 1, pat: 'lateral', pc: 0x3a4248 },
+  clown: { p: 'deep', top: 0xff6a12, bel: 0xff8a2a, tail: 'round', dor: [2, 7, .09], pat: 'bands', pc: 0xffffff, edge: 0x111111, fc: 0xff6a12, fedge: 1 },
+  puff: { p: 'round', top: 0xc8a860, bel: 0xf4ead0, tail: 'round', dor: [6, 7, .06], spikes: 1, pat: 'spots', pc: 0x5a4a2a, bigEye: 1 },
+  tang: { p: 'disc', top: 0x1a4ae0, bel: 0x2a62ff, tail: 'square', fc: 0xffd820, dor: [1, 8, .12], pat: 'tangmark', pc: 0x0a0a20 },
+  grou: { p: 'heavy', top: 0x6a4a30, bel: 0xb08a60, tail: 'round', dor: [2, 7, .1], spiny: 1, pat: 'spots', pc: 0x3a2414, bigMouth: 1 },
+  tuna: { p: 'torp', top: 0x14204a, bel: 0xc8ccd8, tail: 'crescent', dor: [3, 4, .14], fc: 0xffd040, finlets: 1, pat: 'lateral', pc: 0x6a80a8 },
+  sword: { p: 'torp', top: 0x22386e, bel: 0xc0c8d8, tail: 'crescent', sail: 1, bill: 1, pat: 'vbars', pc: 0x6a8ad0 },
+  shark: { p: 'shark', top: 0x6a7884, bel: 0xe8ecef, tail: 'shark', dor: [3, 4, .3], gills: 1, pect: 1.6, teeth: 1 },
+  lant: { p: 'heavy', top: 0x2a1e38, bel: 0x3a2a4a, tail: 'fork', dor: [4, 6, .08], lure: 0x9fe8ff, glowDots: 0x9fe8ff, bigEye: 1, teeth: 1, bigMouth: 1 },
+  coel: { p: 'heavy', top: 0x23405e, bel: 0x3a5878, tail: 'lobe', dor: [3, 4, .14], lobes: 1, pat: 'spots', pc: 0xd8e8f0, glow: 0x7de0ff },
+  koi: { p: 'fusi', top: 0xffffff, bel: 0xffffff, tail: 'fan', dor: [2, 7, .08], pat: 'koi', pc: 0xff4a1a, pc2: 0x111111, whisk: 1, glow: 0xffb040, fc: 0xfff0e0 },
+  cruc: { p: 'deep', top: 0x6a7a5a, bel: 0xc8c8a8, tail: 'fork', dor: [2, 7, .1], pat: 'scales', pc: 0x4a5a3a },
+  grass: { p: 'long', top: 0x5a6a3a, bel: 0xc8c8a0, tail: 'fork', dor: [4, 6, .08], pat: 'scales', pc: 0x3a4a22 },
+  carp: { p: 'heavy', top: 0x9a7a30, bel: 0xe8c870, tail: 'fork', dor: [2, 7, .1], pat: 'scales', pc: 0x7a5a18, whisk: 1 },
+  gold: { p: 'round', top: 0xff8a10, bel: 0xffb040, tail: 'fan2', dor: [2, 6, .12], bigEye: 1, fc: 0xffa030 },
+  angel: { p: 'disc', top: 0xe8e8f0, bel: 0xf4f4f8, tail: 'tri', tall: 1, pat: 'vbars', pc: 0x1a1a22, fc: 0xe0e0ea },
+  cat: { p: 'long', top: 0x4a4232, bel: 0x9a9070, tail: 'round', dor: [3, 3, .1], whisk: 2, flatHead: 1, pat: 'mottle', pc: 0x2a2418, anal: 1 },
+  snake: { p: 'long', top: 0x2e2e24, bel: 0x7a7a60, tail: 'round', dor: [2, 10, .07], anal: 1, pat: 'blotch', pc: 0x16160e, flatHead: 1 },
+  trout: { p: 'fusi', top: 0x5a7a5a, bel: 0xe8e0d8, tail: 'square', dor: [3, 4, .1], pat: 'trout', pc: 0x2a2a1e, pc2: 0xd86a8a, adipose: 1 },
+  pira: { p: 'deep', top: 0x5a5a62, bel: 0xd03020, tail: 'fork', dor: [3, 5, .1], teeth: 1, bigMouth: 1, pat: 'dots', pc: 0x30303a, glow: 0xff4030, adipose: 1 }
+};
 function fishModel(f, L) {
-  const g = new THREE.Group(), s = L || f.len, X = f.x, m = mat(f.c), dk = mat(X.stripe || 0x222222);
-  if (X.squid) { box(s * .35, s * .35, s * .55, m, 0, 0, s * .1, g); for (let i = 0; i < 6; i++) { const a = i / 6 * 6.28; box(s * .06, s * .06, s * .5, m, Math.cos(a) * s * .1, Math.sin(a) * s * .1, -s * .35, g); }
-    box(s * .06, s * .06, s * .03, mat(0x111111), s * .12, s * .06, s * .3, g); box(s * .06, s * .06, s * .03, mat(0x111111), -s * .12, s * .06, s * .3, g); return g; }
-  const h = s * (X.tall ? .55 : X.fat ? .45 : X.shark ? .26 : .3), w = s * (X.fat ? .4 : .2);
-  box(w, h, s * .7, m, 0, 0, 0, g); box(w * .8, h * .78, s * .18, m, 0, 0, s * .42, g);
-  box(w * .5, h * .9, s * .2, mat(X.fin || f.c), 0, 0, -s * .44, g).scale.y = 1.3;
-  box(w * .25, h * .5, s * .3, mat(X.fin || f.c), 0, h * .6, -s * .02, g);
-  if (X.shark) { const d = box(w * .2, h * 1.4, s * .2, m, 0, h * .9, 0, g); d.rotation.x = -.3; box(w * 1.6, h * .1, s * .18, m, 0, -h * .4, s * .08, g); }
-  if (X.bill) box(w * .2, h * .15, s * .45, m, 0, h * .05, s * .72, g);
-  if (X.stripe) for (let i = -1; i <= 1; i++) box(w * 1.04, h * .9, s * .06, dk, 0, 0, i * s * .18, g);
-  if (X.whisk) for (const sx of [-1, 1]) box(s * .02, s * .02, s * .25, dk, sx * w * .45, -h * .2, s * .58, g);
-  if (X.teeth) box(w * .7, h * .12, s * .05, mat(0xffffff), 0, -h * .2, s * .52, g);
-  for (const sx of [-1, 1]) box(s * .02, h * .18, h * .18, mat(0x111111), sx * w * .42, h * .14, s * .38, g);
-  if (X.glow) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,255,255,.9)', 'rgba(0,0,0,0)'), color: X.glow, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
-    sp.scale.set(s * 1.6, s * 1.2, 1); g.add(sp); }
+  const s = L || f.len, sp = FSPEC[f.id];
+  if (f.x && f.x.squid) return f.id === 'octo' ? octoModel(f, s) : squidModel(f, s);
+  const g = new THREE.Group(), body = new THREE.Group(); g.add(body); body.scale.setScalar(s);
+  const P = FPRO[sp ? sp.p : 'fusi'], H = P.h.slice(), N = H.length, dz = 1 / N, W = P.w;
+  const top = mat(sp ? sp.top : f.c), bel = mat(sp ? sp.bel : f.c), pc = mat(sp && sp.pc || 0x222222), pc2 = mat(sp && sp.pc2 || 0x222222), fin = mat(sp && sp.fc || (sp ? sp.top : f.c)), R = mulberry32(f.id ? f.id.charCodeAt(0) * 31 + f.id.length * 7 : 3);
+  const zAt = i => .5 - (i + .5) * dz;     // +z is the head
+  for (let i = 0; i < N; i++) {
+    const h = H[i], w = Math.max(.03, h * W * (sp && sp.flatHead && i < 3 ? 1.5 : 1)), z = zAt(i), hh = sp && sp.flatHead && i < 3 ? h * .8 : h;
+    let tm = top, bm = bel;
+    if (sp) { const pt = sp.pat;
+      if (pt === 'bands' && (i === 1 || i === 4 || i === 7)) { tm = bm = pc; }
+      if (pt === 'vbars' && i % 2 === 0 && i > 0 && i < N - 1) tm = bm = pc;
+      if (pt === 'koi') { const r = R(); tm = r < .45 ? pc : r < .55 ? pc2 : top; }
+      if (pt === 'tangmark' && i >= 2 && i <= 6) tm = pc; }
+    box(w, hh * .55, dz * 1.02, tm, 0, hh * .225, z, body); box(w * .96, hh * .45, dz * 1.02, bm, 0, -hh * .275, z, body);
+    if (sp && sp.pat === 'bands' && sp.edge && (i === 1 || i === 4 || i === 7)) for (const e of [-1, 1]) box(w * 1.04, hh * 1.0, dz * .14, mat(sp.edge), 0, 0, z + e * dz * .5, body);
+    // side markings
+    if (sp && i > 0 && i < N - 1) { const pt = sp.pat, sideBox = (y, zz, sz, m) => { for (const sx of [-1, 1]) box(.012, sz, sz, m, sx * w * .5, y, zz, body); };
+      if (pt === 'spots' || pt === 'dots') for (let k = 0; k < (pt === 'spots' ? 2 : 1); k++) sideBox((R() - .3) * h * .6, z + (R() - .5) * dz, h * (pt === 'spots' ? .16 : .09), pc);
+      if (pt === 'wavy' && i % 2) box(w * 1.02, h * .08, dz * .9, pc, 0, h * .38, z, body);
+      if (pt === 'wavy' && !(i % 2)) box(w * 1.02, h * .08, dz * .9, pc, 0, h * .2, z, body);
+      if (pt === 'lateral') sideBox(0, z, h * .07, pc);
+      if (pt === 'scales' && i % 2) sideBox(h * .1, z, h * .14, pc);
+      if (pt === 'trout') { sideBox(-h * .02, z, h * .12, pc2); if (R() < .8) sideBox(h * .25, z + (R() - .5) * dz, h * .08, pc); }
+      if (pt === 'mottle' || pt === 'blotch') if (R() < .7) sideBox((R() - .5) * h * .5, z, h * (pt === 'blotch' ? .3 : .18), pc); }
+  }
+  const head = H[0], mid = Math.max(...H), tz = -.5;
+  // eyes and mouth
+  const eyeS = (sp && sp.bigEye ? .26 : .16) * Math.max(H[1], .12), ey = H[1] * .18, ez = .5 - dz * 1.2;
+  for (const sx of [-1, 1]) { box(.012, eyeS * 1.2, eyeS * 1.2, mat(0xf4f4f4), sx * H[1] * W * .52, ey, ez, body); box(.016, eyeS * .7, eyeS * .7, mat(0x0a0a0a), sx * H[1] * W * .53, ey, ez, body); }
+  box(head * W * .7, head * (sp && sp.bigMouth ? .2 : .1), dz * .3, mat(0x2a1a1a), 0, -head * .15, .5 + dz * .1, body);
+  if (sp && sp.teeth) for (let k = -1; k <= 1; k++) box(.012, head * .1, .012, mat(0xffffff), k * head * W * .25, -head * .08, .5 + dz * .2, body);
+  if (sp && sp.whisk) for (const sx of [-1, 1]) { box(.01, .01, sp.whisk === 2 ? .32 : .14, pc2.color ? mat(0x3a3020) : pc2, sx * head * W * .4, -head * .2, .5 + (sp.whisk === 2 ? .12 : .05), body).rotation.y = sx * .35;
+    if (sp.whisk === 2) box(.01, .01, .18, mat(0x3a3020), sx * head * W * .3, -head * .35, .5 + .06, body).rotation.y = sx * .6; }
+  if (sp && sp.bill) box(.03, .03, .45, top, 0, head * .05, .5 + .22, body);
+  if (sp && sp.lure) { box(.012, .012, .2, top, 0, head * .7, .5 - .02, body).rotation.x = -.6; const lb = box(.05, .05, .05, new THREE.MeshBasicMaterial({ color: sp.lure }), 0, head * .95, .5 + .08, body);
+    const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,255,255,.9)', 'rgba(0,0,0,0)'), color: sp.lure, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true })); gl.scale.set(.35, .35, 1); gl.position.copy(lb.position); body.add(gl); }
+  if (sp && sp.glowDots) for (let i = 2; i < N - 2; i++) for (const sx of [-1, 1]) box(.012, .025, .025, new THREE.MeshBasicMaterial({ color: sp.glowDots }), sx * H[i] * W * .51, -H[i] * .3, zAt(i), body);
+  if (sp && sp.gills) for (let k = 0; k < 3; k++) for (const sx of [-1, 1]) box(.012, H[2] * .5, .01, mat(0x3a4450), sx * H[2] * W * .51, 0, zAt(2) + k * .025, body);
+  if (sp && sp.spikes) for (let i = 1; i < N - 2; i++) for (let a = 0; a < 6; a++) { const an = a / 6 * 6.283, r = H[i] * .5; const sk = box(.02, .02, .05, mat(0xf0e8c8), Math.cos(an) * r * W, Math.sin(an) * r * .9, zAt(i), body); sk.rotation.set(0, 0, an); }
+  // fins
+  const finBox = (w, h, d, x, y, z, m) => box(w, h, d, m || fin, x, y, z, body);
+  // fins are stepped triangles that sweep back (voxel style)
+  const tri = (a, b, hh, dir, sweep, m) => { b = Math.min(b, N - 1); const span = (b - a + 1) * dz, front = zAt(a) + dz / 2, n = 4, base = Math.max(...H.slice(a, b + 1)) * .5 - .01;
+    for (let l = 0; l < n; l++) { const Ll = span * (1 - l / n * .75), cz = front - Ll / 2 - l * span * (sweep || .12); finBox(.012, hh / n * 1.05, Ll, 0, dir * (base + (l + .5) * hh / n), cz, m); } };
+  if (sp && sp.dor) { const [a, b, hh] = sp.dor; tri(a, b, hh, 1, sp.p === 'shark' ? .3 : .12); if (sp.spiny) for (let i = a; i <= Math.min(b, N - 1); i++) finBox(.008, hh * .4, .008, 0, H[i] * .5 + hh * (1.05 - (i - a) * .08), zAt(i), mat(0xd8d0c0)); }
+  if (sp && sp.fedge) for (let i = 2; i <= 7; i++) finBox(.014, .02, dz, 0, H[i] * .5 + .1, zAt(i), mat(0x111111));
+  if (sp && sp.sail) for (let i = 1; i < N - 3; i++) { const hh = .42 * Math.sin((i / (N - 3)) * Math.PI * .9 + .2); finBox(.012, hh, dz * 1.02, 0, H[i] * .5 + hh * .5, zAt(i), mat(0x2a4aa0)); if (i % 2) finBox(.014, hh * .9, .01, 0, H[i] * .5 + hh * .45, zAt(i), mat(0x6a8ad0)); }
+  if (sp && sp.tall) { tri(2, 6, .34, 1, .35); tri(3, 7, .34, -1, .35); }
+  if (sp && sp.finlets) for (let i = 5; i < N - 1; i++) { finBox(.01, .04, .03, 0, H[i] * .5 + .02, zAt(i)); finBox(.01, .04, .03, 0, -H[i] * .5 - .02, zAt(i)); }
+  if (sp && sp.adipose) finBox(.012, .05, dz * .8, 0, H[N - 3] * .5 + .025, zAt(N - 3));
+  if (sp && sp.anal) for (let i = Math.floor(N / 2); i < N - 1; i++) finBox(.012, .05, dz, 0, -H[i] * .5 - .025, zAt(i));
+  const pl = (sp && sp.pect) || 1; for (const sx of [-1, 1]) { const pf = finBox(.1 * pl, .012, .07 * pl, sx * (H[2] * W * .5 + .05 * pl), -H[2] * .25, zAt(2)); pf.rotation.z = sx * -.4; pf.rotation.y = sx * .3; }
+  if (sp && sp.lobes) for (const sx of [-1, 1]) for (const zz of [3, 6]) { finBox(.03, .03, .1, sx * (H[zz] * W * .5 + .03), -H[zz] * .35, zAt(zz) - .04); finBox(.02, .06, .06, sx * (H[zz] * W * .5 + .05), -H[zz] * .42, zAt(zz) - .1); }
+  // tail
+  const tt = sp ? sp.tail : 'fork', th = H[N - 1], tm2 = mat(sp && sp.fc || (sp ? sp.top : f.c));
+  const blade = (len, wd, ang, y0) => { const b = new THREE.Mesh(new THREE.BoxGeometry(.014, wd, len), tm2); b.position.set(0, (y0 || 0) + Math.sin(ang) * len / 2, tz + .01 - Math.cos(ang) * len / 2); b.rotation.x = ang; body.add(b); return b; };
+  if (tt === 'fork') { blade(.2, .05, .6); blade(.2, .05, -.6); finBox(.014, th * 1.2, .04, 0, 0, tz - .01, tm2); }
+  else if (tt === 'crescent') { blade(.26, .05, .95); blade(.26, .05, -.95); finBox(.03, th * 1.6, .05, 0, 0, tz - .01, tm2); }
+  else if (tt === 'square') { finBox(.014, mid * .75, .14, 0, 0, tz - .07, tm2); finBox(.016, mid * .1, .14, 0, mid * .35, tz - .07, tm2); finBox(.016, mid * .1, .14, 0, -mid * .35, tz - .07, tm2); }
+  else if (tt === 'round') { finBox(.014, mid * .6, .12, 0, 0, tz - .06, tm2); finBox(.014, mid * .4, .06, 0, 0, tz - .15, tm2); }
+  else if (tt === 'fan' || tt === 'fan2') { const k = tt === 'fan2' ? 1.4 : 1; for (const sx of tt === 'fan2' ? [-.04, .04] : [0]) { const a = blade(.32 * k, .1, .4); a.position.x = sx; const b = blade(.32 * k, .1, -.4); b.position.x = sx; finBox(.012, .14, .26 * k, sx, 0, tz - .13 * k, tm2); } }
+  else if (tt === 'tri') { blade(.3, .03, .45); blade(.3, .03, -.45); finBox(.012, .16, .14, 0, 0, tz - .07, tm2); }
+  else if (tt === 'lobe') { finBox(.03, .05, .14, 0, 0, tz - .07); blade(.16, .07, .75); blade(.16, .07, -.75); }
+  else if (tt === 'shark') { blade(.34, .06, .85); blade(.17, .05, -.75); tri(N - 3, N - 3, .06, -1, .2); }
+  if (sp && sp.glow || f.x && f.x.glow) { const gcol = (sp && sp.glow) || f.x.glow, sp2 = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,255,255,.9)', 'rgba(0,0,0,0)'), color: gcol, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: .55 }));
+    sp2.scale.set(s * 1.4, s * 1.0, 1); g.add(sp2); }
+  return g;
+}
+function squidModel(f, s) {
+  const g = new THREE.Group(), b = new THREE.Group(); g.add(b); b.scale.setScalar(s); const m = mat(0xf0b4a4), dk = mat(0xc87a6a), sp = mat(0x8a3a3a);
+  const H = [.05, .1, .14, .16, .17, .17, .16]; H.forEach((h, i) => { box(h, h, .08, i % 2 ? m : dk, 0, 0, -.05 - i * .075, b); if (i > 1) box(.012, .02, .02, sp, h * .5, (i % 3 - 1) * h * .2, -.05 - i * .075, b); });
+  for (const sx of [-1, 1]) { const fn = box(.14, .012, .12, m, sx * .12, 0, -.5, b); fn.rotation.y = sx * .3; }
+  box(.16, .16, .1, m, 0, 0, .06, b); for (const sx of [-1, 1]) { box(.012, .06, .06, mat(0xffffff), sx * .08, .02, .08, b); box(.016, .035, .035, mat(0x0a0a0a), sx * .085, .02, .085, b); }
+  for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283, t = box(.025, .025, .3, i % 2 ? m : dk, Math.cos(a) * .05, Math.sin(a) * .05, .25, b); t.rotation.set(Math.sin(a) * .15, Math.cos(a) * .15, 0); }
+  for (const sx of [-1, 1]) box(.02, .02, .45, dk, sx * .03, -.02, .34, b);
+  return g;
+}
+function octoModel(f, s) {
+  const g = new THREE.Group(), b = new THREE.Group(); g.add(b); b.scale.setScalar(s); const m = mat(0xc05a6a), dk = mat(0x8a3a4a), su = mat(0xf0c0b8);
+  box(.34, .3, .36, m, 0, .3, -.05, b); box(.28, .14, .3, dk, 0, .48, -.1, b); box(.2, .1, .2, m, 0, .58, -.14, b);
+  for (const sx of [-1, 1]) { box(.02, .08, .08, mat(0xf0e080), sx * .17, .28, .08, b); box(.024, .04, .05, mat(0x0a0a0a), sx * .175, .27, .09, b); }
+  for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283; let x = Math.cos(a) * .14, z = Math.sin(a) * .14, y = .14;
+    for (let k = 0; k < 5; k++) { const sz = .07 - k * .011; box(sz, sz, sz, k % 2 ? dk : m, x, y, z, b); if (k % 2) box(sz * .5, .01, sz * .5, su, x, y - sz * .5, z, b);
+      x += Math.cos(a) * .07; z += Math.sin(a) * .07; y += k < 2 ? -.05 : .015 * Math.sin(i + k); } }
   return g;
 }
 // icons for the bag
@@ -10296,7 +10412,7 @@ function fishSpot() {
 function fishRoll(hab) {
   const night = DN.night > .5, tier = S.isl ? 1 : tierAt(player.pos.x, player.pos.z);
   const L = FISH.filter(f => f.hab.includes(hab) && (!f.x.night || night) && !(f.id === 'pira' && tier < 5));
-  const W = { 1: 50, 2: 28, 3: 13, 4: hab === 'deep' ? 6 : 4.5, 5: hab === 'deep' ? 1.6 : 1 };
+  const rk = 1 + fL() * .025, W = { 1: 50, 2: 28, 3: 13 * rk, 4: (hab === 'deep' ? 6 : 4.5) * rk, 5: (hab === 'deep' ? 1.6 : 1) * rk };
   let tot = 0; const ws = L.map(f => { const w = W[f.r] * (f.x.night ? 1.6 : 1); tot += w; return w; });
   let r = Math.random() * tot; for (let i = 0; i < L.length; i++) { r -= ws[i]; if (r <= 0) return L[i]; } return L[0];
 }
@@ -10347,8 +10463,8 @@ function fishFight(dt) {
   // the fish switches between resting and fighting; while it fights, reeling in pulls the line tight fast
   FI.pt -= dt; if (FI.pt <= 0) { FI.ph = FI.ph ? 0 : 1; const near = FI.P / 100; FI.pt = FI.ph ? rand(.7, 1.5 + FI.fish.r * .2) * (1 + near * .5) : rand(1, 2.4) * (1 - near * .45); if (FI.ph) { if (FI.hold) FI.T += 10 * FI.str; burst(FI.bx, FI.by + .1, FI.bz, 0xffffff, 8, 3); fsnd.bite(); if (navigator.vibrate) try { navigator.vibrate(40); } catch (e) { } } }
   const force = FI.str * (FI.ph ? 1 + FI.P / 100 * .35 : .22);      // it fights harder the closer it gets
-  if (FI.hold) { FI.T += (14 + force * 45) * dt; FI.P += (16 - force * 4) * dt; FI.clk -= dt; if (FI.clk <= 0) { FI.clk = .07; fsnd.click(); } }
-  else { FI.T -= 50 * dt; FI.P -= (1.5 + force * 3.5) * dt; }
+  if (FI.hold) { FI.T += (14 + force * 45) * (1 - fL() * .012) * dt; FI.P += (16 - force * 4) * (1 + fL() * .015) * dt; FI.clk -= dt; if (FI.clk <= 0) { FI.clk = .07; fsnd.click(); } }
+  else { FI.T -= 50 * dt; FI.P -= (1.5 + force * 3.5) * (1 - fL() * .01) * dt; }
   FI.T = Math.max(0, FI.T);
   if (FI.T >= 100) { fsnd.snap(); FI.fish = null; fishStop(); banner('鱼线断了！', '鱼拉得紧的时候要松手', 2.2); return; }
   if (FI.P <= 0) { FI.fish = null; fishStop(); banner('鱼跑掉了', '要按住「收线」把它拉过来', 2.2); return; }
@@ -10366,7 +10482,9 @@ function fishLand() {
   const kg = FI.kg, first = !S.fishLog[f.id], best = kg > (S.fishLog[f.id] || 0);
   if (best) S.fishLog[f.id] = kg; gain(fk(f.id), 1); stInc('fish'); if (typeof colAdd === 'function') colAdd('fish:' + f.id); if (typeof seaXp === 'function') seaXp(3 + f.r * 3);
   try { addXp(8 * f.r * f.r); } catch (e) { }
-  const R = FISH_R[f.r]; banner((first ? '新品种！' : '钓到了 ') + f.n, R[0] + ' · ' + kg + ' 公斤' + (best && !first ? ' · 个人纪录！' : ''), f.r >= 4 ? 3.6 : 2.6);
+  const lv0 = fishLv(), fx = 4 + 6 * f.r * f.r + Math.round((FI.kgu || 0) * 10 * f.r) + (first ? 20 : 0); S.fishXp += fx; const lv1 = fishLv();
+  const R = FISH_R[f.r]; banner((first ? '新品种！' : '钓到了 ') + f.n, R[0] + ' · ' + kg + ' 公斤' + (best && !first ? ' · 个人纪录！' : '') + ' · 钓鱼经验 +' + fx, f.r >= 4 ? 3.6 : 2.6);
+  if (lv1 > lv0) setTimeout(() => banner('钓鱼等级提升 → Lv.' + lv1, fishPerks(lv1).slice(0, 3).join(' · '), 3.4), 2700);
   burst(FI.bx, FI.by + .3, FI.bz, 0xe8f6ff, 16, 4); saveGame();
 }
 function fishTick(dt) {
@@ -10379,7 +10497,7 @@ function fishTick(dt) {
     ar = t < .32 ? -1.2 - (t / .32) * 1.85 : t < .46 ? -3.05 + ((t - .32) / .14) * 2.15 : -.9;
     if (t >= .46) { FI.bob.visible = true; const u = Math.min(1, (t - .46) / .45); FI.rod.userData.tip.getWorldPosition(_tipV);
       if (u < 1) { FI.bob.position.set(_tipV.x + (FI.bx - _tipV.x) * u, _tipV.y + (FI.by - _tipV.y) * u + Math.sin(u * Math.PI) * 2.2, _tipV.z + (FI.bz - _tipV.z) * u); }
-      else { FI.st = 'wait'; FI.t = rand(3, 9) * (FI.hab === 'deep' ? 1.2 : 1); fsnd.plop(); burst(FI.bx, FI.by + .1, FI.bz, 0xd8f0ff, 8, 2); FI.ring.visible = true; FI.rt = 0; fishBtn(); } } }
+      else { FI.st = 'wait'; FI.t = rand(3, 9) * (FI.hab === 'deep' ? 1.2 : 1) * (1 - fL() * .015); fsnd.plop(); burst(FI.bx, FI.by + .1, FI.bz, 0xd8f0ff, 8, 2); FI.ring.visible = true; FI.rt = 0; fishBtn(); } } }
   else if (FI.st === 'wait' || FI.st === 'bite') ar = -1.15 + Math.sin(S.t * 1.5) * .03;
   else if (FI.st === 'fight') { ar = -1.55 - (FI.hold ? .35 : 0) - FI.T * .004 + Math.sin(S.t * 30) * (FI.ph ? .05 : .015); lift = FI.ph ? .12 : 0; fishFight(dt); if (!FI.st) return; }
   else if (FI.st === 'land') { FI.lt += dt; ar = -2.5; const u = Math.min(1, FI.lt / .5); FI.rod.userData.tip.getWorldPosition(_tipV);
@@ -10389,7 +10507,7 @@ function fishTick(dt) {
   // the line from the rod tip to the float
   FI.rod.userData.tip.getWorldPosition(_tipV);
   FI.t -= dt; let dip = Math.sin(S.t * 3) * .04;
-  if (FI.st === 'wait' && FI.t <= 0) { FI.fish = fishRoll(FI.hab); FI.st = 'bite'; FI.win = Math.max(.75, 1.5 - FI.fish.r * .14); FI.t = FI.win; burst(FI.bx, FI.by, FI.bz, 0xffffff, 10, 3); fsnd.bite(); if (navigator.vibrate) try { navigator.vibrate(60); } catch (e) { } fishBtn(); }
+  if (FI.st === 'wait' && FI.t <= 0) { FI.fish = fishRoll(FI.hab); FI.st = 'bite'; FI.win = Math.max(.75, 1.5 - FI.fish.r * .14) + fL() * .02; FI.t = FI.win; burst(FI.bx, FI.by, FI.bz, 0xffffff, 10, 3); fsnd.bite(); if (navigator.vibrate) try { navigator.vibrate(60); } catch (e) { } fishBtn(); }
   else if (FI.st === 'wait' && FI.t < 1.2 && Math.random() < dt * 3) dip -= .08;       // a nibble
   if (FI.st === 'bite') { dip = -.22 + Math.sin(S.t * 30) * .05; if (FI.t <= 0) { FI.fish = null; fishStop(); feed('鱼跑了……咬钩时要马上点「收杆」', '#ff9b8a'); return; } }
   if (FI.st === 'fight') dip = -.15 + Math.sin(S.t * 22) * (FI.ph ? .08 : .02);
@@ -10403,17 +10521,17 @@ function fishUi() {
   let el = $('fishGame'); if (!el && document.createElement && document.body) { el = document.createElement('div'); el.id = 'fishGame'; document.body.appendChild(el);
     el.innerHTML = '<b id="fgT"></b><div class="fgr"><span>鱼线</span><i class="fgten"><u id="fgTen"></u><em></em></i></div><div class="fgr"><span>距离</span><i class="fgpro"><u id="fgPro"></u></i></div><small id="fgH"></small>'; }
   if (!el) return; const on = FI.st === 'fight'; el.style.display = on ? 'block' : 'none'; if (!on) return;
-  const R = FISH_R[FI.fish.r]; $('fgT').innerHTML = '<span style="color:' + R[1] + '">' + (FI.fish.r >= 3 ? '大家伙上钩了！' : '鱼上钩了！') + '</span> ' + (FI.ph ? '<em class="fgst">在挣扎！</em>' : '');
+  const R = FISH_R[FI.fish.r]; $('fgT').innerHTML = '<small class="fglv">钓鱼 Lv.' + fishLv() + '</small><span style="color:' + R[1] + '">' + (FI.fish.r >= 3 ? '大家伙上钩了！' : '鱼上钩了！') + '</span> ' + (FI.ph ? '<em class="fgst">在挣扎！</em>' : '');
   const t = $('fgTen'); t.style.width = Math.min(100, FI.T) + '%'; t.className = FI.T > 80 ? 'hot' : FI.T > 55 ? 'warm' : ''; $('fgPro').style.width = Math.max(0, Math.min(100, FI.P)) + '%';
   $('fgH').textContent = FI.T > 80 ? '太紧了！快松手！' : FI.ph ? '鱼在挣扎，别硬拉，松一松' : '按住「收线」把鱼拉过来';
 }
 let _fbK = '';
 function fishBtn() {
   const b = $('bFish'), bb = $('bBoat'); if (!b) return;
-  const sp = !FI.st && S.started && !S.paused ? fishSpot() : null, k = FI.st + '|' + (!!sp) + '|' + boatNear() + '|' + boatShore() + '|' + S.boat;
+  const sp = !FI.st && S.started && !S.paused ? fishSpot() : null, k = fishLv() + '|' + FI.st + '|' + (!!sp) + '|' + boatNear() + '|' + boatShore() + '|' + S.boat;
   if (k === _fbK) return; _fbK = k;
   b.style.display = FI.st || sp ? 'block' : 'none';
-  b.textContent = FI.st === 'bite' ? '收杆！' : FI.st === 'fight' ? '按住收线' : FI.st === 'cast' ? '甩竿…' : FI.st === 'land' ? '钓到了！' : FI.st ? '等鱼咬钩…' : '钓鱼';
+  b.textContent = FI.st === 'bite' ? '收杆！' : FI.st === 'fight' ? '按住收线' : FI.st === 'cast' ? '甩竿…' : FI.st === 'land' ? '钓到了！' : FI.st ? '等鱼咬钩…' : '钓鱼 Lv.' + fishLv();
   b.classList.toggle('bite', FI.st === 'bite'); b.classList.toggle('reel', FI.st === 'fight');
   if (bb) { bb.style.display = !FI.st && (boatNear() || boatShore()) ? 'block' : 'none'; bb.textContent = S.boat ? '下船' : '上船'; }
 }
@@ -10497,6 +10615,8 @@ function tankNear() { let best = null, bd = 2.6; for (const b of builds) { if (b
 function renderTank() {
   const box2 = $('tankList'), b = TK.sel; if (!box2) return; box2.innerHTML = ''; if (!b || b.hp <= 0) { closePanel('tank'); return; }
   const k = tkKey(b), ids = S.tanks[k] || [];
+  { const [x, n] = fishLvXp(), l = fishLv(), fh = document.createElement('div'); fh.className = 'flvbox';
+    fh.innerHTML = '<div><b>钓鱼 Lv.' + l + '</b><span>' + (n ? x + ' / ' + n + ' 经验' : '已满级') + '</span><i><u style="width:' + (n ? Math.round(x / n * 100) : 100) + '%"></u></i></div><em>' + (l > 1 ? fishPerks(l).join(' · ') : '钓鱼升级后：等鱼更快、收杆时间更长、鱼线更耐拉、稀有鱼更多') + '</em><small>图鉴 ' + Object.keys(S.fishLog).length + ' / ' + FISH.length + ' 种</small>'; box2.appendChild(fh); }
   const hd = document.createElement('div'); hd.className = 'snote'; hd.textContent = '这个鱼缸养了 ' + ids.length + ' / ' + TK_CAP + ' 条。并排的鱼缸会连成一个，鱼会游来游去。拆掉鱼缸时鱼会回到背包。'; box2.appendChild(hd);
   const h3 = t => { const h = document.createElement('h3'); h.textContent = t; box2.appendChild(h); };
   h3('缸里的鱼');
@@ -10563,8 +10683,8 @@ function swimBtn() { let b = $('bSwim'); const H = $('hud'); if (!b && H && H.ap
 function swimMul() { return SW.b ? .45 : 1; }
 petsTick = (o => function (dt) { o(dt); try { fishTick(dt); } catch (e) { console.warn(e); } try { tankTick(dt); } catch (e) { console.warn(e); } try { swimTick(dt); } catch (e) { console.warn(e); } })(petsTick);
 drawExtraRadar = (orig => function (tx, tz, edgeMark) { orig(tx, tz, edgeMark); try { if (!S.isl || S.boat) return; const k = _mapK || 2; mapPin(mctx, tx(BOAT.x), tz(BOAT.z), 4.5 * k, '#7de0ff', '船', k); } catch (e) { } })(drawExtraRadar);
-shopSave = (o => function () { const r = o(); try { r.fish = { log: S.fishLog, tk: S.tanks }; } catch (e) { } return r; })(shopSave);
-shopLoad = (o => function (d) { o(d); S.fishLog = {}; S.tanks = {}; try { const F = d && d.sh && d.sh.fish; if (F) {
+shopSave = (o => function () { const r = o(); try { r.fish = { log: S.fishLog, tk: S.tanks, xp: S.fishXp }; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.fishLog = {}; S.tanks = {}; try { S.fishXp = 0; const F = d && d.sh && d.sh.fish; if (F) { S.fishXp = Math.max(0, Math.min(1e7, +F.xp || 0));
   if (F.log && typeof F.log === 'object') for (const id in F.log) if (FISH_BY[id] && Number.isFinite(+F.log[id])) S.fishLog[id] = +F.log[id];
   if (F.tk && typeof F.tk === 'object') for (const k in F.tk) if (Array.isArray(F.tk[k])) { const a = F.tk[k].filter(id => FISH_BY[id]).slice(0, TK_CAP); if (a.length) S.tanks[String(k).slice(0, 40)] = a; } } } catch (e) { }
   TKF.forEach((L, b) => tankFishClear(b)); })(shopLoad);
@@ -11611,4 +11731,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794104650').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794109949').catch(()=>{});</script></body></html>
