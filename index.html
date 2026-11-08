@@ -848,6 +848,25 @@ button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);mar
 #cvBar b{color:#ffcf8a;font-size:12px;margin-right:6px}#cvBar span{color:#d8bfa4}#cvBar i{display:block;height:7px;margin-top:4px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden;margin-right:40px}#cvBar u{display:block;height:100%;background:linear-gradient(90deg,#e0a060,#ffd98a);transition:width .3s}
 #cvBar em{position:absolute;right:10px;bottom:5px;font:700 11px var(--font-hud);font-style:normal;color:#ffe2b8}#cvBar.hit{border-color:#ff6a5a}#cvBar.hit u{background:linear-gradient(90deg,#ff4a3a,#ff9a6a)}
 #build .card.bpc{border-color:rgba(159,232,255,.5)}#build .card.bplock{opacity:.55}#build .card.bplock span{color:#9fe8ff}
+/* ---- sign-in calendar: the real month, 7 columns ---- */
+.calhd{display:flex;align-items:center;gap:16px;padding:12px 16px;border-radius:14px;border:1px solid rgba(255,200,120,.28);background:linear-gradient(120deg,rgba(255,140,50,.24),rgba(120,40,70,.18) 55%,rgba(20,10,20,.4))}
+.calhd>div:first-child b{display:block;font:800 40px/1 var(--font-hud);color:#fff1dc;text-shadow:0 2px 10px rgba(255,120,40,.45)}.calhd>div:first-child b small{font-size:16px;margin-left:2px;color:#ffd9a8}
+.calhd>div:first-child span{font-size:11px;color:#d9b48c;letter-spacing:.14em;white-space:nowrap}
+.calpr{flex:1;min-width:0}.calpr span{font-size:13px;color:#e8d4c0}.calpr span b{color:#ffd98a;font-size:17px}.calpr i{display:block;height:8px;border-radius:4px;background:rgba(0,0,0,.4);overflow:hidden;margin:6px 0 5px}.calpr u{display:block;height:100%;background:linear-gradient(90deg,#ff9a3a,#ffd98a)}
+.calpr em{font-style:normal;font-size:10.5px;color:#b8987c}
+#hub .calg{grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin:4px 0 8px}
+#hub .calw{text-align:center;font-size:11px;font-weight:800;color:#c8a888;letter-spacing:.1em;padding:2px 0}#hub .calw.we{color:#ff9a7a}
+#hub .calc{position:relative;min-height:58px;padding:5px 6px 4px;border-radius:10px;border:1px solid rgba(255,255,255,.09);background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(0,0,0,.28));gap:1px;overflow:hidden}
+#hub .calc.blank{border:0;background:none}
+#hub .calc b{font:700 13px var(--font-hud);color:#f4e2cc}#hub .calc span{font-size:10.5px;color:#cbb6a2;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hub .calc em{font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:.06em;margin-top:auto}
+#hub .calc>i{position:absolute;right:5px;top:5px;width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:11px;font-weight:900;color:#2a1408;background:linear-gradient(160deg,#ffe9a8,#ffb54a)}
+#hub .calc.big{border-color:rgba(255,201,74,.55);background:linear-gradient(180deg,rgba(255,190,80,.2),rgba(60,30,10,.35))}
+#hub .calc.on{border-color:rgba(143,209,111,.6);background:linear-gradient(180deg,rgba(143,209,111,.22),rgba(20,40,20,.35))}#hub .calc.on em{color:#9fe08a}#hub .calc.on b::after{content:' ✓';color:#9fe08a}
+#hub .calc.miss{opacity:.42}#hub .calc.miss em{color:#a89080}
+#hub .calc.cur{cursor:pointer;border:1.5px solid #ffd98a;background:linear-gradient(180deg,rgba(255,170,60,.38),rgba(120,50,10,.4));animation:calCur 1.6s ease-in-out infinite}#hub .calc.cur em{color:#ffe9a8}
+@keyframes calCur{0%,100%{box-shadow:0 0 0 0 rgba(255,200,90,.0)}50%{box-shadow:0 0 14px 2px rgba(255,190,80,.6)}}
+@media (max-width:520px){#hub .calc{min-height:50px;padding:4px}#hub .calc span{font-size:9px}#hub .calc>i{display:none}.calhd{flex-direction:column;align-items:stretch;gap:8px}}
 </style>
 
 <canvas id="c"></canvas>
@@ -7225,16 +7244,20 @@ function enhance(it) {
 
 /* ---- the 30-day sign-in calendar (counts days you log in this month, not a streak) ---- */
 const monKey = () => { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1); };
-function calReward(i) {     // i = 1..30
-  const t = lvTier();
-  if (i === 7) return { d: '首领之心 ×1 · 余烬币 ×200', f() { gain('heart', 1); gain('coin', 200); } };
-  if (i === 14) return { d: '史诗装备 ×1', f() { giveGear(3); } };
-  if (i === 21) return { d: '强化石 ×4 · 腐化晶体 ×1', f() { gain('estone', 4); gain('crystal', 1); } };
-  if (i === 28) return { d: '限定狗狗：雪橇犬', f() { givePup('雪球', 0xeef2f6, 'snow'); } };
-  if (i === 30) return { d: '黄金装备 ×1', f() { giveGear(4); } };
-  const R = [['强化石 ×1', () => gain('estone', 1)], ['余烬币 ×' + 30 * t, () => gain('coin', 30 * t)], ['烤肉 ×3', () => gain('roast', 3)], ['医疗包 ×2', () => gain('med', 2)],
-    ['种子礼包', () => { ['s_wheat', 's_chili', 's_herb', 's_pump'].forEach(k => MAT[k] && gain(k, 2)); }], ['火药 ×5', () => gain('powder', 5)], ['电子元件 ×2', () => gain('circuit', 2)]][i % 7];
-  return { d: R[0], f: R[1] };
+// the sign-in calendar follows the real month: one reward per date, claim today's cell; big rewards on the 7th, 14th,
+// 21st, 28th and the month's last day
+const monDays = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); };
+const calBig = i => [7, 14, 21, 28, monDays()].includes(i);
+function calReward(i) {     // i = date of the month
+  const t = lvTier(), L = monDays();
+  if (i === L) return { d: '黄金装备 ×1', s: '黄金装备', ic: '金', f() { giveGear(4); } };
+  if (i === 7) return { d: '首领之心 ×1 · 余烬币 ×200', s: '首领之心', ic: '心', f() { gain('heart', 1); gain('coin', 200); } };
+  if (i === 14) return { d: '史诗装备 ×1', s: '史诗装备', ic: '装', f() { giveGear(3); } };
+  if (i === 21) return { d: '强化石 ×4 · 腐化晶体 ×1', s: '强化石×4', ic: '石', f() { gain('estone', 4); gain('crystal', 1); } };
+  if (i === 28) return { d: '限定狗狗：雪橇犬', s: '雪橇犬', ic: '犬', f() { givePup('雪球', 0xeef2f6, 'snow'); } };
+  const R = [['强化石 ×1', '强化石', () => gain('estone', 1)], ['余烬币 ×' + 30 * t, '余烬币', () => gain('coin', 30 * t)], ['烤肉 ×3', '烤肉×3', () => gain('roast', 3)], ['医疗包 ×2', '医疗包×2', () => gain('med', 2)],
+    ['种子礼包', '种子包', () => { ['s_wheat', 's_chili', 's_herb', 's_pump'].forEach(k => MAT[k] && gain(k, 2)); }], ['火药 ×5', '火药×5', () => gain('powder', 5)], ['电子元件 ×2', '元件×2', () => gain('circuit', 2)]][i % 7];
+  return { d: R[0], s: R[1], f: R[2] };
 }
 function giveGear(q) { pickGear(makeGear(lvTier(), S.level, q, 0)); }
 function givePup(name, col, br) {
@@ -7243,11 +7266,14 @@ function givePup(name, col, br) {
   S.pets.push({ id: 'p' + Date.now().toString(36), n: name, pup: 1, age: 0, hp: 60, mode: 'home', col, br: br || '' }); S.pets[S.pets.length - 1].hp = petMax(S.pets[S.pets.length - 1]);
   banner('新伙伴：' + name, '在海岛的狗窝旁等你（「狗狗」里可以带它出门）', 3.2); colAdd('t:pup'); petHud(true);
 }
-S.cal = { m: '', n: 0, last: '' };
-const calCanClaim = () => S.cal.m === monKey() ? S.cal.last !== dateKey() && S.cal.n < 30 : true;
+S.cal = { m: '', ds: [] };
+const calToday = () => new Date().getDate();
+const calDs = () => S.cal.m === monKey() ? S.cal.ds : [];
+const calCanClaim = () => !calDs().includes(calToday());
 function calClaim() {
-  if (!calCanClaim()) return; if (S.cal.m !== monKey()) S.cal = { m: monKey(), n: 0, last: '' };
-  S.cal.n++; S.cal.last = dateKey(); const r = calReward(S.cal.n); try { r.f(); addGem([7, 14, 21, 28, 30].includes(S.cal.n) ? 50 : 10, '签到'); } catch (e) { console.warn(e); } sfx.build(); seaXp(10); renderHub(); saveGame(); hubBadge();
+  if (!calCanClaim()) return; if (S.cal.m !== monKey()) S.cal = { m: monKey(), ds: [] };
+  const day = calToday(); S.cal.ds.push(day); const r = calReward(day); try { r.f(); addGem(calBig(day) ? 50 : 10, '签到'); } catch (e) { console.warn(e); } sfx.build(); seaXp(10);
+  banner('签到成功 · ' + (new Date().getMonth() + 1) + '月' + day + '日', r.d + ' · 晶石 ×' + (calBig(day) ? 50 : 10), 2.6); renderHub(); saveGame(); hubBadge();
 }
 
 /* ---- weekly boss: one of the five is the 周王 this week ---- */
@@ -7397,11 +7423,20 @@ function renderHub() {
     try { idefRow(box); } catch (e) { console.warn(e); }
     { const fs = farmSummary(); hubRow(box, '农田', fs || '小屋南边有 6 块农田。种子按真实时间生长（2～8 小时），成熟太久没收会枯萎。', '#8fe05a', null, null, false, '田'); }
   } else if (hubTab === 'cal') {
-    const m = S.cal.m === monKey() ? S.cal.n : 0; h3('本月签到 ' + m + ' / 30 · 每天上线领一格，不用连续');
+    const now = new Date(), L = monDays(), today = calToday(), ds = calDs(), first = new Date(now.getFullYear(), now.getMonth(), 1).getDay();
+    const hd = document.createElement('div'); hd.className = 'calhd';
+    hd.innerHTML = '<div><b>' + (now.getMonth() + 1) + '<small>月</small></b><span>' + now.getFullYear() + ' · 每日签到</span></div><div class="calpr"><span>本月已签 <b>' + ds.length + '</b> / ' + L + ' 天</span><i><u style="width:' + Math.round(ds.length / L * 100) + '%"></u></i><em>每天上线领当天的格子 · 7、14、21、28 号和月底有大奖</em></div>';
+    box.appendChild(hd);
     const grid = document.createElement('div'); grid.className = 'calg';
-    for (let i = 1; i <= 30; i++) { const r = calReward(i), c = document.createElement('div'); c.className = 'calc' + (i <= m ? ' on' : '') + (i === m + 1 && calCanClaim() ? ' cur' : '') + ([7, 14, 21, 28, 30].includes(i) ? ' big' : ''); c.innerHTML = '<b>' + i + '</b><span>' + r.d + '</span>'; grid.appendChild(c); }
+    WKD.forEach((w, k) => { const c = document.createElement('div'); c.className = 'calw' + (k === 0 || k === 6 ? ' we' : ''); c.textContent = w; grid.appendChild(c); });
+    for (let k = 0; k < first; k++) { const c = document.createElement('div'); c.className = 'calc blank'; grid.appendChild(c); }
+    for (let i = 1; i <= L; i++) { const r = calReward(i), got = ds.includes(i), c = document.createElement('div');
+      c.className = 'calc' + (got ? ' on' : i === today ? ' cur' : i < today ? ' miss' : '') + (calBig(i) ? ' big' : '');
+      c.innerHTML = '<b>' + i + '</b>' + (calBig(i) && r.ic ? '<i>' + r.ic + '</i>' : '') + '<span>' + r.s + '</span>' + (got ? '<em>已领</em>' : i === today ? '<em>领取</em>' : i < today ? '<em>错过</em>' : '');
+      if (i === today && !got) c.addEventListener('click', calClaim); grid.appendChild(c); }
     box.appendChild(grid);
-    const b = document.createElement('button'); b.className = 'go' + (calCanClaim() ? '' : ' ghost'); b.disabled = !calCanClaim(); b.textContent = calCanClaim() ? '领取第 ' + (m + 1) + ' 天：' + calReward(m + 1).d : (m >= 30 ? '本月已全部领完' : '今天已签到，明天再来'); b.addEventListener('click', calClaim); box.appendChild(b);
+    const r = calReward(today), b = document.createElement('button'); b.className = 'go' + (calCanClaim() ? '' : ' ghost'); b.disabled = !calCanClaim();
+    b.textContent = calCanClaim() ? '领取今天：' + r.d : '今天已签到，明天再来'; b.addEventListener('click', calClaim); box.appendChild(b);
   } else if (hubTab === 'sea') {
     const L = seaLv(), d = 28 - (dayNum() % 28); h3(seaName() + ' · 还剩 ' + d + ' 天');
     const row = hubRow(box, '赛季等级 ' + L + ' / ' + SEA_MAX, '打丧尸、做任务、今日挑战、周王、无尽尸潮都给赛季经验 · 赛季结束角色不重置', '#ffc94a');
@@ -7455,7 +7490,9 @@ function dailyLoad(d) {
   const n = v => (Number.isFinite(+v) ? +v : 0), o = d && d.dl && typeof d.dl === 'object' ? d.dl : {};
   S.inf = Array.from({ length: 10 }, (_, i) => Array.isArray(o.inf) && o.inf[i] != null ? clamp(n(o.inf[i]), 0, 100) : 100); S.infT = n(o.infT) || Date.now(); infDecay();
   S.para = Math.max(0, n(o.para) | 0); S.pxp = Math.max(0, n(o.pxp));
-  S.cal = o.cal && typeof o.cal === 'object' ? { m: String(o.cal.m || ''), n: clamp(n(o.cal.n) | 0, 0, 30), last: String(o.cal.last || '') } : { m: '', n: 0, last: '' };
+  S.cal = { m: '', ds: [] }; if (o.cal && typeof o.cal === 'object') { S.cal.m = String(o.cal.m || '');
+    if (Array.isArray(o.cal.ds)) S.cal.ds = o.cal.ds.map(v => v | 0).filter((v, i, a) => v >= 1 && v <= 31 && a.indexOf(v) === i);
+    else if (o.cal.last === dateKey()) S.cal.ds = [calToday()]; }   // older saves only knew a count
   S.wb = typeof o.wb === 'string' ? o.wb : ''; S.dch = o.dch && typeof o.dch === 'object' ? { d: String(o.dch.d || ''), n: n(o.dch.n) | 0 } : { d: '', n: 0 };
   S.sea = o.sea && typeof o.sea === 'object' ? { id: n(o.sea.id) | 0, xp: Math.max(0, n(o.sea.xp) | 0), c: Array.isArray(o.sea.c) ? o.sea.c.filter(Number.isFinite).slice(0, 60) : [], best: Math.max(0, n(o.sea.best) | 0), prem: o.sea.prem >= 2 ? 2 : o.sea.prem ? 1 : 0, pc: Array.isArray(o.sea.pc) ? o.sea.pc.filter(Number.isFinite).slice(0, 60) : [], ec: Array.isArray(o.sea.ec) ? o.sea.ec.filter(Number.isFinite).slice(0, 60) : [] } : { id: 0, xp: 0, c: [], best: 0 }; seaEnsure();
   S.col = {}; if (o.col && typeof o.col === 'object') Object.keys(o.col).slice(0, 200).forEach(k => { if (k.length < 20) S.col[k] = 1; });
@@ -11059,4 +11096,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794098198').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794098757').catch(()=>{});</script></body></html>
