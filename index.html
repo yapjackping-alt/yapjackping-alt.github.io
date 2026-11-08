@@ -945,6 +945,12 @@ button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);mar
 @media (orientation:portrait){#bRoll{right:196px!important;bottom:96px!important}}
 #encTxt{display:none;position:fixed;left:50%;top:calc(var(--st,0px) + 96px);transform:translateX(-50%);z-index:8;pointer-events:none;padding:5px 14px;border-radius:10px;background:rgba(70,40,10,.85);border:1px solid #ffc94a;color:#fff2d8;font-weight:800;font-size:13.5px;white-space:nowrap}#encTxt b{color:#ffd98a}
 @media (orientation:portrait){#bChat{bottom:calc(var(--sb) + 268px)}#bFish,#bTank,#bSwim{right:calc(var(--sr) + 14px);bottom:calc(var(--sb) + 262px)}#bBoat{right:calc(var(--sr) + 14px);bottom:calc(var(--sb) + 312px)}#bTank{bottom:calc(var(--sb) + 312px)}#chatFeed{bottom:calc(var(--sb) + 318px)}}
+/* no run button: pull the joystick past its ring to run */
+#bSprint{display:none!important}
+#stickbase::after{content:'';position:absolute;left:50%;top:50%;width:168px;height:168px;margin:-84px 0 0 -84px;border-radius:50%;border:2px dashed rgba(255,214,170,.28);pointer-events:none}
+#stickbase.run{border-color:#9fe08a;background:rgba(143,209,111,.16)}#stickbase.run::after{border:2px solid rgba(159,224,138,.75);box-shadow:0 0 14px rgba(143,209,111,.5)}
+#stickknob.run{background:rgba(143,209,111,.75);border-color:#e0ffd0}#stickknob.run::after{content:'跑';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;color:#fff;text-shadow:0 1px 2px #000}
+#stickbase.tired::after{border-color:rgba(255,120,90,.6)}
 </style>
 
 <canvas id="c"></canvas>
@@ -8424,7 +8430,7 @@ const GUIDE = [
     ['bFire', '射击 / 挥砍', '按住会自动瞄准最近的敌人。拿近战武器时变成「挥砍」'],
     ['bReload', '换弹', '点一下换弹。快速连点两下，切换手上的武器和备用武器'],
     ['bMed', '医疗包', '马上回复生命，右下角小数字是还剩几个'],
-    ['bSprint', '奔跑', '点一下开始跑，会消耗体力，体力用完会自己慢慢恢复'],
+    ['stickidle', '奔跑', '把摇杆拉到外面的虚线圈外就会跑，任何方向都行（摇杆变绿），拉回圈内就是走路。会消耗体力，用完会自己慢慢恢复'],
     ['bGather', '采集 / 砍树 / 采矿', '靠近树、石头、野果时出现。砍树要斧头，采矿要镐子']]],
   ['海岛和建造', [
     ['bBuild', '建造', '打开建造菜单：墙、楼板、楼梯、炮塔、家具。「移动」可以挪东西，「拆除」可以拆掉'],
@@ -8507,7 +8513,7 @@ const STORY = [
       ['老陈', T2('先活动一下：用左下角的摇杆走一走。', 'First, stretch your legs: walk around with the joystick at the bottom left.')]],
     steps: [
       { k: 'move', n: 20, d: T2('用左下角摇杆走动 20 米', 'Walk 20 m with the joystick (bottom left)') },
-      { k: 'sprint', n: 2, say: T2('很好。被追的时候要会跑：边走边按右下的「奔跑」按钮（小人图标），会消耗体力。', 'Good. When chased, run: hold the Sprint button (runner icon, bottom right) while moving. It uses stamina.'), d: T2('边走边按「奔跑」按钮，跑 2 秒', 'Sprint for 2 seconds (Sprint button while moving)') },
+      { k: 'sprint', n: 2, say: T2('很好。被追的时候要会跑：把摇杆往任何方向拉到外面的虚线圈外，摇杆变绿就是在跑，会消耗体力。拉回圈内就变回走路。', 'Good. When chased, run: pull the joystick past the dashed outer ring in any direction. It turns green while you run and uses stamina. Pull back inside to walk.'), d: T2('边走边按「奔跑」按钮，跑 2 秒', 'Sprint for 2 seconds (Sprint button while moving)') },
       { k: 'chop', n: 1, say: T2('材料要自己采。走到树旁边，右下会出现「砍树」按钮，按住就会一直砍。木头和藤条都从树上来。', 'You gather your own materials. Walk up to a tree: a Chop button appears at the bottom right; hold it to keep chopping. Wood and vines come from trees.'), d: T2('走到树旁按住「砍树」，砍出木头', 'Stand by a tree and hold Chop to get wood') },
       { k: 'build', n: 1, say: T2('有了木头就能建东西。点右边的「建造」，选一样放下来。墙和炮塔能保护你的家。', 'With wood you can build. Tap Build on the right, pick something and place it. Walls and turrets protect your home.'), d: T2('在海岛上建造任意 1 样东西', 'Build anything on the island') },
       { k: 'reach', tier: 1, say: T2('该出门了。走到码头上船，选「荒废郊区」。外面有丧尸，小心。', 'Time to head out. Walk to the pier, board the boat and pick the Ruined Suburbs. There are zombies out there, be careful.'), d: T2('去码头坐船，离开海岛去「荒废郊区」', 'Take the boat at the pier to the Ruined Suburbs') },
@@ -12341,9 +12347,18 @@ zone.addEventListener('pointermove', e => {
   if (d > SR) { dx = dx / d * SR; dy = dy / d * SR; }
   sKnob.style.left = (sOx + dx) + 'px'; sKnob.style.top = (sOy + dy) + 'px';
   const m = Math.hypot(dx, dy) / SR; input.mx = m < .12 ? 0 : dx / SR; input.mz = m < .12 ? 0 : dy / SR;
+  // pull the stick past its ring (any direction) to run; come back inside to walk
+  stickRun(d > SR * 1.5 ? 1 : d < SR * 1.2 ? 0 : -1);
 });
+let _stRun = false;
+function stickRun(v) {
+  if (v === -1) return; const on = v === 1;
+  if (on && !_stRun) { if (S.dead || S.boat || (typeof SW !== 'undefined' && SW.b) || S.exhausted || S.sta < 8) { sBase.classList.add('tired'); return; } _stRun = true; S.sprint = true; S.idleT = 0; sBase.classList.add('run'); sKnob.classList.add('run'); }
+  else if (!on && _stRun) { _stRun = false; S.sprint = false; sBase.classList.remove('run'); sKnob.classList.remove('run'); }
+  if (!on) sBase.classList.remove('tired');
+}
 function stickEnd(e) {
-  if (e.pointerId !== stickId) return; stickId = null; input.mx = input.mz = 0;
+  if (e.pointerId !== stickId) return; stickId = null; input.mx = input.mz = 0; stickRun(0);
   sBase.style.display = 'none'; sKnob.style.display = 'none'; sIdle.style.display = 'block';
 }
 zone.addEventListener('pointerup', stickEnd); zone.addEventListener('pointercancel', stickEnd); zone.addEventListener('lostpointercapture', stickEnd);
@@ -12482,4 +12497,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794120898').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794143515').catch(()=>{});</script></body></html>
