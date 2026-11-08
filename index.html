@@ -8273,7 +8273,7 @@ let mallTab = 'gacha', skinSel = null;
 function renderMall() {
   const box = $('mallList'); if (!box) return; box.innerHTML = ''; seaEnsure(); gemHud(); $('mall').classList.toggle('gpage', mallTab === 'gacha');
   const tabs = document.createElement('div'); tabs.className = 'tabs';
-  [['gacha', '补给抽奖'], ['pack', '礼包'], ['pass', '赛季手册'], ['gem', '晶石']].forEach(t => { const b = document.createElement('button'); b.className = 'sbtn' + (mallTab === t[0] ? ' on' : ''); b.textContent = t[1]; b.addEventListener('click', () => { mallTab = t[0]; renderMall(); }); tabs.appendChild(b); });
+  [['gacha', '补给抽奖'], ['skin', '外观直售'], ['pack', '礼包'], ['pass', '赛季手册'], ['gem', '晶石']].forEach(t => { const b = document.createElement('button'); b.className = 'sbtn' + (mallTab === t[0] ? ' on' : ''); b.textContent = t[1]; b.addEventListener('click', () => { mallTab = t[0]; renderMall(); }); tabs.appendChild(b); });
   box.appendChild(tabs);
   const el2 = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
   if (FREE_TEST) box.appendChild(el2('div', 'snote testn', '测试版 · 晶石无限（不够时自动补满），充值不收钱'));
@@ -8298,6 +8298,7 @@ function renderMall() {
     box.appendChild(el2('div', 'snote', gPool === 'att' ? '配件抽到后先放进「配件库」：想要的取出来装到武器上，不要的分解成配件碎片，60 碎片换一个指定的黄金配件，200 碎片换神话配件。' : W ? '武器外观会随机给你的一把武器；重复的换成 强化石 ×5。' : gPool === 'gear' ? '装备按你现在的等级生成，抽到后先放进「装备库」：想要的取出来，不要的分解成碎片，碎片可以换指定部位的黄金或神话装备。材料直接进背包。' : '重复的外观会换成 强化石 ×8；狗狗满了换成强化石。'));
     if (_lastDraw.length && false) { box.appendChild(el2('h3', '', '本次获得'));
       const g = el2('div', 'gres'); _lastDraw.forEach((o, i) => { const c = rwCard(o.n, 'rev', null, o.G.n, o.G.r); c.style.setProperty('--gc', o.G.c); c.style.animationDelay = (i * .09) + 's'; g.appendChild(c); }); box.appendChild(g); }
+  } else if (mallTab === 'skin') { try { skinShopRender(box, el2); } catch (e) { console.warn(e); }
   } else if (mallTab === 'pack') { try { packRender(box, el2); } catch (e) { console.warn(e); }
   } else if (mallTab === 'pass') {
     const L = seaLv(), top = el2('div', 'phead');
@@ -12673,6 +12674,119 @@ drawExtraRadar = (o => function (tx, tz, edgeMark) { o(tx, tz, edgeMark);
 let _chestTipDone = false;
 zSpecialTick = (o => function (dt) { o(dt);
   try { if (S.dun && DUN.cabs && DUN.cabs.length && !_chestTipDone) { _chestTipDone = true; feed('小地图上的金色箱子图标 = 可以搜索的柜子', '#ffd24a'); } if (!S.dun) _chestTipDone = false; } catch (e) { } })(zSpecialTick);
+/* ============ 神话时装「星渊帝皇」（外观直售限定）：黑曜石甲 + 金边 + 紫/青水晶，头顶金环里浮着陨星残核，后颈悬着刻度金环 ============ */
+SKINS.abyss = {
+  n: '星渊帝皇', r: 5,
+  st: { dmg: .06, crit: .03, hpPct: .08, def: .03 },
+  stt: '伤害 +6%、暴击率 +3%、生命 +8%、减伤 +3%',
+  fx: [0xc49aff, 0x6ff6ff, 0xe8b84a, 0xffffff],
+  d: '黑曜石战甲镶着金边，胸口嵌一颗发光的紫晶；头戴五尖金冠，冠上悬着一圈旋转的星环；头顶悬着一圈金环，环中心浮着一颗全黑的陨星残核，裂口里透着余烬橙，小碎石绕着它反向转；后颈后面悬着一圈不超出肩宽的小金环，环边刻着刻度，缓缓左右摆转；拖着绣金星纹的暗紫披风，脚下星阵流转，光尘不停升起。'
+};
+
+SKIN_BUILD.abyss = function (k) {
+  const { bx, cone, gem, G, both, torso, sleeves, pants, cape, put } = k;
+  const OB = 0x1e1830, OB2 = 0x3b2f5c, GO = 0xe8b84a, GO2 = 0xb88a2a,
+    VI = G(0xb26bff), VI2 = G(0x8a4cff), CY = G(0x6ff6ff), WH = G(0xffffff);
+  const glow = (c, op) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const add = (geo, m, x, y, z, p, fx, ph) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); put(o, p); if (fx) { o.userData.fx = fx; o.userData.ph = ph || 0; o.userData.y0 = y; o.userData.x0 = x; o.userData.z0 = z; } return o; };
+
+  // ---- 躯干：黑曜石胸甲 + 金色 V 形边 + 紫晶核心（四条金框围着） ----
+  torso(OB);
+  bx(.62, .5, .08, OB2, 0, 1.52, .24); bx(.64, .05, .09, GO, 0, 1.78, .25);
+  bx(.04, .4, .03, GO, -.2, 1.52, .29, 'b', 0, 0, .35); bx(.04, .4, .03, GO, .2, 1.52, .29, 'b', 0, 0, -.35);
+  gem(.15, VI, 0, 1.5, .33, 'b', 1.6);
+  bx(.34, .035, .04, GO, 0, 1.76, .3); bx(.34, .035, .04, GO, 0, 1.26, .3); bx(.035, .5, .04, GO, -.17, 1.51, .3); bx(.035, .5, .04, GO, .17, 1.51, .3);
+  bx(.5, .3, .06, OB2, 0, 1.17, .24); bx(.5, .03, .07, GO, 0, 1.1, .25); bx(.5, .03, .07, GO, 0, 1.24, .25);
+  bx(.78, .12, .5, GO, 0, 1.03, 0); gem(.07, CY, 0, 1.03, .27, 'b', 1.4);
+  both(s => { bx(.3, .5, .07, OB2, s * .17, .78, .22, 'b', .14); bx(.32, .04, .08, GO, s * .17, .54, .24, 'b', .14); bx(.3, .5, .07, OB, s * .17, .78, -.22, 'b', -.14); });
+
+  // ---- 头盔：黑曜石 + 紫色面罩 + 五尖金冠 + 额头青晶 ----
+  bx(.54, .5, .54, OB, 0, 2.07, 0); bx(.56, .06, .56, GO, 0, 1.84, 0);
+  bx(.44, .08, .04, VI, 0, 2.06, .275); bx(.3, .025, .03, WH, 0, 2.06, .295);
+  both(s => { bx(.08, .26, .46, OB2, s * .3, 1.98, 0); bx(.1, .04, .5, GO, s * .3, 1.86, 0); cone(.07, .4, OB2, s * .34, 2.34, -.04, 'b', 0, 0, -s * 1.0, 4); cone(.045, .18, GO, s * .5, 2.5, -.04, 'b', 0, 0, -s * 1.0, 4); });
+  bx(.5, .06, .5, GO, 0, 2.34, 0);
+  cone(.075, .52, GO, 0, 2.62, 0, 'b', 0, 0, 0, 4);
+  [-2, -1, 1, 2].forEach(i => cone(.06, .36 - Math.abs(i) * .05, GO, i * .13, 2.52, 0, 'b', 0, 0, -i * .16, 4));
+  gem(.07, CY, 0, 2.3, .28, 'b', 1.6);
+  // 悬在王冠上方的星环：一圈实心金环 + 四根金刺，慢慢转；环里面放着那颗黑球
+  const halo = new THREE.Group(); halo.position.set(0, 3.15, -.02); halo.userData.fx = 'halo'; halo.rotation.x = Math.PI / 2; put(halo, 'b');
+  halo.add(new THREE.Mesh(new THREE.TorusGeometry(.37, .022, 5, 8), mat(GO)));
+  for (let i = 0; i < 4; i++) { const a = i / 4 * 6.283, m = new THREE.Mesh(new THREE.ConeGeometry(.05, .16, 4), mat(GO)); m.position.set(Math.cos(a) * .37, Math.sin(a) * .37, 0); m.rotation.z = a - Math.PI / 2; halo.add(m); }
+  // 环中央：全黑的棱面小球（陨星残核）+ 几块余烬色的裂口 + 斜套的细金环 + 一圈反向绕转的小碎石，全是实心小零件
+  halo.add(new THREE.Mesh(new THREE.IcosahedronGeometry(.13, 1), mat(0x0a0710)));
+  [[.7, .5, .5], [-.6, .7, .4], [.2, -.8, .6], [-.7, -.3, .6], [.5, -.4, -.75]].forEach(v => { const l = Math.hypot(v[0], v[1], v[2]), m = new THREE.Mesh(new THREE.OctahedronGeometry(.024), G(0xff8a2a)); m.position.set(v[0] / l * .13, v[1] / l * .13, v[2] / l * .13); m.scale.y = 1.4; halo.add(m); });
+  const dbr = new THREE.Group(); dbr.rotation.x = .55; dbr.userData.fx = 'aura2'; halo.add(dbr);
+  dbr.add(new THREE.Mesh(new THREE.TorusGeometry(.2, .008, 4, 10), mat(GO)));
+  for (let n = 0; n < 8; n++) { const a = n / 8 * 6.283, w = .028 + (n % 3) * .01, m = new THREE.Mesh(new THREE.BoxGeometry(w, w, w), [G(0xff8a2a), mat(GO), mat(OB2)][n % 3]); m.position.set(Math.cos(a) * .26, Math.sin(a) * .26, 0); m.rotation.set(n * .9, n * .6, n * .4); dbr.add(m); }
+
+  // ---- 肩甲：三层棱角肩甲 + 金边 + 朝天的金刺 ----
+  both(s => {
+    bx(.5, .2, .56, OB, s * .5, 1.86, 0); bx(.54, .05, .6, GO, s * .5, 1.75, 0);
+    bx(.42, .16, .5, OB2, s * .52, 1.99, 0, 'b', 0, 0, -s * .12); bx(.46, .04, .54, GO, s * .52, 2.08, 0, 'b', 0, 0, -s * .12);
+    cone(.07, .34, GO, s * .6, 2.28, 0, 'b', 0, 0, -s * .15, 4);
+    cone(.06, .3, GO, s * .42, 2.22, .14, 'b', 0, 0, s * .2, 4); cone(.06, .26, GO, s * .42, 2.2, -.14, 'b', 0, 0, s * .2, 4);
+  });
+
+  // ---- 背后：背甲 + 悬在后颈后面的小金环（只做左右摆转）+ 绣金星纹的披风 ----
+  bx(.5, .6, .08, OB2, 0, 1.5, -.26);
+  cape(.64, 1.5, 0x2b1a52, { y: 1.8, z: -.3, tilt: .1, flare: .05, inner: 0x6a2cc0, edge: GO, lines: [-.2, 0, .2], lc: GO });
+  // 金环外径 1.2，比两边肩甲的总宽（约 1.5）还窄，不超出人物宽度；圆心在后颈高度（y 2.0），贴在后脑和披风后面一点点（z -.58）。
+  // 只绕竖直轴左右摆转（±20°），不翻滚；摆到最大时环的左右两端离肩甲后沿还有一段距离，不会穿模。
+  // 实心零件：金环 + 内侧细环 + 一圈刻度 + 八颗小珠（四颗金、四颗余烬橙），不连在身上，没有发光平面。
+  const GY = 2.0, GZ = -.58, GR = .6;
+  const gyro = new THREE.Group(); gyro.position.set(0, GY, GZ); put(gyro, 'b');
+  const gMain = new THREE.Mesh(new THREE.TorusGeometry(GR, .02, 5, 32), mat(GO)); gyro.add(gMain);
+  gyro.add(new THREE.Mesh(new THREE.TorusGeometry(GR - .08, .008, 4, 32), mat(GO2)));
+  for (let n = 0; n < 32; n++) { const a = n / 32 * 6.283, big = n % 4 === 0, m = new THREE.Mesh(new THREE.BoxGeometry(big ? .016 : .01, big ? .1 : .06, .01), mat(big ? GO : GO2)); m.position.set(Math.cos(a) * (GR - .04), Math.sin(a) * (GR - .04), 0); m.rotation.z = a - Math.PI / 2; gyro.add(m); }
+  for (let n = 0; n < 8; n++) { const a = n / 8 * 6.283 + .39, m = new THREE.Mesh(new THREE.OctahedronGeometry(.045), n % 2 ? G(0xff8a2a) : mat(GO)); m.position.set(Math.cos(a) * GR, Math.sin(a) * GR, 0); m.scale.y = 1.6; m.rotation.z = a; gyro.add(m); }
+  gMain.onBeforeRender = () => { const t = performance.now() / 1000; gyro.rotation.y = Math.sin(t * .9) * .35; gyro.position.y = GY + Math.sin(t * 2.2) * .03; };   // 左右摆转 + 轻轻上下飘
+
+  // ---- 手臂 / 腿 ----
+  sleeves(OB, GO);
+  both((s, L, a) => { bx(.3, .34, .3, OB2, 0, -.56, 0, a); bx(.31, .04, .31, GO, 0, -.4, 0, a); bx(.31, .04, .31, GO, 0, -.72, 0, a); gem(.06, VI, 0, -.56, .17, a, 1.6); cone(.035, .14, GO, 0, -.93, .13, a, Math.PI / 2, 0, 0, 4); });
+  pants(OB, GO, .24);
+  both((s, L) => { bx(.32, .46, .34, OB2, 0, -.7, 0, L); bx(.33, .04, .35, GO, 0, -.48, 0, L); gem(.07, CY, 0, -.32, .19, L, 1.5); bx(.03, .4, .02, GO, 0, -.72, .18, L); cone(.06, .2, GO, 0, -.94, .3, L, Math.PI / 2, 0, 0, 4); });
+
+  // ---- 脚下星阵：金色六边环（呼吸）+ 紫色菱形环（反向转） ----
+  const r1 = add(new THREE.RingGeometry(.62, .72, 6), glow(0xe8b84a, .4), 0, .05, 0, 'g', 'aura'); r1.rotation.x = -Math.PI / 2;
+  const r2 = add(new THREE.RingGeometry(.4, .46, 4), glow(0xc49aff, .45), 0, .06, 0, 'g', 'aura2'); r2.rotation.x = -Math.PI / 2;
+};
+
+// 紫金光尘：王冠上方冒出星光，全身升起光点，金环周围飘着几点余烬火星
+SKIN_P.abyss = [
+  { pts: [[-.2, 3.15, 0], [.2, 3.15, 0], [0, 3.15, -.25], [0, 3.15, .2]], rate: 10, life: .8, v: [0, .9, 0], sp: .15, col: [0xc49aff, 0x6ff6ff, 0xffffff], sz: .05 },
+  { pts: 'body', rate: 7, life: 1.5, v: [0, .45, 0], sp: .3, col: [0xb26bff, 0xe8b84a], sz: .045 },
+  { pts: [[-.6, 2.0, -.58], [.6, 2.0, -.58], [0, 2.6, -.58], [0, 1.4, -.58]], rate: 4, life: 1, v: [0, .15, 0], sp: .1, col: [0xff8a2a, 0xffd27a, 0xffffff], sz: .04 }
+];SKIN_BY_N[SKINS.abyss.n] = 'abyss';
+/* ============ 外观直售：不用抽，直接用晶石买外观 ============
+   「星渊帝皇」只在这里卖。其他外观（赛季手册的除外）也能直接买，价格比抽到的期望花费高一些。 */
+const SKIN_PRICE = { 5: 3280, 4: 1280, 3: 480 };
+const SKIN_SHOP = () => ['abyss'].concat(Object.keys(SKINS).filter(k => k !== 'abyss' && !SKINS[k].pass && SKIN_PRICE[SKINS[k].r]).sort((a, b) => SKINS[b].r - SKINS[a].r));
+const SK_RN = { 5: ['神话', '#ff4d8d'], 4: ['传说', '#ffc94a'], 3: ['史诗', '#c28bff'] };
+let _skArm = '', _skArmT = 0;
+function skinBuy(k, b) { const P = SKIN_PRICE[SKINS[k].r]; if (S.skins.includes(k)) return;
+  if (_skArm !== k || Date.now() - _skArmT > 3000) { _skArm = k; _skArmT = Date.now();   // first tap arms the button, second tap buys
+    if (b) { b.classList.add('armed'); b.innerHTML = '再点一次确认 · ' + P + ' 晶石'; setTimeout(() => { if (_skArm === k && Date.now() - _skArmT >= 2900) { _skArm = ''; b.classList.remove('armed'); b.innerHTML = icHtml('gem:1') + ' ' + P + ' 晶石'; } }, 3000); } return; }
+  _skArm = ''; if (FREE_TEST && S.gem < P) addGem(100000 - S.gem, '测试版补满'); if (!payGem(P)) return;
+  giveSkin(k); try { sfx.build(); } catch (e) { } saveGame(); const box = $('mallList'), y = box ? box.scrollTop : 0; renderMall(); if (box) box.scrollTop = y; }
+function skinShopRender(box, el2) {
+  box.appendChild(el2('div', 'snote', '直接用晶石买，不用抽。买下马上可以在「背包 · 外观衣柜」里换上。点图片可以预览。'));
+  const list = el2('div', 'skshop');
+  SKIN_SHOP().forEach((k, i) => { const K = SKINS[k], R = SK_RN[K.r], own = S.skins.includes(k), P = SKIN_PRICE[K.r], arm = _skArm === k && Date.now() - _skArmT < 3000;
+    const c = el2('div', 'skcard' + (i === 0 ? ' hot' : '') + (own ? ' own' : '')); c.style.setProperty('--qc', R[1]);
+    c.innerHTML = (i === 0 ? '<em class="sktag">直售限定 · 新品</em>' : '') + '<div class="skpic">' + icHtml('skin:' + k, 'big') + '</div><b>' + K.n + '</b><small style="color:' + R[1] + '">' + R[0] + (K.stt ? ' · ' + K.stt : '') + '</small><p>' + (K.d || '') + '</p>';
+    c.querySelector('.skpic').addEventListener('click', () => { try { skinPreview(k); } catch (e) { } });
+    const b = el2('button', 'sbtn skbuy' + (arm ? ' armed' : ''), own ? '已拥有' : arm ? '再点一次确认 · ' + P + ' 晶石' : icHtml('gem:1') + ' ' + P + ' 晶石'); b.disabled = own;
+    b.addEventListener('click', () => skinBuy(k, b)); c.appendChild(b); list.appendChild(c); });
+  box.appendChild(list);
+}
+try { const st = document.createElement('style'); st.textContent = '.skshop{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:8px}' +
+  '.skcard{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 10px;border-radius:14px;border:1.5px solid var(--qc);background:radial-gradient(circle at 50% 25%,color-mix(in srgb,var(--qc) 22%,transparent),rgba(14,8,16,.92) 70%);text-align:center}' +
+  '.skcard.hot{grid-column:1/-1;box-shadow:0 0 22px color-mix(in srgb,var(--qc) 45%,transparent)}.skcard.hot .skpic{height:180px}.skcard.own{opacity:.7}' +
+  '.skpic{height:130px;display:flex;align-items:center;justify-content:center;cursor:pointer}.skpic .ic,.skpic img{height:100%;width:auto;max-width:100%}' +
+  '.skcard b{font-size:16px}.skcard small{font-size:11.5px;font-weight:700}.skcard p{margin:2px 0 4px;font-size:11.5px;line-height:1.45;opacity:.8}.skbuy{min-width:140px}.skbuy.armed{background:#ff7a2f;color:#fff}' +
+  '.sktag{position:absolute;left:10px;top:10px;font-style:normal;font-size:11px;font-weight:900;padding:3px 8px;border-radius:8px;background:#ff4d8d;color:#fff}';
+  document.head.appendChild(st); } catch (e) { }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -13700,4 +13814,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794167768').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794169751').catch(()=>{});</script></body></html>
