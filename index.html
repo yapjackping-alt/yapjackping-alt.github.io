@@ -3203,7 +3203,7 @@ const DN_ST = {
   dawn:  { sky: ['#272a52', '#6d5679', '#ffad6e', '#3a2a3a'], sun: 0xffb080, si: .8, hs: 0xffc8a8, hg: 0x2e2a40, hi: .85, fc: 0x8a8ac0, fi: .38, fog: 0xc08070, fa: .25, near: 42, far: 130, cl: .9, night: .35 },
   day:   { sky: ['#3d5878', '#8797a6', '#d9b98f', '#4a3a36'], sun: 0xffe2b8, si: 1.12, hs: 0xdce2ff, hg: 0x4a3a30, hi: .95, fc: 0x9aa8d0, fi: .34, fog: 0xb4ab98, fa: .45, near: 50, far: 150, cl: 1.25, night: 0 },
   dusk:  { sky: ['#120d2b', '#9a3d52', '#ff8a4c', '#3a1e2a'], sun: 0xff9a60, si: .95, hs: 0xffb48a, hg: 0x2e1a38, hi: .95, fc: 0x8a8ac0, fi: .4, fog: 0xa4504a, fa: 0, near: 45, far: 135, cl: 1, night: .25 },
-  night: { sky: ['#02030a', '#080d20', '#1a2340', '#04050b'], sun: 0x7d8cc8, si: .4, hs: 0x5a6a9e, hg: 0x10101e, hi: .62, fc: 0x4a5a9a, fi: .22, fog: 0x0e1324, fa: .72, near: 26, far: 95, cl: .3, night: 1 }
+  night: { sky: ['#02030a', '#080d20', '#1a2340', '#04050b'], sun: 0x8a9ad8, si: .5, hs: 0x7486bc, hg: 0x1c1c30, hi: .78, fc: 0x5a6aaa, fi: .3, fog: 0x141c34, fa: .72, near: 34, far: 120, cl: .3, night: 1 }
 };
 const _c1 = new THREE.Color(), _c2 = new THREE.Color();
 const lerpC = (a, b, k) => { _c1.setHex(a); _c2.setHex(b); return ((Math.round((_c1.r + (_c2.r - _c1.r) * k) * 255) << 16) | (Math.round((_c1.g + (_c2.g - _c1.g) * k) * 255) << 8) | Math.round((_c1.b + (_c2.b - _c1.b) * k) * 255)); };
@@ -3229,7 +3229,10 @@ for (let i = 0; i < 70; i++) { const s = new THREE.Sprite(starMat), a = Math.ran
 const moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(235,240,255,1)', 'rgba(150,170,230,.45)'), fog: false, depthWrite: false, transparent: true, opacity: 0, blending: THREE.AdditiveBlending }));
 moon.scale.set(70, 70, 1); scene.add(moon);
 // shoulder torch, always in the scene (intensity 0 by day) so turning it on never recompiles shaders
-const torch = new THREE.PointLight(0xffd6a0, 0, 17, 1.6); scene.add(torch);
+const torch = new THREE.PointLight(0xffd6a0, 0, 30, 1); scene.add(torch);
+// a soft warm pool of light on the ground around you at night (cheap, and it reads well on a phone)
+const torchPool = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: glowTex('rgba(255,214,150,.55)', 'rgba(255,170,90,0)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 }));
+torchPool.rotation.x = -Math.PI / 2; torchPool.scale.set(20, 20, 1); torchPool.renderOrder = 2; torchPool.userData.noCast = 1; scene.add(torchPool);
 function placeSky(cam) {
   const sd = scene.getObjectByName('skydome'); if (sd) sd.position.copy(cam.position);
   const sn = scene.getObjectByName('sun'), t = DN.t;
@@ -3253,8 +3256,9 @@ function dayNightTick(dt) {
   torchTick();
 }
 function torchTick() {
-  const n = DN.night, f = player.face; torch.intensity = n > .3 ? (n - .3) * 1.9 : 0;
-  torch.position.set(player.pos.x + Math.sin(f) * 1.8, 2.6, player.pos.z + Math.cos(f) * 1.8);
+  const n = DN.night, f = player.face, py = Math.max(0, pm.g.position.y); torch.intensity = n > .15 ? (n - .15) * 1.7 : 0;
+  torch.position.set(player.pos.x + Math.sin(f) * 1.2, 3.4 + py, player.pos.z + Math.cos(f) * 1.2);
+  torchPool.visible = n > .15; torchPool.material.opacity = n > .15 ? Math.min(.32, (n - .15) * .4) : 0; torchPool.position.set(player.pos.x + Math.sin(f) * .8, .06 + py, player.pos.z + Math.cos(f) * .8);
 }
 // the fog colour the biome tint should aim for right now
 function dnFog(base) { const s = DN._s; return s ? lerpC(base, s.fog, s.fa) : base; }
@@ -10334,13 +10338,15 @@ function fishAct() {
 }
 // the bite: tap in time to set the hook, then fight the fish
 function fishHook() {
-  const f = FI.fish; if (!f) return; FI.st = 'fight'; FI.hold = false; FI.T = 20; FI.P = 28; FI.ph = 0; FI.pt = rand(.8, 1.6); FI.str = .55 + f.r * .26 + Math.min(.4, (f.kg[1] / 400)); FI.clk = 0;
+  const f = FI.fish; if (!f) return; FI.st = 'fight'; FI.hold = false; FI.T = 20; FI.P = 28; FI.ph = 0; FI.pt = rand(.8, 1.6); FI.clk = 0;
+  FI.kgu = Math.pow(Math.random(), 1.6); FI.kg = +(f.kg[0] + FI.kgu * (f.kg[1] - f.kg[0])).toFixed(f.kg[1] < 5 ? 2 : 1);
+  FI.str = .5 + f.r * .22 + FI.kgu * (.12 + f.r * .04) + (FI.hab === 'deep' ? .08 : 0);
   FI.sx = FI.bx; FI.sz = FI.bz; fsnd.bite(); fishUi(); fishBtn();
 }
 function fishFight(dt) {
   // the fish switches between resting and fighting; while it fights, reeling in pulls the line tight fast
-  FI.pt -= dt; if (FI.pt <= 0) { FI.ph = FI.ph ? 0 : 1; FI.pt = FI.ph ? rand(.7, 1.5 + FI.fish.r * .2) : rand(1, 2.4); if (FI.ph) { if (FI.hold) FI.T += 10 * FI.str; burst(FI.bx, FI.by + .1, FI.bz, 0xffffff, 8, 3); fsnd.bite(); if (navigator.vibrate) try { navigator.vibrate(40); } catch (e) { } } }
-  const force = FI.str * (FI.ph ? 1 : .22);
+  FI.pt -= dt; if (FI.pt <= 0) { FI.ph = FI.ph ? 0 : 1; const near = FI.P / 100; FI.pt = FI.ph ? rand(.7, 1.5 + FI.fish.r * .2) * (1 + near * .5) : rand(1, 2.4) * (1 - near * .45); if (FI.ph) { if (FI.hold) FI.T += 10 * FI.str; burst(FI.bx, FI.by + .1, FI.bz, 0xffffff, 8, 3); fsnd.bite(); if (navigator.vibrate) try { navigator.vibrate(40); } catch (e) { } } }
+  const force = FI.str * (FI.ph ? 1 + FI.P / 100 * .35 : .22);      // it fights harder the closer it gets
   if (FI.hold) { FI.T += (14 + force * 45) * dt; FI.P += (16 - force * 4) * dt; FI.clk -= dt; if (FI.clk <= 0) { FI.clk = .07; fsnd.click(); } }
   else { FI.T -= 50 * dt; FI.P -= (1.5 + force * 3.5) * dt; }
   FI.T = Math.max(0, FI.T);
@@ -10357,7 +10363,7 @@ function fishFight(dt) {
 function fishLand() {
   const f = FI.fish; FI.st = 'land'; FI.lt = 0; FI.hold = false; fsnd.land(); fishUi(); fishBtn();
   FI.show = fishModel(f, Math.min(1, Math.max(.35, f.len * .8))); FI.show.position.set(FI.bx, FI.by, FI.bz); scene.add(FI.show); FI.bob.visible = false;
-  const kg = +(f.kg[0] + Math.pow(Math.random(), 1.6) * (f.kg[1] - f.kg[0])).toFixed(f.kg[1] < 5 ? 2 : 1), first = !S.fishLog[f.id], best = kg > (S.fishLog[f.id] || 0);
+  const kg = FI.kg, first = !S.fishLog[f.id], best = kg > (S.fishLog[f.id] || 0);
   if (best) S.fishLog[f.id] = kg; gain(fk(f.id), 1); stInc('fish'); if (typeof colAdd === 'function') colAdd('fish:' + f.id); if (typeof seaXp === 'function') seaXp(3 + f.r * 3);
   try { addXp(8 * f.r * f.r); } catch (e) { }
   const R = FISH_R[f.r]; banner((first ? '新品种！' : '钓到了 ') + f.n, R[0] + ' · ' + kg + ' 公斤' + (best && !first ? ' · 个人纪录！' : ''), f.r >= 4 ? 3.6 : 2.6);
@@ -10562,6 +10568,31 @@ shopLoad = (o => function (d) { o(d); S.fishLog = {}; S.tanks = {}; try { const 
   if (F.log && typeof F.log === 'object') for (const id in F.log) if (FISH_BY[id] && Number.isFinite(+F.log[id])) S.fishLog[id] = +F.log[id];
   if (F.tk && typeof F.tk === 'object') for (const k in F.tk) if (Array.isArray(F.tk[k])) { const a = F.tk[k].filter(id => FISH_BY[id]).slice(0, TK_CAP); if (a.length) S.tanks[String(k).slice(0, 40)] = a; } } } catch (e) { }
   TKF.forEach((L, b) => tankFishClear(b)); })(shopLoad);
+
+/* ---- on the boat: no running, no footsteps; an outboard engine that revs with speed ---- */
+toggleSprint = (o => function () { if (S.boat || SW.b) { S.sprint = false; feed(S.boat ? '在船上不能跑步' : '在水里不能跑步', '#9fe8ff'); return; } return o(); })(toggleSprint);
+bodyAudio = (o => function (dt, moving) { return o(dt, moving && !S.boat && !SW.b); })(bodyAudio);
+const ENG = { on: false, o1: null, o2: null, g: null, f: null, l: null, rev: 0 };
+function engineSet(on) {
+  if (!AC) return; if (on === ENG.on) return; ENG.on = on;
+  if (on) { try {
+    const t = AC.currentTime, g = AC.createGain(), f = AC.createBiquadFilter(), o1 = AC.createOscillator(), o2 = AC.createOscillator(), l = AC.createOscillator(), lg = AC.createGain();
+    o1.type = 'sawtooth'; o2.type = 'square'; o1.frequency.value = 42; o2.frequency.value = 84.5; f.type = 'lowpass'; f.frequency.value = 380; f.Q.value = 2;
+    l.frequency.value = 11; lg.gain.value = .35; l.connect(lg); lg.connect(g.gain);        // the putt-putt of a small motor
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.55, t + .4);
+    const v = AC.createGain(); v.gain.value = .16; o1.connect(f); o2.connect(f); f.connect(g); g.connect(v); v.connect(out());
+    o1.start(); o2.start(); l.start(); Object.assign(ENG, { o1, o2, g, f, l, v });
+    sfxNoise(.5, .12, 900, { f1: 200 }); sfxTone(60, 140, .35, .1, 'sawtooth', { lp: 600 });     // pull-start
+  } catch (e) { ENG.on = false; } }
+  else { try { const t = AC.currentTime; ENG.g.gain.cancelScheduledValues(t); ENG.v.gain.linearRampToValueAtTime(0, t + .3); const a = [ENG.o1, ENG.o2, ENG.l]; setTimeout(() => a.forEach(x => { try { x.stop(); } catch (e) { } }), 400); } catch (e) { } }
+}
+function engineTick(dt) {
+  const on = S.isl && S.boat && !S.dead && !S.paused && !document.hidden; engineSet(on); if (!ENG.on || !ENG.o1) return;
+  const mv = Math.hypot(input.mx, input.mz) > .1 ? 1 : 0; ENG.rev += (mv - ENG.rev) * Math.min(1, dt * 2.5);
+  const t = AC.currentTime, k = ENG.rev; ENG.o1.frequency.setTargetAtTime(42 + k * 46, t, .1); ENG.o2.frequency.setTargetAtTime(84.5 + k * 93, t, .1); ENG.f.frequency.setTargetAtTime(380 + k * 900, t, .1); ENG.l.frequency.setTargetAtTime(11 + k * 18, t, .1);
+  ENG.v.gain.setTargetAtTime((.13 + k * .1) * VOL.sfx, t, .1);
+}
+petsTick = (o => function (dt) { o(dt); try { engineTick(dt); if (S.boat || SW.b) S.sprint = false; } catch (e) { } })(petsTick);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -11580,4 +11611,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794103834').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794104650').catch(()=>{});</script></body></html>
