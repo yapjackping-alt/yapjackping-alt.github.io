@@ -12277,7 +12277,7 @@ function dunBoss() { const st = DUN.st; st.bossOn = true; const B = 150;
 function dunSafe() { try { const sl = pick(['mz', 'gr', 'bl', 'hd', 'el']), kd = rint(0, 2); S.av.push([sl, kd, 4]); addGem(50, '林医生的保险柜'); gain('heart', 1);
     banner('林医生的保险柜', '黄金配件「' + ATT_K[sl][kd].n + '」（在配件库）· 晶石 ×50 · 首领之心', 4); if (DUN.safeM) DUN.safeM.material = new THREE.MeshBasicMaterial({ color: 0x5aff7a }); saveGame(); } catch (e) { console.warn(e); } }
 function dunWin() { const st = DUN.st; if (st.done) return; st.done = true; const first = !S.dg.first; S.dg.c = (S.dg.c || 0) + 1;
-  const xp = Math.round(xpNeed(S.level) * (first ? .8 : .3)); try { addXp(xp, player.pos); } catch (e) { }
+  const xp = dunXp(first); try { addXp(xp, player.pos); } catch (e) { }
   if (first) { S.dg.first = 1; gain('heart', 2); giveGear(4); gain('bpf', 40); gain('apart', 30); gain('coin', 3000); addGem(100, '副本首通'); banner('副本通关 · 首通奖励', '经验 +' + xp + ' · 首领之心 ×2 · 黄金装备 · 图纸残页 ×40 · 精密零件 ×30 · 余烬币 3000 · 晶石 100', 5); }
   else { gain('bpf', 12); gain('apart', 10); gain('coin', 800); if (Math.random() < .3) giveGear(3); banner('副本通关', '第 ' + S.dg.c + ' 次通关 · 经验 +' + xp + ' · 图纸残页 ×12 · 精密零件 ×10 · 余烬币 800', 4); }
   try { sfx.build(); } catch (e) { } saveGame(); setTimeout(() => { if (S.dun) dunTravel('电梯上行', '离开圣心医院', () => goIsland(false)); }, 1800); }
@@ -12403,7 +12403,7 @@ function dunGuide() { if (!S.dun || !DUN.st) return; const st = DUN.st, old = $(
   document.body.appendChild(m); const close = () => m.remove(); m.addEventListener('click', e => { if (e.target === m) close(); }); m.querySelector('.dunmx').addEventListener('click', close); }
 /* ---- the dungeon page (from the pier) ---- */
 function openDunPage() { try { audioInit(); } catch (e) { } const old = $('dunPageM'); if (old) old.remove(); const rc = recCP(2), cp = combatPower(), ok = cp >= rc * .8, rec = Object.keys(S.dg.rec).length;
-  const xp1 = Math.round(xpNeed(S.level) * .8), xp2 = Math.round(xpNeed(S.level) * .3);
+  const xp1 = dunXp(true), xp2 = dunXp(false);
   const m = document.createElement('div'); m.id = 'dunPageM'; m.className = 'dunm';
   m.innerHTML = '<div class="dunmb dunpage"><button class="dunmx" aria-label="关闭">✕</button>' +
     '<div class="dunban"><i></i><div><small>副本 · 第一章</small><b>圣心医院</b><em>零号病人</em></div></div>' +
@@ -12412,7 +12412,7 @@ function openDunPage() { try { audioInit(); } catch (e) { } const old = $('dunPa
     '<div class="dunrw"><div class="' + (S.dg.first ? 'got' : '') + '"><small>首通奖励' + (S.dg.first ? ' · 已领取' : '') + '</small>经验 +' + xp1 + ' · 黄金装备 · 首领之心 ×2 · 图纸残页 ×40 · 精密零件 ×30 · 余烬币 3000 · 晶石 100</div>' +
     '<div><small>每次通关</small>经验 +' + xp2 + ' · 图纸残页 ×12 · 精密零件 ×10 · 余烬币 800 · 有机会掉史诗装备</div>' +
     '<div class="' + (S.dg.safe ? 'got' : '') + '"><small>隐藏 · 林医生的保险柜' + (S.dg.safe ? ' · 已打开' : '') + '</small>黄金配件 · 晶石 ×50 · 首领之心</div></div>' +
-    '<p class="dunnote">单人副本 · 中途按「回岛」离开或者倒下，这一趟进度不保存（录音和保险柜拿到就算数）。</p>' +
+    '<p class="dunnote">经验按副本等级（Lv.' + DUN_LV[1] + '）计算，你的等级超过 Lv.' + (DUN_LV[1] + 5) + ' 之后，通关经验会越来越少。<br>单人副本 · 中途按「回岛」离开或者倒下，这一趟进度不保存（录音和保险柜拿到就算数）。</p>' +
     '<button class="go dungo">进入副本</button></div>';
   document.body.appendChild(m); const close = () => m.remove(); m.addEventListener('click', e => { if (e.target === m) close(); }); m.querySelector('.dunmx').addEventListener('click', close);
   m.querySelector('.dungo').addEventListener('click', () => { close(); dunTravel('正在进入副本', '圣心医院 · 零号病人', dunEnter); }); }
@@ -12441,6 +12441,10 @@ try { if (document.createElement && document.body) {
     '.dunload u{display:block;width:200px;height:4px;border-radius:2px;background:rgba(255,255,255,.15);overflow:hidden;margin:6px 0}.dunload s{display:block;height:100%;width:0;background:#c9a0ff;animation:dunbar 1.6s linear forwards}@keyframes dunbar{to{width:100%}}' +
     '.dunlh{display:flex;gap:6px;margin-bottom:6px}.dunlh i{width:10px;height:10px;background:#ff3a2a;animation:dunblink 1s infinite}.dunlh i:nth-child(2){animation-delay:.2s}.dunlh i:nth-child(3){animation-delay:.4s}@keyframes dunblink{50%{opacity:.2}}';
   document.head.appendChild(st); } } catch (e) { }
+
+// clear XP follows the dungeon's level, not yours: it is worked out at Lv.18 at most, and shrinks once you are well past it
+function dunXp(first) { const L = DUN_LV[1], over = S.level - (L + 5), k = over > 0 ? Math.max(.1, 1 - over * .1) : 1;
+  return Math.max(1, Math.round(xpNeed(Math.min(S.level, L)) * (first ? .8 : .3) * k)); }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -13468,4 +13472,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794162248').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794162766').catch(()=>{});</script></body></html>
