@@ -909,6 +909,22 @@ button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);mar
 .attic{position:relative;display:inline-block;line-height:0}.attlvt{position:absolute;right:-6px;bottom:-4px;font:800 10px/1 var(--font-hud);font-style:normal;color:#1a1208;background:linear-gradient(180deg,#ffe9a8,#ffb54a);padding:2px 4px;border-radius:5px;box-shadow:0 1px 3px rgba(0,0,0,.5)}
 .attlvi{font-style:normal;font-size:11px;color:#ffd98a;margin-left:4px}.attlvb{width:100%;height:4px;border-radius:2px;background:rgba(255,255,255,.1);overflow:hidden;margin:4px 0 2px}.attlvb u{display:block;height:100%;background:linear-gradient(90deg,#8aa0b8,#ffe9a8)}
 .attc .attcost{justify-content:center;max-width:none}.attc .attcost .ic{width:16px;height:16px}.attbtns{display:flex;gap:5px;margin-top:4px}.attbtns .sbtn{padding:5px 10px;min-height:0;font-size:12px}.attc{cursor:default}.attc.tap{cursor:pointer}
+/* ---- chat ---- */
+#bChat{position:absolute;left:calc(var(--sl) + 14px);bottom:calc(var(--sb) + 150px);display:none;font-size:14px;border-color:#9fe8ff;background:rgba(14,40,56,.85);color:#e8faff}
+#bChat.dot::after{content:'';position:absolute;right:-3px;top:-3px;width:10px;height:10px;border-radius:50%;background:#ff5a4a;box-shadow:0 0 6px #ff5a4a}
+#chatFeed{position:fixed;left:calc(var(--sl,0px) + 12px);bottom:calc(var(--sb,0px) + 200px);z-index:7;pointer-events:none;display:flex;flex-direction:column;gap:4px;max-width:min(320px,55vw)}
+.cfi{padding:4px 9px;border-radius:9px;background:rgba(8,16,24,.72);color:#eef6fa;font-size:12.5px;line-height:1.35;transition:opacity .6s;animation:cfin .25s ease-out}.cfi b{color:#9fe8ff;font-weight:700}.cfi.me b{color:#ffd98a}.cfi.fade{opacity:0}
+@keyframes cfin{from{transform:translateX(-12px);opacity:0}to{transform:none;opacity:1}}
+#chatBox{display:none;position:fixed;left:calc(var(--sl,0px) + 10px);bottom:calc(var(--sb,0px) + 10px);z-index:40;width:min(360px,64vw);max-height:min(320px,78vh);flex-direction:column;border-radius:14px;background:rgba(10,18,28,.94);border:1px solid rgba(159,232,255,.4);box-shadow:0 8px 24px rgba(0,0,0,.5);overflow:hidden}
+#chatBox.show{display:flex}.chd{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.08)}.chd b{font-size:13px;color:#bff0ff}.chd button{background:none;border:0;color:#a8c0cc;font-size:16px;padding:2px 6px;cursor:pointer}
+#chatLog{flex:1;min-height:60px;overflow-y:auto;padding:6px 10px;display:flex;flex-direction:column;gap:5px}.cl{display:flex;flex-direction:column;align-items:flex-start}.cl b{font-size:10.5px;color:#7fc8e0}.cl span{font-size:13px;color:#eef6fa;background:rgba(255,255,255,.08);padding:4px 9px;border-radius:10px 10px 10px 3px;word-break:break-all}
+.cl.me{align-items:flex-end}.cl.me b{color:#ffd98a}.cl.me span{background:rgba(255,190,80,.22);border-radius:10px 10px 3px 10px}.cnone{font-size:12px;color:#8aa4b4;padding:6px 0}
+#chatQuick{display:flex;gap:5px;overflow-x:auto;padding:5px 8px;scrollbar-width:none}#chatQuick button{flex:none;font-size:11.5px;padding:4px 9px;border-radius:12px;border:1px solid rgba(159,232,255,.35);background:rgba(159,232,255,.08);color:#dff6ff;cursor:pointer}
+.cin{display:flex;gap:6px;padding:7px 8px;border-top:1px solid rgba(255,255,255,.08)}.cin input{flex:1;min-width:0;font-size:16px;padding:7px 10px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.35);color:#fff;outline:none}.cin button{flex:none;padding:7px 14px;border-radius:9px;border:0;background:linear-gradient(180deg,#9fe8ff,#3aa8e0);color:#08202c;font-weight:800;cursor:pointer}
+/* ---- computer: key strip + key caps in the guide ---- */
+#keyHint{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:4px;z-index:6;gap:10px;align-items:center;padding:4px 10px;border-radius:10px;background:rgba(0,0,0,.45);font-size:11.5px;color:#d8d0c8;pointer-events:auto;white-space:nowrap}
+#keyHint b{display:inline-block;min-width:18px;padding:0 5px;margin-right:4px;border-radius:4px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);color:#fff;font:700 11px var(--font-hud);text-align:center}#keyHint button{background:none;border:0;color:#a89888;cursor:pointer;font-size:12px}
+.kcap{display:inline-flex;align-items:center;justify-content:center;min-width:44px;padding:6px 8px;border-radius:8px;background:linear-gradient(180deg,#4a4248,#2a2428);border:1px solid rgba(255,255,255,.3);box-shadow:0 3px 0 #120e10;color:#fff;font:800 13px/1.25 var(--font-hud);text-align:center}
 </style>
 
 <canvas id="c"></canvas>
@@ -10989,6 +11005,102 @@ mpInit = (orig => async function (code) {
 })(mpInit);
 window.addEventListener('pagehide', () => { try { if (NET.room) netBye(RTDB + '/rooms/' + NET.room.key, NET.peer); } catch (e) { } });
 document.addEventListener('visibilitychange', () => { if (document.hidden && NET.room) netBye(RTDB + '/rooms/' + NET.room.key, NET.peer); });
+/* ============ room chat + computer (keyboard) help ============
+   · Chat: everyone in the same online room can talk. A 聊天 button (Enter on a computer) opens a small box at the
+     bottom left with the recent messages, quick phrases and a text field; it does not pause the game. New messages
+     also float up in a short feed on the left and as a speech bubble over the speaker's head.
+   · On a computer (mouse + keyboard) the button guide gets a keyboard section, the tutorial talks about keys
+     instead of the joystick, and a small key strip sits at the bottom of the screen (can be closed). */
+const IS_PC = (() => { try { return matchMedia('(hover: hover) and (pointer: fine)').matches && !('ontouchstart' in window && navigator.maxTouchPoints > 1); } catch (e) { return false; } })();
+const CHAT = { log: [], open: false, last: 0, bub: new Map() };
+const CHAT_QUICK = ['来帮我！', '跟我走', '这里有首领', '谢谢！', '等我一下', '回岛了', '一起打周王吗？', '哈哈'];
+const chatClean = s => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+function chatBubble(text) {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 112; const g = c.getContext('2d'); const t = text.length > 18 ? text.slice(0, 17) + '…' : text;
+  g.font = 'bold 34px "Noto Sans SC", sans-serif'; const w = Math.min(500, g.measureText(t).width + 44), x = (512 - w) / 2;
+  g.fillStyle = 'rgba(255,255,255,.94)'; g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(x + 14, 8); g.lineTo(x + w - 14, 8); g.quadraticCurveTo(x + w, 8, x + w, 22); g.lineTo(x + w, 70); g.quadraticCurveTo(x + w, 84, x + w - 14, 84); g.lineTo(272, 84); g.lineTo(256, 104); g.lineTo(240, 84); g.lineTo(x + 14, 84); g.quadraticCurveTo(x, 84, x, 70); g.lineTo(x, 22); g.quadraticCurveTo(x, 8, x + 14, 8); g.closePath(); g.fill(); g.stroke();
+  g.fillStyle = '#1a1410'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, 256, 47);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, depthTest: false })); sp.scale.set(4.6, 1, 1); sp.renderOrder = 11; return sp;
+}
+function chatShowBubble(key, grp, text) { const old = CHAT.bub.get(key); if (old) { old.g.remove(old.sp); }
+  const sp = chatBubble(text); sp.position.set(0, 4.5, 0); grp.add(sp); CHAT.bub.set(key, { g: grp, sp, t: 5 }); }
+function chatAdd(name, text, mine) {
+  CHAT.log.push({ n: name, t: text, mine, at: Date.now() }); if (CHAT.log.length > 40) CHAT.log.shift();
+  const f = $('chatFeed'); if (f) { const d = document.createElement('div'); d.className = 'cfi' + (mine ? ' me' : ''); const b = document.createElement('b'); b.textContent = name + '：'; const s = document.createElement('span'); s.textContent = text; d.appendChild(b); d.appendChild(s); f.appendChild(d);
+    while (f.children.length > 4) f.removeChild(f.firstChild); setTimeout(() => { d.classList.add('fade'); setTimeout(() => d.remove(), 600); }, 8000); }
+  if (CHAT.open) chatRender(); else if (!mine) { const b = $('bChat'); if (b) b.classList.add('dot'); }
+}
+function chatSend(text) {
+  text = chatClean(text); if (!text) return;
+  if (!MP.on || !MP.room) { feed('还没连上联机，发不出去', '#ff9b8a'); return; }
+  if (Date.now() - CHAT.last < 1200) { feed('说慢一点', '#ff9b8a'); return; } CHAT.last = Date.now();
+  MP.room.emit('chat', { n: S.name || '幸存者', t: text }).catch(() => feed('发送失败，网络不好', '#ff9b8a'));
+  chatAdd(S.name || '我', text, true); chatShowBubble('me', pm.g, text);
+}
+function onChat(m) {
+  if (m.isMe || !m.data) return; const name = cleanName(m.data.n) || '幸存者', text = chatClean(m.data.t); if (!text) return;
+  chatAdd(name, text, false); const o = MP.others.get(m.peer); if (o && o.g) chatShowBubble(m.peer, o.g, text);
+  try { if (AC) sfxTone(880, 1320, .08, .04, 'sine'); } catch (e) { }
+}
+function chatRender() {
+  const L = $('chatLog'); if (!L) return; L.innerHTML = '';
+  if (!CHAT.log.length) { const n = document.createElement('div'); n.className = 'cnone'; n.textContent = MP.on ? '房间里还没人说话。在下面输入，或者点快捷语。' : '还没连上联机。在「角色」页面的组队里进入房间。'; L.appendChild(n); }
+  for (const c of CHAT.log) { const d = document.createElement('div'); d.className = 'cl' + (c.mine ? ' me' : ''); const b = document.createElement('b'); b.textContent = c.n; const s = document.createElement('span'); s.textContent = c.t; d.appendChild(b); d.appendChild(s); L.appendChild(d); }
+  L.scrollTop = L.scrollHeight;
+  const h = $('chatHead'); if (h) h.textContent = MP.on ? '聊天 · ' + (MP.code ? '房间 ' + MP.code : '公共大厅') + ' · ' + Math.max(1, S.mpn || 1) + ' 人' : '聊天（未联机）';
+}
+function chatToggle(on) {
+  CHAT.open = on == null ? !CHAT.open : on; const box = $('chatBox'); if (!box) return; box.classList.toggle('show', CHAT.open);
+  const b = $('bChat'); if (b) b.classList.remove('dot');
+  if (CHAT.open) { chatRender(); if (IS_PC) setTimeout(() => { const i = $('chatIn'); i && i.focus(); }, 30); } else { const i = $('chatIn'); i && i.blur(); }
+}
+try { if (document.createElement && document.body && document.body.appendChild) {
+  const f = document.createElement('div'); f.id = 'chatFeed'; document.body.appendChild(f);
+  const box = document.createElement('div'); box.id = 'chatBox';
+  box.innerHTML = '<div class="chd"><b id="chatHead">聊天</b><button id="chatX" aria-label="关闭">✕</button></div><div id="chatLog"></div><div id="chatQuick"></div><div class="cin"><input id="chatIn" maxlength="60" placeholder="说点什么…" autocomplete="off" enterkeyhint="send"><button id="chatGo">发送</button></div>';
+  document.body.appendChild(box);
+  ['pointerdown', 'touchstart', 'click', 'wheel'].forEach(ev => box.addEventListener(ev, e => e.stopPropagation(), { passive: ev !== 'click' }));
+  const q = box.querySelector('#chatQuick'); CHAT_QUICK.forEach(t => { const b = document.createElement('button'); b.textContent = t; b.addEventListener('click', () => chatSend(t)); q.appendChild(b); });
+  const inp = box.querySelector('#chatIn');
+  inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { chatSend(inp.value); inp.value = ''; } else if (e.key === 'Escape') chatToggle(false); });
+  inp.addEventListener('keyup', e => e.stopPropagation());
+  box.querySelector('#chatGo').addEventListener('click', () => { chatSend(inp.value); inp.value = ''; if (!IS_PC) inp.blur(); });
+  box.querySelector('#chatX').addEventListener('click', () => chatToggle(false));
+  const H = $('hud'); if (H && H.appendChild) { const b = document.createElement('button'); b.className = 'btn2'; b.id = 'bChat'; b.innerHTML = '聊天'; H.appendChild(b);
+    b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); chatToggle(); }); }
+} } catch (e) { }
+window.addEventListener('keydown', e => { if (!S.started || e.repeat) return; const typing = e.target && /input|textarea/i.test(e.target.tagName || ''); if (typing) return;
+  if (e.code === 'Enter' || e.code === 'NumpadEnter') { e.preventDefault(); chatToggle(true); } });
+// hook the topic into whatever room we join (claude.ai rooms and the online database alike)
+coopWire = (o => function (r) { o(r); try { r.on('chat', onChat); } catch (e) { } })(coopWire);
+function chatTick(dt) {
+  for (const [k, b] of CHAT.bub) { b.t -= dt; if (b.t <= 0) { b.g.remove(b.sp); CHAT.bub.delete(k); } else if (b.t < .5) b.sp.material.opacity = b.t / .5; }
+  const btn = $('bChat'); if (btn) btn.style.display = S.started && MP.on ? 'block' : 'none';
+}
+petsTick = (o => function (dt) { o(dt); try { chatTick(dt); } catch (e) { } })(petsTick);
+
+/* ---- playing on a computer ---- */
+const PC_KEYS = [['W A S D / 方向键', '移动'], ['空格（按住）', '射击 / 挥砍，自动瞄准最近的敌人'], ['Shift', '奔跑（再按一次停下）'], ['R', '换弹'], ['Q', '切换手上的武器和备用武器'], ['H', '用医疗包'],
+  ['B', '打开 / 关闭建造'], ['E', '放下建筑 · 在商人旁边打开商店'], ['C 或 T', '角色页面（属性、天赋、设置、联机）'], ['U', '武器页面'], ['M', '大地图'], ['Enter', '聊天'], ['鼠标', '所有按钮都可以用鼠标点']];
+if (IS_PC) {
+  GUIDE.unshift(['电脑键盘操作', PC_KEYS.map(([k, d]) => ['key:' + k, k, d])]);
+  renderGuide = (o => function () { o(); try { document.querySelectorAll('#guideBox .gi').forEach(it => { const b = it.querySelector('.gt b'); const ic = it.querySelector('.gic'); if (!b || !ic) return; const k = PC_KEYS.find(x => x[0] === b.textContent); if (k && ic.textContent.trim() === k[0]) { ic.innerHTML = '<span class="kcap">' + k[0].replace(/ \/ /g, '<br>') + '</span>'; } }); } catch (e) { } })(renderGuide);
+  // the tutorial speaks keyboard
+  try { const st = STORY[0]; st.intro[2][1] = T2('先活动一下：用键盘的 W A S D（或方向键）走一走。', 'First, stretch your legs: walk around with W A S D (or the arrow keys).');
+    st.steps[0].d = T2('用 W A S D 走动 20 米', 'Walk 20 m with W A S D');
+    st.steps[1].say = T2('很好。被追的时候要会跑：按一下 Shift 键开始奔跑，会消耗体力。', 'Good. When chased, run: press Shift to start running. It uses stamina.');
+    st.steps[2].say = T2('材料要自己采。走到树旁边，屏幕右下会出现「砍树」按钮，用鼠标按住就会一直砍。木头和藤条都从树上来。', 'You gather your own materials. Walk up to a tree: a Chop button appears at the bottom right — hold it with the mouse. Wood and vines come from trees.');
+    st.steps[3].say = T2('有了木头就能建东西。按 B 键打开建造，选一样，再按 E 键放下来。墙和炮塔能保护你的家。', 'With wood you can build. Press B to open Build, pick something and press E to place it. Walls and turrets protect your home.');
+    st.steps[5].say = T2('看到丧尸了吗？按住空格键射击，会自动瞄准最近的丧尸。', 'See the zombies? Hold Space to fire: it aims at the nearest zombie by itself.');
+  } catch (e) { }
+  // a small strip of keys at the bottom (closable)
+  { let off = false; try { off = localStorage.getItem('ember_keyhint') === '0'; } catch (e) { }
+    if (!off && document.createElement && document.body) { const k = document.createElement('div'); k.id = 'keyHint';
+      k.innerHTML = '<span><b>WASD</b>移动</span><span><b>空格</b>射击</span><span><b>Shift</b>跑</span><span><b>R</b>换弹</span><span><b>Q</b>换枪</span><span><b>H</b>医疗包</span><span><b>B</b>建造</span><span><b>C</b>角色</span><span><b>M</b>地图</span><span><b>Enter</b>聊天</span><button aria-label="关闭">✕</button>';
+      k.querySelector('button').addEventListener('click', () => { k.remove(); try { localStorage.setItem('ember_keyhint', '0'); } catch (e) { } }); document.body.appendChild(k);
+      setInterval(() => { k.style.display = S.started && !S.paused ? 'flex' : 'none'; }, 500); } }
+}
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -12007,4 +12119,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794112102').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794113438').catch(()=>{});</script></body></html>
