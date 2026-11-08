@@ -936,6 +936,15 @@ button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);mar
 .frrow{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:9px;background:rgba(255,255,255,.05)}.frrow>i{flex:none;width:9px;height:9px;border-radius:50%;background:#5a6670}.frrow>i.on{background:#6fe08a;box-shadow:0 0 6px #6fe08a}
 .frrow>div{flex:1;min-width:0}.frrow b{display:block;font-size:13px;color:#eef6fa}.frrow b em{font-style:normal;font-size:10px;background:#ff5a4a;color:#fff;border-radius:7px;padding:0 5px;margin-left:4px}.frrow small{display:block;font-size:10.5px;color:#9fb4c0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .frrow button.no{background:rgba(255,255,255,.1);color:#d8c0c0}.frrow button.go2{background:linear-gradient(180deg,#ffe9a8,#ffb54a)}.frrow.req{background:rgba(255,190,80,.1)}
+/* ---- damage numbers, roll, encounters ---- */
+#dmgNums{position:fixed;inset:0;pointer-events:none;z-index:5;overflow:hidden}
+.dn{position:absolute;left:0;top:0;display:none;font:900 15px/1 var(--font-hud);color:#fff;white-space:nowrap;text-shadow:0 0 3px #000,0 2px 2px rgba(0,0,0,.8);will-change:transform,opacity}
+.dn.crit{font-size:22px;color:#ffd23a;text-shadow:0 0 6px rgba(255,120,0,.9),0 2px 2px #000;letter-spacing:.02em}
+.dn.thun{color:#9fe8ff;font-size:14px}.dn.dot{color:#ff9a4a;font-size:12px}.dn.wet{color:#8ac8ff}.dn.turret{color:#c8c8c8;font-size:11px;opacity:.85}.dn.hurt{color:#ff4a3a;font-size:16px}.dn.heal{color:#7fe08a}
+#bRoll{right:172px;bottom:6px;width:58px;height:58px;font-size:13px}#bRoll.cool{opacity:.45}
+@media (orientation:portrait){#bRoll{right:196px!important;bottom:96px!important}}
+#encTxt{display:none;position:fixed;left:50%;top:calc(var(--st,0px) + 96px);transform:translateX(-50%);z-index:8;pointer-events:none;padding:5px 14px;border-radius:10px;background:rgba(70,40,10,.85);border:1px solid #ffc94a;color:#fff2d8;font-weight:800;font-size:13.5px;white-space:nowrap}#encTxt b{color:#ffd98a}
+@media (orientation:portrait){#bChat{bottom:calc(var(--sb) + 268px)}#bFish,#bTank,#bSwim{right:calc(var(--sr) + 14px);bottom:calc(var(--sb) + 262px)}#bBoat{right:calc(var(--sr) + 14px);bottom:calc(var(--sb) + 312px)}#bTank{bottom:calc(var(--sb) + 312px)}#chatFeed{bottom:calc(var(--sb) + 318px)}}
 </style>
 
 <canvas id="c"></canvas>
@@ -11339,6 +11348,122 @@ function glassRefresh(b) { if (!b || !b.g || !b.g.userData.glass) return; const 
 function glassAround(b) { glassRefresh(b); const c = Math.round(Math.cos(b.rot)), s = Math.round(Math.sin(b.rot)); for (const k of [-1, 1]) glassRefresh(gwAt(b.x + k * 3 * c, b.z - k * 3 * s, b.lv | 0)); }
 addBuild = (orig => function (type, x, z, rot, free, lv) { const b = orig(type, x, z, rot, free, lv); if (type === 'gwall' && b) glassAround(b); return b; })(addBuild);
 dropBuild = (orig => function (b) { const gw = b && b.type === 'gwall'; const r = orig(b); if (gw) { const c = Math.round(Math.cos(b.rot)), s = Math.round(Math.sin(b.rot)); for (const k of [-1, 1]) glassRefresh(gwAt(b.x + k * 3 * c, b.z - k * 3 * s, b.lv | 0)); } return r; })(dropBuild);
+/* ============ combat feel and variety ============
+   · Damage numbers: every hit you land pops a number. Crits are bigger, gold and say 暴击; lightning chains are
+     cyan, fire burns orange, hits on soaked (水) zombies blue; turrets and others are small and grey. Your own
+     injuries pop red. Nearby numbers only, from a small pool, so it stays cheap.
+   · Crits and kills kick the camera a little; big hits on bosses kick more.
+   · 翻滚 (F on a computer): a quick roll in the direction you move, briefly untouchable. Costs stamina.
+   · Encounters between the old airdrop / elite events: a passing horde to cull against the clock, and a golden
+     treasure zombie that runs from you and drops a lot if you catch it. */
+const NUM = { pool: [], live: [], pend: null, src: '', box: null };
+const _nv = new THREE.Vector3();
+function numPop(x, y, z, val, kind) {
+  if (!NUM.box || !document.createElement) return; if (Math.hypot(x - player.pos.x, z - player.pos.z) > 45) return;
+  let el = NUM.pool.pop(); if (!el) { if (NUM.live.length > 60) { const o = NUM.live.shift(); el = o.el; } else { el = document.createElement('div'); NUM.box.appendChild(el); } }
+  const v = Math.max(1, Math.round(val)), txt = v >= 100000 ? (v / 1000).toFixed(0) + 'K' : v >= 10000 ? (v / 1000).toFixed(1) + 'K' : String(v);
+  el.className = 'dn ' + kind; el.textContent = kind === 'crit' ? '暴击 ' + txt : kind === 'heal' ? '+' + txt : txt; el.style.display = 'block';
+  NUM.live.push({ el, x: x + rand(-.4, .4), y, z: z + rand(-.4, .4), t: 0, life: kind === 'crit' ? 1.0 : kind === 'dot' || kind === 'turret' ? .6 : .8, vy: kind === 'crit' ? 2.6 : 2, dx: rand(-.6, .6) });
+}
+function numTick(dt) {
+  if (!NUM.live.length) return; const W = window.innerWidth, H = window.innerHeight;
+  for (let i = NUM.live.length - 1; i >= 0; i--) { const o = NUM.live[i]; o.t += dt;
+    if (o.t >= o.life) { o.el.style.display = 'none'; NUM.pool.push(o.el); NUM.live.splice(i, 1); continue; }
+    o.y += o.vy * dt; o.vy -= 2.2 * dt; o.x += o.dx * dt;
+    _nv.set(o.x, o.y, o.z).project(camera); if (_nv.z > 1) { o.el.style.display = 'none'; continue; }
+    const k = o.t / o.life, sc = o.el.classList.contains('crit') ? (o.t < .12 ? .6 + o.t / .12 * .9 : 1.5 - Math.min(.3, o.t)) : (o.t < .08 ? .7 + o.t / .08 * .3 : 1);
+    o.el.style.display = 'block'; o.el.style.opacity = k > .65 ? (1 - k) / .35 : 1;
+    o.el.style.transform = 'translate(' + ((_nv.x * .5 + .5) * W) + 'px,' + ((-_nv.y * .5 + .5) * H) + 'px) translate(-50%,-50%) scale(' + sc.toFixed(2) + ')'; }
+}
+try { if (document.createElement && document.body && document.body.appendChild) { NUM.box = document.createElement('div'); NUM.box.id = 'dmgNums'; document.body.appendChild(NUM.box); } } catch (e) { }
+// which hit is this? dmgRoll is called right before a player's own hit lands
+dmgRoll = (o => function (z, base) { const r = o(z, base); NUM.pend = { crit: !!(r && r.crit), t: S.t }; return r; })(dmgRoll);
+hurtZombie = (o => function (z, dmg, dx, dz) {
+  const before = z ? z.hp : 0, wasDead = !z || z.dead; const r = o(z, dmg, dx, dz);
+  try { if (!wasDead && z) { const dealt = before - Math.max(0, z.hp); const P = NUM.pend; NUM.pend = null;
+    if (dealt > 0.5) { const y = 1.9 * (z.sc || 1) + .3; let kind = 'turret';
+      if (NUM.src) kind = NUM.src; else if (P && S.t - P.t < .05) kind = P.crit ? 'crit' : (z.wetT > S.t ? 'wet' : 'hit');
+      numPop(z.pos.x, y, z.pos.z, dealt, kind);
+      if (kind === 'crit') S.shake = Math.max(S.shake || 0, z.boss ? .16 : .07);
+      if (z.dead && (kind === 'hit' || kind === 'crit')) S.shake = Math.max(S.shake || 0, .05); } } } catch (e) { }
+  return r; })(hurtZombie);
+attElHit = (o => function (z, d) { NUM.src = 'thun'; try { return o(z, d); } finally { NUM.src = ''; } })(attElHit);
+takeDamage = (o => function (n, src) { const h0 = S.hp; const r = o(n, src); try { const lost = h0 - S.hp; if (lost > .5) numPop(player.pos.x, 2.3, player.pos.z, lost, 'hurt'); } catch (e) { } return r; })(takeDamage);
+// burning: the fire damage ticks inside the zombie update, so show it in small bursts
+function burnNums(dt) { for (const z of zombies) { if (z.dead || !(z.burnT > 0)) { if (z) z._bAcc = 0; continue; } z._bAcc = (z._bAcc || 0) + (z.burnD || 0) * dt; z._bT = (z._bT || 0) + dt;
+  if (z._bT > .5) { z._bT = 0; if (z._bAcc > .5) numPop(z.pos.x, 1.6 * (z.sc || 1), z.pos.z, z._bAcc, 'dot'); z._bAcc = 0; } } }
+
+/* ---- roll ---- */
+const ROLL = { t: 0, cd: 0, dx: 0, dz: 0, dur: .32, dist: 5.2, cost: 18 };
+function rollGo() {
+  if (!S.started || S.dead || S.paused || ROLL.cd > 0 || ROLL.t > 0 || (typeof SW !== 'undefined' && SW.b) || S.boat || S.up) return;
+  if (S.sta < ROLL.cost) { feed('体力不够翻滚', '#ff9b8a'); return; }
+  S.sta -= ROLL.cost * (typeof staCostMul === 'function' ? staCostMul() : 1);
+  let dx = input.mx, dz = input.mz; const l = Math.hypot(dx, dz); if (l < .2) { dx = Math.sin(player.face); dz = Math.cos(player.face); } else { dx /= l; dz /= l; }
+  ROLL.dx = dx; ROLL.dz = dz; ROLL.t = ROLL.dur; ROLL.cd = .85; S.invT = Math.max(S.invT || 0, ROLL.dur + .08); player.face = Math.atan2(dx, dz);
+  burst(player.pos.x, .3, player.pos.z, 0xc8b8a0, 6, 2.5); try { if (AC) sfxNoise(.18, .08, 900, { f1: 300 }); } catch (e) { }
+}
+function rollTick(dt) {
+  if (ROLL.cd > 0) ROLL.cd -= dt;
+  const b = $('bRoll'); if (b) { b.classList.toggle('cool', ROLL.cd > 0); b.style.display = S.started && !S.boat ? '' : 'none'; }
+  if (ROLL.t <= 0) return; ROLL.t -= dt; const step = ROLL.dist / ROLL.dur * dt, ox = player.pos.x, oz = player.pos.z;
+  player.pos.x += ROLL.dx * step; player.pos.z += ROLL.dz * step; try { collide(player.pos, .45); } catch (e) { }
+  if (!isFinite(player.pos.x)) { player.pos.x = ox; player.pos.z = oz; }
+  const k = 1 - Math.max(0, ROLL.t) / ROLL.dur; pm.g.rotation.x = k * Math.PI * 2; pm.g.position.y = Math.sin(k * Math.PI) * .45; pm.g.rotation.y = player.face;
+  if (ROLL.t <= 0) { pm.g.rotation.x = 0; pm.g.position.y = 0; }
+}
+try { const H = $('hud'); if (H && H.appendChild) { const b = document.createElement('button'); b.className = 'btn'; b.id = 'bRoll'; b.innerHTML = '<span>翻滚</span>'; H.appendChild(b);
+  b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); rollGo(); }); } } catch (e) { }
+window.addEventListener('keydown', e => { if (e.repeat || !S.started) return; const typing = e.target && /input|textarea/i.test(e.target.tagName || ''); if (typing) return; if (e.code === 'KeyF') rollGo(); });
+try { if (typeof PC_KEYS !== 'undefined') PC_KEYS.splice(3, 0, ['F', '翻滚（翻滚时不会受伤）']); } catch (e) { }
+
+/* ---- encounters ---- */
+const ENC = { t: 70, cur: null };
+function encHud(txt) { let el = $('encTxt'); if (!el && document.createElement && document.body) { el = document.createElement('div'); el.id = 'encTxt'; document.body.appendChild(el); } if (!el) return; el.style.display = txt ? 'block' : 'none'; if (txt) el.innerHTML = txt; }
+function encStart() {
+  const t = lvTier();
+  if (Math.random() < .5) {        // a horde passes through: cull it against the clock
+    const a = rand(0, 6.283), cx = player.pos.x + Math.cos(a) * 26, cz = player.pos.z + Math.sin(a) * 26, n = 16 + Math.min(10, t * 2), goal = Math.round(n * .75);
+    for (let i = 0; i < n; i++) { const b = rand(0, 6.283), r = rand(0, 6); try { const z = spawnZombie(Math.random() < .25 ? 'runner' : Math.random() < .1 ? 'brute' : 'walker', cx + Math.cos(b) * r, cz + Math.sin(b) * r); if (z) { z.aggro = 60; z.chasing = true; } } catch (e) { } }
+    ENC.cur = { type: 'horde', k0: S.kills, goal, time: 45 };
+    banner('尸群过境！', '45 秒内击杀 ' + goal + ' 只，奖励一个补给箱', 3.4); sfx.growl();
+  } else {                          // a golden zombie loaded with loot runs away from you
+    const p = evSpot(18, 26); if (!p) return; const z = spawnZombie('runner', p.x, p.z); if (!z) return;
+    z.gold = true; z.hp = z.max = z.max * 4; z.aggro = 0; z.chasing = false; const gm = new THREE.MeshStandardMaterial({ color: 0xffc94a, emissive: 0x6a4a00, metalness: .8, roughness: .3 });
+    z.g.traverse(o => { if (o.isMesh) o.material = gm; });
+    const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,220,120,.9)', 'rgba(255,180,60,0)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); gl.scale.set(3, 3, 1); gl.position.y = 1.4; z.g.add(gl);
+    try { const tag = labelSprite('宝藏丧尸', '#ffd98a', .7); tag.position.set(0, 3, 0); z.g.add(tag); } catch (e) { }
+    ENC.cur = { type: 'gold', z, time: 30, dropT: 0 };
+    banner('宝藏丧尸！', '它身上全是宝贝，正在逃跑，30 秒内追上打倒它', 3.4); try { sfx.pick(); } catch (e) { }
+  }
+}
+function encEnd(ok, why) {
+  const c = ENC.cur; if (!c) return; ENC.cur = null; encHud('');
+  const t = lvTier();
+  if (ok) { try { questTick('event', 1); } catch (e) { } stInc('event'); }
+  if (c.type === 'horde') { if (ok) { cr_x = player.pos.x; cr_z = player.pos.z; crateLoot(TIERS[Math.min(3, 1 + Math.floor(t / 4))]); gain('coin', 40 * t); gain('apart', 3); banner('清理完成！', '补给箱 + 余烬币 ' + 40 * t + ' + 精密零件 ×3', 2.6); sfx.build(); } else feed(why || '尸群过去了，没能清完', '#c1a597'); }
+  if (c.type === 'gold') { const z = c.z; if (ok) { for (let i = 0; i < 6; i++) spawnLoot('coin', z.pos.x, z.pos.z, Math.round(18 * t), 1.6); spawnLoot('estone', z.pos.x, z.pos.z, 2); spawnLoot('apart', z.pos.x, z.pos.z, 5);
+      if (Math.random() < .35) try { attDrop(t, 1); } catch (e) { } burst(z.pos.x, 1.2, z.pos.z, 0xffc94a, 30, 8); banner('打倒宝藏丧尸！', '宝贝撒了一地，快捡', 2.6); sfx.build(); }
+    else { if (!z.dead) { burst(z.pos.x, .5, z.pos.z, 0xffc94a, 16, 5); scene.remove(z.g); z.dead = true; z.removed = true; } feed(why || '宝藏丧尸钻进地里跑掉了', '#c1a597'); } }
+}
+function encTick(dt) {
+  if (S.isl || S.dead || !S.started) { if (ENC.cur) encEnd(false, '你离开了，遭遇结束'); return; }
+  const c = ENC.cur;
+  if (!c) { if ((boss && !boss.dead) || (typeof EV !== 'undefined' && EV.cur) || (typeof CV !== 'undefined' && CV.on) || (typeof WV !== 'undefined' && WV.on)) return; ENC.t -= dt; if (ENC.t <= 0) { ENC.t = rand(80, 140); encStart(); } return; }
+  c.time -= dt;
+  if (c.type === 'horde') { const k = S.kills - c.k0; encHud('尸群过境 · 击杀 <b>' + Math.min(k, c.goal) + ' / ' + c.goal + '</b> · ' + Math.ceil(c.time) + ' 秒'); if (k >= c.goal) encEnd(true); else if (c.time <= 0) encEnd(false); return; }
+  if (c.type === 'gold') { const z = c.z; if (z.dead && !z.removed) { encEnd(true); return; } if (c.time <= 0) { encEnd(false); return; }
+    const dx = z.pos.x - player.pos.x, dz = z.pos.z - player.pos.z, d = Math.hypot(dx, dz) || 1;
+    // run away (a bit slower than you sprint), weaving a little; drop a coin now and then as a trail
+    const sp = 6.6 + (d < 6 ? 1.2 : 0), a = Math.atan2(dx, dz) + Math.sin(S.t * 1.7) * .5; z.pos.x += Math.sin(a) * sp * dt; z.pos.z += Math.cos(a) * sp * dt; z.face = a; z.g.rotation.y = a; z.chasing = false; z.hold = true;
+    try { collide(z.pos, .5); } catch (e) { }
+    c.dropT -= dt; if (c.dropT <= 0) { c.dropT = 2.5; spawnLoot('coin', z.pos.x, z.pos.z, Math.round(3 * lvTier()), .5); }
+    encHud('宝藏丧尸 · 距离 <b>' + Math.round(d) + ' 米</b> · ' + Math.ceil(c.time) + ' 秒');
+    if (d > 70) encEnd(false, '宝藏丧尸跑远了'); }
+}
+drawExtraRadar = (orig => function (tx, tz, edgeMark) { orig(tx, tz, edgeMark); try { const c = ENC.cur; if (!c || S.isl || c.type !== 'gold' || c.z.dead) return; const k = _mapK || 2; edgeMark({ x: c.z.pos.x, z: c.z.pos.z }, '#ffd98a'); mapPin(mctx, tx(c.z.pos.x), tz(c.z.pos.z), 5.5 * k, '#ffd98a', '宝', k); } catch (e) { } })(drawExtraRadar);
+
+petsTick = (o => function (dt) { o(dt); try { numTick(dt); burnNums(dt); } catch (e) { } try { rollTick(dt); } catch (e) { } try { encTick(dt); } catch (e) { console.warn(e); } })(petsTick);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -12357,4 +12482,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794115764').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794120898').catch(()=>{});</script></body></html>
