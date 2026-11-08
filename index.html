@@ -12913,7 +12913,7 @@ SKIN_P.aster = [
 SKIN_BY_N[SKINS.aster.n] = 'aster';
 
 // ---- 登记进商城「外观直售」：传说档，1280 晶石（价格表在 z_skinshop.js 的 SKIN_PRICE，按稀有度取） ----
-SKIN_DIRECT.push('aster');/* ============ 换翅膀系统 + 新翅膀「粉蝶幻翼」（传说 · 带属性：移动速度 +15%、生命 +4%、减伤 +2%） ============
+SKIN_DIRECT.push('aster');/* ============ 换翅膀系统 + 新翅膀「粉蝶幻翼」（神话 · 带属性：移动速度 +15%、生命 +4%、减伤 +2%） ============
    参考你发的图：上面一对大翅薄如蝉纱，粉→淡紫→浅蓝渐变，边缘描着粉色翅脉，翅尖上翘；
    下面一对由层层粉白羽瓣叠成，向下散开。
 
@@ -12937,7 +12937,7 @@ SKIN_DIRECT.push('aster');/* ============ 换翅膀系统 + 新翅膀「粉蝶�
 const WING_PRICE = 1980;   // 比神话外观（3280）便宜；带属性，所以比传说外观（1280）贵一档
 const WINGS = { fairy: { n: '粉蝶幻翼', d: '一对粉蝶般的幻翼：上面一对大翅薄如蝉纱，从粉色渐变成淡紫、浅蓝，边缘描着粉色翅脉；下面一对由层层粉白羽瓣叠成。翅膀会随脚步扇动，翅尖不时闪光。穿着自带翅膀的外观时，不能更换翅膀。', st: { spd: .15, hpPct: .04, def: .02 }, stt: '移动速度 +15%、生命 +4%、减伤 +2%' } };
 S.wingOwn = []; S.wing = '';
-const WING_SVG = '<svg viewBox="0 0 100 80" style="height:100%;width:auto;max-width:100%" aria-hidden="true"><defs><linearGradient id="wgg" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#f6a9c9"/><stop offset=".6" stop-color="#e2d4ff"/><stop offset="1" stop-color="#bfe4ff"/></linearGradient></defs>' +
+let WING_SVG = '<svg viewBox="0 0 100 80" style="height:100%;width:auto;max-width:100%" aria-hidden="true"><defs><linearGradient id="wgg" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#f6a9c9"/><stop offset=".6" stop-color="#e2d4ff"/><stop offset="1" stop-color="#bfe4ff"/></linearGradient></defs>' +
   [0, 1].map(m => '<g' + (m ? ' transform="translate(100 0) scale(-1 1)"' : '') + ' stroke="#ff8fbd" stroke-width="1.1"><path fill="url(#wgg)" fill-opacity=".7" d="M48 50C40 36 38 20 30 6 16 16 8 30 14 42 22 48 36 52 48 50Z"/><path fill="#ffc4dc" fill-opacity=".85" d="M48 52C38 56 26 62 22 76 34 74 44 66 48 52Z"/><path fill="#ffe6f0" fill-opacity=".9" d="M48 54C42 64 38 72 40 78 46 72 48 64 48 54Z"/><path fill="none" stroke-opacity=".5" d="M48 50C36 36 26 24 20 18M48 50C34 42 24 40 16 40"/></g>').join('') + '</svg>';
 
 // 自带翅膀的外观：不能换翅膀（返回外观名；没有则返回空）
@@ -13032,19 +13032,28 @@ function wingWardrobe(box) {
 // ---- 商城「外观直售」：外观格子下面加一格翅膀 ----
 skinShopRender = (o => function (box, el2) { o(box, el2); try { wingShop(box, el2); } catch (e) { console.warn(e); } })(skinShopRender);
 function wingShop(box, el2) {
-  const own = S.wingOwn.includes('fairy'), R = SK_RN[4];
+  const own = S.wingOwn.includes('fairy'), R = SK_RN[5];
   box.appendChild(el2('div', 'snote', '翅膀：单独买，单独背，带属性加成。自带翅膀的外观不能更换翅膀。'));
   const g = el2('div', 'skgrid'), t = el2('button', 'sktile' + (own ? ' own' : '')); t.style.setProperty('--qc', R[1]);
   t.innerHTML = '<em class="sktag">' + (own ? '已拥有' : '限定') + '</em><div class="skpic">' + WING_SVG + '</div><b>' + WINGS.fairy.n + '</b><small>' + (own ? '已拥有' : skPrice(WING_PRICE)) + '</small>';
   t.addEventListener('click', wingDetail); g.appendChild(t); box.appendChild(g);
 }
 function wingDetail() {
-  const old = $('wgDetM'); if (old) old.remove(); const own = S.wingOwn.includes('fairy'), R = SK_RN[4];
+  const old = $('wgDetM'); if (old) old.remove(); const own = S.wingOwn.includes('fairy'), R = SK_RN[5];
   const m = document.createElement('div'); m.id = 'wgDetM'; m.className = 'skdet';
   m.innerHTML = '<div class="skdetb" style="--qc:' + R[1] + '"><button class="skx" aria-label="关闭">✕</button><div class="skpic big">' + WING_SVG + '</div><div class="sktx"><b>' + WINGS.fairy.n + '</b><small style="color:' + R[1] + '">' + R[0] + ' · 翅膀</small><p>' + WINGS.fairy.d + '</p><p style="color:#9fe8ff">属性：' + WINGS.fairy.stt + '</p><div class="skbtns"><button class="sbtn skbuy"' + (own ? ' disabled' : '') + '>' + (own ? '已拥有' : skPrice(WING_PRICE)) + '</button></div></div></div>';
   document.body.appendChild(m); m.addEventListener('click', e => { if (e.target === m) m.remove(); }); m.querySelector('.skx').addEventListener('click', () => m.remove());
   const b = m.querySelector('.skbuy'); b.addEventListener('click', () => wingBuy(b));
-}/* ============ 外观衣柜（全屏）：上面两个分页「皮肤 · 翅膀」，点一下就换上 ============
+}
+// the picture in the shop and the wardrobe is rendered from the real 3D wings, seen from behind, so it matches what you wear
+(function wingIcon() { if (typeof ICON_URL === 'undefined' || !document.createElement) return; let R;
+  try { const c = document.createElement('canvas'); R = new THREE.WebGLRenderer({ canvas: c, alpha: true, antialias: true, preserveDrawingBuffer: true }); } catch (e) { return; }
+  try { R.setPixelRatio(1); R.setClearColor && R.setClearColor(0, 0); R.setSize(256, 200, false); const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xffffff, 0x404050, 1.1));
+    const h = { body: new THREE.Group() }; wingBuild(h); h._wing.forEach(p => { const u = p.userData; p.rotation.y = u.s * u.base; }); h.body.rotation.y = Math.PI; sc.add(h.body);
+    const cam = new THREE.PerspectiveCamera(30, 256 / 200, .1, 50); cam.position.set(0, 1.7, -4.3 + 8.6); cam.lookAt(0, 1.55, 0); R.render(sc, cam);
+    ICON_URL.wing_fairy = R.domElement.toDataURL('image/png'); WING_SVG = '<img class="ic" src="' + ICON_URL.wing_fairy + '" alt="" draggable="false" style="height:100%;width:auto;max-width:100%">'; } catch (e) { console.warn('wing icon', e); }
+  try { R.dispose(); R.forceContextLoss && R.forceContextLoss(); } catch (e) { } })();
+/* ============ 外观衣柜（全屏）：上面两个分页「皮肤 · 翅膀」，点一下就换上 ============
    从背包里点「衣柜」打开。左边（竖屏是上面）是选中那一件的大图和说明，右边是一格一格的衣柜。
    已拥有的：点格子直接换上。没有的：显示去哪里拿。 */
 let wrTab = 'skin', wrSel = null, wrWing = null;
@@ -13077,7 +13086,7 @@ function renderWardrobeP() {
   } else {
     const ks = Object.keys(WINGS); if (wrWing == null || (wrWing && !WINGS[wrWing])) wrWing = S.wing || ''; const blk = wingBlockName();
     const W = WINGS[wrWing], own = !wrWing || S.wingOwn.includes(wrWing), on = (S.wing || '') === wrWing;
-    const pv = el2('div', 'wdpv' + (W ? ' r4' : ''), '<div class="wdfig">' + (W ? WING_SVG : '<em class="wdnone">无</em>') + '</div><b>' + (W ? W.n : '不背翅膀') + '</b>' + (W ? '<em class="wr r4">传说</em>' : '') + '<span>' + (W ? W.d : '不背翅膀时，背后什么都没有。') + '</span>' + (W ? '<span class="sst">翅膀属性：' + W.stt + '（背上才生效）</span>' : ''));
+    const pv = el2('div', 'wdpv' + (W ? ' r5' : ''), '<div class="wdfig">' + (W ? WING_SVG : '<em class="wdnone">无</em>') + '</div><b>' + (W ? W.n : '不背翅膀') + '</b>' + (W ? '<em class="wr r5">神话</em>' : '') + '<span>' + (W ? W.d : '不背翅膀时，背后什么都没有。') + '</span>' + (W ? '<span class="sst">翅膀属性：' + W.stt + '（背上才生效）</span>' : ''));
     const acts = el2('div', 'wdacts');
     if (blk) acts.appendChild(el2('div', 'snote', '你现在穿的「' + blk + '」自带翅膀，不能更换翅膀；脱下它之后就能背上。'));
     if (!W) { const b = el2('button', 'go' + (S.wing ? '' : ' ghost'), S.wing ? '卸下翅膀' : '没有背翅膀'); b.disabled = !S.wing; b.addEventListener('click', () => { S.wing = ''; redressPlayer(); saveGame(); renderWardrobeP(); }); acts.appendChild(b); }
@@ -13087,7 +13096,7 @@ function renderWardrobeP() {
     const side = el2('div', 'wdside'); side.appendChild(el2('div', 'wdhead', '已拥有 ' + S.wingOwn.length + ' / ' + ks.length + ' · 点一下就背上'));
     const grid = el2('div', 'wdgrid');
     [''].concat(ks).forEach(k => { const WW = WINGS[k], ow = !k || S.wingOwn.includes(k), onn = (S.wing || '') === k;
-      const c = el2('button', 'wdcell' + (k === wrWing ? ' sel' : '') + (ow ? '' : ' lock') + (WW ? ' r4' : ''), '<div class="wdci">' + (WW ? WING_SVG : '<em class="wdnone">无</em>') + '</div><b>' + (WW ? WW.n : '不背') + '</b>' + (onn ? '<i>背着</i>' : ow ? '' : '<i class="lk">未拥有</i>'));
+      const c = el2('button', 'wdcell' + (k === wrWing ? ' sel' : '') + (ow ? '' : ' lock') + (WW ? ' r5' : ''), '<div class="wdci">' + (WW ? WING_SVG : '<em class="wdnone">无</em>') + '</div><b>' + (WW ? WW.n : '不背') + '</b>' + (onn ? '<i>背着</i>' : ow ? '' : '<i class="lk">未拥有</i>'));
       c.addEventListener('click', () => { wrWing = k; if (ow && !onn && !blk) { S.wing = k; redressPlayer(); saveGame(); } renderWardrobeP(); }); grid.appendChild(c); });
     side.appendChild(grid); wrap.appendChild(side);
   }
@@ -14137,4 +14146,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794172418').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794173150').catch(()=>{});</script></body></html>
