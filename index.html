@@ -7972,7 +7972,7 @@ function poolInfo(K) {
   const line = G => poolOf(K)[G.r].map(x => { const nm = typeof x[0] === 'function' ? x[2] : x[0], wk = W && /武器外观「(.+?)·/.exec(nm); return wk ? '「' + wk[1] + '」' : nm.replace('外观「', '「'); }).join('、');
   bx.innerHTML = '<button class="skpvx" aria-label="关闭">✕</button><b class="gih">' + BOXES[K].n + ' · 能抽到什么</b>' +
     '<div class="gitxt">' + TT.map(G => '<div><b style="color:' + G.c + '">' + G.n + ' ' + (G.p * 100).toFixed(1) + '%</b>' + line(G) + '</div>').join('') +
-    '<div class="gis">' + (K === 'att' ? '配件抽到后放进「配件库」，可以取出或分解。' : W ? '武器外观（「」里的）会随机给你的一把武器，每把武器的外观分开收集；重复的换成 强化石 ×5。' : K === 'gear' ? '装备会按你现在的等级生成，抽到后放进「装备库」。不要的装备可以分解成碎片：特级 1、高级 2、史诗 6、黄金 30、神话 120；60 碎片换一件指定部位的黄金装备，200 碎片换神话装备。' : '「」里的是人物外观；重复的换成 强化石 ×8。') + MPITY + ' 抽内必出神话，十连至少一个史诗。</div></div>';
+    '<div class="gis">' + (K === 'att' ? '配件抽到后放进「配件库」，可以取出或分解成碎片：特级 1、高级 2、史诗 6、黄金 30、神话 120；60 碎片换指定的黄金配件，200 碎片换神话配件。' : W ? '武器外观（「」里的）会随机给你的一把武器，每把武器的外观分开收集；重复的换成 强化石 ×5。' : K === 'gear' ? '装备会按你现在的等级生成，抽到后放进「装备库」。不要的装备可以分解成碎片：特级 1、高级 2、史诗 6、黄金 30、神话 120；60 碎片换一件指定部位的黄金装备，200 碎片换神话装备。' : '「」里的是人物外观；重复的换成 强化石 ×8。') + MPITY + ' 抽内必出神话，十连至少一个史诗。</div></div>';
   document.body.appendChild(m); const close = () => { if (m.parentNode) m.parentNode.removeChild(m); };
   bx.querySelector('.skpvx').addEventListener('click', close); m.addEventListener('click', e => { if (e.target === m) close(); });
 }
@@ -8286,12 +8286,12 @@ function renderMall() {
     const r = el2('div', 'gbtns');
     [[1, '抽 1 次', GCOST[1] + ' 晶石'], [10, '抽 10 次', GCOST[10] + ' 晶石']].forEach(([n, t, c]) => { const b = el2('button', 'gbtn' + (n === 10 ? ' ten' : ''), '<b>' + t + '</b><small>' + icHtml('gem:1') + c + '</small>'); b.addEventListener('click', () => gacha(n)); r.appendChild(b); });
     hero.appendChild(r); box.appendChild(hero);
-    if (gPool === 'att') { const vb = el2('button', 'go gvbtn', '配件库 · ' + S.av.length + ' 件（取出 / 分解）'); vb.addEventListener('click', () => { closePanel('mall'); openAttVault(); }); box.appendChild(vb); }
+    if (gPool === 'att') { const vb = el2('button', 'go gvbtn', '配件库 · ' + S.av.length + ' 件 · 碎片 ' + (S.avf | 0)); vb.addEventListener('click', () => { closePanel('mall'); openAttVault(); }); box.appendChild(vb); }
     if (gPool === 'gear') { const vb = el2('button', 'go gvbtn', '装备库 · ' + S.gv.g.length + ' 件 · 碎片 ' + S.gv.f); vb.addEventListener('click', () => { closePanel('mall'); openVault(); }); box.appendChild(vb); }
     box.appendChild(el2('h3', '', '奖池一览'));
     gTiers().forEach(G => { const row = el2('div', 'gpool'); row.style.setProperty('--gc', G.c); row.appendChild(el2('div', 'gpt', '<b>' + G.n + '</b><small>' + (G.p * 100).toFixed(1) + '%</small>'));
       const cells = el2('div', 'gpc'); poolCards(gPool, G).forEach(c => cells.appendChild(c)); row.appendChild(cells); box.appendChild(row); });
-    box.appendChild(el2('div', 'snote', gPool === 'att' ? '配件抽到后先放进「配件库」：想要的取出来装到武器上，不要的分解成精密零件和元素晶核。' : W ? '武器外观会随机给你的一把武器；重复的换成 强化石 ×5。' : gPool === 'gear' ? '装备按你现在的等级生成，抽到后先放进「装备库」：想要的取出来，不要的分解成碎片，碎片可以换指定部位的黄金或神话装备。材料直接进背包。' : '重复的外观会换成 强化石 ×8；狗狗满了换成强化石。'));
+    box.appendChild(el2('div', 'snote', gPool === 'att' ? '配件抽到后先放进「配件库」：想要的取出来装到武器上，不要的分解成配件碎片，60 碎片换一个指定的黄金配件，200 碎片换神话配件。' : W ? '武器外观会随机给你的一把武器；重复的换成 强化石 ×5。' : gPool === 'gear' ? '装备按你现在的等级生成，抽到后先放进「装备库」：想要的取出来，不要的分解成碎片，碎片可以换指定部位的黄金或神话装备。材料直接进背包。' : '重复的外观会换成 强化石 ×8；狗狗满了换成强化石。'));
     if (_lastDraw.length && false) { box.appendChild(el2('h3', '', '本次获得'));
       const g = el2('div', 'gres'); _lastDraw.forEach((o, i) => { const c = rwCard(o.n, 'rev', null, o.G.n, o.G.r); c.style.setProperty('--gc', o.G.c); c.style.animationDelay = (i * .09) + 's'; g.appendChild(c); }); box.appendChild(g); }
   } else if (mallTab === 'pack') { try { packRender(box, el2); } catch (e) { console.warn(e); }
@@ -11666,15 +11666,16 @@ function renderBpm() {
     '@keyframes bpmShake{0%,100%{transform:none}20%{transform:translateX(-4px) rotate(-1deg)}40%{transform:translateX(4px) rotate(1deg)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}' +
     '@keyframes bpmRoll{0%{transform:translateY(0)}100%{transform:translateY(-400%)}}@keyframes bpmLamp{50%{background:#ff4d8d;box-shadow:0 0 22px #ff4d8d}}' +
     '.rwc.bpown{opacity:.6}.tgrow .stic .ic{width:40px;height:40px}' +
-    '#bpm .gmodal{position:fixed}.gpools .gpb:last-child:nth-child(odd){grid-column:1/-1}';
+    '.gvex .gvslots.avslots{grid-template-columns:repeat(5,1fr)!important}.avslots .gvs small{font-size:10px;line-height:1.2}.avslots .gvs .ic{width:28px;height:28px}#bpm .gmodal{position:fixed}.gpools .gpb:last-child:nth-child(odd){grid-column:1/-1}';
   document.head.appendChild(st);
 } catch (e) { } } }
 
 /* ---- 配件补给箱 in the shop: drawn attachments wait in the 配件库 ---- */
-S.av = []; S.mp5 = 0;
-const AV_MAX = 300;
+S.av = []; S.mp5 = 0; S.avf = 0;
+const AV_MAX = 300, AV_FR = [1, 1, 2, 6, 30, 120], AV_COST = { 4: 60, 5: 200 };
+let avSel = ['mz', 0], avQ = 5;
 const attName = (sl, kd) => (ATT_K[sl] && ATT_K[sl][kd] ? ATT_K[sl][kd].n : '配件');
-const attPrize = (q, lab) => [() => { const sl = pick(['mz', 'gr', 'bl', 'hd', 'el', 'el']), kd = rint(0, 2); return { n: GQ[q].n + '配件「' + attName(sl, kd) + '」（已放进配件库）', f: () => { S.av.push([sl, kd, q]); if (S.av.length > AV_MAX) { const x = S.av.shift(); avGive(attScrapV([0, x[0], x[1], x[2], 1])); } } }; }, null, lab || GQ[q].n + '配件（随机）'];
+const attPrize = (q, lab) => [() => { const sl = pick(['mz', 'gr', 'bl', 'hd', 'el', 'el']), kd = rint(0, 2); return { n: GQ[q].n + '配件「' + attName(sl, kd) + '」（已放进配件库）', f: () => { S.av.push([sl, kd, q]); if (S.av.length > AV_MAX) { const x = S.av.shift(); S.avf += AV_FR[x[2]]; } } }; }, null, lab || GQ[q].n + '配件（随机）'];
 const ATTPOOL = {
   5: [attPrize(5)],
   4: [attPrize(4)],
@@ -11686,19 +11687,26 @@ const avGive = v => { for (const k in v) matAdd(k, v[k]); };
 function renderAttVault() {
   const box = $('avList'); if (!box) return; box.innerHTML = ''; const A = S.av;
   const el2 = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
-  box.appendChild(el2('div', 'snote', '从「配件补给箱」抽到的配件先放在这里：想要的点「取出」放进你的配件（去武器页面装上），不要的分解成精密零件 / 元素晶核。库里 ' + A.length + ' 件。'));
+  box.appendChild(el2('div', 'snote', '从「配件补给箱」抽到的配件先放在这里：想要的点「取出」放进你的配件（去武器页面装上），不要的分解成配件碎片，碎片可以换指定的黄金或神话配件。库里 ' + A.length + ' 件。'));
+  box.appendChild(el2('div', 'gvtop', '<div class="gvfr">' + svgIcon('att_elthun1') + '<b>' + S.avf + '</b><span>配件碎片</span></div><div class="gvn">分解：特级 1 · 高级 2 · 史诗 6 · 黄金 30 · 神话 120</div>'));
+  { const ex = el2('div', 'gvex'); ex.appendChild(el2('h3', '', '碎片兑换（指定配件）'));
+    const sl = el2('div', 'gvslots avslots'); for (const k of ['mz', 'gr', 'bl', 'hd', 'el']) for (let d = 0; d < 3; d++) { const on = avSel[0] === k && avSel[1] === d, b = el2('button', 'gvs' + (on ? ' on' : ''), svgIcon(attIc([0, k, d, 0, 1])) + '<small>' + ATT_K[k][d].n + '</small>'); b.addEventListener('click', () => { avSel = [k, d]; renderAttVault(); }); sl.appendChild(b); }
+    ex.appendChild(sl); const qs = el2('div', 'gvqs'); [4, 5].forEach(q => { const b = el2('button', 'gvq' + (avQ === q ? ' on' : ''), '<b style="color:' + GQ[q].c + '">' + GQ[q].n + '</b><small>' + AV_COST[q] + ' 碎片</small>'); b.addEventListener('click', () => { avQ = q; renderAttVault(); }); qs.appendChild(b); }); ex.appendChild(qs);
+    const go = el2('button', 'go', '兑换 ' + GQ[avQ].n + '「' + ATT_K[avSel[0]][avSel[1]].n + '」 · ' + AV_COST[avQ] + ' 碎片'); go.disabled = S.avf < AV_COST[avQ];
+    go.addEventListener('click', () => { if (S.avf < AV_COST[avQ]) return; S.avf -= AV_COST[avQ]; S.av.push([avSel[0], avSel[1], avQ]); banner('兑换成功', GQ[avQ].n + '配件「' + ATT_K[avSel[0]][avSel[1]].n + '」已放进配件库', 3); try { sfx.build(); } catch (e) { } saveGame(); renderAttVault(); });
+    ex.appendChild(go); box.appendChild(ex); }
   if (A.length) { const all = el2('div', 'gvall');
-    [[2, '分解高级以下'], [3, '分解史诗以下'], [5, '全部分解']].forEach(([mq, t]) => { const L = A.filter(x => x[2] <= mq), b = el2('button', 'sbtn ghostb', t + '（' + L.length + '）'); b.disabled = !L.length; let armed = 0;
+    [[2, '分解高级以下'], [3, '分解史诗以下'], [5, '全部分解']].forEach(([mq, t]) => { const L = A.filter(x => x[2] <= mq), b = el2('button', 'sbtn ghostb', t + '（' + L.length + ' · +' + L.reduce((a, x) => a + AV_FR[x[2]], 0) + '）'); b.disabled = !L.length; let armed = 0;
       b.addEventListener('click', () => { if (Date.now() - armed > 3000) { armed = Date.now(); b.textContent = '再点一次确认'; b.classList.add('armed'); return; }
-        const tot = {}; L.forEach(x => { const v = attScrapV([0, x[0], x[1], x[2], 1]); for (const k in v) tot[k] = (tot[k] || 0) + v[k]; }); avGive(tot); S.av = A.filter(x => x[2] > mq);
-        feed('分解了 ' + L.length + ' 件：' + Object.keys(tot).map(k => MAT[k].n + ' ×' + tot[k]).join('、'), '#b8c4d0'); refreshHud(); saveGame(); renderAttVault(); });
+        const fr = L.reduce((a, x) => a + AV_FR[x[2]], 0); S.avf += fr; S.av = A.filter(x => x[2] > mq);
+        feed('分解了 ' + L.length + ' 件，配件碎片 +' + fr, '#c49aff'); refreshHud(); saveGame(); renderAttVault(); });
       all.appendChild(b); }); box.appendChild(all); }
   else box.appendChild(el2('p', 'snote', '配件库是空的。'));
   const list = el2('div', 'gvlist');
   A.slice().sort((a, b) => b[2] - a[2]).forEach(x => { const Q = GQ[x[2]], fake = [0, x[0], x[1], x[2], 1], K = attKind(fake), r = el2('div', 'strow'); r.style.setProperty('--qc', Q.c);
     r.innerHTML = '<span class="stic">' + svgIcon(attIc(fake)) + '</span><span class="stn"><b style="color:' + Q.c + '">' + Q.n + ' · ' + K.n + '</b><small>' + ATT_SN[x[0]] + ' · ' + statTxt(Object.fromEntries(Object.entries(K.st).map(([k, v]) => [k, v * AQM[x[2]]]))) + '</small></span>';
-    const v = attScrapV(fake), br = el2('button', 'sbtn ghostb', '分解'); br.title = Object.keys(v).map(k => MAT[k].n + ' ×' + v[k]).join('、');
-    br.addEventListener('click', () => { const i = S.av.indexOf(x); if (i < 0) return; S.av.splice(i, 1); avGive(v); feed('分解得到 ' + br.title, '#b8c4d0'); refreshHud(); saveGame(); renderAttVault(); });
+    const br = el2('button', 'sbtn ghostb', '分解 +' + AV_FR[x[2]]); br.title = '分解成配件碎片';
+    br.addEventListener('click', () => { const i = S.av.indexOf(x); if (i < 0) return; S.av.splice(i, 1); S.avf += AV_FR[x[2]]; feed('配件碎片 +' + AV_FR[x[2]], '#c49aff'); refreshHud(); saveGame(); renderAttVault(); });
     const tk = el2('button', 'sbtn', '取出'); tk.addEventListener('click', () => { const i = S.av.indexOf(x); if (i < 0) return; S.av.splice(i, 1); attMake(x[0], x[2], x[1]); feed('取出配件：' + Q.n + ' · ' + K.n + '（去武器页面装上）', Q.c); saveGame(); renderAttVault(); });
     r.appendChild(br); r.appendChild(tk); list.appendChild(r); });
   box.appendChild(list);
@@ -11728,10 +11736,10 @@ rwIcon = (o => function (d) {
 } catch (e) { } })();
 
 /* ---- save / load ---- */
-shopSave = (o => function () { const r = o(); try { r.bpm = { tl: S.tlv, tf: S.tfail, m: S.bmp | 0, k: S.bpk | 0, av: S.av, mp5: S.mp5 | 0 }; } catch (e) { } return r; })(shopSave);
-shopLoad = (o => function (d) { o(d); S.tlv = {}; S.tfail = {}; S.bmp = 0; S.bpk = 0; S.av = []; S.mp5 = 0; _bpScan = 1;
+shopSave = (o => function () { const r = o(); try { r.bpm = { tl: S.tlv, tf: S.tfail, m: S.bmp | 0, k: S.bpk | 0, av: S.av, mp5: S.mp5 | 0, af: S.avf | 0 }; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.tlv = {}; S.tfail = {}; S.bmp = 0; S.bpk = 0; S.av = []; S.mp5 = 0; S.avf = 0; _bpScan = 1;
   try { const B = d && d.sh && d.sh.bpm; if (B) { for (const g of TG) { const l = B.tl && B.tl[g.k] | 0; if (l > 1) S.tlv[g.k] = clamp(l, 1, TG_MAX); const f = B.tf && B.tf[g.k] | 0; if (f > 0) S.tfail[g.k] = Math.min(f, 10); }
-    S.bmp = clamp(B.m | 0, 0, BP_PITY); S.bpk = clamp(B.k | 0, 0, 4); S.mp5 = clamp(B.mp5 | 0, 0, MPITY);
+    S.bmp = clamp(B.m | 0, 0, BP_PITY); S.bpk = clamp(B.k | 0, 0, 4); S.mp5 = clamp(B.mp5 | 0, 0, MPITY); S.avf = Math.max(0, B.af | 0);
     if (Array.isArray(B.av)) S.av = B.av.filter(x => Array.isArray(x) && ATT_K[x[0]] && ATT_K[x[0]][x[1]] && x[2] >= 0 && x[2] <= 5).slice(-AV_MAX); } } catch (e) { } })(shopLoad);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
@@ -12760,4 +12768,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794145603').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794149469').catch(()=>{});</script></body></html>
