@@ -4375,12 +4375,12 @@ function updateBuilds(dt) {
   try { upFade(dt); } catch (e) { }
   for (const b of builds) {
     if (b.type === 'turret' && !b.broken) {
-      b.cd -= dt; let best = null, bd = ts('sentry') ? 31 : 22;
+      b.cd -= dt; let best = null, bd = tgRg('turret') + (ts('sentry') ? 9 : 0);
       for (const z of zombies) { if (z.dead || (z.animal && !z.hostile && !(z.angry > 0))) continue; const d = Math.hypot(z.pos.x - b.x, z.pos.z - b.z); if (d < bd) { bd = d; best = z; } }
       if (best) {
         const head = b.g.userData.head, ang = Math.atan2(best.pos.x - b.x, best.pos.z - b.z) - b.rot;
         head.rotation.y = ang;
-        if (b.cd <= 0) { b.cd = ts('sentry') ? .175 : .35; tracer(b.x, 1.6, b.z, best.pos.x, 1.2, best.pos.z, 0xffa860); hurtZombie(best, 13 * (1 + (S.level - 1) * .08) * (1 + ts('tur')), 0, 0); }
+        if (b.cd <= 0) { b.cd = tgCd('turret') * (ts('sentry') ? .5 : 1); tracer(b.x, 1.6, b.z, best.pos.x, 1.2, best.pos.z, 0xffa860); hurtZombie(best, tgDmg('turret') * (1 + (S.level - 1) * .08) * (1 + ts('tur')), 0, 0); }
       }
     } else if (b.type === 'door') {
       // swings open for you (not for zombies) and closes once you've walked through
@@ -7972,7 +7972,7 @@ function poolInfo(K) {
   const line = G => poolOf(K)[G.r].map(x => { const nm = typeof x[0] === 'function' ? x[2] : x[0], wk = W && /武器外观「(.+?)·/.exec(nm); return wk ? '「' + wk[1] + '」' : nm.replace('外观「', '「'); }).join('、');
   bx.innerHTML = '<button class="skpvx" aria-label="关闭">✕</button><b class="gih">' + BOXES[K].n + ' · 能抽到什么</b>' +
     '<div class="gitxt">' + TT.map(G => '<div><b style="color:' + G.c + '">' + G.n + ' ' + (G.p * 100).toFixed(1) + '%</b>' + line(G) + '</div>').join('') +
-    '<div class="gis">' + (W ? '武器外观（「」里的）会随机给你的一把武器，每把武器的外观分开收集；重复的换成 强化石 ×5。' : K === 'gear' ? '装备会按你现在的等级生成，抽到后放进「装备库」。不要的装备可以分解成碎片：特级 1、高级 2、史诗 6、黄金 30、神话 120；60 碎片换一件指定部位的黄金装备，200 碎片换神话装备。' : '「」里的是人物外观；重复的换成 强化石 ×8。') + MPITY + ' 抽内必出神话，十连至少一个史诗。</div></div>';
+    '<div class="gis">' + (K === 'att' ? '配件抽到后放进「配件库」，可以取出或分解。' : W ? '武器外观（「」里的）会随机给你的一把武器，每把武器的外观分开收集；重复的换成 强化石 ×5。' : K === 'gear' ? '装备会按你现在的等级生成，抽到后放进「装备库」。不要的装备可以分解成碎片：特级 1、高级 2、史诗 6、黄金 30、神话 120；60 碎片换一件指定部位的黄金装备，200 碎片换神话装备。' : '「」里的是人物外观；重复的换成 强化石 ×8。') + MPITY + ' 抽内必出神话，十连至少一个史诗。</div></div>';
   document.body.appendChild(m); const close = () => { if (m.parentNode) m.parentNode.removeChild(m); };
   bx.querySelector('.skpvx').addEventListener('click', close); m.addEventListener('click', e => { if (e.target === m) close(); });
 }
@@ -8103,8 +8103,8 @@ const EGPOOL = {
   0: [gearPrize(1, '特级装备'), ['强化石 ×1', () => gain('estone', 1)], ['铁片 ×20', () => gain('metal', 20)], ['余烬币 ×200', () => gain('coin', 200)]]
 };
 function bagExpand() { if ((S.bagX | 0) >= 10) { gain('estone', 10); feed('背包已经扩容到最大，换成 强化石 ×10', '#7de0ff'); return; } S.bagX = (S.bagX | 0) + 1; banner('背包扩容 +5 格', '背包现在有 ' + bagCap() + ' 格', 3); saveGame(); }
-const poolOf = k => k === 'wpn' ? WGPOOL : k === 'gear' ? EGPOOL : k === 'fash' ? FGPOOL : GPOOL;
-const MKEY = { main: 'mp', wpn: 'mp2', gear: 'mp3', fash: 'mp4' };
+const poolOf = k => k === 'att' ? ATTPOOL : k === 'wpn' ? WGPOOL : k === 'gear' ? EGPOOL : k === 'fash' ? FGPOOL : GPOOL;
+const MKEY = { main: 'mp', wpn: 'mp2', gear: 'mp3', fash: 'mp4', att: 'mp5' };
 const BOXES = { main: { n: '余烬补给箱', ic: 'box:4', big: 'box:4', d: '神话「天穹神裔」· 烈焰战神 · 冰霜行者 · 暗夜刺客 限定外观和狗狗' },
   wpn: { n: '武器补给箱', ic: 'wsk:dragon:rifle', big: 'wsk:celest:sniper', d: '神话「天穹」· 龙鳞 · 霓虹 · 熔岩 发光武器外观，还有大量武器升级材料' },
   gear: { n: '装备补给箱', ic: 'gear:5', big: 'gear:5', d: '神话、黄金、史诗装备，头盔、护甲、手套、长裤、战靴、背包每个部位都有' } };
@@ -8275,7 +8275,7 @@ function renderMall() {
   if (FREE_TEST) box.appendChild(el2('div', 'snote testn', '测试版 · 晶石无限（不够时自动补满），充值不收钱'));
   if (mallTab === 'gacha') {
     const W = gPool === 'wpn', B = BOXES[gPool] || BOXES.main, pt = el2('div', 'gpools'), mpc = S[MKEY[gPool]] || 0;
-    ['main', 'fash', 'wpn', 'gear'].forEach(k => { const b = el2('button', 'gpb' + (gPool === k ? ' on' : ''), icHtml(BOXES[k].ic) + '<b>' + BOXES[k].n + '</b>'); b.addEventListener('click', () => { gPool = k; renderMall(); }); pt.appendChild(b); });
+    ['main', 'fash', 'wpn', 'gear', 'att'].forEach(k => { const b = el2('button', 'gpb' + (gPool === k ? ' on' : ''), icHtml(BOXES[k].ic) + '<b>' + BOXES[k].n + '</b>'); b.addEventListener('click', () => { gPool = k; renderMall(); }); pt.appendChild(b); });
     box.appendChild(pt);
     const hero = el2('div', 'ghero' + (W ? ' wpn' : gPool === 'gear' ? ' gear' : ''));
     hero.innerHTML = '<div class="gglow"></div><div class="gcrate">' + icHtml(B.big, 'big') + '</div><div class="gtx"><b>' + B.n + '</b><span>' + B.d + '</span>' +
@@ -8286,11 +8286,12 @@ function renderMall() {
     const r = el2('div', 'gbtns');
     [[1, '抽 1 次', GCOST[1] + ' 晶石'], [10, '抽 10 次', GCOST[10] + ' 晶石']].forEach(([n, t, c]) => { const b = el2('button', 'gbtn' + (n === 10 ? ' ten' : ''), '<b>' + t + '</b><small>' + icHtml('gem:1') + c + '</small>'); b.addEventListener('click', () => gacha(n)); r.appendChild(b); });
     hero.appendChild(r); box.appendChild(hero);
+    if (gPool === 'att') { const vb = el2('button', 'go gvbtn', '配件库 · ' + S.av.length + ' 件（取出 / 分解）'); vb.addEventListener('click', () => { closePanel('mall'); openAttVault(); }); box.appendChild(vb); }
     if (gPool === 'gear') { const vb = el2('button', 'go gvbtn', '装备库 · ' + S.gv.g.length + ' 件 · 碎片 ' + S.gv.f); vb.addEventListener('click', () => { closePanel('mall'); openVault(); }); box.appendChild(vb); }
     box.appendChild(el2('h3', '', '奖池一览'));
     gTiers().forEach(G => { const row = el2('div', 'gpool'); row.style.setProperty('--gc', G.c); row.appendChild(el2('div', 'gpt', '<b>' + G.n + '</b><small>' + (G.p * 100).toFixed(1) + '%</small>'));
       const cells = el2('div', 'gpc'); poolCards(gPool, G).forEach(c => cells.appendChild(c)); row.appendChild(cells); box.appendChild(row); });
-    box.appendChild(el2('div', 'snote', W ? '武器外观会随机给你的一把武器；重复的换成 强化石 ×5。' : gPool === 'gear' ? '装备按你现在的等级生成，抽到后先放进「装备库」：想要的取出来，不要的分解成碎片，碎片可以换指定部位的黄金或神话装备。材料直接进背包。' : '重复的外观会换成 强化石 ×8；狗狗满了换成强化石。'));
+    box.appendChild(el2('div', 'snote', gPool === 'att' ? '配件抽到后先放进「配件库」：想要的取出来装到武器上，不要的分解成精密零件和元素晶核。' : W ? '武器外观会随机给你的一把武器；重复的换成 强化石 ×5。' : gPool === 'gear' ? '装备按你现在的等级生成，抽到后先放进「装备库」：想要的取出来，不要的分解成碎片，碎片可以换指定部位的黄金或神话装备。材料直接进背包。' : '重复的外观会换成 强化石 ×8；狗狗满了换成强化石。'));
     if (_lastDraw.length && false) { box.appendChild(el2('h3', '', '本次获得'));
       const g = el2('div', 'gres'); _lastDraw.forEach((o, i) => { const c = rwCard(o.n, 'rev', null, o.G.n, o.G.r); c.style.setProperty('--gc', o.G.c); c.style.animationDelay = (i * .09) + 's'; g.appendChild(c); }); box.appendChild(g); }
   } else if (mallTab === 'pack') { try { packRender(box, el2); } catch (e) { console.warn(e); }
@@ -8513,7 +8514,7 @@ const STORY = [
       ['老陈', T2('先活动一下：用左下角的摇杆走一走。', 'First, stretch your legs: walk around with the joystick at the bottom left.')]],
     steps: [
       { k: 'move', n: 20, d: T2('用左下角摇杆走动 20 米', 'Walk 20 m with the joystick (bottom left)') },
-      { k: 'sprint', n: 2, say: T2('很好。被追的时候要会跑：把摇杆往任何方向拉到外面的虚线圈外，摇杆变绿就是在跑，会消耗体力。拉回圈内就变回走路。', 'Good. When chased, run: pull the joystick past the dashed outer ring in any direction. It turns green while you run and uses stamina. Pull back inside to walk.'), d: T2('边走边按「奔跑」按钮，跑 2 秒', 'Sprint for 2 seconds (Sprint button while moving)') },
+      { k: 'sprint', n: 2, say: T2('很好。被追的时候要会跑：把摇杆往任何方向拉到外面的虚线圈外，摇杆变绿就是在跑，会消耗体力。拉回圈内就变回走路。', 'Good. When chased, run: pull the joystick past the dashed outer ring in any direction. It turns green while you run and uses stamina. Pull back inside to walk.'), d: T2('把摇杆拉到虚线圈外，跑 2 秒', 'Pull the stick past the outer ring and run for 2 seconds') },
       { k: 'chop', n: 1, say: T2('材料要自己采。走到树旁边，右下会出现「砍树」按钮，按住就会一直砍。木头和藤条都从树上来。', 'You gather your own materials. Walk up to a tree: a Chop button appears at the bottom right; hold it to keep chopping. Wood and vines come from trees.'), d: T2('走到树旁按住「砍树」，砍出木头', 'Stand by a tree and hold Chop to get wood') },
       { k: 'build', n: 1, say: T2('有了木头就能建东西。点右边的「建造」，选一样放下来。墙和炮塔能保护你的家。', 'With wood you can build. Tap Build on the right, pick something and place it. Walls and turrets protect your home.'), d: T2('在海岛上建造任意 1 样东西', 'Build anything on the island') },
       { k: 'reach', tier: 1, say: T2('该出门了。走到码头上船，选「荒废郊区」。外面有丧尸，小心。', 'Time to head out. Walk to the pier, board the boat and pick the Ruined Suburbs. There are zombies out there, be careful.'), d: T2('去码头坐船，离开海岛去「荒废郊区」', 'Take the boat at the pier to the Ruined Suburbs') },
@@ -10073,9 +10074,9 @@ buildMesh = (orig => function (type) {
   return g;
 })(buildMesh);
 canAfford = (orig => function (t) { return !bpLocked(t) && orig(t); })(canAfford);
-selectBuild = (orig => function (k) { if (bpLocked(k)) { feed('需要「' + BT[k].name + '」蓝图：护送流浪商队获得', '#ff9b8a'); return; } return orig(k); })(selectBuild);
+selectBuild = (orig => function (k) { if (bpLocked(k)) { feed('需要「' + BT[k].name + '」蓝图：' + bpSrc(k), '#ff9b8a'); return; } return orig(k); })(selectBuild);
 buildCards = (orig => function () { orig(); try { buildEl.querySelectorAll('.card').forEach(c => { const k = c.dataset.k; if (!BT[k] || !BT[k].bp) return; c.classList.add('bpc');
-  if (bpLocked(k)) { c.classList.add('bplock'); const sp = c.querySelector('span'); if (sp) sp.textContent = '🔒 需要蓝图 · 护送流浪商队获得'; } }); } catch (e) { } })(buildCards);
+  if (bpLocked(k)) { c.classList.add('bplock'); const sp = c.querySelector('span'); if (sp) sp.textContent = '🔒 需要蓝图 · ' + bpSrc(k); } }); } catch (e) { } })(buildCards);
 let _bpT = 0;
 updateBuilds = (orig => function (dt) { orig(dt); _bpT += dt;
   for (const b of builds) { if (b.broken || b.hp <= 0) continue;
@@ -10135,7 +10136,7 @@ function cvEnd(win, why) {
   if (!win) { banner('护送失败', why || '商队被丧尸毁了。这周还能再试', 3.5); return; }
   const t = lvTier(), first = !cvDone(); stInc('cv'); burst(player.pos.x, 1.4, player.pos.z, 0xffc94a, 30, 6); sfx.build();
   if (first) { S.cv.w = 'w' + weekIdx(); gain('coin', 400 * t); gain('estone', 4); gain('crystal', 1); giveGear(4); giveGear(3); if (typeof seaXp === 'function') seaXp(100); try { gain('apart', 20); gain('elem', 4); attDrop(t, 1, 3); } catch (e) { }
-    const lock = Object.keys(BP).filter(k => !S.bp[k]); let bpTxt;
+    const lock = Object.keys(BP).filter(k => !S.bp[k] && BP[k].cv !== 0); let bpTxt;
     if (lock.length) { const k = pick(lock); S.bp[k] = 1; bpTxt = '蓝图「' + BP[k].n + '」（在建造 · 防御里）'; } else { gain('heart', 1); gain('estone', 6); bpTxt = '首领之心 + 强化石 ×6（蓝图已集齐）'; }
     banner('商队安全抵达！', '黄金装备 + 史诗装备 · ' + bpTxt + ' · 余烬币 ' + 400 * t, 5.5); }
   else { gain('coin', 120 * t); gain('estone', 1); banner('商队安全抵达', '本周大奖已领过 · 余烬币 ' + 120 * t + ' · 强化石 ×1', 3.5); }
@@ -11470,6 +11471,268 @@ function encTick(dt) {
 drawExtraRadar = (orig => function (tx, tz, edgeMark) { orig(tx, tz, edgeMark); try { const c = ENC.cur; if (!c || S.isl || c.type !== 'gold' || c.z.dead) return; const k = _mapK || 2; edgeMark({ x: c.z.pos.x, z: c.z.pos.z }, '#ffd98a'); mapPin(mctx, tx(c.z.pos.x), tz(c.z.pos.z), 5.5 * k, '#ffd98a', '宝', k); } catch (e) { } })(drawExtraRadar);
 
 petsTick = (o => function (dt) { o(dt); try { numTick(dt); burnNums(dt); } catch (e) { } try { rollTick(dt); } catch (e) { } try { encTick(dt); } catch (e) { console.warn(e); } })(petsTick);
+/* ============ 图纸残页 · 蓝图抽奖机 · 配件补给箱 · 五阶炮塔 ============
+   Every monster can drop 图纸残页: each 5 kills rolls 0-5 of them (elites and bosses drop more). The 蓝图抽奖机 on the
+   island turns them into blueprints; some buildings now need one before you can build them (anything you had already
+   built keeps its blueprint). Turrets come in five grades (普通 / 青铜 / 白银 / 黄金 / 神话); each grade levels 1-10
+   with steep costs and a falling success rate (a failed try still raises the next one's odds).
+   The shop also gets a 配件补给箱: drawn attachments wait in the 配件库, where you take the ones you want or break
+   the rest into parts. */
+MAT.bpf = { n: '图纸残页', c: '#7ec8ff', r: 0 };
+if (!('bpf' in S.inv)) S.inv.bpf = 0;
+try { SELL_PRICE.bpf = 4; } catch (e) { }
+
+/* ---- turret grades ---- */
+const TG = [
+  { k: 'turret', n: '普通', c: '#b9b2aa', hx: 0x8a929a, dmg: 13, cd: .35, rg: 22, n2: 1 },
+  { k: 'turret_b', n: '青铜', c: '#d08a4a', hx: 0xb07a42, dmg: 19, cd: .32, rg: 24, n2: 1, mt: 16, hp: 240 },
+  { k: 'turret_s', n: '白银', c: '#dfe6ee', hx: 0xd8dee6, dmg: 27, cd: .29, rg: 26, n2: 1, mt: 22, hp: 340 },
+  { k: 'turret_g', n: '黄金', c: '#ffc94a', hx: 0xe8b23a, dmg: 38, cd: .25, rg: 28, n2: 2, mt: 30, hp: 480 },
+  { k: 'turret_m', n: '神话', c: '#ff4d8d', hx: 0xff4d8d, dmg: 55, cd: .2, rg: 32, n2: 3, mt: 40, hp: 680 }];
+const TG_MAX = 10, TG_OK = [1, .9, .8, .7, .6, .5, .42, .35, .3];
+S.tlv = {}; S.tfail = {};
+const tgOf = k => TG.findIndex(t => t.k === k);
+const tgLv = k => clamp(S.tlv[k] | 0 || 1, 1, TG_MAX);
+const tgDmg = k => { const g = TG[tgOf(k)] || TG[0]; return g.dmg * (1 + .14 * (tgLv(k) - 1)); };
+const tgCd = k => { const g = TG[tgOf(k)] || TG[0]; return g.cd * (1 - .025 * (tgLv(k) - 1)); };
+const tgRg = k => { const g = TG[tgOf(k)] || TG[0]; return g.rg + (tgLv(k) - 1) * .4; };
+const tgDesc = i => { const g = TG[i]; return g.n + '炮塔 Lv.' + tgLv(g.k) + ' · 伤害 ' + Math.round(tgDmg(g.k)) + (g.n2 > 1 ? ' · 同时打 ' + g.n2 + ' 只' : '') + (i === 4 ? ' · 点燃' : ''); };
+TG.forEach((g, i) => { if (!i) return; BT[g.k] = { name: g.n + '炮塔', cat: 'df', k: 'free', cost: { wood: 6 + i * 2, metal: g.mt }, hp: g.hp, hw: .75, hd: .75, ob: [[0, 0, .75, .75]], bp: 1 };
+  Object.defineProperty(BT[g.k], 'desc', { get: () => '蓝图 · ' + tgDesc(i), enumerable: true }); });
+try { Object.defineProperty(BT.turret, 'desc', { get: () => '自动射击 · ' + tgDesc(0), enumerable: true, configurable: true }); } catch (e) { }
+function tgCost(k) { const L = tgLv(k), g = tgOf(k), q = 1 + g * .55;
+  return { metal: Math.round(30 * L * q), apart: Math.ceil((6 * L + 2 * L * L) * q), bpf: Math.ceil(5 * L * q), coin: Math.round(400 * L * L * q), heart: L >= 5 ? Math.ceil((L - 3) / 2 * q) : 0 }; }
+const tgOdds = k => { const L = tgLv(k); return Math.min(1, (TG_OK[L - 1] || .3) + (S.tfail[k] | 0) * .1); };
+function tgUp(k) {
+  const L = tgLv(k); if (L >= TG_MAX) return; const c = tgCost(k); if (!costOk(c)) { feed('材料不够', '#ff9b8a'); return; }
+  costPay(c); const g = TG[tgOf(k)];
+  if (Math.random() < tgOdds(k)) { S.tlv[k] = L + 1; S.tfail[k] = 0; sfx.build(); banner('升级成功', g.n + '炮塔 → Lv.' + (L + 1), 2.5); burst(player.pos.x, 1.2, player.pos.z, 0xffd27a, 16, 6); }
+  else { S.tfail[k] = (S.tfail[k] | 0) + 1; try { sfxTone(300, 140, .3, .15, 'sawtooth'); } catch (e) { } feed('升级失败（材料已消耗）· 下次成功率 +10%', '#ff9b8a'); }
+  refreshHud(); saveGame();
+}
+// the five turret looks: same frame, more barrels and richer trim as the grade goes up; 神话 has a floating crystal
+function tgMesh(i) {
+  const g = new THREE.Group(), G = TG[i], tm = mat(G.hx), dk = mat(0x2a2e34), mid = mat(0x4c545c), gold = mat(0xe8b23a);
+  box(1.5, .32, 1.5, dk, 0, .16, 0, g); box(1.2, .14, 1.2, tm, 0, .38, 0, g); box(.62, 1.0, .62, mid, 0, .95, 0, g);
+  for (const [x, z] of [[-.62, -.62], [.62, -.62], [-.62, .62], [.62, .62]]) box(.16, .5, .16, i >= 3 ? gold : tm, x, .4, z, g);
+  const head = new THREE.Group(); head.position.y = 1.6; g.add(head); g.userData.head = head;
+  box(1.0, .56, 1.0, tm, 0, 0, 0, head); box(1.04, .1, 1.04, i >= 2 ? gold : dk, 0, .3, 0, head); box(.86, .44, .14, mid, 0, .02, .5, head);
+  const nb = [1, 1, 2, 3, 4][i], sp = .22;
+  for (let b = 0; b < nb; b++) { const x = (b - (nb - 1) / 2) * sp, y = nb === 4 ? (b % 2 ? .1 : -.08) : 0;
+    box(.12, .12, 1.3 + i * .08, mat(0x15181c), x, y, .9, head); box(.17, .17, .22, i >= 3 ? gold : dk, x, y, 1.55 + i * .04, head); }
+  box(.3, .14, .32, new THREE.MeshBasicMaterial({ color: [0xff7a2f, 0xff9a4a, 0x9fe8ff, 0xffd060, 0xff4d8d][i] }), 0, .36, -.2, head);
+  if (i >= 1) for (const s of [-1, 1]) box(.12, .4, .8, i >= 3 ? gold : mid, s * .56, 0, -.05, head);
+  if (i >= 2) box(.4, .3, .5, dk, 0, .1, -.6, head);
+  if (i >= 3) { const cr = new THREE.Mesh(new THREE.OctahedronGeometry(.18, 0), new THREE.MeshBasicMaterial({ color: G.hx })); cr.position.set(0, .62, -.2); head.add(cr); g.userData.cr = cr; }
+  if (i === 4) { const cr = new THREE.Mesh(new THREE.OctahedronGeometry(.34, 0), new THREE.MeshBasicMaterial({ color: 0xff6aa0 })); cr.position.y = 2.75; g.add(cr); g.userData.cr2 = cr;
+    try { const e = new THREE.LineSegments(new THREE.EdgesGeometry(cr.geometry), new THREE.LineBasicMaterial({ color: 0xffd060 })); cr.add(e); } catch (e) { }
+    try { const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,120,170,.8)', 'rgba(255,80,140,0)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); gl.scale.set(1.6, 1.6, 1); cr.add(gl); } catch (e) { } }
+  return g;
+}
+buildMesh = (orig => function (type) { const i = tgOf(type); return i > 0 ? tgMesh(i) : orig(type); })(buildMesh);
+updateBuilds = (orig => function (dt) { orig(dt);
+  for (const b of builds) { const i = tgOf(b.type); if (i < 1 || b.broken || b.hp <= 0) continue; const G = TG[i], u = b.g.userData;
+    if (u.cr2) { u.cr2.rotation.y += dt * 1.5; u.cr2.position.y = 2.75 + Math.sin(S.t * 2 + b.x) * .12; } if (u.cr) u.cr.rotation.y += dt * 3;
+    b.cd = (b.cd || 0) - dt; const rg = tgRg(b.type) + (ts('sentry') ? 9 : 0), list = [];
+    for (const z of zombies) { if (z.dead || (z.animal && !z.hostile && !(z.angry > 0))) continue; const d = Math.hypot(z.pos.x - b.x, z.pos.z - b.z); if (d < rg) list.push([d, z]); }
+    if (!list.length) continue; list.sort((a, c) => a[0] - c[0]); const best = list[0][1];
+    u.head.rotation.y = Math.atan2(best.pos.x - b.x, best.pos.z - b.z) - b.rot;
+    if (b.cd > 0) continue; b.cd = tgCd(b.type) * (ts('sentry') ? .5 : 1);
+    const dmg = tgDmg(b.type) * (1 + (S.level - 1) * .08) * (1 + ts('tur')), col = [0, 0xffb070, 0xcfeaff, 0xffd060, 0xff6aa0][i];
+    for (let n = 0; n < Math.min(G.n2, list.length); n++) { const z = list[n][1]; tracer(b.x, 1.65 + (b.y || 0), b.z, z.pos.x, 1.2, z.pos.z, col); hurtZombie(z, dmg, 0, 0);
+      if (i === 4) { z.burnD = Math.max(z.burnD || 0, dmg * .15); z.burnT = 2; } } }
+})(updateBuilds);
+
+/* ---- blueprints: which buildings need one, and the pool of the machine ---- */
+const BPX = {
+  turret_m: [5, '神话炮塔'], turret_g: [4, '黄金炮塔'], tesla: [4, '电网塔'],
+  turret_s: [3, '白银炮塔'], hmg: [3, '重机枪塔'], gwall: [3, '玻璃墙'], chand: [3, '吊灯'], tank: [3, '鱼缸'],
+  turret_b: [2, '青铜炮塔'], swall: [2, '石墙'], swin: [2, '石窗'], iwall: [2, '铁墙'], gate: [2, '铁栅栏'], spike: [2, '尖刺陷阱'], locker: [2, '储物柜'], lamp: [2, '落地灯'] };
+for (const k in BPX) { if (!BT[k]) continue; BT[k].bp = 1; if (!BP[k]) BP[k] = { n: BPX[k][1], d: '', cv: 0 }; }
+function bpSrc(k) { return BP[k] && BP[k].cv === 0 ? '海岛「蓝图抽奖机」抽取' : '护送流浪商队 / 蓝图抽奖机'; }
+const BP_DUP = [3, 0, 5, 15, 40, 150];
+const bpPrize = k => [() => { const r = BPX[k][0], had = !!S.bp[k];
+  return { n: had ? '蓝图「' + BPX[k][1] + '」重复 · 残页 ×' + BP_DUP[r] : '新蓝图「' + BPX[k][1] + '」', f: () => { if (had) gain('bpf', BP_DUP[r]); else { S.bp[k] = 1; try { buildCards(); } catch (e) { } } }, k }; }, null, '蓝图「' + BPX[k][1] + '」'];
+const BPPOOL = { 0: [['铁片 ×20', () => gain('metal', 20)], ['木头 ×30', () => gain('wood', 30)], ['精密零件 ×3', () => gain('apart', 3)], ['余烬币 ×300', () => gain('coin', 300)], ['图纸残页 ×4', () => gain('bpf', 4)]] };
+for (const k in BPX) { const r = BPX[k][0]; (BPPOOL[r] = BPPOOL[r] || []).push(bpPrize(k)); }
+const BPG = [{ r: 5, p: .01, n: '神话', c: '#ff4d8d' }, { r: 4, p: .04, n: '传说', c: '#ffc94a' }, { r: 3, p: .13, n: '史诗', c: '#c28bff' }, { r: 2, p: .3, n: '稀有', c: '#5aa9ff' }, { r: 0, p: .52, n: '普通', c: '#b9b2aa' }];
+const BP_COST = { 1: 10, 10: 90 }, BP_PITY = 60;
+S.bmp = 0; S.bpk = 0;
+function bpDrawOne(minR) {
+  S.bmp++; let G = BPG[BPG.length - 1];
+  if (S.bmp >= BP_PITY) G = BPG[0]; else { let acc = 0; const roll = Math.random(); for (const g of BPG) { acc += g.p; if (roll < acc) { G = g; break; } } }
+  if (minR && G.r < minR) G = BPG.find(g => g.r === minR); if (G.r >= 5) S.bmp = 0;
+  const pool = BPPOOL[G.r], fresh = pool.filter(x => typeof x[0] !== 'function' || !S.bp[x[0]().k]), it = pick(G.r && fresh.length && Math.random() < .6 ? fresh : pool);
+  if (typeof it[0] === 'function') { const r = it[0](); try { r.f(); } catch (e) { console.warn(e); } return { G, n: r.n }; }
+  try { it[1](); } catch (e) { console.warn(e); } return { G, n: it[0] };
+}
+function bpDraw(n) {
+  const c = BP_COST[n] || 10 * n; if (matHave('bpf') < c) { feed('图纸残页不够：打丧尸掉落（每 5 只有机会掉 0-5 张）', '#ff9b8a'); return; }
+  matAdd('bpf', -c); const out = []; for (let i = 0; i < n; i++) out.push(bpDrawOne(n === 10 && i === 9 && !out.some(o => o.G.r >= 3) ? 3 : 0));
+  if (out.some(o => /新蓝图/.test(o.n))) feed('新蓝图在「建造」里可以直接造了', '#7ec8ff'); S.st.bpDraws = (S.st.bpDraws || 0) + n; saveGame(); refreshHud();
+  const m = $('bpmMach'); if (m) { m.classList.remove('spin'); void m.offsetWidth; m.classList.add('spin'); }
+  try { sfxTone(300, 700, .5, .12, 'square'); sfxTone(500, 1000, .3, .14, 'triangle', { delay: .5 }); } catch (e) { }
+  setTimeout(() => { try { bpModal(out, n); renderBpm(); } catch (e) { console.warn(e); } }, 750);
+}
+function bpModal(out, n) {
+  const host = $('bpm'); if (!host) return; const old = $('bpmod'); if (old && old.parentNode) old.parentNode.removeChild(old);
+  const best = Math.max(...out.map(o => o.G.r)), m = document.createElement('div'); m.id = 'bpmod'; m.className = 'gmodal' + (best >= 5 ? ' myth leg' : best === 4 ? ' leg' : '');
+  if (best >= 5) { banner('神话蓝图！！', out.filter(o => o.G.r >= 5).map(o => o.n).join('、'), 4); S.shake = .3; } else if (best === 4) banner('传说蓝图！', out.filter(o => o.G.r === 4).map(o => o.n).join('、'), 3);
+  const t = document.createElement('b'); t.className = 'gmt'; t.textContent = best >= 5 ? '神话降临！' : best === 4 ? '出传说了！' : '获得物品'; m.appendChild(t);
+  const g = document.createElement('div'); g.className = 'gres'; out.forEach((o, i) => { const c = rwCard(o.n, 'rev', null, o.G.n, o.G.r); c.style.setProperty('--gc', o.G.c); c.style.animationDelay = (i * .12) + 's'; g.appendChild(c); }); m.appendChild(g);
+  const r = document.createElement('div'); r.className = 'gbtns';
+  const ok = document.createElement('button'); ok.className = 'gbtn'; ok.innerHTML = '<b>确定</b>'; ok.addEventListener('click', () => { if (m.parentNode) m.parentNode.removeChild(m); });
+  const ag = document.createElement('button'); ag.className = 'gbtn ten'; ag.innerHTML = '<b>再抽 ' + n + ' 次</b><small>' + svgIcon('bpf') + BP_COST[n] + '</small>'; ag.addEventListener('click', () => { if (m.parentNode) m.parentNode.removeChild(m); bpDraw(n); });
+  r.appendChild(ok); r.appendChild(ag); m.appendChild(r); host.appendChild(m);
+}
+
+/* ---- the drop: every monster counts ---- */
+killZombie = (o => function (z) { const mine = z && !z.dead && !z.mirror && !z.hitBy && !(z.animal && !z.hostile); o(z);
+  if (!mine) return;
+  try { let n = 0; S.bpk = (S.bpk | 0) + 1; if (S.bpk >= 5) { S.bpk = 0; n += rint(0, 5); }
+    if (z.boss) n += rint(6, 12); else if (z.elite && Math.random() < .35) n += rint(1, 3);
+    if (n > 0) gain('bpf', n); } catch (e) { } })(killZombie);
+
+/* ---- old saves: anything you already built keeps its blueprint ---- */
+let _bpScan = 1;
+function bpScan() { _bpScan = 0; try { for (const b of builds) if (BT[b.type] && BT[b.type].bp && !S.bp[b.type]) S.bp[b.type] = 1; } catch (e) { } }
+
+/* ---- the machine on the island ---- */
+const BPM = { x: HOME.x - 16, z: HOME.z - 10, g: null, near: false, shown: false };
+(function bpmBuild() { try {
+  const g = new THREE.Group(); g.position.set(BPM.x, 0, BPM.z); g.rotation.y = Math.PI / 2; scene.add(g); BPM.g = g;
+  const dk = mat(0x1f2a3a), mid = mat(0x34465e), bl = mat(0x2a6ab0), gold = mat(0xe8b23a), glow = new THREE.MeshBasicMaterial({ color: 0x7ec8ff });
+  box(2.4, .3, 1.6, dk, 0, .15, 0, g); box(2.1, 2.4, 1.3, mid, 0, 1.5, 0, g); box(2.2, .14, 1.4, gold, 0, 2.75, 0, g); box(2.2, .14, 1.4, gold, 0, .36, 0, g);
+  box(1.5, 1.1, .06, new THREE.MeshBasicMaterial({ color: 0x0c2240 }), 0, 1.85, .66, g);
+  for (let i = 0; i < 4; i++) box(1.4, .03, .02, glow, 0, 1.45 + i * .28, .7, g); for (let i = 0; i < 5; i++) box(.03, 1.0, .02, glow, -.6 + i * .3, 1.85, .7, g);
+  const roll = box(.9, .5, .04, mat(0xcfe8ff), 0, 1.85, .72, g); g.userData.roll = roll;
+  box(1.3, .3, .3, bl, 0, .9, .7, g); box(.5, .14, .1, mat(0x111111), 0, .9, .86, g);
+  box(.16, .9, .16, gold, .9, 3.1, 0, g); box(.4, .14, .4, mat(0xff4d4d), .9, 3.6, 0, g); box(.14, .5, .14, dk, -.75, .9, .75, g).rotation.z = .5;
+  const cr = new THREE.Mesh(new THREE.OctahedronGeometry(.42, 0), new THREE.MeshBasicMaterial({ color: 0x5ab0ff })); cr.position.y = 3.45; g.add(cr); g.userData.cr = cr;
+  try { cr.add(new THREE.LineSegments(new THREE.EdgesGeometry(cr.geometry), new THREE.LineBasicMaterial({ color: 0xffd060 }))); } catch (e) { }
+  try { const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(126,200,255,.8)', 'rgba(80,160,255,0)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); gl.scale.set(2.4, 2.4, 1); cr.add(gl); } catch (e) { }
+  try { const lab = labelSprite('蓝图抽奖机', '#7ec8ff', 1); lab.position.y = 4.5; g.add(lab); } catch (e) { }
+  addBox(BPM.x, BPM.z, .85, 1.25);
+} catch (e) { console.warn('bpm', e); } })();
+const bpmNear = () => S.isl && !S.dead && !S.boat && Math.hypot(player.pos.x - BPM.x, player.pos.z - BPM.z) < 3.6;
+function bpmTick(dt) {
+  if (_bpScan && S.started) bpScan();
+  if (BPM.g) { const u = BPM.g.userData; if (u.cr) { u.cr.rotation.y += dt * 1.2; u.cr.position.y = 3.45 + Math.sin(S.t * 1.6) * .1; } }
+  const s = bpmNear(); if (s !== BPM.shown) { BPM.shown = s; const b = $('bBpm'); if (b) b.style.display = s ? 'block' : 'none'; }
+}
+petsTick = (o => function (dt) { o(dt); try { bpmTick(dt); } catch (e) { } })(petsTick);
+let bpmTab = 'draw';
+function renderBpm() {
+  const box = $('bpmList'); if (!box) return; box.innerHTML = '';
+  const el2 = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+  const tabs = el2('div', 'tabs'); [['draw', '蓝图抽奖'], ['tur', '炮塔升级']].forEach(([k, n]) => { const b = el2('button', 'sbtn' + (bpmTab === k ? ' on' : ''), n); b.addEventListener('click', () => { bpmTab = k; renderBpm(); }); tabs.appendChild(b); }); box.appendChild(tabs);
+  box.appendChild(el2('div', 'bpmhave', svgIcon('bpf') + '<b>' + matHave('bpf') + '</b><span>图纸残页 · 打任何怪物都会掉（每 5 只有机会掉 0-5 张，精英、首领掉更多）</span>'));
+  if (bpmTab === 'draw') {
+    const hero = el2('div', 'bpmhero');
+    hero.innerHTML = '<div class="bpmmach" id="bpmMach"><i class="lamp"></i><div class="scr"><div class="paper">' + svgIcon('bp') + '</div></div><div class="slot"></div></div>' +
+      '<div class="bpmtx"><b>蓝图抽奖机</b><span>神话「神话炮塔」· 传说「黄金炮塔」「电网塔」· 史诗白银炮塔、重机枪塔、玻璃墙、吊灯、鱼缸 · 稀有 青铜炮塔、石墙、铁墙等</span>' +
+      '<div class="gods">' + BPG.map(G => '<i style="--gc:' + G.c + '">' + G.n + ' ' + (G.p * 100).toFixed(0) + '%</i>').join('') + '</div>' +
+      '<div class="gpity"><u><i style="width:' + Math.round(S.bmp / BP_PITY * 100) + '%"></i></u><span>神话保底 ' + S.bmp + ' / ' + BP_PITY + ' · 十连至少一个史诗 · 重复蓝图换回残页</span></div></div>';
+    const r = el2('div', 'gbtns'); [[1, '抽 1 次'], [10, '抽 10 次']].forEach(([n, t]) => { const b = el2('button', 'gbtn' + (n === 10 ? ' ten' : ''), '<b>' + t + '</b><small>' + svgIcon('bpf') + BP_COST[n] + ' 残页</small>'); b.disabled = matHave('bpf') < BP_COST[n]; b.addEventListener('click', () => bpDraw(n)); r.appendChild(b); });
+    hero.appendChild(r); box.appendChild(hero);
+    box.appendChild(el2('h3', '', '奖池一览 · 已拥有 ' + Object.keys(BPX).filter(k => S.bp[k]).length + ' / ' + Object.keys(BPX).length));
+    BPG.forEach(G => { const row = el2('div', 'gpool'); row.style.setProperty('--gc', G.c); row.appendChild(el2('div', 'gpt', '<b>' + G.n + '</b><small>' + (G.p * 100).toFixed(0) + '%</small>'));
+      const cells = el2('div', 'gpc'); BPPOOL[G.r].forEach(x => { const nm = typeof x[0] === 'function' ? x[2] : x[0], k = typeof x[0] === 'function' ? x[0]().k : null, c = rwCard(nm, 'pool' + (k && S.bp[k] ? ' bpown' : ''), null, k ? (S.bp[k] ? '✓ 已拥有' : '未拥有') : null, G.r); c.style.setProperty('--gc', G.c); cells.appendChild(c); });
+      row.appendChild(cells); box.appendChild(row); });
+  } else {
+    box.appendChild(el2('div', 'snote', '炮塔分五阶：普通、青铜、白银、黄金、神话（后四种要先抽到蓝图）。每一阶有自己的等级（1-10），同一阶的炮塔一起变强。等级越高越难升，失败会扣材料，但下次成功率 +10%。'));
+    TG.forEach((G, i) => { const k = G.k, L = tgLv(k), own = !i || S.bp[k], row = el2('div', 'strow tgrow'); row.style.setProperty('--qc', G.c);
+      row.innerHTML = '<span class="stic">' + svgIcon('tg' + i) + '</span><span class="stn"><b style="color:' + G.c + '">' + G.n + '炮塔 · Lv.' + L + '</b><small>伤害 ' + Math.round(tgDmg(k)) + ' · 射速 ' + (1 / tgCd(k)).toFixed(1) + '/秒 · 射程 ' + Math.round(tgRg(k)) + ' 米' + (G.n2 > 1 ? ' · 同时打 ' + G.n2 + ' 只' : '') + (i === 4 ? ' · 点燃' : '') + '</small>' +
+        (own && L < TG_MAX ? '<small class="attcost">' + costHtml(tgCost(k)) + '</small><small>成功率 ' + Math.round(tgOdds(k) * 100) + '%</small>' : '') + '</span>';
+      const b = el2('button', 'sbtn', !own ? '🔒 未有蓝图' : L >= TG_MAX ? '满级' : '升级'); b.disabled = !own || L >= TG_MAX || !costOk(tgCost(k));
+      b.addEventListener('click', () => { tgUp(k); renderBpm(); }); row.appendChild(b); box.appendChild(row); });
+  }
+}
+{ if (document.createElement && document.body && document.body.appendChild) { try {
+  const o = document.createElement('div'); o.className = 'overlay scroll'; o.id = 'bpm'; o.innerHTML = '<h2>蓝图抽奖机</h2><div id="bpmList" class="slist"></div>';
+  const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => closePanel('bpm')); o.appendChild(x); document.body.appendChild(o);
+  const H = $('hud'); if (H && H.appendChild) { const b = document.createElement('button'); b.className = 'btn2'; b.id = 'bBpm'; b.textContent = '蓝图抽奖机'; H.appendChild(b);
+    b.addEventListener('click', () => { if (!bpmNear()) return; try { audioInit(); } catch (e) { } openPanel('bpm', renderBpm); }); }
+  const st = document.createElement('style'); st.textContent =
+    '#bBpm{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--sb) + 96px);display:none;border-color:#7ec8ff;background:rgba(14,40,74,.88);color:#dff1ff;font-size:15px}' +
+    '.bpmhave{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;background:rgba(40,90,150,.18);border:1px solid rgba(126,200,255,.35);font-size:13px;text-align:left}.bpmhave b{font-size:20px;color:#7ec8ff}.bpmhave span{opacity:.75;font-size:12px}.bpmhave .ic{width:30px;height:30px}' +
+    '.bpmhero{position:relative;display:grid;grid-template-columns:120px 1fr;gap:14px;padding:16px;border-radius:16px;background:linear-gradient(160deg,#0f2440,#1a1430);border:1px solid rgba(126,200,255,.4);text-align:left;overflow:hidden}' +
+    '.bpmhero .gbtns{grid-column:1/-1}.bpmtx b{font-size:20px;color:#bfe3ff}.bpmtx>span{display:block;font-size:12px;opacity:.78;margin:4px 0 8px;line-height:1.5}' +
+    '.bpmmach{position:relative;height:150px;border-radius:10px;background:linear-gradient(#34465e,#1f2a3a);border:3px solid #e8b23a;box-shadow:0 0 18px rgba(126,200,255,.35)}' +
+    '.bpmmach .lamp{position:absolute;left:50%;top:-14px;width:18px;height:18px;margin-left:-9px;background:#5ab0ff;transform:rotate(45deg);border:2px solid #ffd060;box-shadow:0 0 12px #5ab0ff}' +
+    '.bpmmach .scr{position:absolute;left:10px;right:10px;top:16px;height:78px;background:#0c2240;border:2px solid #2a6ab0;background-image:linear-gradient(rgba(126,200,255,.25) 1px,transparent 1px),linear-gradient(90deg,rgba(126,200,255,.25) 1px,transparent 1px);background-size:12px 12px;display:flex;align-items:center;justify-content:center;overflow:hidden}' +
+    '.bpmmach .paper .ic{width:56px;height:56px}.bpmmach .slot{position:absolute;left:22px;right:22px;bottom:16px;height:14px;background:#111;border:2px solid #2a6ab0;border-radius:3px}' +
+    '.bpmmach.spin{animation:bpmShake .75s}.bpmmach.spin .paper{animation:bpmRoll .75s linear}.bpmmach.spin .lamp{animation:bpmLamp .25s 3}' +
+    '@keyframes bpmShake{0%,100%{transform:none}20%{transform:translateX(-4px) rotate(-1deg)}40%{transform:translateX(4px) rotate(1deg)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}' +
+    '@keyframes bpmRoll{0%{transform:translateY(0)}100%{transform:translateY(-400%)}}@keyframes bpmLamp{50%{background:#ff4d8d;box-shadow:0 0 22px #ff4d8d}}' +
+    '.rwc.bpown{opacity:.6}.tgrow .stic .ic{width:40px;height:40px}' +
+    '#bpm .gmodal{position:fixed}.gpools .gpb:last-child:nth-child(odd){grid-column:1/-1}';
+  document.head.appendChild(st);
+} catch (e) { } } }
+
+/* ---- 配件补给箱 in the shop: drawn attachments wait in the 配件库 ---- */
+S.av = []; S.mp5 = 0;
+const AV_MAX = 300;
+const attName = (sl, kd) => (ATT_K[sl] && ATT_K[sl][kd] ? ATT_K[sl][kd].n : '配件');
+const attPrize = (q, lab) => [() => { const sl = pick(['mz', 'gr', 'bl', 'hd', 'el', 'el']), kd = rint(0, 2); return { n: GQ[q].n + '配件「' + attName(sl, kd) + '」（已放进配件库）', f: () => { S.av.push([sl, kd, q]); if (S.av.length > AV_MAX) { const x = S.av.shift(); avGive(attScrapV([0, x[0], x[1], x[2], 1])); } } }; }, null, lab || GQ[q].n + '配件（随机）'];
+const ATTPOOL = {
+  5: [attPrize(5)],
+  4: [attPrize(4)],
+  3: [attPrize(3), ['精密零件 ×25', () => gain('apart', 25)], ['元素晶核 ×6', () => gain('elem', 6)]],
+  2: [attPrize(2), ['精密零件 ×10', () => gain('apart', 10)], ['元素晶核 ×2', () => gain('elem', 2)], ['图纸残页 ×10', () => gain('bpf', 10)]],
+  0: [attPrize(1), attPrize(0), ['精密零件 ×3', () => gain('apart', 3)], ['余烬币 ×300', () => gain('coin', 300)], ['图纸残页 ×3', () => gain('bpf', 3)]] };
+BOXES.att = { n: '配件补给箱', ic: 'item:att_mz2', big: 'item:att_elfire0', d: '神话、黄金、史诗配件：枪口、弹匣握把、刃锋、握柄、火雷水元素核心，还有大量精密零件和元素晶核' };
+const avGive = v => { for (const k in v) matAdd(k, v[k]); };
+function renderAttVault() {
+  const box = $('avList'); if (!box) return; box.innerHTML = ''; const A = S.av;
+  const el2 = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+  box.appendChild(el2('div', 'snote', '从「配件补给箱」抽到的配件先放在这里：想要的点「取出」放进你的配件（去武器页面装上），不要的分解成精密零件 / 元素晶核。库里 ' + A.length + ' 件。'));
+  if (A.length) { const all = el2('div', 'gvall');
+    [[2, '分解高级以下'], [3, '分解史诗以下'], [5, '全部分解']].forEach(([mq, t]) => { const L = A.filter(x => x[2] <= mq), b = el2('button', 'sbtn ghostb', t + '（' + L.length + '）'); b.disabled = !L.length; let armed = 0;
+      b.addEventListener('click', () => { if (Date.now() - armed > 3000) { armed = Date.now(); b.textContent = '再点一次确认'; b.classList.add('armed'); return; }
+        const tot = {}; L.forEach(x => { const v = attScrapV([0, x[0], x[1], x[2], 1]); for (const k in v) tot[k] = (tot[k] || 0) + v[k]; }); avGive(tot); S.av = A.filter(x => x[2] > mq);
+        feed('分解了 ' + L.length + ' 件：' + Object.keys(tot).map(k => MAT[k].n + ' ×' + tot[k]).join('、'), '#b8c4d0'); refreshHud(); saveGame(); renderAttVault(); });
+      all.appendChild(b); }); box.appendChild(all); }
+  else box.appendChild(el2('p', 'snote', '配件库是空的。'));
+  const list = el2('div', 'gvlist');
+  A.slice().sort((a, b) => b[2] - a[2]).forEach(x => { const Q = GQ[x[2]], fake = [0, x[0], x[1], x[2], 1], K = attKind(fake), r = el2('div', 'strow'); r.style.setProperty('--qc', Q.c);
+    r.innerHTML = '<span class="stic">' + svgIcon(attIc(fake)) + '</span><span class="stn"><b style="color:' + Q.c + '">' + Q.n + ' · ' + K.n + '</b><small>' + ATT_SN[x[0]] + ' · ' + statTxt(Object.fromEntries(Object.entries(K.st).map(([k, v]) => [k, v * AQM[x[2]]]))) + '</small></span>';
+    const v = attScrapV(fake), br = el2('button', 'sbtn ghostb', '分解'); br.title = Object.keys(v).map(k => MAT[k].n + ' ×' + v[k]).join('、');
+    br.addEventListener('click', () => { const i = S.av.indexOf(x); if (i < 0) return; S.av.splice(i, 1); avGive(v); feed('分解得到 ' + br.title, '#b8c4d0'); refreshHud(); saveGame(); renderAttVault(); });
+    const tk = el2('button', 'sbtn', '取出'); tk.addEventListener('click', () => { const i = S.av.indexOf(x); if (i < 0) return; S.av.splice(i, 1); attMake(x[0], x[2], x[1]); feed('取出配件：' + Q.n + ' · ' + K.n + '（去武器页面装上）', Q.c); saveGame(); renderAttVault(); });
+    r.appendChild(br); r.appendChild(tk); list.appendChild(r); });
+  box.appendChild(list);
+}
+function openAttVault() { try { audioInit(); } catch (e) { } openPanel('avault', renderAttVault); }
+{ if (document.createElement && document.body && document.body.appendChild) { try { const o = document.createElement('div'); o.className = 'overlay scroll'; o.id = 'avault'; o.innerHTML = '<h2>配件库</h2><div id="avList" class="slist"></div>';
+  const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => closePanel('avault')); o.appendChild(x); document.body.appendChild(o); } catch (e) { } } }
+
+/* ---- icons: the blueprint, the page, attachment names on reward cards, turret grades ---- */
+rwIcon = (o => function (d) {
+  if (/图纸残页/.test(d)) return 'item:bpf';
+  { const t = /(普通|青铜|白银|黄金|神话)炮塔/.exec(d); if (t && /蓝图/.test(d)) return 'item:tg' + TG.findIndex(g => g.n === t[1]); }
+  if (/蓝图/.test(d)) return 'item:bp';
+  { const m = /配件「(.+?)」/.exec(d); if (m) for (const sl in ATT_K) { const kd = ATT_K[sl].findIndex(k => k.n === m[1]); if (kd >= 0) return 'item:' + attIc([0, sl, kd, 0, 1]); } }
+  if (/配件/.test(d)) return 'item:att_mz2'; if (/精密零件/.test(d)) return 'item:apart'; if (/元素晶核/.test(d)) return 'item:att_elthun1'; if (/铁片/.test(d)) return 'item:metal'; if (/木头/.test(d)) return 'item:wood';
+  return o(d); })(rwIcon);
+(function bpIcons() { try { if (typeof ICON_URL === 'undefined' || !document.createElement) return; const mk = (key, f) => { const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext && c.getContext('2d'); if (!g || !g.fillRect) return; f(g); ICON_URL[key] = c.toDataURL('image/png'); };
+  const paper = (g, torn) => { g.save(); g.translate(48, 48); g.rotate(-.18); g.fillStyle = '#1d5fa8'; g.fillRect(-30, -24, 60, 48); g.strokeStyle = 'rgba(200,230,255,.45)'; g.lineWidth = 1;
+    for (let i = -24; i <= 24; i += 8) { g.beginPath(); g.moveTo(-30, i); g.lineTo(30, i); g.stroke(); } for (let i = -30; i <= 30; i += 8) { g.beginPath(); g.moveTo(i, -24); g.lineTo(i, 24); g.stroke(); }
+    g.strokeStyle = '#eaf6ff'; g.lineWidth = 3; g.strokeRect(-18, -12, 22, 18); g.beginPath(); g.moveTo(4, -3); g.lineTo(20, -3); g.moveTo(-8, 6); g.lineTo(-8, 14); g.stroke();
+    if (torn) { g.fillStyle = 'rgba(0,0,0,0)'; g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.moveTo(30, -24); g.lineTo(6, -24); g.lineTo(14, -10); g.lineTo(2, 2); g.lineTo(16, 12); g.lineTo(8, 24); g.lineTo(30, 24); g.closePath(); g.fillStyle = '#000'; g.fill(); g.globalCompositeOperation = 'source-over'; }
+    else { g.fillStyle = '#cfe2f5'; g.fillRect(-34, -26, 6, 52); g.fillRect(28, -26, 6, 52); } g.restore(); };
+  mk('bp', g => paper(g, false)); mk('bpf', g => paper(g, true));
+  TG.forEach((G, i) => mk('tg' + i, g => { g.fillStyle = '#2a2e34'; g.fillRect(20, 72, 56, 12); g.fillStyle = '#4c545c'; g.fillRect(38, 50, 20, 24); g.fillStyle = G.c; g.fillRect(26, 30, 44, 24);
+    g.fillStyle = '#15181c'; const nb = [1, 1, 2, 3, 4][i]; for (let b = 0; b < nb; b++) g.fillRect(64, 40 + (b - (nb - 1) / 2) * 6, 26, 4);
+    if (i >= 3) { g.fillStyle = '#ffd060'; g.fillRect(26, 28, 44, 4); } if (i === 4) { g.fillStyle = '#ff6aa0'; g.beginPath(); g.moveTo(48, 4); g.lineTo(58, 16); g.lineTo(48, 28); g.lineTo(38, 16); g.closePath(); g.fill(); g.strokeStyle = '#ffd060'; g.lineWidth = 2; g.stroke(); } }));
+} catch (e) { } })();
+
+/* ---- save / load ---- */
+shopSave = (o => function () { const r = o(); try { r.bpm = { tl: S.tlv, tf: S.tfail, m: S.bmp | 0, k: S.bpk | 0, av: S.av, mp5: S.mp5 | 0 }; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.tlv = {}; S.tfail = {}; S.bmp = 0; S.bpk = 0; S.av = []; S.mp5 = 0; _bpScan = 1;
+  try { const B = d && d.sh && d.sh.bpm; if (B) { for (const g of TG) { const l = B.tl && B.tl[g.k] | 0; if (l > 1) S.tlv[g.k] = clamp(l, 1, TG_MAX); const f = B.tf && B.tf[g.k] | 0; if (f > 0) S.tfail[g.k] = Math.min(f, 10); }
+    S.bmp = clamp(B.m | 0, 0, BP_PITY); S.bpk = clamp(B.k | 0, 0, 4); S.mp5 = clamp(B.mp5 | 0, 0, MPITY);
+    if (Array.isArray(B.av)) S.av = B.av.filter(x => Array.isArray(x) && ATT_K[x[0]] && ATT_K[x[0]][x[1]] && x[2] >= 0 && x[2] <= 5).slice(-AV_MAX); } } catch (e) { } })(shopLoad);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -12497,4 +12760,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794143515').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794145603').catch(()=>{});</script></body></html>
