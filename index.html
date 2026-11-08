@@ -11741,6 +11741,292 @@ shopLoad = (o => function (d) { o(d); S.tlv = {}; S.tfail = {}; S.bmp = 0; S.bpk
   try { const B = d && d.sh && d.sh.bpm; if (B) { for (const g of TG) { const l = B.tl && B.tl[g.k] | 0; if (l > 1) S.tlv[g.k] = clamp(l, 1, TG_MAX); const f = B.tf && B.tf[g.k] | 0; if (f > 0) S.tfail[g.k] = Math.min(f, 10); }
     S.bmp = clamp(B.m | 0, 0, BP_PITY); S.bpk = clamp(B.k | 0, 0, 4); S.mp5 = clamp(B.mp5 | 0, 0, MPITY); S.avf = Math.max(0, B.af | 0);
     if (Array.isArray(B.av)) S.av = B.av.filter(x => Array.isArray(x) && ATT_K[x[0]] && ATT_K[x[0]][x[1]] && x[2] >= 0 && x[2] <= 5).slice(-AV_MAX); } } catch (e) { } })(shopLoad);
+/* ============ every region has its own zombie, every boss its own signature skill ============
+   Region zombies (one per region, with their own body and their own trick):
+   郊区 丧尸犬 (packs of three, leap at you) · 森林 树皮伏击者 (stands still like a dead tree, springs when you come close,
+   its vines slow you) · 荒漠 沙行者 (burrows, can't be hit underground, bursts up under you) · 沼泽 腐沼浮尸 (leaves
+   toxic puddles, bursts into a gas cloud) · 雪原 冰投手 (throws ice that slows you) · 废城 钩索尸 (hooks you and drags
+   you in) · 峡谷 滚石尸 (curls into a boulder and rolls at you, dizzy afterwards) · 熔火 熔核尸 (charges up and erupts
+   in a ring of fire) · 暗影 幻影尸 (blinks behind you) · 余烬 余烬祭司 (calls embers down on you).
+   Bosses: on top of the shared slam / charge / bolt, each region boss has a signature move with a clear warning on
+   the ground. Also: a setting to hide damage numbers. */
+
+/* ---- setting: damage numbers ---- */
+let DMGN_OFF = false; try { DMGN_OFF = localStorage.getItem('ember_dmgn') === '0'; } catch (e) { }
+numPop = (o => function (x, y, z, v, k) { if (DMGN_OFF) return; return o(x, y, z, v, k); })(numPop);
+renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!box) return; const r = document.createElement('div'); r.className = 'setrow'; const s = document.createElement('span'); s.textContent = '伤害数字'; r.appendChild(s);
+  const op = document.createElement('div'); op.className = 'opts'; [[false, '显示'], [true, '关闭']].forEach(([k, n]) => { const b = document.createElement('button'); b.className = 'sbtn' + (DMGN_OFF === k ? ' on' : ''); b.textContent = n;
+    b.addEventListener('click', () => { DMGN_OFF = k; try { localStorage.setItem('ember_dmgn', k ? '0' : '1'); } catch (e) { } if (k && NUM.box) NUM.box.innerHTML = '', NUM.live.length = 0, NUM.pool.length = 0; renderSettings(); }); op.appendChild(b); });
+  r.appendChild(op); const lg = box.lastChild; box.insertBefore(r, lg); } catch (e) { } })(renderSettings);
+
+/* ---- ground warnings, projectiles, hazards ---- */
+const TELES = [], PRJ = [], HZ = [];
+const _tg = { ring: new THREE.RingGeometry(.92, 1, 40), disc: new THREE.CircleGeometry(1, 40), plane: new THREE.PlaneGeometry(1, 1) };
+const _tm = (c, o) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false, side: THREE.DoubleSide });
+// a circle that fills up; fn runs when it is full
+function teleC(x, z, r, T, col, fn) { const g = new THREE.Group(); g.position.set(x, .1, z); scene.add(g);
+  const a = new THREE.Mesh(_tg.ring, _tm(col, .8)); a.rotation.x = -Math.PI / 2; a.scale.setScalar(r); g.add(a); const d = new THREE.Mesh(_tg.disc, _tm(col, .28)); d.rotation.x = -Math.PI / 2; d.scale.setScalar(.01); g.add(d);
+  TELES.push({ g, a, d, r, t: 0, T, fn, x, z }); return g; }
+// a strip from (x,z) along angle ang, length L, width w
+function teleL(x, z, ang, L, w, T, col, fn) { const g = new THREE.Group(); g.position.set(x, .1, z); g.rotation.y = ang; scene.add(g);
+  const a = new THREE.Mesh(_tg.plane, _tm(col, .22)); a.rotation.x = -Math.PI / 2; a.scale.set(w, L, 1); a.position.z = L / 2; g.add(a); const d = new THREE.Mesh(_tg.plane, _tm(col, .45)); d.rotation.x = -Math.PI / 2; d.position.z = 0; g.add(d);
+  TELES.push({ g, a, d, line: 1, L, w, t: 0, T, fn, x, z }); return g; }
+// a cone in front of (x,z) facing ang
+function teleK(x, z, ang, R, half, T, col, fn) { const g = new THREE.Group(); g.position.set(x, .1, z); g.rotation.y = ang; scene.add(g);
+  const geo = new THREE.CircleGeometry(1, 24, -Math.PI / 2 - half, half * 2), a = new THREE.Mesh(geo, _tm(col, .22)); a.rotation.x = -Math.PI / 2; a.scale.setScalar(R); g.add(a); const d = new THREE.Mesh(geo, _tm(col, .4)); d.rotation.x = -Math.PI / 2; d.scale.setScalar(.01); g.add(d);
+  TELES.push({ g, a, d, cone: 1, R, t: 0, T, fn, x, z }); return g; }
+const pIn = (x, z, r) => !S.dead && !S.isl && Math.hypot(player.pos.x - x, player.pos.z - z) < r;
+function hurtP(n, src) { if (S.dead || S.isl || S.boat) return; takeDamage(n, src); }
+// a puddle / fire patch that hurts while you stand in it
+function hazard(x, z, r, life, dps, col, kind) { const m = new THREE.Mesh(_tg.disc, _tm(col, .5)); m.rotation.x = -Math.PI / 2; m.position.set(x, .07, z); m.scale.setScalar(r); scene.add(m);
+  HZ.push({ m, x, z, r, life, t: 0, dps, kind }); }
+const _pull = { on: false, x: 0, z: 0, t: 0 };
+function pullTo(x, z) { _pull.on = true; _pull.x = x; _pull.z = z; _pull.t = 0; }
+function rzFxTick(dt) {
+  for (let i = TELES.length - 1; i >= 0; i--) { const T = TELES[i]; T.t += dt; const k = Math.min(1, T.t / T.T);
+    if (T.line) { T.d.scale.set(T.w, Math.max(.01, T.L * k), 1); T.d.position.z = T.L * k / 2; } else if (T.cone) T.d.scale.setScalar(Math.max(.01, T.R * k)); else T.d.scale.setScalar(Math.max(.01, T.r * k));
+    T.a.material.opacity = .25 + .35 * Math.abs(Math.sin(T.t * 10));
+    if (k >= 1 || S.isl) { scene.remove(T.g); TELES.splice(i, 1); if (!S.isl) try { T.fn && T.fn(); } catch (e) { console.warn(e); } } }
+  for (let i = PRJ.length - 1; i >= 0; i--) { const p = PRJ[i]; p.t += dt; p.x += p.vx * dt; p.z += p.vz * dt; p.m.position.set(p.x, p.y, p.z); if (p.spin) { p.m.rotation.x += dt * p.spin; } if (p.trail && Math.random() < .5) burst(p.x, p.y, p.z, p.trail, 1, 1);
+    let end = p.t > p.life || S.isl; if (!end && pIn(p.x, p.z, p.r) && !(p.hitT > S.t)) { try { p.hit(); } catch (e) { } if (!p.pierce) end = true; else p.hitT = S.t + 1; }
+    if (end) { scene.remove(p.m); PRJ.splice(i, 1); } }
+  S._hzT = (S._hzT || 0) - dt;
+  for (let i = HZ.length - 1; i >= 0; i--) { const h = HZ[i]; h.t += dt; h.m.material.opacity = .45 * Math.min(1, (h.life - h.t) / .6) + Math.sin(h.t * 6) * .05;
+    if (h.kind === 'fire' && Math.random() < dt * 6) burst(h.x + rand(-h.r, h.r) * .6, .3, h.z + rand(-h.r, h.r) * .6, 0xff7a2a, 1, 2); else if (Math.random() < dt * 3) burst(h.x + rand(-h.r, h.r) * .6, .2, h.z + rand(-h.r, h.r) * .6, 0x9adf4a, 1, 1.2);
+    if (S._hzT <= 0 && pIn(h.x, h.z, h.r)) { S._hzT = .5; hurtP(h.dps * .5, h.kind === 'fire' ? null : { buff: 'poison', dmg: h.dps * .3 }); }
+    if (h.t >= h.life || S.isl) { scene.remove(h.m); HZ.splice(i, 1); } }
+  if (S._hzT <= 0) S._hzT = 0;
+  if (_pull.on) { _pull.t += dt; const dx = _pull.x - player.pos.x, dz = _pull.z - player.pos.z, d = Math.hypot(dx, dz); if (d < .5 || _pull.t > .6 || S.dead) _pull.on = false; else { const s = Math.min(d, 26 * dt); player.pos.x += dx / d * s; player.pos.z += dz / d * s; try { collide(player.pos, player.r); } catch (e) { } } }
+}
+zSpecialTick = (o => function (dt) { o(dt); try { rzFxTick(dt); rzTick(dt); } catch (e) { console.warn('rz', e); } })(zSpecialTick);
+
+/* ---- the ten region zombies ---- */
+const RZ = [null, 'dog', 'bark', 'sand', 'bloat', 'frost', 'hook', 'roll', 'magma', 'shade', 'herald'];
+Object.assign(ZT, {
+  dog: { hp: 30, spd: 5.6, dmg: 4, sc: .8, skin: 0x6a5a48, aggro: 22, n: '丧尸犬', d: '成群出没，会扑咬过来' },
+  bark: { hp: 130, spd: 2.7, dmg: 8, sc: 1.15, skin: 0x5a4a32, aggro: 9, n: '树皮伏击者', d: '装成枯树一动不动，靠近就扑出来，被藤蔓打中会变慢' },
+  sand: { hp: 75, spd: 2.8, dmg: 7, sc: 1, skin: 0xa08a5a, aggro: 20, n: '沙行者', d: '会钻进沙里（打不到），从你脚下冲出来' },
+  bloat: { hp: 210, spd: 1.5, dmg: 8, sc: 1.35, skin: 0x5a7a3a, aggro: 16, n: '腐沼浮尸', d: '一路留下毒水，死了会炸出毒雾，别站在里面' },
+  frost: { hp: 70, spd: 2.2, dmg: 7, sc: 1, skin: 0x9ab0c0, aggro: 22, n: '冰投手', d: '远处扔冰块，打中会冻得变慢' },
+  hook: { hp: 120, spd: 2.3, dmg: 8, sc: 1.1, skin: 0x707a70, aggro: 20, n: '钩索尸', d: '地上出现红线就躲开，被钩中会被拖过去' },
+  roll: { hp: 170, spd: 2.0, dmg: 10, sc: 1.2, skin: 0x8a6a4a, aggro: 18, n: '滚石尸', d: '缩成石球滚过来，滚完会头晕，趁机打它' },
+  magma: { hp: 135, spd: 2.4, dmg: 9, sc: 1.1, skin: 0x4a2a22, aggro: 17, n: '熔核尸', d: '靠近会蓄力喷发火圈，看到红圈快离开' },
+  shade: { hp: 75, spd: 3.4, dmg: 9, sc: 1, skin: 0x6a5a8a, aggro: 22, n: '幻影尸', d: '会瞬移到你身后' },
+  herald: { hp: 95, spd: 2.1, dmg: 8, sc: 1.05, skin: 0x8a4a2a, aggro: 24, n: '余烬祭司', d: '远远召唤陨火砸你，看到圈就躲' } });
+specialType = (o => function (t) { if (t >= 1 && t <= 10 && Math.random() < (t === 1 ? .12 : .2)) return RZ[t]; return o(t); })(specialType);
+let _packing = false;
+spawnZombie = (o => function (type, x, z, horde, ft) { const zb = o(type, x, z, horde, ft);
+  if (type === 'dog' && !_packing && zb && !zb.mirror) { _packing = true; try { for (let i = 0; i < 2; i++) { const a = rand(0, 6.28); o('dog', x + Math.cos(a) * 1.8, z + Math.sin(a) * 1.8, horde, ft); } } catch (e) { } _packing = false; }
+  return zb; })(spawnZombie);
+try { COL.push({ n: '区域丧尸图鉴', ks: RZ.slice(1).map(k => ['z:' + k, ZT[k].n]), rw: { heart: 1, coin: 400, estone: 3 } }); } catch (e) { }
+
+const _gl = c => zGlow(c);
+zDress = (o => function (z) {
+  const t = z.type; if (!RZ.includes(t) || !t) return o(z);
+  const h = z.h, Y = h.hip, B = h.body;
+  if (t === 'dog') {   // a four-legged body replaces the human one
+    B.visible = false; h.legL.visible = h.legR.visible = false; z.r = .45;
+    const d = new THREE.Group(); d.position.y = .02; d.scale.setScalar(1.45); h.g.add(d); const fur = mat(0x5a4a3a), dk = mat(0x3a2e24), raw = mat(0x7a2a2a);
+    box(.42, .36, 1.05, fur, 0, .72, 0, d); box(.3, .1, .5, raw, .1, .82, -.1, d); box(.3, .3, .34, fur, 0, .92, .62, d); box(.22, .16, .26, dk, 0, .84, .86, d);
+    box(.07, .04, .04, _gl(0xff3a2a), -.08, .98, .79, d); box(.07, .04, .04, _gl(0xff3a2a), .08, .98, .79, d);
+    for (const s of [-1, 1]) box(.06, .14, .08, dk, s * .1, 1.13, .56, d).rotation.z = s * .3;
+    for (let i = 0; i < 3; i++) box(.24, .04, .03, mat(0xd8ccb4), 0, .7, .2 - i * .14, d);
+    const tail = box(.07, .07, .4, fur, 0, .85, -.68, d); tail.rotation.x = .6;
+    const legs = []; for (const [x, zz] of [[-.15, .38], [.15, .38], [-.15, -.38], [.15, -.38]]) { const L = new THREE.Group(); L.position.set(x, .62, zz); d.add(L); box(.11, .6, .11, fur, 0, -.3, 0, L); box(.12, .08, .16, dk, 0, -.6, .03, L); legs.push(L); }
+    z.dog = { d, legs };
+  } else if (t === 'bark') {
+    const bk = mat(0x4a3a26), bk2 = mat(0x3a2c1c), lf = mat(0x4a6a2a);
+    for (let i = 0; i < 4; i++) box(.7, .2, .44, i % 2 ? bk : bk2, 0, Y + .12 + i * .22, .02, B, 0, 0, (i % 2 ? .06 : -.05));
+    for (const s of [-1, 1]) { zBox(.08, .8, .08, bk2, s * .32, Y + 1.5, -.05, B, 0, 0, -s * .4); zBox(.06, .4, .06, bk2, s * .52, Y + 1.85, -.05, B, 0, 0, -s * 1.0); zBox(.26, .2, .26, lf, s * .62, Y + 1.95, -.05, B); }
+    zBox(.06, .5, .06, bk2, 0, Y + 1.55, -.1, B); zBox(.24, .18, .24, lf, 0, Y + 1.85, -.1, B);
+    for (const a of [h.armL, h.armR]) { zBox(.2, .5, .2, bk, 0, -.4, 0, a); for (let i = 0; i < 3; i++) zBox(.03, .3, .03, bk2, (i - 1) * .06, -.85, .04, a, .3, 0, (i - 1) * .3); }
+    z.buff = 'frost'; z.amb = 0;
+  } else if (t === 'sand') {
+    const wr = mat(0xc8b088), dk = mat(0x6a5030);
+    for (let i = 0; i < 4; i++) zBox(.68, .07, .42, wr, 0, Y + .15 + i * .22, 0, B, 0, 0, i % 2 ? .1 : -.1); zBox(.5, .3, .5, wr, 0, Y + 1.15, 0, B);
+    zBox(.36, .06, .06, _gl(0xffd04a), 0, Y + 1.1, .25, B);
+    for (let i = 0; i < 4; i++) zMesh(zCone(.08, .34, 4), dk, 0, Y + .3 + i * .2, -.26, B, -.9);
+    for (const a of [h.armL, h.armR]) for (let i = 0; i < 3; i++) zMesh(zCone(.04, .3, 4), mat(0xe8dcc0), (i - 1) * .07, -1.05, .05, a, 3.14);
+  } else if (t === 'bloat') {
+    const sw = mat(0x6a8a42), pu = _gl(0xc8ff5a);
+    zBox(.9, .9, .66, sw, 0, Y + .35, .08, B); zBox(.76, .3, .56, mat(0x5a7a3a), 0, Y + .86, .04, B);
+    [[.3, .5, .42], [-.28, .2, .42], [.1, .05, .42], [-.38, .62, .3], [.44, .2, .2], [0, .7, .38]].forEach(p => box(.12, .12, .1, pu, p[0], Y + p[1], p[2], B));
+    z.puddleT = 1;
+  } else if (t === 'frost') {
+    const ic = new THREE.MeshLambertMaterial({ color: 0xbfe8ff, emissive: 0x2a5a7a });
+    for (const [x, y, zz, s] of [[-.34, .95, -.05, .2], [.34, .98, -.05, .22], [0, 1.0, -.25, .26], [.2, .6, -.26, .16], [-.2, .4, -.26, .14]]) { const c = new THREE.Mesh(new THREE.OctahedronGeometry(s, 0), ic); c.position.set(x, Y + y, zz); c.scale.y = 1.6; B.add(c); }
+    zBox(.24, .5, .24, ic, 0, -.5, 0, h.armR); const c = new THREE.Mesh(new THREE.OctahedronGeometry(.18, 0), _gl(0xdff6ff)); c.position.set(0, -.95, 0); h.armR.add(c);
+  } else if (t === 'hook') {
+    const dk = mat(0x2a2e33), ch = mat(0x8a9098);
+    zBox(.44, .34, .1, dk, 0, Y + 1.05, .24, B); for (const s of [-1, 1]) zMesh(zCyl(.07, .07, .18, 6), dk, s * .17, Y + .95, .32, B, 1.57);
+    zBox(.06, .06, .06, _gl(0xff5a2a), -.1, Y + 1.12, .3, B); zBox(.06, .06, .06, _gl(0xff5a2a), .1, Y + 1.12, .3, B);
+    for (let i = 0; i < 7; i++) zBox(.1, .06, .05, ch, -.3 + i * .1, Y + .55 + Math.sin(i) * .05, .21, B, 0, 0, i % 2 ? .4 : -.4);
+    zBox(.06, .4, .06, ch, 0, -.95, .02, h.armR); zBox(.06, .2, .06, ch, .06, -1.18, .1, h.armR, .8); zMesh(zCone(.05, .18, 4), ch, .06, -1.2, .22, h.armR, 1.57);
+  } else if (t === 'roll') {
+    const rk = mat(0x7a5a42), rk2 = mat(0x6a4a34);
+    for (let i = 0; i < 5; i++) zBox(.6 - i * .05, .2, .3, i % 2 ? rk : rk2, 0, Y + .2 + i * .22, -.3, B, .2);
+    for (const s of [-1, 1]) zBox(.3, .24, .4, rk, s * .4, Y + .95, 0, B, 0, 0, s * .3);
+    zBox(.5, .2, .5, rk2, 0, Y + 1.3, 0, B); for (let i = 0; i < 3; i++) zBox(.56 - i * .08, .22, .12, i % 2 ? rk2 : rk, 0, Y + .25 + i * .26, .24, B, -.1, 0, i % 2 ? .08 : -.06);
+    for (const a of [h.armL, h.armR]) zBox(.28, .3, .28, rk2, 0, -.85, 0, a);
+    const ball = new THREE.Mesh(new THREE.DodecahedronGeometry(.85, 0), rk); ball.position.y = .85; ball.visible = false; h.g.add(ball); z.ball = ball;
+  } else if (t === 'magma') {
+    const rk = mat(0x2a1a16), gl = _gl(0xff6a1a);
+    zBox(.68, .86, .42, rk, 0, Y + .42, 0, B); zBox(.5, .48, .5, rk, 0, Y + 1.1, 0, B);
+    [[0, .7, .22, .5, .05], [-.12, .4, .22, .05, .4], [.18, .3, .22, .05, .3], [0, 1.1, .26, .3, .05], [.2, 1.25, .26, .05, .2]].forEach(p => box(p[3], p[4], .04, gl, p[0], Y + p[1], p[2], B));
+    zBox(.1, .08, .06, _gl(0xffe03a), -.1, Y + 1.12, .26, B); zBox(.1, .08, .06, _gl(0xffe03a), .1, Y + 1.12, .26, B);
+    for (const a of [h.armL, h.armR]) { zBox(.22, .4, .22, rk, 0, -.5, 0, a); zBox(.06, .3, .05, gl, 0, -.55, .12, a); }
+    z.core = box(.3, .3, .3, gl, 0, Y + .55, .22, B);
+  } else if (t === 'shade') {
+    [B, h.legL, h.legR].forEach(p => p.traverse(m => { if (m.isMesh && m.material !== eyeMat) m.material = zGhost(0x5a4a8a, .45); }));
+    zBox(.7, 1.1, .1, zGhost(0x2a1a44, .6), 0, Y + .35, -.24, B); zBox(.5, .14, .5, zGhost(0x1a1030, .7), 0, Y + 1.3, 0, B);
+    zBox(.08, .06, .06, _gl(0xc08aff), -.1, Y + 1.08, .24, B); zBox(.08, .06, .06, _gl(0xc08aff), .1, Y + 1.08, .24, B);
+  } else if (t === 'herald') {
+    const rb = mat(0x4a1a14), gd = mat(0xc8a050);
+    zBox(.76, 1.3, .5, rb, 0, Y + .1, 0, B); zBox(.56, .5, .56, rb, 0, Y + 1.15, -.04, B); zBox(.78, .06, .52, gd, 0, Y + .8, 0, B);
+    zBox(.1, .06, .06, _gl(0xffa040), -.1, Y + 1.08, .24, B); zBox(.1, .06, .06, _gl(0xffa040), .1, Y + 1.08, .24, B);
+    const st = new THREE.Group(); st.position.set(0, -.6, .1); h.armR.add(st); zBox(.06, 1.7, .06, mat(0x2a1a14), 0, .2, 0, st);
+    const c = new THREE.Mesh(new THREE.OctahedronGeometry(.16, 0), _gl(0xff7a2a)); c.position.y = 1.15; st.add(c); z.orb = c;
+  }
+})(zDress);
+
+const _seenRZ = {};
+zAbility = (o => function (z, dt, dist, tg) {
+  const t = z.type; if (!RZ.includes(t) || !t) return o(z, dt, dist, tg); if (z.mirror) return 0;
+  if (!_seenRZ[t] && dist < 25) { _seenRZ[t] = 1; banner('新丧尸 · ' + ZT[t].n, ZT[t].d, 3.2); feed('注意：' + ZT[t].n + ' · ' + ZT[t].d, '#ffb27a'); }
+  const dx = (tg.x - z.pos.x) / (dist || 1), dz = (tg.z - z.pos.z) / (dist || 1); z.acd = (z.acd == null ? rand(1, 3) : z.acd) - dt;
+  if (t === 'dog') { if (dist > 2.4 && dist < 7 && z.acd <= 0) { z.acd = 2.6; z.knx = dx * 13; z.knz = dz * 13; z.leapT = .35; if (AC && Math.random() < .6) sfxNoise(.15, .1, 1400); } return 0; }
+  if (t === 'bark') return 0;
+  if (t === 'sand') {
+    if (z.under) { z.underT += dt; z.pos.x += dx * 7.5 * dt; z.pos.z += dz * 7.5 * dt; z.dustT = (z.dustT || 0) - dt; if (z.dustT <= 0) { z.dustT = .12; burst(z.pos.x, .2, z.pos.z, 0xc8a870, 3, 2); }
+      if (dist < 1.3 || z.underT > 3) { z.under = false; z.h.body.visible = z.h.legL.visible = z.h.legR.visible = true; burst(z.pos.x, .6, z.pos.z, 0xd8b880, 18, 6); if (AC) sfxNoise(.3, .2, 600); S.shake = Math.max(S.shake, .25);
+        if (pIn(z.pos.x, z.pos.z, 2.3)) hurtP(z.dmg * 1.6, z); z.acd = 7; z.cd = .6; }
+      return 1; }
+    if (dist > 4 && dist < 18 && z.acd <= 0) { z.under = true; z.underT = 0; z.h.body.visible = z.h.legL.visible = z.h.legR.visible = false; burst(z.pos.x, .4, z.pos.z, 0xc8a870, 14, 4); return 1; }
+    return 0; }
+  if (t === 'bloat') return 0;
+  if (t === 'frost') { if (dist < 17 && dist > 2 && z.acd <= 0) { z.acd = 2.8; zAttackStart(z, 'claw'); const m = new THREE.Mesh(new THREE.OctahedronGeometry(.22, 0), new THREE.MeshLambertMaterial({ color: 0xcff2ff, emissive: 0x3a7aa0 })); scene.add(m); const sp = 15;
+      PRJ.push({ m, x: z.pos.x, z: z.pos.z, y: 1.5, vx: dx * sp, vz: dz * sp, t: 0, life: 1.4, r: .9, spin: 10, trail: 0xdff6ff, hit: () => { hurtP(z.dmg, { buff: 'frost' }); S.slowT = 2.2; burst(player.pos.x, 1.2, player.pos.z, 0xdff6ff, 10, 4); feed('被冻住了，移动变慢', '#9fe8ff'); } }); }
+    return dist < 6 ? -1 : dist < 13 ? 1 : 0; }
+  if (t === 'hook') {
+    if (z.hk) { z.hk.t += dt; return 1; }
+    if (dist > 4.5 && dist < 13 && z.acd <= 0) { z.acd = 6; const ang = Math.atan2(dx, dz), L = 14; z.hk = { t: 0 };
+      teleL(z.pos.x, z.pos.z, ang, L, 1.3, .7, 0xff3a2a, () => { z.hk = null; if (z.dead) return; const px = player.pos.x - z.pos.x, pz = player.pos.z - z.pos.z, al = px * Math.sin(ang) + pz * Math.cos(ang), side = Math.abs(px * Math.cos(ang) - pz * Math.sin(ang));
+        tracer(z.pos.x, 1.4, z.pos.z, z.pos.x + Math.sin(ang) * L, 1.2, z.pos.z + Math.cos(ang) * L, 0x9aa0a8);
+        if (al > 0 && al < L && side < 1.1 && !S.dead && !(S.invT > 0)) { hurtP(z.dmg * .8, z); pullTo(z.pos.x + Math.sin(ang) * 1.6, z.pos.z + Math.cos(ang) * 1.6); feed('被钩住拖过去了！', '#ff9b8a'); if (AC) sfxTone(900, 300, .3, .12, 'sawtooth'); } });
+      return 1; }
+    return 0; }
+  if (t === 'roll') {
+    if (z.dizzy > 0) { z.dizzy -= dt; if (Math.random() < dt * 5) burst(z.pos.x, 2.3 * z.sc, z.pos.z, 0xffe070, 1, 1.5); return 1; }
+    if (z.rl) { const R = z.rl; R.t += dt;
+      if (R.t < .55) { z.g.rotation.z = Math.sin(R.t * 40) * .05; return 1; }
+      if (!R.go) { R.go = 1; z.h.body.visible = z.h.legL.visible = z.h.legR.visible = false; z.ball.visible = true; if (AC) sfxNoise(.5, .15, 300); }
+      z.pos.x += R.dx * 13 * dt; z.pos.z += R.dz * 13 * dt; z.ball.rotation.x += dt * 14; try { collide(z.pos, z.r); } catch (e) { }
+      if (!R.hit && pIn(z.pos.x, z.pos.z, 1.5)) { R.hit = 1; hurtP(z.dmg * 2, z); player.pos.x += R.dx * 2.5; player.pos.z += R.dz * 2.5; S.shake = Math.max(S.shake, .35); }
+      if (Math.random() < .5) burst(z.pos.x, .2, z.pos.z, 0x8a6a4a, 1, 2);
+      if (R.t > 1.65) { z.rl = null; z.ball.visible = false; z.h.body.visible = z.h.legL.visible = z.h.legR.visible = true; z.g.rotation.z = 0; z.dizzy = 2; z.acd = 7; feed('滚石尸头晕了，趁现在打！', '#ffe070'); }
+      return 1; }
+    if (dist > 5 && dist < 16 && z.acd <= 0) { z.rl = { t: 0, dx, dz }; teleL(z.pos.x, z.pos.z, Math.atan2(dx, dz), 20, 1.8, .55, 0xff9a3a, null); return 1; }
+    return 0; }
+  if (t === 'magma') {
+    if (z.er) { z.er.t += dt; if (z.core) z.core.scale.setScalar(1 + z.er.t * 1.5); return 1; }
+    if (dist < 4 && z.acd <= 0) { z.acd = 5.5; z.er = { t: 0 }; const x = z.pos.x, zz = z.pos.z;
+      teleC(x, zz, 3.6, 1.1, 0xff4a1a, () => { z.er = null; if (z.core) z.core.scale.setScalar(1); if (z.dead) return; burst(x, .8, zz, 0xff7a2a, 26, 9); burst(x, .5, zz, 0xffe03a, 12, 6); if (AC) sfx.boom(); S.shake = Math.max(S.shake, .3);
+        if (pIn(x, zz, 3.6)) { hurtP(z.dmg * 2, z); feed('被熔岩喷发烧到了', '#ff8a4a'); } hazard(x, zz, 1.6, 3, z.dmg * .6, 0xff5a1a, 'fire'); });
+      return 1; }
+    return 0; }
+  if (t === 'shade') { if (dist > 4 && dist < 15 && z.acd <= 0) { z.acd = 5.5; burst(z.pos.x, 1.2, z.pos.z, 0x9a6aff, 14, 4); const [ax, az] = aimDir();
+      z.pos.x = player.pos.x - ax * 1.8; z.pos.z = player.pos.z - az * 1.8; try { collide(z.pos, z.r); } catch (e) { } z.face = Math.atan2(player.pos.x - z.pos.x, player.pos.z - z.pos.z); z.cd = .35; burst(z.pos.x, 1.2, z.pos.z, 0x9a6aff, 14, 4); if (AC) sfxTone(1200, 400, .2, .1, 'sine'); }
+    return 0; }
+  if (t === 'herald') { if (z.orb) z.orb.rotation.y += dt * 3;
+    if (dist < 20 && z.acd <= 0) { z.acd = 4.5; zAttackStart(z, 'claw'); const x = player.pos.x, zz = player.pos.z, dmg = z.dmg * 1.8; burst(z.pos.x, 2.4, z.pos.z, 0xff7a2a, 8, 3);
+      teleC(x, zz, 2.3, 1.3, 0xff6a1a, () => { burst(x, 1, zz, 0xff7a2a, 22, 8); burst(x, 3, zz, 0xffe03a, 8, 4); if (AC) sfx.boom(); if (pIn(x, zz, 2.3)) hurtP(dmg); hazard(x, zz, 1.4, 3, dmg * .3, 0xff5a1a, 'fire'); }); }
+    return dist < 9 ? -1 : dist < 16 ? 1 : 0; }
+  return 0;
+})(zAbility);
+// underground sand-walkers can't be hit; a rolling boulder shrugs off half; dizzy ones take more
+hurtZombie = (o => function (z, dmg, dx, dz) { if (z && z.under) { burst(z.pos.x, .3, z.pos.z, 0xc8a870, 3, 2); return; } if (z && z.rl && z.rl.go) dmg *= .5; if (z && z.dizzy > 0) dmg *= 1.5;
+  if (z && z.type === 'bark' && !z.amb) z.amb = 2; if (z && z.boss && z.sig && z.sig.under) return; return o(z, dmg, dx, dz); })(hurtZombie);
+killZombie = (o => function (z) { const was = z && !z.dead && !z.mirror; o(z); try { if (was && z.type === 'bloat' && !S.isl) { burst(z.pos.x, 1, z.pos.z, 0x9adf4a, 24, 7); hazard(z.pos.x, z.pos.z, 3, 5, z.dmg * .7, 0x7adf3a, 'gas'); }
+  if (z && z.ball && z.dead) { z.ball.visible = false; z.rl = null; z.h.body.visible = z.h.legL.visible = z.h.legR.visible = true; } } catch (e) { } })(killZombie);
+function rzTick(dt) {
+  for (const z of zombies) { if (!z.type) continue; if (z.dead) { if (z.dog) z.dog.d.rotation.z = Math.min(1.5, (z.deadT || 0) * 5); continue; }
+    if (z.dog) { const D = z.dog, s = Math.sin(z.anim * 1.4) * .8; D.legs[0].rotation.x = s; D.legs[3].rotation.x = s; D.legs[1].rotation.x = -s; D.legs[2].rotation.x = -s;
+      z.leapT = (z.leapT || 0) - dt; D.d.position.y = z.leapT > 0 ? Math.sin((.35 - z.leapT) / .35 * Math.PI) * .7 : Math.abs(Math.sin(z.anim * 1.4)) * .05; D.d.rotation.x = z.leapT > 0 ? -.3 : 0; }
+    else if (z.type === 'bark' && !z.mirror) { if (!z.amb) { z.hold = true; z.h.armL.rotation.x = z.h.armR.rotation.x = 0; z.h.armL.rotation.z = .5; z.h.armR.rotation.z = -.5;
+        if (!S.dead && !S.isl && Math.hypot(player.pos.x - z.pos.x, player.pos.z - z.pos.z) < 6.5) z.amb = 2; }
+      if (z.amb === 2) { z.amb = 1; z.chasing = true; z.aggro = 30; const dx = player.pos.x - z.pos.x, dz = player.pos.z - z.pos.z, d = Math.hypot(dx, dz) || 1; z.knx = dx / d * 10; z.knz = dz / d * 10;
+        burst(z.pos.x, 1.6, z.pos.z, 0x5a7a32, 16, 5); burst(z.pos.x, 1, z.pos.z, 0x4a3a26, 10, 4); if (AC) sfxNoise(.4, .18, 500); zombieVoice(z, 'attack'); } }
+    else if (z.type === 'bloat' && z.chasing && !z.mirror && !S.isl) { z.puddleT -= dt; if (z.puddleT <= 0) { z.puddleT = 2.2; hazard(z.pos.x, z.pos.z, 1.2, 6, z.dmg * .4, 0x6abf2a, 'gas'); } }
+    else if (z.type === 'shade') { z.g.position.y = Math.sin(S.t * 3 + z.anim) * .08; } }
+  for (const b of zombies) if (b.clone && !b.dead) { b.lifeT -= dt; if (b.lifeT <= 0) { b.dead = true; b.deadT = 9; burst(b.pos.x, 1, b.pos.z, 0x6a4aaa, 10, 4); scene.remove(b.g); const i = zombies.indexOf(b); if (i >= 0) zombies.splice(i, 1); } }
+}
+
+/* ---- boss signature moves ---- */
+const BSIG = [null,
+  { n: '肉钩', d: '红线是钩子的路线，快离开！' }, { n: '缠绕根须', d: '根须沿直线钻出，打中会被缠住变慢' }, { n: '钻地突袭', d: '它钻进地下了，看到脚下的圈就跑' },
+  { n: '毒雾领域', d: '毒圈会留很久，别站在里面' }, { n: '冰霜吐息', d: '躲开前方扇形区域' }, { n: '导弹齐射', d: '一个个圈会接连爆炸' },
+  { n: '滚石', d: '三块巨石沿红线滚来' }, { n: '熔岩冲击波', d: '火环一圈圈扩散，翻滚可以穿过去' }, { n: '影分身', d: '它会从你身后出现' }, { n: '陨石雨', d: '天上会砸下一片陨石' }];
+const bossK = b => (b.site && b.site.rb) || (b.h && b.h.rb) || [1, 4, 6, 9, 8][BOSS_TYPES.indexOf(b.T)] || 1;
+function bossFace(b, x, z, dt, k) { const want = Math.atan2(x - b.pos.x, z - b.pos.z); let d = want - b.face; d = Math.atan2(Math.sin(d), Math.cos(d)); b.face += d * Math.min(1, dt * (k || 8)); b.g.rotation.y = b.face; }
+function sigEnd(b) { b.sig = null; b.state = 'rec'; b.st = 0; b.sigCd = b.enraged ? rand(7, 9) : rand(10, 13); b.g.visible = true; b.h.body.rotation.x = 0; }
+function sigStart(b) {
+  const k = bossK(b), S0 = BSIG[k], D = b.dmg, en = b.enraged, px = player.pos.x, pz = player.pos.z, dx = px - b.pos.x, dz = pz - b.pos.z, dist = Math.hypot(dx, dz) || 1, ang = Math.atan2(dx, dz), col = (b.T && b.T.col) || 0xff3a2a;
+  b.sig = { k, t: 0, dur: 2 }; banner((b.title || '首领') + ' · ' + S0.n, S0.d, 1.8); if (AC) sfx.growl();
+  const G = b.sig;
+  if (k === 1) { G.dur = .8; teleL(b.pos.x, b.pos.z, ang, 20, 1.6, .75, 0xff2a1a, () => { const qx = player.pos.x - b.pos.x, qz = player.pos.z - b.pos.z, al = qx * Math.sin(ang) + qz * Math.cos(ang), side = Math.abs(qx * Math.cos(ang) - qz * Math.sin(ang));
+      tracer(b.pos.x, 2.5, b.pos.z, b.pos.x + Math.sin(ang) * 20, 1.2, b.pos.z + Math.cos(ang) * 20, 0xb9c3cc);
+      if (al > 0 && al < 20 && side < 1.3 && !(S.invT > 0)) { hurtP(D * 1.1, b); pullTo(b.pos.x + Math.sin(ang) * 2.6, b.pos.z + Math.cos(ang) * 2.6); feed('被屠夫钩过去了！快翻滚！', '#ff9b8a'); G.combo = 1; } }); }
+  else if (k === 2) { G.dur = 1.9; const lines = en ? [-.45, 0, .45] : [0]; lines.forEach(o => { for (let i = 1; i <= 8; i++) { const r = i * 2.4, x = b.pos.x + Math.sin(ang + o) * r, z = b.pos.z + Math.cos(ang + o) * r;
+      teleC(x, z, 1.4, .8 + i * .12, 0x8adf4a, () => { burst(x, .8, z, 0x5a7a32, 8, 4); burst(x, .4, z, 0x4a3420, 5, 3); if (pIn(x, z, 1.4)) { hurtP(D * .9, b); S.slowT = 2.6; feed('被根须缠住了', '#8adf4a'); } }); } }); }
+  else if (k === 3) { G.dur = 3.4; G.under = 1; b.g.visible = false; burst(b.pos.x, .6, b.pos.z, 0xc8a870, 30, 8); if (AC) sfxNoise(.6, .25, 400); }
+  else if (k === 4) { G.dur = 1.2; const n = en ? 6 : 4; for (let i = 0; i < n; i++) { const a = i / n * 6.28 + rand(-.3, .3), r = i ? rand(2.5, 5.5) : 0, x = px + Math.cos(a) * r, z = pz + Math.sin(a) * r;
+      teleC(x, z, 2.4, .9, 0x6dff7a, () => { burst(x, .6, z, 0x6dff7a, 12, 4); if (pIn(x, z, 2.4)) hurtP(D * .7, { buff: 'poison', dmg: D * .3 }); hazard(x, z, 2.4, 7, D * .35, 0x5adf4a, 'gas'); }); } }
+  else if (k === 5) { G.dur = 1.3; G.lock = ang; const half = .55, R = 12;
+    teleK(b.pos.x, b.pos.z, ang, R, half, 1.15, 0x9fe8ff, () => { for (let i = 0; i < 18; i++) { const a = ang + rand(-half, half), r = rand(1, R); burst(b.pos.x + Math.sin(a) * r, 1, b.pos.z + Math.cos(a) * r, 0xdff6ff, 2, 3); } if (AC) sfxNoise(.6, .2, 2400);
+      const qx = player.pos.x - b.pos.x, qz = player.pos.z - b.pos.z, d = Math.hypot(qx, qz); let da = Math.atan2(qx, qz) - ang; da = Math.atan2(Math.sin(da), Math.cos(da));
+      if (!S.dead && d < R && Math.abs(da) < half) { hurtP(D * 1.3, { buff: 'frost' }); S.slowT = 3; feed('被冰霜吐息冻住了', '#9fe8ff'); } }); }
+  else if (k === 6) { G.dur = 2.6; const n = en ? 10 : 7; for (let i = 0; i < n; i++) setTimeout(() => { if (b.dead || S.isl) return; const a = rand(0, 6.28), r = i % 3 ? rand(0, 5) : 0, x = player.pos.x + Math.cos(a) * r, z = player.pos.z + Math.sin(a) * r;
+      teleC(x, z, 2, 1, 0xffa030, () => { burst(x, 1, z, 0xffa030, 14, 7); burst(x, .5, z, 0x5a5a5a, 8, 4); if (AC) sfx.boom(); S.shake = Math.max(S.shake, .2); if (pIn(x, z, 2)) hurtP(D * .9, b); }); }, i * 220); }
+  else if (k === 7) { G.dur = .9; const fan = en ? [-.35, -.17, 0, .17, .35] : [-.25, 0, .25];
+    fan.forEach(o => teleL(b.pos.x, b.pos.z, ang + o, 26, 2.2, .7, 0xff7a3a, () => { const m = new THREE.Mesh(new THREE.DodecahedronGeometry(1.1, 0), mat(0x7a4a3a)); scene.add(m);
+      PRJ.push({ m, x: b.pos.x + Math.sin(ang + o) * 2, z: b.pos.z + Math.cos(ang + o) * 2, y: 1.1, vx: Math.sin(ang + o) * 12, vz: Math.cos(ang + o) * 12, t: 0, life: 2.2, r: 1.5, spin: 8, trail: 0x8a6a4a,
+        hit: () => { hurtP(D * 1.2, b); player.pos.x += Math.sin(ang + o) * 3; player.pos.z += Math.cos(ang + o) * 3; S.shake = Math.max(S.shake, .4); } }); })); }
+  else if (k === 8) { G.dur = 2.6; G.waves = []; const nW = en ? 2 : 1; for (let i = 0; i < nW; i++) { const m = new THREE.Mesh(_tg.ring, _tm(0xff5a1a, .9)); m.rotation.x = -Math.PI / 2; m.position.set(b.pos.x, .12, b.pos.z); m.scale.setScalar(.1); scene.add(m); G.waves.push({ m, r: -i * 4.5, x: b.pos.x, z: b.pos.z, hit: false }); }
+    feed('翻滚可以穿过火环', '#ffb27a'); }
+  else if (k === 9) { G.dur = 2.2; b.g.visible = false; G.under = 1; burst(b.pos.x, 1.5, b.pos.z, 0xb08aff, 30, 7);
+    for (let i = 0; i < (en ? 3 : 2); i++) { const a = rand(0, 6.28), c = spawnZombie('shade', b.pos.x + Math.cos(a) * 3, b.pos.z + Math.sin(a) * 3, true); if (c) { c.clone = true; c.lifeT = 14; c.aggro = 80; c.chasing = true; c.hp = c.max = c.max * .5; } } }
+  else if (k === 10) { G.dur = 3; const n = en ? 14 : 10; for (let i = 0; i < n; i++) setTimeout(() => { if (b.dead || S.isl) return; const a = rand(0, 6.28), r = i % 4 ? rand(1, 8) : 0, x = player.pos.x + Math.cos(a) * r, z = player.pos.z + Math.sin(a) * r;
+      teleC(x, z, 2.4, 1.1, 0xff5a1a, () => { burst(x, 1.5, z, 0xff7a2a, 20, 8); burst(x, 3, z, 0xffe03a, 6, 4); if (AC) sfx.boom(); S.shake = Math.max(S.shake, .25); if (pIn(x, z, 2.4)) hurtP(D * 1.1, b); if (Math.random() < .5) hazard(x, z, 1.5, 3, D * .3, 0xff5a1a, 'fire'); }); }, i * 230); }
+}
+function sigRun(b, dt) {
+  const G = b.sig; G.t += dt; const k = G.k, D = b.dmg;
+  b.h.legL.rotation.x = b.h.legR.rotation.x = 0;
+  if (k === 1) { bossFace(b, player.pos.x, player.pos.z, dt, 2); b.h.armR.rotation.x = -2.8 + Math.min(1, G.t / .7) * 1.4;
+    if (G.t >= G.dur) { const c = G.combo; sigEnd(b); if (c) startSlam(b, 5, .6, (b.T.slamDmg || 30) * .8, 1.6); } return; }
+  if (k === 3) { // underground: a dust trail homes in, then it bursts up under you
+    if (G.t < 2.2) { const dx = player.pos.x - b.pos.x, dz = player.pos.z - b.pos.z, d = Math.hypot(dx, dz) || 1; if (d > 1) { b.pos.x += dx / d * 10 * dt; b.pos.z += dz / d * 10 * dt; } if (Math.random() < .7) burst(b.pos.x, .3, b.pos.z, 0xc8a870, 2, 3); }
+    else if (!G.mk) { G.mk = 1; const x = player.pos.x, z = player.pos.z; G.x = x; G.z = z;
+      teleC(x, z, 3.4, .75, 0xffb030, () => { b.pos.x = x; b.pos.z = z; b.g.visible = true; G.under = 0; burst(x, 1.2, z, 0xd8b880, 36, 10); if (AC) sfx.boom(); S.shake = Math.max(S.shake, .6); if (pIn(x, z, 3.4)) { hurtP(D * 1.6, b); feed('蝎王从地下冲出来了！', '#ffb030'); } }); }
+    if (G.t >= G.dur) sigEnd(b); return; }
+  if (k === 5) { bossFace(b, b.pos.x + Math.sin(G.lock), b.pos.z + Math.cos(G.lock), dt, 20); b.h.body.rotation.x = .25; if (Math.random() < .3) burst(b.pos.x + Math.sin(b.face) * 2, 2.6 * b.sc * .4, b.pos.z + Math.cos(b.face) * 2, 0xdff6ff, 2, 3); }
+  else if (k === 8) { b.h.armL.rotation.x = b.h.armR.rotation.x = -3; let alive = 0;
+    for (const w of G.waves) { w.r += dt * 9; if (w.r > 0) { w.m.scale.setScalar(Math.max(.1, w.r)); if (Math.random() < .6) { const a = rand(0, 6.28); burst(w.x + Math.cos(a) * w.r, .4, w.z + Math.sin(a) * w.r, 0xff7a2a, 1, 2); } }
+      const pd = Math.hypot(player.pos.x - w.x, player.pos.z - w.z); if (!w.hit && w.r > 0 && Math.abs(pd - w.r) < .7) { w.hit = true; if (!(S.invT > 0)) { hurtP(D * 1.2, b); feed('被火环烧到 · 下次翻滚穿过去', '#ff8a4a'); } }
+      if (w.r < 24) alive++; else if (w.m.parent) scene.remove(w.m); }
+    if (!alive) { G.waves.forEach(w => scene.remove(w.m)); sigEnd(b); } return; }
+  else if (k === 9) { if (G.t > 1.2 && !G.mk) { G.mk = 1; const [ax, az] = aimDir(), x = player.pos.x - ax * 2.2, z = player.pos.z - az * 2.2;
+      teleC(x, z, 3, .45, 0xb08aff, () => { b.pos.x = x; b.pos.z = z; b.g.visible = true; G.under = 0; bossFace(b, player.pos.x, player.pos.z, 1, 99); burst(x, 1.5, z, 0xb08aff, 24, 6); if (pIn(x, z, 3.2)) hurtP(D * 1.3, b); }); }
+    if (G.t >= G.dur) sigEnd(b); return; }
+  else { bossFace(b, player.pos.x, player.pos.z, dt, 4); b.h.armL.rotation.x = b.h.armR.rotation.x = -2.6; }
+  if (G.t >= G.dur) sigEnd(b);
+}
+updateBoss = (o => function (b, dt) {
+  if (b.dead || b.mirror) return o(b, dt);
+  try { if (b.sig) { sigRun(b, dt); try { collide(b.pos, b.r); } catch (e) { } return; }
+    b.sigCd = (b.sigCd == null ? 6 : b.sigCd) - dt;
+    if (b.state === 'chase' && b.sigCd <= 0 && !S.dead && Math.hypot(player.pos.x - b.pos.x, player.pos.z - b.pos.z) < 26) { sigStart(b); return; } } catch (e) { console.warn('boss sig', e); b.sig = null; }
+  return o(b, dt);
+})(updateBoss);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -12768,4 +13054,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794149469').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794151151').catch(()=>{});</script></body></html>
