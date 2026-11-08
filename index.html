@@ -171,7 +171,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body)
 #bMed{width:50px!important;height:50px!important;right:108px!important;bottom:64px!important}
 #bSprint{width:50px!important;height:50px!important;right:10px!important;bottom:108px!important}#bSprint svg{width:28px;height:28px}
 #bBuild svg{width:30px;height:30px}
-#bGather{display:none;right:6px!important;bottom:172px!important;width:58px!important;height:58px!important;border-color:#ffd27a;background:rgba(70,44,10,.8)}#bGather svg{width:28px;height:28px}#bGather small{margin-top:0;color:#ffe9a8;font-family:var(--font-body)}#bGather.dim{opacity:.5}
+#bGather{display:none;right:6px!important;bottom:182px!important;width:58px!important;height:58px!important;border-color:#ffd27a;background:rgba(70,44,10,.8)}#bGather svg{width:28px;height:28px}#bGather small{margin-top:0;color:#ffe9a8;font-family:var(--font-body)}#bGather.dim{opacity:.5}
 @media (orientation:portrait){#bGather{right:16px!important;bottom:198px!important}}
 #bBuild .bx{position:absolute;right:-6px;top:-6px;width:22px;height:22px;border-radius:50%;background:#e0393e;color:#fff;font-style:normal;font-size:13px;font-weight:900;display:none;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.6)}
 #bBuild.open .bx{display:flex}#bBuild.open{border-color:#ff8a7a;background:rgba(120,30,30,.6)}
@@ -941,8 +941,10 @@ button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);mar
 .dn{position:absolute;left:0;top:0;display:none;font:900 15px/1 var(--font-hud);color:#fff;white-space:nowrap;text-shadow:0 0 3px #000,0 2px 2px rgba(0,0,0,.8);will-change:transform,opacity}
 .dn.crit{font-size:22px;color:#ffd23a;text-shadow:0 0 6px rgba(255,120,0,.9),0 2px 2px #000;letter-spacing:.02em}
 .dn.thun{color:#9fe8ff;font-size:14px}.dn.dot{color:#ff9a4a;font-size:12px}.dn.wet{color:#8ac8ff}.dn.turret{color:#c8c8c8;font-size:11px;opacity:.85}.dn.hurt{color:#ff4a3a;font-size:16px}.dn.heal{color:#7fe08a}
-#bRoll{right:172px;bottom:6px;width:58px;height:58px;font-size:13px}#bRoll.cool{opacity:.45}
-@media (orientation:portrait){#bRoll{right:196px!important;bottom:96px!important}}
+#bRoll{right:10px;bottom:126px;width:50px;height:50px}#bRoll svg{width:28px;height:28px}#bRoll.cool{opacity:.45}
+@media (orientation:portrait){#bRoll{right:22px!important;bottom:137px!important}}
+body.chatOn #chatFeed{display:none}#chatFull{display:flex;align-items:center}
+#chatBox.full{left:0;right:0;top:0;bottom:0;width:auto;max-height:none;border-radius:0;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);box-sizing:border-box}#chatBox.full .chd b{font-size:15px}#chatBox.full #chatLog{font-size:15px}
 #encTxt{display:none;position:fixed;left:50%;top:calc(var(--st,0px) + 96px);transform:translateX(-50%);z-index:8;pointer-events:none;padding:5px 14px;border-radius:10px;background:rgba(70,40,10,.85);border:1px solid #ffc94a;color:#fff2d8;font-weight:800;font-size:13.5px;white-space:nowrap}#encTxt b{color:#ffd98a}
 @media (orientation:portrait){#bChat{bottom:calc(var(--sb) + 268px)}#bFish,#bTank,#bSwim{right:calc(var(--sr) + 14px);bottom:calc(var(--sb) + 262px)}#bBoat{right:calc(var(--sr) + 14px);bottom:calc(var(--sb) + 312px)}#bTank{bottom:calc(var(--sb) + 312px)}#chatFeed{bottom:calc(var(--sb) + 318px)}}
 /* no run button: pull the joystick past its ring to run */
@@ -11133,14 +11135,14 @@ function chatRender() {
   const h = $('chatHead'); if (h) h.textContent = MP.on ? '聊天 · ' + (MP.code ? '房间 ' + MP.code : '公共大厅') + ' · ' + Math.max(1, S.mpn || 1) + ' 人' : '聊天（未联机）';
 }
 function chatToggle(on) {
-  CHAT.open = on == null ? !CHAT.open : on; const box = $('chatBox'); if (!box) return; box.classList.toggle('show', CHAT.open);
+  CHAT.open = on == null ? !CHAT.open : on; const box = $('chatBox'); if (!box) return; box.classList.toggle('show', CHAT.open); try { document.body.classList.toggle('chatOn', CHAT.open); } catch (e) { }
   const b = $('bChat'); if (b) b.classList.remove('dot');
   if (CHAT.open) { chatRender(); if (IS_PC) setTimeout(() => { const i = $('chatIn'); i && i.focus(); }, 30); } else { const i = $('chatIn'); i && i.blur(); }
 }
 try { if (document.createElement && document.body && document.body.appendChild) {
   const f = document.createElement('div'); f.id = 'chatFeed'; document.body.appendChild(f);
   const box = document.createElement('div'); box.id = 'chatBox';
-  box.innerHTML = '<div class="chd"><b id="chatHead">聊天</b><button id="chatX" aria-label="关闭">✕</button></div><div id="chatLog"></div><div id="chatQuick"></div><div class="cin"><input id="chatIn" maxlength="60" placeholder="说点什么…" autocomplete="off" enterkeyhint="send"><button id="chatGo">发送</button></div>';
+  box.innerHTML = '<div class="chd"><b id="chatHead">聊天</b><button id="chatFull" aria-label="放大"></button><button id="chatX" aria-label="关闭">✕</button></div><div id="chatLog"></div><div id="chatQuick"></div><div class="cin"><input id="chatIn" maxlength="60" placeholder="说点什么…" autocomplete="off" enterkeyhint="send"><button id="chatGo">发送</button></div>';
   document.body.appendChild(box);
   ['pointerdown', 'touchstart', 'click', 'wheel'].forEach(ev => box.addEventListener(ev, e => e.stopPropagation(), { passive: ev !== 'click' }));
   const q = box.querySelector('#chatQuick'); CHAT_QUICK.forEach(t => { const b = document.createElement('button'); b.textContent = t; b.addEventListener('click', () => chatSend(t)); q.appendChild(b); });
@@ -11149,6 +11151,8 @@ try { if (document.createElement && document.body && document.body.appendChild) 
   inp.addEventListener('keyup', e => e.stopPropagation());
   box.querySelector('#chatGo').addEventListener('click', () => { chatSend(inp.value); inp.value = ''; if (!IS_PC) inp.blur(); });
   box.querySelector('#chatX').addEventListener('click', () => chatToggle(false));
+  { const fb = box.querySelector('#chatFull'), setF = on => { box.classList.toggle('full', on); fb.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="' + (on ? 'M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5' : 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5') + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'; fb.setAttribute('aria-label', on ? '缩小' : '放大'); try { localStorage.setItem('ember_chatfull', on ? '1' : '0'); } catch (e) { } };
+    let f0 = false; try { f0 = localStorage.getItem('ember_chatfull') === '1'; } catch (e) { } setF(f0); fb.addEventListener('click', () => setF(!box.classList.contains('full'))); }
   const H = $('hud'); if (H && H.appendChild) { const b = document.createElement('button'); b.className = 'btn2'; b.id = 'bChat'; b.innerHTML = '聊天'; H.appendChild(b);
     b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); chatToggle(); }); }
 } } catch (e) { }
@@ -11419,7 +11423,7 @@ function rollTick(dt) {
   const k = 1 - Math.max(0, ROLL.t) / ROLL.dur; pm.g.rotation.x = k * Math.PI * 2; pm.g.position.y = Math.sin(k * Math.PI) * .45; pm.g.rotation.y = player.face;
   if (ROLL.t <= 0) { pm.g.rotation.x = 0; pm.g.position.y = 0; }
 }
-try { const H = $('hud'); if (H && H.appendChild) { const b = document.createElement('button'); b.className = 'btn'; b.id = 'bRoll'; b.innerHTML = '<span>翻滚</span>'; H.appendChild(b);
+try { const H = $('hud'); if (H && H.appendChild) { const b = document.createElement('button'); b.className = 'btn ico'; b.id = 'bRoll'; b.setAttribute('aria-label', '翻滚'); b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 13.5a7.5 7.5 0 1 1-2.2-6.8" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><path d="M17.6 3.4l.2 3.7-3.7.3" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.6" cy="9.4" r="1.6" fill="none" stroke="#fff" stroke-width="1.5"/><path d="M11.4 11.2c1.6.5 2.3 1.9 1.6 3.3-.6 1.2-2.2 1.6-3.4.9M9.4 15.4l-1.6 1.9M12.9 13.8l2 .4" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'; H.appendChild(b);
   b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); rollGo(); }); } } catch (e) { }
 window.addEventListener('keydown', e => { if (e.repeat || !S.started) return; const typing = e.target && /input|textarea/i.test(e.target.tagName || ''); if (typing) return; if (e.code === 'KeyF') rollGo(); });
 try { if (typeof PC_KEYS !== 'undefined') PC_KEYS.splice(3, 0, ['F', '翻滚（翻滚时不会受伤）']); } catch (e) { }
@@ -13054,4 +13058,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794151151').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794152418').catch(()=>{});</script></body></html>
