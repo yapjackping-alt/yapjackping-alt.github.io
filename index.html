@@ -867,6 +867,14 @@ button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);mar
 #hub .calc.cur{cursor:pointer;border:1.5px solid #ffd98a;background:linear-gradient(180deg,rgba(255,170,60,.38),rgba(120,50,10,.4));animation:calCur 1.6s ease-in-out infinite}#hub .calc.cur em{color:#ffe9a8}
 @keyframes calCur{0%,100%{box-shadow:0 0 0 0 rgba(255,200,90,.0)}50%{box-shadow:0 0 14px 2px rgba(255,190,80,.6)}}
 @media (max-width:520px){#hub .calc{min-height:50px;padding:4px}#hub .calc span{font-size:9px}#hub .calc>i{display:none}.calhd{flex-direction:column;align-items:stretch;gap:8px}}
+.calms{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.calm{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;padding:8px 4px 7px;border-radius:11px;border:1px solid rgba(255,255,255,.1);background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(0,0,0,.3));text-align:center}
+.calm i{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-style:normal;font-weight:900;font-size:13px;color:#2a1408;background:linear-gradient(160deg,#e8d8c0,#a89078);margin-bottom:2px}
+.calm b{font:700 13px var(--font-hud);color:#f4e2cc}.calm span{font-size:10px;color:#cbb6a2;line-height:1.25}.calm em{font-style:normal;font-size:9.5px;font-weight:800;color:#a89080;margin-top:2px}
+.calm.gold{border-color:rgba(255,194,58,.6);background:linear-gradient(180deg,rgba(255,194,58,.22),rgba(60,30,10,.4))}.calm.gold i,.calm.can i{background:linear-gradient(160deg,#ffe9a8,#ffb54a)}
+.calm.can{cursor:pointer;border:1.5px solid #ffd98a;animation:calCur 1.6s ease-in-out infinite}.calm.can em{color:#ffe9a8}
+.calm.got{border-color:rgba(143,209,111,.5);background:linear-gradient(180deg,rgba(143,209,111,.18),rgba(20,40,20,.35))}.calm.got em{color:#9fe08a}.calm.got i{background:#8fd16f}
+@media (max-width:520px){.calm span{font-size:9px}}
 </style>
 
 <canvas id="c"></canvas>
@@ -7269,9 +7277,21 @@ function givePup(name, col, br) {
 S.cal = { m: '', ds: [] };
 const calToday = () => new Date().getDate();
 const calDs = () => S.cal.m === monKey() ? S.cal.ds : [];
-const calCanClaim = () => !calDs().includes(calToday());
+const calCanClaim = () => !calDs().includes(calToday()) || calMsReady().length > 0;
+// monthly totals: sign in this many days in a month (any days) for an extra prize
+const CAL_MS = [
+  [5, '强化石 ×3 · 余烬币 300', '石', () => { gain('estone', 3); gain('coin', 300); }],
+  [10, '史诗装备 ×1', '装', () => giveGear(3)],
+  [15, '首领之心 ×2', '心', () => gain('heart', 2)],
+  [20, '黄金装备 ×1（传说）', '金', () => giveGear(4)],
+  [25, '腐化晶体 ×2 · 强化石 ×5', '晶', () => { gain('crystal', 2); gain('estone', 5); }]];
+const calMc = () => S.cal.m === monKey() ? (S.cal.mc || []) : [];
+const calMsReady = () => CAL_MS.filter(m => calDs().length >= m[0] && !calMc().includes(m[0]));
+function calMsClaim(n) { const m = CAL_MS.find(x => x[0] === n); if (!m || calDs().length < n || calMc().includes(n)) return; S.cal.mc = calMc().concat(n);
+  try { m[3](); } catch (e) { console.warn(e); } sfx.build(); banner('本月签到 ' + n + ' 天奖励', m[1], 3); renderHub(); saveGame(); hubBadge(); }
 function calClaim() {
-  if (!calCanClaim()) return; if (S.cal.m !== monKey()) S.cal = { m: monKey(), ds: [] };
+  if (!calCanClaim()) return; if (S.cal.m !== monKey()) S.cal = { m: monKey(), ds: [], mc: [] };
+  if (calDs().includes(calToday())) return;
   const day = calToday(); S.cal.ds.push(day); const r = calReward(day); try { r.f(); addGem(calBig(day) ? 50 : 10, '签到'); } catch (e) { console.warn(e); } sfx.build(); seaXp(10);
   banner('签到成功 · ' + (new Date().getMonth() + 1) + '月' + day + '日', r.d + ' · 晶石 ×' + (calBig(day) ? 50 : 10), 2.6); renderHub(); saveGame(); hubBadge();
 }
@@ -7425,8 +7445,14 @@ function renderHub() {
   } else if (hubTab === 'cal') {
     const now = new Date(), L = monDays(), today = calToday(), ds = calDs(), first = new Date(now.getFullYear(), now.getMonth(), 1).getDay();
     const hd = document.createElement('div'); hd.className = 'calhd';
-    hd.innerHTML = '<div><b>' + (now.getMonth() + 1) + '<small>月</small></b><span>' + now.getFullYear() + ' · 每日签到</span></div><div class="calpr"><span>本月已签 <b>' + ds.length + '</b> / ' + L + ' 天</span><i><u style="width:' + Math.round(ds.length / L * 100) + '%"></u></i><em>每天上线领当天的格子 · 7、14、21、28 号和月底有大奖</em></div>';
+    hd.innerHTML = '<div><b>' + (now.getMonth() + 1) + '<small>月</small></b><span>' + now.getFullYear() + ' · 每日签到</span></div><div class="calpr"><span>本月已签 <b>' + ds.length + '</b> / ' + L + ' 天</span><i><u style="width:' + Math.round(ds.length / L * 100) + '%"></u></i><em>每天上线领当天的格子 · 本月累计签到 5/10/15/20/25 天还有额外奖励</em></div>';
     box.appendChild(hd);
+    { const ms = document.createElement('div'); ms.className = 'calms'; const mc = calMc();
+      CAL_MS.forEach(m => { const got = mc.includes(m[0]), can = !got && ds.length >= m[0], c = document.createElement('div');
+        c.className = 'calm' + (got ? ' got' : can ? ' can' : '') + (m[0] === 20 ? ' gold' : '');
+        c.innerHTML = '<i>' + m[2] + '</i><b>' + m[0] + ' 天</b><span>' + m[1] + '</span><em>' + (got ? '已领' : can ? '点击领取' : '还差 ' + (m[0] - ds.length) + ' 天') + '</em>';
+        if (can) c.addEventListener('click', () => calMsClaim(m[0])); ms.appendChild(c); });
+      box.appendChild(ms); }
     const grid = document.createElement('div'); grid.className = 'calg';
     WKD.forEach((w, k) => { const c = document.createElement('div'); c.className = 'calw' + (k === 0 || k === 6 ? ' we' : ''); c.textContent = w; grid.appendChild(c); });
     for (let k = 0; k < first; k++) { const c = document.createElement('div'); c.className = 'calc blank'; grid.appendChild(c); }
@@ -7436,7 +7462,7 @@ function renderHub() {
       if (i === today && !got) c.addEventListener('click', calClaim); grid.appendChild(c); }
     box.appendChild(grid);
     const r = calReward(today), b = document.createElement('button'); b.className = 'go' + (calCanClaim() ? '' : ' ghost'); b.disabled = !calCanClaim();
-    b.textContent = calCanClaim() ? '领取今天：' + r.d : '今天已签到，明天再来'; b.addEventListener('click', calClaim); box.appendChild(b);
+    const tdy = !ds.includes(today); b.disabled = !tdy; b.className = 'go' + (tdy ? '' : ' ghost'); b.textContent = tdy ? '领取今天：' + r.d : '今天已签到，明天再来'; b.addEventListener('click', calClaim); box.appendChild(b);
   } else if (hubTab === 'sea') {
     const L = seaLv(), d = 28 - (dayNum() % 28); h3(seaName() + ' · 还剩 ' + d + ' 天');
     const row = hubRow(box, '赛季等级 ' + L + ' / ' + SEA_MAX, '打丧尸、做任务、今日挑战、周王、无尽尸潮都给赛季经验 · 赛季结束角色不重置', '#ffc94a');
@@ -7492,7 +7518,8 @@ function dailyLoad(d) {
   S.para = Math.max(0, n(o.para) | 0); S.pxp = Math.max(0, n(o.pxp));
   S.cal = { m: '', ds: [] }; if (o.cal && typeof o.cal === 'object') { S.cal.m = String(o.cal.m || '');
     if (Array.isArray(o.cal.ds)) S.cal.ds = o.cal.ds.map(v => v | 0).filter((v, i, a) => v >= 1 && v <= 31 && a.indexOf(v) === i);
-    else if (o.cal.last === dateKey()) S.cal.ds = [calToday()]; }   // older saves only knew a count
+    else if (o.cal.last === dateKey()) S.cal.ds = [calToday()];
+    S.cal.mc = Array.isArray(o.cal.mc) ? o.cal.mc.map(v => v | 0).filter(v => CAL_MS.some(m => m[0] === v)) : []; }   // older saves only knew a count
   S.wb = typeof o.wb === 'string' ? o.wb : ''; S.dch = o.dch && typeof o.dch === 'object' ? { d: String(o.dch.d || ''), n: n(o.dch.n) | 0 } : { d: '', n: 0 };
   S.sea = o.sea && typeof o.sea === 'object' ? { id: n(o.sea.id) | 0, xp: Math.max(0, n(o.sea.xp) | 0), c: Array.isArray(o.sea.c) ? o.sea.c.filter(Number.isFinite).slice(0, 60) : [], best: Math.max(0, n(o.sea.best) | 0), prem: o.sea.prem >= 2 ? 2 : o.sea.prem ? 1 : 0, pc: Array.isArray(o.sea.pc) ? o.sea.pc.filter(Number.isFinite).slice(0, 60) : [], ec: Array.isArray(o.sea.ec) ? o.sea.ec.filter(Number.isFinite).slice(0, 60) : [] } : { id: 0, xp: 0, c: [], best: 0 }; seaEnsure();
   S.col = {}; if (o.col && typeof o.col === 'object') Object.keys(o.col).slice(0, 200).forEach(k => { if (k.length < 20) S.col[k] = 1; });
@@ -10027,7 +10054,7 @@ function cvEnd(win, why) {
   if (first) { S.cv.w = 'w' + weekIdx(); gain('coin', 400 * t); gain('estone', 4); gain('crystal', 1); giveGear(4); giveGear(3); if (typeof seaXp === 'function') seaXp(100);
     const lock = Object.keys(BP).filter(k => !S.bp[k]); let bpTxt;
     if (lock.length) { const k = pick(lock); S.bp[k] = 1; bpTxt = '蓝图「' + BP[k].n + '」（在建造 · 防御里）'; } else { gain('heart', 1); gain('estone', 6); bpTxt = '首领之心 + 强化石 ×6（蓝图已集齐）'; }
-    banner('商队安全抵达！', '传说装备 + 史诗装备 · ' + bpTxt + ' · 余烬币 ' + 400 * t, 5.5); }
+    banner('商队安全抵达！', '黄金装备 + 史诗装备 · ' + bpTxt + ' · 余烬币 ' + 400 * t, 5.5); }
   else { gain('coin', 120 * t); gain('estone', 1); banner('商队安全抵达', '本周大奖已领过 · 余烬币 ' + 120 * t + ' · 强化石 ×1', 3.5); }
   try { questTick('event', 1); } catch (e) { } saveGame(); try { hubBadge(); } catch (e) { }
 }
@@ -10069,10 +10096,10 @@ function cvRow(box) {
   const done = cvDone(), t = lvTier();
   hubRow(box, '流浪商队 · 每周一次', CV.on ? '正在护送，跟着商队走到终点。' : '护送商队走 ' + CV_LEN + ' 米：商队离你太远会停下等你，有丧尸靠近也会停下，被围攻会损坏。', done ? '#8fd16f' : '#e0a060',
     CV.on ? '护送中' : done ? '再护送一次' : S.isl ? '去码头坐船' : '现在出发', () => { if (S.isl) { closePanel('hub'); feed('去码头，船上选「护送流浪商队」', '#ffc94a'); return; } closePanel('hub'); cvStart(); }, !!CV.on, '商',
-    done ? ['本周大奖已领', '再护送：余烬币 ' + 120 * t] : ['传说装备', '史诗装备', '随机蓝图', '余烬币 ' + 400 * t, '强化石 ×4']);
+    done ? ['本周大奖已领', '再护送：余烬币 ' + 120 * t] : ['黄金装备', '史诗装备', '随机蓝图', '余烬币 ' + 400 * t, '强化石 ×4']);
 }
 renderPort = (orig => function () { orig();
-  const box = $('portList'); if (!box || !box.insertBefore) return; const row = shopRow('护送流浪商队', cvDone() ? '本周大奖已领（再护送有小奖励）' : '每周第一次护送：传说装备 + 蓝图', '#e0a060'), b = document.createElement('button');
+  const box = $('portList'); if (!box || !box.insertBefore) return; const row = shopRow('护送流浪商队', cvDone() ? '本周大奖已领（再护送有小奖励）' : '每周第一次护送：黄金装备 + 蓝图', '#e0a060'), b = document.createElement('button');
   b.className = 'sbtn'; b.textContent = '开船'; b.addEventListener('click', () => { closePanel('port'); voyage('驶向商队营地', () => { const p = findRegion(lvTier(), S.gx != null ? S.gx : 0, S.gz != null ? S.gz : 0); goGround(p.x, p.z); setTimeout(() => { if (!S.isl && !CV.on) cvStart(); }, 2500); }); });
   row.appendChild(b); box.insertBefore(row, box.firstChild);
 })(renderPort);
@@ -11096,4 +11123,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794098757').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794099369').catch(()=>{});</script></body></html>
