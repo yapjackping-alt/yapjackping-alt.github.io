@@ -12759,9 +12759,11 @@ SKIN_P.abyss = [
   { pts: [[-.6, 2.0, -.58], [.6, 2.0, -.58], [0, 2.6, -.58], [0, 1.4, -.58]], rate: 4, life: 1, v: [0, .15, 0], sp: .1, col: [0xff8a2a, 0xffd27a, 0xffffff], sz: .04 }
 ];SKIN_BY_N[SKINS.abyss.n] = 'abyss';
 /* ============ 外观直售：不用抽，直接用晶石买外观 ============
-   「星渊帝皇」只在这里卖。其他外观（赛季手册的除外）也能直接买，价格比抽到的期望花费高一些。 */
+   这里只卖直售限定的外观（现在是「星渊帝皇」）；抽奖池的外观只能抽。 */
 const SKIN_PRICE = { 5: 3280, 4: 1280, 3: 480 };
-const SKIN_SHOP = () => ['abyss'].concat(Object.keys(SKINS).filter(k => k !== 'abyss' && !SKINS[k].pass && SKIN_PRICE[SKINS[k].r]).sort((a, b) => SKINS[b].r - SKINS[a].r));
+// only outfits made for direct sale go here; gacha outfits stay in the gacha. Add a key to this list to sell a new one.
+const SKIN_DIRECT = ['abyss'];
+const SKIN_SHOP = () => SKIN_DIRECT.filter(k => SKINS[k]);
 const SK_RN = { 5: ['神话', '#ff4d8d'], 4: ['传说', '#ffc94a'], 3: ['史诗', '#c28bff'] };
 let _skArm = '', _skArmT = 0;
 function skinBuy(k, b) { const P = SKIN_PRICE[SKINS[k].r]; if (S.skins.includes(k)) return;
@@ -13814,4 +13816,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794169751').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794170114').catch(()=>{});</script></body></html>
