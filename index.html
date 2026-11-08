@@ -880,6 +880,14 @@ button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);mar
 @keyframes fbite{from{transform:scale(1)}to{transform:scale(1.12)}}
 #bBoat{bottom:calc(var(--sb) + 196px);border-color:#9fe8ff;background:rgba(20,60,90,.88);color:#e8faff}
 #bTank{bottom:calc(var(--sb) + 104px);border-color:#9fe8ff;background:rgba(20,60,90,.88);color:#e8faff}
+#bFish.reel{min-width:120px;min-height:64px;font-size:18px;font-weight:900;border-color:#9fe8ff;background:rgba(20,90,130,.92)}#bFish.reel.held{background:rgba(60,170,220,.95);transform:scale(.95)}
+#fishGame{display:none;position:fixed;left:50%;top:calc(var(--st,0px) + 54px);transform:translateX(-50%);z-index:9;pointer-events:none;width:min(340px,70vw);padding:9px 12px 8px;border-radius:13px;background:rgba(8,22,34,.86);border:1px solid rgba(159,232,255,.5);box-shadow:0 6px 18px rgba(0,0,0,.5);color:#e6f6ff}
+#fishGame>b{display:block;font-size:14px;margin-bottom:5px}#fishGame .fgst{font-style:normal;color:#ff9a6a;font-size:12px;animation:fbite .2s infinite alternate}
+.fgr{display:flex;align-items:center;gap:8px;margin:4px 0}.fgr span{font-size:11px;color:#9fc8dc;width:28px;flex:none}.fgr i{position:relative;flex:1;height:11px;border-radius:6px;background:rgba(255,255,255,.12);overflow:hidden}
+.fgr u{display:block;height:100%;background:#7fe0a0;transition:width .08s linear}.fgr u.warm{background:#ffc94a}.fgr u.hot{background:#ff4a3a}
+.fgten em{position:absolute;right:0;top:0;bottom:0;width:20%;background:repeating-linear-gradient(45deg,rgba(255,80,60,.35) 0 4px,transparent 4px 8px)}
+.fgpro u{background:linear-gradient(90deg,#3aa8e0,#9fe8ff)}#fishGame small{display:block;font-size:11px;color:#c8e4f0;margin-top:3px}
+#bSwim{position:absolute;right:calc(var(--sr) + 214px);bottom:calc(var(--sb) + 150px);display:none;font-size:16px;min-width:86px;border-color:#9fe8ff;background:rgba(20,90,130,.92);color:#fff}
 </style>
 
 <canvas id="c"></canvas>
@@ -2598,7 +2606,7 @@ const magSizeNow = id => { id = id || S.wp; const W = WEAP[id]; if (W.cls === 'm
 const fireInterval = id => { const W = WEAP[id || S.wp]; return W.iv / (1 + ts('rate') + gst('rate') + wsSt(id || S.wp, 'rate') + (S.frenzyT > 0 ? .35 : 0)) * (W.cls === 'melee' && S.exhausted ? 1.6 : 1); };
 const maxHpNow = () => Math.round((120 + (S.level - 1) * 8 + ts('hp') + gst('hp')) * (1 + ts('hpPct') + gst('hpPct')) * (S.para ? 1 + .005 * S.para : 1));
 const maxStaNow = () => Math.round(100 + ts('sta') + gst('sta'));
-const moveSpeed = () => 7.2 * (1 + ts('spd') + gst('spd')) * (S.slowT > 0 ? .65 : 1) * (typeof swiftMul === 'function' ? swiftMul() : 1);
+const moveSpeed = () => 7.2 * (1 + ts('spd') + gst('spd')) * (S.slowT > 0 ? .65 : 1) * (typeof swiftMul === 'function' ? swiftMul() : 1) * (typeof swimMul === 'function' ? swimMul() : 1);
 const critChance = id => Math.min(0.75, 0.05 + ts('crit') + gst('crit') + wsSt(id || S.wp, 'crit') + (WEAP[id || S.wp].crit || 0));
 const critMul = () => 2 + ts('critDmg') + gst('critDmg') + wsSt(S.wp, 'critDmg');
 const reloadTime = () => Math.max(0.4, WEAP[S.wp].rel * (1 - Math.min(.6, ts('reload') + gst('reload') + wsSt(S.wp, 'reload'))));
@@ -10288,62 +10296,133 @@ function fishRoll(hab) {
   let tot = 0; const ws = L.map(f => { const w = W[f.r] * (f.x.night ? 1.6 : 1); tot += w; return w; });
   let r = Math.random() * tot; for (let i = 0; i < L.length; i++) { r -= ws[i]; if (r <= 0) return L[i]; } return L[0];
 }
+// ---- sounds: a whoosh for the cast, a plop, a splash when it bites, the reel's clicks, a snap ----
+const fsnd = {
+  cast() { if (!AC) return; sfxNoise(.32, .16, 2400, { type: 'bandpass', f1: 500, q: 1.2 }); sfxTone(1500, 380, .38, .025, 'sine', { delay: .05 }); },
+  plop() { if (!AC) return; sfxTone(340, 110, .14, .12, 'sine'); sfxNoise(.18, .08, 1100, { delay: .02 }); },
+  bite() { if (!AC) return; sfxNoise(.35, .2, 1600, { f1: 500 }); sfxTone(260, 90, .2, .1, 'sine', { delay: .05 }); },
+  click() { if (!AC) return; sfxTone(2600, 2300, .018, .035, 'square', { lp: 4000 }); },
+  snap() { if (!AC) return; sfxTone(1100, 160, .16, .09, 'sawtooth', { lp: 2500 }); sfxNoise(.12, .1, 3000); },
+  land() { if (!AC) return; sfxNoise(.4, .18, 1400, { f1: 400 }); sfxTone(520, 880, .12, .06, 'triangle', { delay: .25 }); sfxTone(700, 1200, .12, .05, 'triangle', { delay: .38 }); }
+};
+// ---- the rod lives in the right hand; the gun is put away while fishing ----
 function fishGfx(on) {
-  if (!FI.bob) { FI.bob = new THREE.Group(); box(.16, .14, .16, mat(0xffffff), 0, 0, 0, FI.bob); box(.17, .12, .17, mat(0xff3a2a), 0, .12, 0, FI.bob); scene.add(FI.bob);
-    FI.line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0xf0f0f0, transparent: true, opacity: .8 })); scene.add(FI.line);
-    FI.rod = box(.05, .05, 2.4, mat(0x6a4a2a), 0, 0, 0, scene); }
-  FI.bob.visible = FI.line.visible = FI.rod.visible = on;
+  if (!FI.rod) {
+    const r = new THREE.Group(), cork = mat(0x9a6a3a), sh = mat(0x2a2a30), gd = mat(0xd8c07a);
+    box(.07, .07, .42, cork, 0, 0, .05, r); box(.09, .1, .12, mat(0x3a3a40), 0, -.07, .2, r); box(.03, .03, .06, gd, .06, -.07, .2, r);
+    box(.045, .045, .9, sh, 0, 0, .7, r); box(.034, .034, .8, sh, 0, 0, 1.55, r); box(.024, .024, .7, mat(0xe04a2a), 0, 0, 2.27, r);
+    for (const z of [.6, 1.1, 1.6, 2.05]) box(.05, .05, .02, gd, 0, -.04, z, r);
+    const tip = new THREE.Object3D(); tip.position.set(0, 0, 2.62); r.add(tip); r.userData.tip = tip;
+    r.position.set(0, -.74, .02); r.rotation.x = 1.05; pm.armR.add(r); FI.rod = r;
+    FI.bob = new THREE.Group(); box(.16, .14, .16, mat(0xffffff), 0, 0, 0, FI.bob); box(.17, .12, .17, mat(0xff3a2a), 0, .12, 0, FI.bob); box(.03, .14, .03, mat(0x222222), 0, .25, 0, FI.bob); scene.add(FI.bob);
+    FI.line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0xf4f4f4, transparent: true, opacity: .85 })); FI.line.frustumCulled = false; scene.add(FI.line);
+    FI.ring = new THREE.Mesh(new THREE.RingGeometry(.25, .32, 16), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .6, depthWrite: false, side: THREE.DoubleSide })); FI.ring.rotation.x = -Math.PI / 2; scene.add(FI.ring);
+  }
+  if (on && !FI.arm) FI.arm = [pm.armR.rotation.clone(), pm.armL.rotation.clone()];
+  FI.rod.visible = FI.bob.visible = FI.line.visible = on; FI.ring.visible = false; gun.visible = !on;
+  if (!on) { if (FI.arm) { pm.armR.rotation.copy(FI.arm[0]); pm.armL.rotation.copy(FI.arm[1]); FI.arm = null; } if (FI.show) { scene.remove(FI.show); FI.show = null; } }
 }
-function fishStop(msg) { if (!FI.st) return; FI.st = ''; fishGfx(false); fishBtn(); if (msg) feed(msg, '#c1a597'); }
+const _tipV = new THREE.Vector3();
+function fishStop(msg) { if (!FI.st) return; FI.st = ''; FI.hold = false; fishGfx(false); fishUi(); fishBtn(); if (msg) feed(msg, '#c1a597'); }
 function fishAct() {
-  if (FI.st === 'bite') { fishCatch(); return; }
+  if (FI.st === 'bite') { fishHook(); return; }
+  if (FI.st === 'fight' || FI.st === 'cast' || FI.st === 'land') return;
   if (FI.st) { fishStop('收回了鱼线'); return; }
   const sp = fishSpot(); if (!sp) { feed('要站在水边（码头、海边浅水、池塘、河边）或者在船上才能钓鱼', '#ff9b8a'); return; }
-  FI.st = 'wait'; FI.hab = sp.hab; FI.bx = sp.x; FI.bz = sp.z; FI.by = sp.y; FI.t = rand(3, 9) * (sp.hab === 'deep' ? 1.2 : 1); FI.fish = null;
-  player.face = Math.atan2(sp.x - player.pos.x, sp.z - player.pos.z); fishGfx(true); burst(sp.x, sp.y + .1, sp.z, 0xd8f0ff, 6, 2); try { sfx.swing(); } catch (e) { } fishBtn();
+  FI.st = 'cast'; FI.ct = 0; FI.hab = sp.hab; FI.bx = sp.x; FI.bz = sp.z; FI.by = sp.y; FI.fish = null; FI.face = Math.atan2(sp.x - player.pos.x, sp.z - player.pos.z);
+  fishGfx(true); FI.bob.visible = false; fsnd.cast(); fishBtn();
 }
-function fishCatch() {
-  const f = FI.fish; fishStop(); if (!f) return;
+// the bite: tap in time to set the hook, then fight the fish
+function fishHook() {
+  const f = FI.fish; if (!f) return; FI.st = 'fight'; FI.hold = false; FI.T = 20; FI.P = 28; FI.ph = 0; FI.pt = rand(.8, 1.6); FI.str = .55 + f.r * .26 + Math.min(.4, (f.kg[1] / 400)); FI.clk = 0;
+  FI.sx = FI.bx; FI.sz = FI.bz; fsnd.bite(); fishUi(); fishBtn();
+}
+function fishFight(dt) {
+  // the fish switches between resting and fighting; while it fights, reeling in pulls the line tight fast
+  FI.pt -= dt; if (FI.pt <= 0) { FI.ph = FI.ph ? 0 : 1; FI.pt = FI.ph ? rand(.7, 1.5 + FI.fish.r * .2) : rand(1, 2.4); if (FI.ph) { if (FI.hold) FI.T += 10 * FI.str; burst(FI.bx, FI.by + .1, FI.bz, 0xffffff, 8, 3); fsnd.bite(); if (navigator.vibrate) try { navigator.vibrate(40); } catch (e) { } } }
+  const force = FI.str * (FI.ph ? 1 : .22);
+  if (FI.hold) { FI.T += (14 + force * 45) * dt; FI.P += (16 - force * 4) * dt; FI.clk -= dt; if (FI.clk <= 0) { FI.clk = .07; fsnd.click(); } }
+  else { FI.T -= 50 * dt; FI.P -= (1.5 + force * 3.5) * dt; }
+  FI.T = Math.max(0, FI.T);
+  if (FI.T >= 100) { fsnd.snap(); FI.fish = null; fishStop(); banner('鱼线断了！', '鱼拉得紧的时候要松手', 2.2); return; }
+  if (FI.P <= 0) { FI.fish = null; fishStop(); banner('鱼跑掉了', '要按住「收线」把它拉过来', 2.2); return; }
+  if (FI.P >= 100) { fishLand(); return; }
+  // the float is dragged around and comes closer as you reel in
+  const k = FI.P / 100 * .78, w = FI.ph ? .9 : .3;
+  FI.bx = FI.sx + (player.pos.x - FI.sx) * k + Math.sin(S.t * (FI.ph ? 7 : 2)) * w; FI.bz = FI.sz + (player.pos.z - FI.sz) * k + Math.cos(S.t * (FI.ph ? 5.3 : 1.7)) * w;
+  if (FI.ph && Math.random() < dt * 8) burst(FI.bx, FI.by + .05, FI.bz, 0xe8f6ff, 2, 2);
+  fishUi();
+}
+// pulled out of the water: the fish flies up to you and is held up for a moment
+function fishLand() {
+  const f = FI.fish; FI.st = 'land'; FI.lt = 0; FI.hold = false; fsnd.land(); fishUi(); fishBtn();
+  FI.show = fishModel(f, Math.min(1, Math.max(.35, f.len * .8))); FI.show.position.set(FI.bx, FI.by, FI.bz); scene.add(FI.show); FI.bob.visible = false;
   const kg = +(f.kg[0] + Math.pow(Math.random(), 1.6) * (f.kg[1] - f.kg[0])).toFixed(f.kg[1] < 5 ? 2 : 1), first = !S.fishLog[f.id], best = kg > (S.fishLog[f.id] || 0);
   if (best) S.fishLog[f.id] = kg; gain(fk(f.id), 1); stInc('fish'); if (typeof colAdd === 'function') colAdd('fish:' + f.id); if (typeof seaXp === 'function') seaXp(3 + f.r * 3);
   try { addXp(8 * f.r * f.r); } catch (e) { }
-  const R = FISH_R[f.r]; banner((first ? '新品种！' : '钓到了 ') + f.n, R[0] + ' · ' + kg + ' 公斤' + (best && !first ? ' · 个人纪录！' : ''), f.r >= 4 ? 3.6 : 2.4);
-  burst(FI.bx, FI.by + .3, FI.bz, f.c, 14, 4); try { sfx.build(); } catch (e) { } saveGame();
+  const R = FISH_R[f.r]; banner((first ? '新品种！' : '钓到了 ') + f.n, R[0] + ' · ' + kg + ' 公斤' + (best && !first ? ' · 个人纪录！' : ''), f.r >= 4 ? 3.6 : 2.6);
+  burst(FI.bx, FI.by + .3, FI.bz, 0xe8f6ff, 16, 4); saveGame();
 }
 function fishTick(dt) {
   boatTick(dt);
   if (!FI.st) { fishBtn(); return; }
-  const moved = Math.hypot(input.mx, input.mz) > .3 || input.fire || S.dead;
-  if (moved || Math.hypot(player.pos.x - FI.bx, player.pos.z - FI.bz) > 9) { fishStop('一动鱼就跑了'); return; }
-  // rod and line
-  const f = player.face, hx = player.pos.x + Math.sin(f) * .35, hz = player.pos.z + Math.cos(f) * .35, hy = 1.2 + pm.g.position.y, tx = player.pos.x + Math.sin(f) * 2.3, tz = player.pos.z + Math.cos(f) * 2.3, ty = 2.6 + pm.g.position.y;
-  FI.rod.position.set((hx + tx) / 2, (hy + ty) / 2, (hz + tz) / 2); FI.rod.lookAt(tx, ty, tz);
+  if (Math.hypot(input.mx, input.mz) > .3 || input.fire || S.dead) { if (FI.st === 'fight') { FI.fish = null; fishStop(); banner('鱼跑掉了', '钓鱼时不要走动', 2); } else fishStop('一动就收线了'); return; }
+  // face the water and pose: wind up over the head, whip forward, hold, raise the rod when reeling
+  player.face = FI.face; pm.g.rotation.y = FI.face; const aR = pm.armR, aL = pm.armL; let ar = -1.2, lift = 0;
+  if (FI.st === 'cast') { FI.ct += dt; const t = FI.ct;
+    ar = t < .32 ? -1.2 - (t / .32) * 1.85 : t < .46 ? -3.05 + ((t - .32) / .14) * 2.15 : -.9;
+    if (t >= .46) { FI.bob.visible = true; const u = Math.min(1, (t - .46) / .45); FI.rod.userData.tip.getWorldPosition(_tipV);
+      if (u < 1) { FI.bob.position.set(_tipV.x + (FI.bx - _tipV.x) * u, _tipV.y + (FI.by - _tipV.y) * u + Math.sin(u * Math.PI) * 2.2, _tipV.z + (FI.bz - _tipV.z) * u); }
+      else { FI.st = 'wait'; FI.t = rand(3, 9) * (FI.hab === 'deep' ? 1.2 : 1); fsnd.plop(); burst(FI.bx, FI.by + .1, FI.bz, 0xd8f0ff, 8, 2); FI.ring.visible = true; FI.rt = 0; fishBtn(); } } }
+  else if (FI.st === 'wait' || FI.st === 'bite') ar = -1.15 + Math.sin(S.t * 1.5) * .03;
+  else if (FI.st === 'fight') { ar = -1.55 - (FI.hold ? .35 : 0) - FI.T * .004 + Math.sin(S.t * 30) * (FI.ph ? .05 : .015); lift = FI.ph ? .12 : 0; fishFight(dt); if (!FI.st) return; }
+  else if (FI.st === 'land') { FI.lt += dt; ar = -2.5; const u = Math.min(1, FI.lt / .5); FI.rod.userData.tip.getWorldPosition(_tipV);
+    FI.show.position.set(FI.bx + (_tipV.x - FI.bx) * u, FI.by + (_tipV.y - .6 - FI.by) * u + Math.sin(u * Math.PI) * 1.2, FI.bz + (_tipV.z - FI.bz) * u); FI.show.rotation.z = Math.sin(S.t * 18) * .5; FI.show.rotation.y = FI.face + Math.PI / 2;
+    if (FI.lt > 1.6) { fishStop(); return; } }
+  aR.rotation.set(ar, 0, -.1 + lift); aL.rotation.set(Math.max(-1.6, ar * .8), 0, .45);
+  // the line from the rod tip to the float
+  FI.rod.userData.tip.getWorldPosition(_tipV);
   FI.t -= dt; let dip = Math.sin(S.t * 3) * .04;
-  if (FI.st === 'wait' && FI.t <= 0) { FI.fish = fishRoll(FI.hab); FI.st = 'bite'; FI.win = Math.max(.75, 1.5 - FI.fish.r * .14); FI.t = FI.win; burst(FI.bx, FI.by, FI.bz, 0xffffff, 10, 3); try { sfx.hit(); } catch (e) { } if (navigator.vibrate) try { navigator.vibrate(60); } catch (e) { } fishBtn(); }
+  if (FI.st === 'wait' && FI.t <= 0) { FI.fish = fishRoll(FI.hab); FI.st = 'bite'; FI.win = Math.max(.75, 1.5 - FI.fish.r * .14); FI.t = FI.win; burst(FI.bx, FI.by, FI.bz, 0xffffff, 10, 3); fsnd.bite(); if (navigator.vibrate) try { navigator.vibrate(60); } catch (e) { } fishBtn(); }
   else if (FI.st === 'wait' && FI.t < 1.2 && Math.random() < dt * 3) dip -= .08;       // a nibble
   if (FI.st === 'bite') { dip = -.22 + Math.sin(S.t * 30) * .05; if (FI.t <= 0) { FI.fish = null; fishStop(); feed('鱼跑了……咬钩时要马上点「收杆」', '#ff9b8a'); return; } }
-  FI.bob.position.set(FI.bx, FI.by + .05 + dip, FI.bz);
-  const p = FI.line.geometry.attributes.position; p.setXYZ(0, tx, ty, tz); p.setXYZ(1, FI.bx, FI.by + .1 + dip, FI.bz); p.needsUpdate = true;
+  if (FI.st === 'fight') dip = -.15 + Math.sin(S.t * 22) * (FI.ph ? .08 : .02);
+  if (FI.ring.visible) { FI.rt += dt; const u = (FI.rt % 1.6) / 1.6; FI.ring.scale.setScalar(1 + u * 3); FI.ring.material.opacity = .6 * (1 - u); FI.ring.position.set(FI.bx, FI.by + .02, FI.bz); }
+  if (FI.st !== 'cast' && FI.st !== 'land') FI.bob.position.set(FI.bx, FI.by + .05 + dip, FI.bz);
+  const p = FI.line.geometry.attributes.position, bp = FI.st === 'land' ? FI.show.position : FI.bob.position;
+  p.setXYZ(0, _tipV.x, _tipV.y, _tipV.z); p.setXYZ(1, bp.x, bp.y + .1, bp.z); p.needsUpdate = true; FI.line.geometry.computeBoundingSphere();
+}
+// the fight panel: line tension (let go before it snaps) and how close the fish is
+function fishUi() {
+  let el = $('fishGame'); if (!el && document.createElement && document.body) { el = document.createElement('div'); el.id = 'fishGame'; document.body.appendChild(el);
+    el.innerHTML = '<b id="fgT"></b><div class="fgr"><span>鱼线</span><i class="fgten"><u id="fgTen"></u><em></em></i></div><div class="fgr"><span>距离</span><i class="fgpro"><u id="fgPro"></u></i></div><small id="fgH"></small>'; }
+  if (!el) return; const on = FI.st === 'fight'; el.style.display = on ? 'block' : 'none'; if (!on) return;
+  const R = FISH_R[FI.fish.r]; $('fgT').innerHTML = '<span style="color:' + R[1] + '">' + (FI.fish.r >= 3 ? '大家伙上钩了！' : '鱼上钩了！') + '</span> ' + (FI.ph ? '<em class="fgst">在挣扎！</em>' : '');
+  const t = $('fgTen'); t.style.width = Math.min(100, FI.T) + '%'; t.className = FI.T > 80 ? 'hot' : FI.T > 55 ? 'warm' : ''; $('fgPro').style.width = Math.max(0, Math.min(100, FI.P)) + '%';
+  $('fgH').textContent = FI.T > 80 ? '太紧了！快松手！' : FI.ph ? '鱼在挣扎，别硬拉，松一松' : '按住「收线」把鱼拉过来';
 }
 let _fbK = '';
 function fishBtn() {
   const b = $('bFish'), bb = $('bBoat'); if (!b) return;
   const sp = !FI.st && S.started && !S.paused ? fishSpot() : null, k = FI.st + '|' + (!!sp) + '|' + boatNear() + '|' + boatShore() + '|' + S.boat;
   if (k === _fbK) return; _fbK = k;
-  b.style.display = FI.st || sp ? 'block' : 'none'; b.textContent = FI.st === 'bite' ? '收杆！' : FI.st ? '等鱼咬钩…' : '钓鱼'; b.classList.toggle('bite', FI.st === 'bite');
-  if (bb) { bb.style.display = boatNear() || boatShore() ? 'block' : 'none'; bb.textContent = S.boat ? '下船' : '上船'; }
+  b.style.display = FI.st || sp ? 'block' : 'none';
+  b.textContent = FI.st === 'bite' ? '收杆！' : FI.st === 'fight' ? '按住收线' : FI.st === 'cast' ? '甩竿…' : FI.st === 'land' ? '钓到了！' : FI.st ? '等鱼咬钩…' : '钓鱼';
+  b.classList.toggle('bite', FI.st === 'bite'); b.classList.toggle('reel', FI.st === 'fight');
+  if (bb) { bb.style.display = !FI.st && (boatNear() || boatShore()) ? 'block' : 'none'; bb.textContent = S.boat ? '下船' : '上船'; }
 }
 { const H = $('hud'); if (H && H.appendChild) {
   const b = document.createElement('button'); b.className = 'btn2'; b.id = 'bFish'; H.appendChild(b);
-  b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); try { audioInit(); } catch (er) { } fishAct(); });
+  b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); try { b.setPointerCapture(e.pointerId); } catch (er) { } try { audioInit(); } catch (er) { } if (FI.st === 'fight') { FI.hold = true; b.classList.add('held'); } else fishAct(); });
+  const up = () => { FI.hold = false; b.classList.remove('held'); }; b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
   const bb = document.createElement('button'); bb.className = 'btn2'; bb.id = 'bBoat'; H.appendChild(bb);
   bb.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (S.boat) boatLeave(); else boatBoard(); _fbK = ''; fishBtn(); });
   const t = document.createElement('button'); t.className = 'btn2'; t.id = 'bTank'; t.textContent = '鱼缸'; H.appendChild(t);
   t.addEventListener('click', () => { const k = tankNear(); if (!k) return; TK.sel = k; try { audioInit(); } catch (e) { } openPanel('tank', renderTank); }); } }
 
-/* ---- glass fish tanks: 1.5 × 1.5 m, one storey tall, clear with only the outline; neighbours join ---- */
-const TK_S = 1.5, TK_H = UPY - .02, TK_CAP = 4;
-BT.tank = { name: '鱼缸', cat: 'fu', k: 'free', cost: { wood: 2, metal: 6 }, hp: 160, hw: .72, hd: .72, ob: [[0, 0, .72, .72]], desc: '玻璃鱼缸，一层楼高。并排放会连成一个大鱼缸，可以养鱼' };
+/* ---- glass fish tanks: as wide as a foundation (3 × 3 m), one storey tall, clear with only the outline; neighbours join ---- */
+const TK_S = BG, TK_H = UPY - .02, TK_CAP = 8;
+BT.tank = { name: '鱼缸', cat: 'fu', k: 'free', cost: { wood: 4, metal: 12 }, hp: 220, hw: 1.47, hd: 1.47, ob: [[0, 0, 1.47, 1.47]], desc: '和地基一样大的玻璃鱼缸，一层楼高。并排放会连成一个大鱼缸，可以养鱼' };
 const tkKey = b => b.x.toFixed(2) + ',' + b.z.toFixed(2) + ',' + (b.lv | 0);
 const tkAt = (x, z, lv) => builds.find(b => b.type === 'tank' && b.hp > 0 && (b.lv | 0) === lv && Math.abs(b.x - x) < .1 && Math.abs(b.z - z) < .1);
 const TK = { sel: null, edge: mat(0xe8fbff), water: null, sand: mat(0xd8c08a), weed: [mat(0x3a9a4a), mat(0x5ab85a)] };
@@ -10364,8 +10443,8 @@ function tankFill(g, nb, seed) {
   for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!has(dx, dz)) pl(TK_S, wy, dx * (h - .01), wy / 2, dz * (h - .01), dx ? Math.PI / 2 : 0);
   // sand and a little weed
   box(TK_S - .02, .06, TK_S - .02, TK.sand, 0, .03, 0, g); const R = mulberry32(seed || 7);
-  for (let i = 0; i < 3; i++) { const x = (R() - .5) * 1.1, z = (R() - .5) * 1.1, hh = .3 + R() * .7; box(.06, hh, .06, TK.weed[i % 2], x, hh / 2 + .05, z, g); box(.06, hh * .6, .06, TK.weed[(i + 1) % 2], x + .08, hh * .3 + .05, z + .05, g); }
-  if (R() < .6) box(.25, .18, .2, mat(0x8a8680), (R() - .5) * .9, .12, (R() - .5) * .9, g);
+  for (let i = 0; i < 7; i++) { const x = (R() - .5) * 2.5, z = (R() - .5) * 2.5, hh = .3 + R() * .7; box(.06, hh, .06, TK.weed[i % 2], x, hh / 2 + .05, z, g); box(.06, hh * .6, .06, TK.weed[(i + 1) % 2], x + .08, hh * .3 + .05, z + .05, g); }
+  for (let i = 0; i < 3; i++) if (R() < .7) box(.25 + R() * .3, .15 + R() * .2, .2 + R() * .3, mat(R() < .5 ? 0x8a8680 : 0x6e6a66), (R() - .5) * 2.4, .12, (R() - .5) * 2.4, g);
 }
 buildMesh = (orig => function (type) { if (type !== 'tank') return orig(type); const g = new THREE.Group(); g.add(new THREE.Group()); tankFill(g.children[0], () => false); g.userData.tank = g.children[0]; return g; })(buildMesh);
 function tankRefresh(b) { if (!b || !b.g || !b.g.userData.tank) return; tankFill(b.g.userData.tank, (dx, dz) => tkAt(b.x + dx * TK_S, b.z + dz * TK_S, b.lv | 0), Math.abs(Math.round(b.x * 7 + b.z * 13)) + 1); }
@@ -10390,16 +10469,16 @@ function tankFishSync(b) {
   const ids = S.tanks[tkKey(b)] || [], L = TKF.get(b) || [];
   if (L.length === ids.length && L.every((o, i) => o.f.id === ids[i])) return L;
   tankFishClear(b); const out = [];
-  ids.forEach(id => { const f = FISH_BY[id]; if (!f) return; const L2 = Math.min(.55, Math.max(.2, f.len * .55)), g = fishModel(f, L2); b.g.add(g);
-    out.push({ g, f, x: rand(-.4, .4), y: rand(.5, 2.2), z: rand(-.4, .4), tx: 0, ty: 1.2, tz: 0, sp: rand(.25, .5), t: 0, L: L2 }); });
+  ids.forEach(id => { const f = FISH_BY[id]; if (!f) return; const L2 = Math.min(.95, Math.max(.28, f.len * .75)), g = fishModel(f, L2); b.g.add(g);
+    out.push({ g, f, x: rand(-1, 1), y: rand(.5, 2.2), z: rand(-1, 1), tx: 0, ty: 1.2, tz: 0, sp: rand(.25, .5), t: 0, L: L2 }); });
   TKF.set(b, out); return out;
 }
 function tankTick(dt) {
-  const near = S.started && !S.dead ? tankNear() : null, tb = $('bTank'); if (tb) tb.style.display = near && !FI.st ? 'block' : 'none';
+  const near = S.started && !S.dead ? tankNear() : null, tb = $('bTank'); if (tb) tb.style.display = near && !FI.st && !(typeof SW !== 'undefined' && SW.b) ? 'block' : 'none';
   for (const b of builds) { if (b.type !== 'tank' || b.hp <= 0) continue; if (Math.hypot(b.x - player.pos.x, b.z - player.pos.z) > 60) continue;
     const L = tankFishSync(b);
     for (const o of L) { o.t -= dt;
-      if (o.t <= 0 || Math.hypot(o.tx - o.x, o.tz - o.z, o.ty - o.y) < .1) { o.t = rand(2, 5); const lim = .75 - o.L * .5;
+      if (o.t <= 0 || Math.hypot(o.tx - o.x, o.tz - o.z, o.ty - o.y) < .1) { o.t = rand(2, 5); const lim = TK_S / 2 - .15 - o.L * .5;
         // sometimes swim over into a joined neighbour
         let ox = 0, oz = 0; if (Math.random() < .35) { const ns = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dz]) => tkAt(b.x + dx * TK_S, b.z + dz * TK_S, b.lv | 0)); if (ns.length) { const n = pick(ns); ox = n[0] * TK_S; oz = n[1] * TK_S; } }
         o.tx = ox + rand(-lim, lim); o.tz = oz + rand(-lim, lim); o.ty = rand(.4, TK_H * .82); }
@@ -10408,11 +10487,11 @@ function tankTick(dt) {
       o.g.position.set(o.x, o.y, o.z); const want = Math.atan2(dx, dz); let a = want - o.g.rotation.y; a = Math.atan2(Math.sin(a), Math.cos(a)); o.g.rotation.y += a * Math.min(1, dt * 4);
       o.g.rotation.z = Math.sin(S.t * 6 + o.sp * 10) * .08; } }
 }
-function tankNear() { let best = null, bd = 2.4; for (const b of builds) { if (b.type !== 'tank' || b.hp <= 0 || (b.lv | 0) !== (S.fl | 0)) continue; const d = Math.max(Math.abs(player.pos.x - b.x), Math.abs(player.pos.z - b.z)); if (d < bd) { bd = d; best = b; } } return best; }
+function tankNear() { let best = null, bd = 2.6; for (const b of builds) { if (b.type !== 'tank' || b.hp <= 0 || (b.lv | 0) !== (S.fl | 0)) continue; const d = Math.max(Math.abs(player.pos.x - b.x), Math.abs(player.pos.z - b.z)); if (d < bd) { bd = d; best = b; } } return best; }
 function renderTank() {
   const box2 = $('tankList'), b = TK.sel; if (!box2) return; box2.innerHTML = ''; if (!b || b.hp <= 0) { closePanel('tank'); return; }
   const k = tkKey(b), ids = S.tanks[k] || [];
-  const hd = document.createElement('div'); hd.className = 'snote'; hd.textContent = '这格鱼缸养了 ' + ids.length + ' / ' + TK_CAP + ' 条。并排的鱼缸会连成一个，鱼会游来游去。拆掉鱼缸时鱼会回到背包。'; box2.appendChild(hd);
+  const hd = document.createElement('div'); hd.className = 'snote'; hd.textContent = '这个鱼缸养了 ' + ids.length + ' / ' + TK_CAP + ' 条。并排的鱼缸会连成一个，鱼会游来游去。拆掉鱼缸时鱼会回到背包。'; box2.appendChild(hd);
   const h3 = t => { const h = document.createElement('h3'); h.textContent = t; box2.appendChild(h); };
   h3('缸里的鱼');
   if (!ids.length) { const n = document.createElement('div'); n.className = 'snote'; n.textContent = '还是空的'; box2.appendChild(n); }
@@ -10431,7 +10510,52 @@ function renderTank() {
 { if (document.createElement && document.body && document.body.appendChild) { const o = document.createElement('div'); o.className = 'overlay scroll'; o.id = 'tank'; o.innerHTML = '<h2>鱼缸</h2><div id="tankList" class="slist"></div>';
   const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => closePanel('tank')); o.appendChild(x); document.body.appendChild(o); } }
 
-petsTick = (o => function (dt) { o(dt); try { fishTick(dt); } catch (e) { console.warn(e); } try { tankTick(dt); } catch (e) { console.warn(e); } })(petsTick);
+/* ---- falling into a tank: you swim (body flat, arm strokes, kicking legs) until you climb out ---- */
+const SW = { b: null, fx: 0, fz: 0, falling: false, obs: [], px: 0, pz: 0, bt: 0 };
+const tankCell = (x, z, lv, m) => builds.find(b => b.type === 'tank' && b.hp > 0 && (b.lv | 0) === lv && Math.abs(x - b.x) < TK_S / 2 - (m || 0) && Math.abs(z - b.z) < TK_S / 2 - (m || 0));
+function tankGroup(b) { const out = [b], seen = new Set([b]); for (let i = 0; i < out.length; i++) { const c = out[i]; for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = tkAt(c.x + dx * TK_S, c.z + dz * TK_S, c.lv | 0); if (n && !seen.has(n)) { seen.add(n); out.push(n); } } } return out; }
+function swimIn(b) {
+  if (SW.b) return; fishStop(); SW.b = b; SW.obs = []; for (const t of tankGroup(b)) for (const o of t.obs) { o.open = true; SW.obs.push(o); }
+  SW.px = player.pos.x; SW.pz = player.pos.z; SW.arm = [pm.armR.rotation.clone(), pm.armL.rotation.clone()]; gun.visible = false; input.fire = false; S.sprint = false;
+  burst(player.pos.x, b.y + TK_H * .9, player.pos.z, 0xbfe8ff, 18, 4); try { if (AC) { sfxNoise(.5, .22, 1300, { f1: 300 }); sfxTone(300, 90, .25, .1, 'sine'); } } catch (e) { }
+  banner('掉进鱼缸了！', '用摇杆游动，按「爬出去」上岸', 2.4); swimBtn();
+}
+function swimOut() {
+  const b = SW.b; if (!b) return; const G = tankGroup(b); let best = null, bd = 1e9;
+  for (const t of G) for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { if (tkAt(t.x + dx * TK_S, t.z + dz * TK_S, t.lv | 0)) continue;
+    const x = t.x + dx * (TK_S / 2 + .7), z = t.z + dz * (TK_S / 2 + .7), d = Math.hypot(x - player.pos.x, z - player.pos.z); if (d < bd) { bd = d; best = { x, z }; } }
+  for (const o of SW.obs) o.open = false; SW.obs = []; SW.b = null;
+  if (best) { player.pos.x = best.x; player.pos.z = best.z; }
+  pm.g.rotation.x = 0; pm.body.rotation.z = 0; if (SW.arm) { pm.armR.rotation.copy(SW.arm[0]); pm.armL.rotation.copy(SW.arm[1]); } pm.legL.rotation.set(0, 0, 0); pm.legR.rotation.set(0, 0, 0); gun.visible = true;
+  burst(player.pos.x, 1, player.pos.z, 0xbfe8ff, 10, 3); feed('爬出了鱼缸，浑身湿透', '#7de0ff'); swimBtn();
+}
+function swimTick(dt) {
+  if (!S.started) return;
+  if (!SW.b) {
+    // a fall that ends over a tank, or walking into one up on a floor (those have no walls to stop you)
+    if (S.fall) { SW.falling = true; SW.fx = player.pos.x; SW.fz = player.pos.z; }
+    else if (SW.falling) { SW.falling = false; const b = tankCell(SW.fx, SW.fz, 0, -.2); if (b) { player.pos.x = clamp(SW.fx, b.x - TK_S / 2 + .5, b.x + TK_S / 2 - .5); player.pos.z = clamp(SW.fz, b.z - TK_S / 2 + .5, b.z + TK_S / 2 - .5); swimIn(b); } }
+    if (!SW.b && (S.fl | 0) > 0 && !S.fall) { const b = tankCell(player.pos.x, player.pos.z, S.fl | 0, .2); if (b) swimIn(b); }
+    if (!SW.b) { const b = tankCell(player.pos.x, player.pos.z, S.fl | 0, .45); if (b && !S.fall) swimIn(b); }
+    return;
+  }
+  const b = SW.b; if (S.dead || !builds.includes(b) || b.hp <= 0) { SW.b = null; for (const o of SW.obs) o.open = false; SW.obs = []; pm.g.rotation.x = 0; gun.visible = true; swimBtn(); return; }
+  // stay inside the joined tanks
+  if (!tankCell(player.pos.x, player.pos.z, b.lv | 0, .35)) { if (tankCell(player.pos.x, SW.pz, b.lv | 0, .35)) player.pos.z = SW.pz; else if (tankCell(SW.px, player.pos.z, b.lv | 0, .35)) player.pos.x = SW.px; else { player.pos.x = SW.px; player.pos.z = SW.pz; } }
+  const mv = Math.hypot(player.pos.x - SW.px, player.pos.z - SW.pz) / Math.max(dt, .001); SW.px = player.pos.x; SW.pz = player.pos.z;
+  // slow in water
+  input.fire = false; S.sprint = false;
+  const t = S.t * (mv > .5 ? 5 : 2.2), y = (b.y || 0) + TK_H * .55 + Math.sin(S.t * 2) * .08;
+  pm.g.position.y = y; pm.g.rotation.x = mv > .5 ? 1.3 : .35; pm.body.rotation.z = Math.sin(t * .5) * .12;
+  pm.armR.rotation.set(-Math.PI + Math.sin(t) * 1.6, 0, -.2); pm.armL.rotation.set(-Math.PI - Math.sin(t) * 1.6, 0, .2);
+  pm.legL.rotation.x = Math.sin(t * 2) * .45; pm.legR.rotation.x = -Math.sin(t * 2) * .45; pm.body.position.y = 0;
+  SW.bt -= dt; if (SW.bt <= 0) { SW.bt = rand(.25, .6); burst(player.pos.x + rand(-.3, .3), y + 1.2, player.pos.z + rand(-.3, .3), 0xdff6ff, 2, 1.2); }
+}
+let _swK = '';
+function swimBtn() { let b = $('bSwim'); const H = $('hud'); if (!b && H && H.appendChild) { b = document.createElement('button'); b.className = 'btn2'; b.id = 'bSwim'; b.textContent = '爬出去'; H.appendChild(b); b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); swimOut(); }); }
+  if (b) b.style.display = SW.b ? 'block' : 'none'; }
+function swimMul() { return SW.b ? .45 : 1; }
+petsTick = (o => function (dt) { o(dt); try { fishTick(dt); } catch (e) { console.warn(e); } try { tankTick(dt); } catch (e) { console.warn(e); } try { swimTick(dt); } catch (e) { console.warn(e); } })(petsTick);
 drawExtraRadar = (orig => function (tx, tz, edgeMark) { orig(tx, tz, edgeMark); try { if (!S.isl || S.boat) return; const k = _mapK || 2; mapPin(mctx, tx(BOAT.x), tz(BOAT.z), 4.5 * k, '#7de0ff', '船', k); } catch (e) { } })(drawExtraRadar);
 shopSave = (o => function () { const r = o(); try { r.fish = { log: S.fishLog, tk: S.tanks }; } catch (e) { } return r; })(shopSave);
 shopLoad = (o => function (d) { o(d); S.fishLog = {}; S.tanks = {}; try { const F = d && d.sh && d.sh.fish; if (F) {
@@ -11456,4 +11580,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794102516').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794103834').catch(()=>{});</script></body></html>
