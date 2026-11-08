@@ -7841,7 +7841,7 @@ function skinFxTick(dt) {
       if (K && pm.g.visible && !S.paused && Math.random() < dt * (K.key === 'phoenix' || S.wsk[S.wp] === 'phoenix' ? 30 : 9)) { /* the phoenix gun sheds far more gold dust */ const v = new THREE.Vector3((Math.random() - .5) * .15, (Math.random() - .5) * .15, Math.random() * (wpnModel.userData.muzzle || .6)); let rt = wpnModel, vis = wpnModel.visible; while (rt.parent) { rt = rt.parent; vis = vis && rt.visible; } if (rt === scene && vis) { wpnModel.updateWorldMatrix(true, false); wpnModel.localToWorld(v); fxSpark(v.x, v.y, v.z, Math.random() < .5 ? K.tr : K.tr2, { sp: .25, vy: .35, life: .6, s: 1.2 + Math.random(), fol: 1 }); } } } } catch (e) { }
   // sparkles rising around a mythic wearer (third person only)
   if (S.skin && SKINS[S.skin] && SKINS[S.skin].r >= 5 && pm.g.visible && !S.paused) {
-    if (!SKFX.geo) { SKFX.geo = new THREE.BoxGeometry(.04, .04, .04); SKFX.mm = {}; } SKFX.mats = SKFX.mm[S.skin] || (SKFX.mm[S.skin] = (SKINS[S.skin].fx || [0x7ff0ff, 0xc49aff, 0xffe08a, 0xffffff]).map(c => new THREE.MeshBasicMaterial({ color: c, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })));
+    if (!SKFX.geo) SKFX.geo = new THREE.BoxGeometry(.04, .04, .04); if (!SKFX.mm) SKFX.mm = {}; SKFX.mats = SKFX.mm[S.skin] || (SKFX.mm[S.skin] = (SKINS[S.skin].fx || [0x7ff0ff, 0xc49aff, 0xffe08a, 0xffffff]).map(c => new THREE.MeshBasicMaterial({ color: c, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })));
     SKFX.t -= dt; const moving = Math.hypot(input.mx || 0, input.mz || 0) > .1;
     while (SKFX.t <= 0 && SKFX.p.length < 46) { SKFX.t += moving ? .03 : .07; const a = Math.random() * 6.283, r = .35 + Math.random() * .4;
       const m = new THREE.Mesh(SKFX.geo, SKFX.mats[Math.floor(Math.random() * 4)].clone()); m.position.set(pm.g.position.x + Math.cos(a) * r, pm.g.position.y + .1 + Math.random() * 1.9, pm.g.position.z + Math.sin(a) * r); scene.add(m);
@@ -13050,7 +13050,9 @@ function wingDetail() {
   try { const c = document.createElement('canvas'); R = new THREE.WebGLRenderer({ canvas: c, alpha: true, antialias: true, preserveDrawingBuffer: true }); } catch (e) { return; }
   try { R.setPixelRatio(1); R.setClearColor && R.setClearColor(0, 0); R.setSize(256, 200, false); const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xffffff, 0x404050, 1.1));
     const h = { body: new THREE.Group() }; wingBuild(h); h._wing.forEach(p => { const u = p.userData; p.rotation.y = u.s * u.base; }); h.body.rotation.y = Math.PI; sc.add(h.body);
-    const cam = new THREE.PerspectiveCamera(30, 256 / 200, .1, 50); cam.position.set(0, 1.7, -4.3 + 8.6); cam.lookAt(0, 1.55, 0); R.render(sc, cam);
+    h.body.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(h.body), ct = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3());
+    const fov = 30, half = Math.tan(fov * Math.PI / 360), dist = Math.max(sz.y / 2 / half, sz.x / 2 / (half * 256 / 200)) * 1.12 + sz.z;
+    const cam = new THREE.PerspectiveCamera(fov, 256 / 200, .1, 80); cam.position.set(ct.x, ct.y, ct.z + dist); cam.lookAt(ct); R.render(sc, cam);
     ICON_URL.wing_fairy = R.domElement.toDataURL('image/png'); WING_SVG = '<img class="ic" src="' + ICON_URL.wing_fairy + '" alt="" draggable="false" style="height:100%;width:auto;max-width:100%">'; } catch (e) { console.warn('wing icon', e); }
   try { R.dispose(); R.forceContextLoss && R.forceContextLoss(); } catch (e) { } })();
 /* ============ 外观衣柜（全屏）：上面两个分页「皮肤 · 翅膀」，点一下就换上 ============
@@ -13119,6 +13121,11 @@ try { if (document.createElement && document.body) {
     '.wdnone{font-style:normal;font-size:30px;opacity:.4}' +
     '@media (orientation:portrait){.wdwrap{grid-template-columns:1fr}.wdpv{position:static}.wdfig{height:170px}}';
   document.head.appendChild(st); } } catch (e) { }
+
+// coming back from the background: restart the frame clock, and never stay frozen with nothing on screen to close
+document.addEventListener('visibilitychange', () => { if (document.hidden) return; try { clock.getDelta(); } catch (e) { }
+  setTimeout(() => { try { if (!S.started || !S.paused) return; const open = document.querySelector('.overlay.show') || ($('storyDlg') && $('storyDlg').classList.contains('show')) || (typeof talEl !== 'undefined' && talEl.classList.contains('show'));
+    if (!open) { S.paused = false; S._stPause = false; } } catch (e) { } }, 400); });
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -14129,9 +14136,10 @@ function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(.05, clock.getDelta());
   if (S.started) { try { update(dt); } catch (e) { showErr(e); } } else { S.t += dt; camPos.set(Math.sin(S.t * .12) * 26, 10 + Math.sin(S.t * .2) * 2, HOME.z + 22 + Math.cos(S.t * .12) * 8); camera.position.copy(camPos); camera.lookAt(HOME.x, 2, HOME.z); updateFx(dt); placeSky(camera); waterTick(dt); }
-  dayNightTick(dt);
-  if (S.started) { remotesTick(dt); mpTick(dt); coopTick(dt); ambTick(dt); }
-  renderer.render(scene, camera);
+  // each of these on its own: one that breaks (audio or network after the app comes back from the background) must never stop the picture
+  SF(dayNightTick, dt);
+  if (S.started) { SF(remotesTick, dt); SF(mpTick, dt); SF(coopTick, dt); SF(ambTick, dt); }
+  try { renderer.render(scene, camera); } catch (e) { showErr(e); }
 }
 
 /* ============ boot ============ */
@@ -14146,4 +14154,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794173150').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794173997').catch(()=>{});</script></body></html>
