@@ -307,6 +307,7 @@ img.ic{object-fit:contain;display:block}
 #foodRow{display:flex;align-items:center;gap:5px;margin-top:4px;padding:3px 7px;border-radius:9px;background:rgba(20,10,16,.55);pointer-events:auto;cursor:pointer;width:max-content;max-width:100%;flex-wrap:wrap}
 #foodRow svg{width:15px;height:15px;flex:none}#foodRow .bar.fdb{width:64px;height:6px;flex:none}#foodRow .bar.fdb i{background:linear-gradient(90deg,#c8742a,#ffc46b)}
 #foodRow b{font:11px var(--font-hud);color:#ffe0b0;min-width:18px}#foodRow.low .bar.fdb i{background:#ff5a3a;animation:hpPulse .8s infinite}#foodRow.low b{color:#ff8a6a}
+#foodRow.low:not(.crit) .bar.fdb i{background:#ffa53a;animation:none}#foodRow.crit .bar.fdb i{background:#ff3a2a}
 #fdBuf{display:flex;gap:3px;flex-wrap:wrap}.fbuf{display:inline-flex;align-items:center;gap:2px;font:10px var(--font-hud);color:#fff;background:rgba(0,0,0,.45);border:1px solid var(--bc);border-radius:7px;padding:0 4px 0 1px}
 .fbuf i{font-style:normal;font-size:9px;width:13px;height:13px;border-radius:50%;background:var(--bc);color:#1a0e12;display:inline-flex;align-items:center;justify-content:center;font-weight:700}
 #bPet{display:none;align-items:center;gap:5px;margin-top:4px;padding:3px 8px 3px 5px;border-radius:9px;border:1px solid rgba(159,232,255,.5);background:rgba(16,30,40,.7);color:#dff6ff;font:11px var(--font-body);pointer-events:auto;cursor:pointer}
@@ -722,8 +723,20 @@ input[type=text]::placeholder{color:var(--dim)}
 .wskl em{font-style:normal;font-size:11px;color:#1a1008;background:#ffcf7a;border-radius:8px;padding:1px 6px;margin-left:4px}.wskl .wsnx{display:block;margin-top:4px;color:#9fe8ff}
 button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);margin:0 auto 10px;text-align:left;cursor:pointer;font:inherit}button.wtrack b{white-space:nowrap}button.wtrack .wtbar{flex:1;margin:0}.wtgo{color:#9fe8ff;font-size:22px;line-height:1}
 .wtbox{max-height:80vh;display:flex;flex-direction:column;align-items:stretch;min-width:min(340px,90vw);padding-top:20px}.wtbox .gih{padding-right:40px}.wtlist{overflow:auto;display:flex;flex-direction:column;gap:5px;margin-top:8px}.wtrow{display:flex;gap:10px;align-items:center;padding:7px 10px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);font-size:13px;color:#cfc4b8}.wtrow i{font-style:normal;color:#9fe8ff;min-width:52px;font-weight:900}.wtrow em{margin-left:auto;font-style:normal;color:#8fe05a}.wtrow.got{background:rgba(143,224,90,.1);border-color:rgba(143,224,90,.4);color:#fff}
-#bSkill{right:172px;bottom:4px;width:58px;height:58px;border-color:#ffcf7a;background:conic-gradient(rgba(0,0,0,.6) var(--cd,0deg),rgba(120,70,20,.55) 0);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0}#bSkill b{font-size:11px;line-height:1.1;color:#ffe9c8;max-width:52px;text-align:center}#bSkill small{margin-top:1px;font-size:12px;color:#ffcf7a;font-weight:900}#bSkill.cool{border-color:rgba(255,255,255,.3)}#bSkill.on{box-shadow:0 0 0 3px rgba(255,207,122,.8),0 0 14px rgba(255,160,60,.8)}
-@media (orientation:portrait){#bSkill{right:198px!important;bottom:30px!important}}
+/* weapon skill: sits at the fire button's top-right; a gold ring that refills as the cooldown runs out */
+#bSkill{right:4px;bottom:104px;width:60px;height:60px;border:0;background:radial-gradient(circle at 50% 38%,#4a2a18 0,#1c0f12 70%);box-shadow:0 0 0 2px rgba(0,0,0,.55),0 4px 10px rgba(0,0,0,.5);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0;overflow:visible}
+#bSkill .skr{position:absolute;inset:-3px;border-radius:50%;background:conic-gradient(from 0deg,#fff1c2,#ffcf7a 30%,#ff9a3a 60%,#ffd98a 85%,#fff1c2);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3.5px));mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3.5px));pointer-events:none}
+#bSkill.cool .skr{background:conic-gradient(rgba(255,255,255,.18) var(--cd,0deg),#ffcf7a 0)}
+#bSkill::after{content:'';position:absolute;inset:5px;border-radius:50%;border:1px solid rgba(255,214,150,.35);pointer-events:none}
+#bSkill b{font-size:11.5px;line-height:1.1;color:#fff3dc;max-width:50px;text-align:center;letter-spacing:.02em;text-shadow:0 1px 2px #000;position:relative}
+#bSkill small{margin-top:2px;font-size:10px;color:#ffcf7a;font-weight:900;position:relative;letter-spacing:.08em}
+#bSkill.cool b{color:#b9a89a}#bSkill.cool small{font-size:15px;color:#fff;letter-spacing:0}
+#bSkill:not(.cool){animation:skRdy 1.6s ease-in-out infinite}
+@keyframes skRdy{0%,100%{box-shadow:0 0 0 2px rgba(0,0,0,.55),0 0 6px rgba(255,170,60,.35)}50%{box-shadow:0 0 0 2px rgba(0,0,0,.55),0 0 16px rgba(255,190,80,.85)}}
+#bSkill.on{animation:none;box-shadow:0 0 0 3px rgba(255,207,122,.9),0 0 22px rgba(255,160,60,.95)}
+#bSkill.tap{transform:scale(.9)}
+#bSprint{right:172px!important;bottom:6px!important}
+@media (orientation:portrait){#bSkill{right:16px!important;bottom:132px!important}#bSprint{right:196px!important;bottom:28px!important}}
 .packc{box-sizing:border-box;width:min(560px,100%);margin:6px auto;padding:14px;border-radius:16px;border:2px solid #ffc94a;background:linear-gradient(160deg,rgba(255,201,74,.18),rgba(20,10,16,.95) 60%);box-shadow:0 0 22px rgba(255,201,74,.25)}.packc.got{opacity:.6}
 .pkh{display:flex;justify-content:space-between;align-items:center}.pkh b{font-size:19px;color:#ffe2a0}.pkh em{font-style:normal;font-size:12px;background:#ff5a4a;color:#fff;border-radius:8px;padding:2px 8px}
 .pkws{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 0}.pkw{display:flex;flex-direction:column;align-items:center;padding:4px;border-radius:10px;background:rgba(0,0,0,.25)}.pkw img,.pkw svg,.pkw canvas{width:100%;max-height:44px;object-fit:contain}.pkw small{font-size:11px;color:#e8d8cc}
@@ -796,6 +809,54 @@ button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);mar
 .prnbox{flex-direction:column;align-items:stretch;gap:12px;width:min(340px,90vw)}.prnbox b{font-size:18px;color:#ffe9c8;text-align:center}.prnbox input{font:600 16px var(--font-body);padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:rgba(0,0,0,.35);color:#fff}.prnbox .btnrow{display:flex;gap:8px;justify-content:center}
 #weapon{overflow-x:hidden!important;overscroll-behavior:contain;touch-action:pan-y}#weapon>*{max-width:100%;box-sizing:border-box}#wDetail,#wList{max-width:100%;box-sizing:border-box}#wDetail .btnrow{flex-wrap:wrap}
 .overlay.scroll{overscroll-behavior:contain}
+/* ---- 活动 (hub): cards with a colored glyph badge, reward chips, a date header ---- */
+#hub #hubList{width:min(760px,100%);gap:8px}
+#hub .tabs{gap:4px;padding:4px;border-radius:14px;background:rgba(0,0,0,.35);border:1px solid rgba(255,214,170,.14);align-self:center;margin-bottom:4px}
+#hub .tabs .sbtn{border:0;border-radius:10px;padding:7px 16px;min-height:0;font-size:13.5px;color:#cdb8a6;background:transparent}
+#hub .tabs .sbtn.on{color:#2a1408;background:linear-gradient(180deg,#ffd98a,#ff9a3a);box-shadow:0 2px 8px rgba(255,140,40,.35)}
+#hub h3{display:flex;align-items:center;gap:10px;text-align:left;font-size:12px;letter-spacing:.32em;color:#e8c9a0;margin:8px 2px 0;padding:0}
+#hub h3::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(255,200,120,.45),transparent)}
+.hhero{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-radius:14px;border:1px solid rgba(255,200,120,.28);background:linear-gradient(120deg,rgba(255,140,50,.22),rgba(120,40,70,.18) 55%,rgba(20,10,20,.4));box-shadow:inset 0 1px 0 rgba(255,230,190,.12)}
+.hdate b{display:block;font-size:22px;color:#fff1dc;letter-spacing:.04em;line-height:1.1}.hdate span{font-size:12px;color:#d9b48c;letter-spacing:.2em}
+.hclk{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.hclk span{display:flex;flex-direction:column;align-items:flex-end;padding:5px 10px;border-radius:9px;background:rgba(0,0,0,.35);border:1px solid rgba(255,214,170,.14);font:600 12.5px var(--font-hud);color:#ffe6c4;font-variant-numeric:tabular-nums}
+.hclk i{font-style:normal;font-family:var(--font-body);font-size:10px;color:#b8987c;letter-spacing:.1em}
+.srow.hcard{position:relative;gap:12px;padding:11px 12px 11px 14px;border-radius:13px;border:1px solid rgba(255,255,255,.08);border-left:3px solid var(--ac);background:linear-gradient(90deg,rgba(255,170,80,.12),rgba(255,255,255,.03) 60%);background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 16%,transparent),rgba(255,255,255,.025) 65%)}
+.hcard .sn{flex:1;min-width:0}.hcard .sn b{font-size:15px}.hcard .sn span{font-size:12px;line-height:1.5;color:#c8b3a2}
+.hbadge{flex:none;width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-style:normal;font-weight:900;font-size:19px;color:#1e0f08;background:var(--ac);background:linear-gradient(160deg,color-mix(in srgb,var(--ac) 70%,#fff),var(--ac));box-shadow:0 3px 10px rgba(0,0,0,.4),inset 0 -2px 0 rgba(0,0,0,.18)}
+.htags{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}.htags em{font-style:normal;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;color:#ffe2b8;background:rgba(0,0,0,.35);border:1px solid rgba(255,214,170,.18)}
+.hcard .sbtn{flex:none;border-radius:10px;padding:8px 14px}
+@media (max-width:520px){.hhero{flex-direction:column;align-items:flex-start}.hclk{justify-content:flex-start}.hclk span{align-items:flex-start}}
+/* region infection list on the big map */
+#mapInf{width:100%;max-width:300px;padding:8px 10px;border-radius:12px;background:rgba(0,0,0,.3);border:1px solid var(--line)}
+.mih{font-size:12.5px;font-weight:800;color:#ffd9a8;letter-spacing:.12em;margin-bottom:5px}.mih small{display:block;font-weight:500;font-size:10px;letter-spacing:0;color:#b8a090}
+.mig{display:grid;grid-template-columns:1fr;gap:3px}
+.mir{display:grid;grid-template-columns:16px 52px 1fr 34px;align-items:center;gap:6px;font-size:11px;color:#d8c4b4;padding:1px 4px;border-radius:5px}
+.mir.here{background:rgba(125,224,255,.14);outline:1px solid rgba(125,224,255,.45)}
+.mir b{font:700 11px var(--font-hud);color:#fff}.mir span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mir i{height:6px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden}.mir u{display:block;height:100%}.mir em{font-style:normal;font:700 10.5px var(--font-hud);text-align:right}
+.mif{margin-top:5px;font-size:10px;color:#a89080;line-height:1.4}
+@media (max-height:520px){.mapside .mapleg{display:grid!important;grid-template-columns:1fr 1fr;gap:3px 12px}.mig{grid-template-columns:1fr 1fr;column-gap:8px}.mir{grid-template-columns:14px 1fr 28px;}.mir i{display:none}.mapside .snote:not(#mapRange){display:none}#mapInf{max-width:none}}
+/* ---- titles ---- */
+#titles{z-index:60}
+#titleList{width:min(860px,100%);display:flex;flex-direction:column;gap:10px;align-items:stretch}
+#talOpenRow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}#bTitle small{display:block;font-size:11px;margin-top:1px;font-weight:700}
+.ttlhd{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-radius:14px;border:1px solid rgba(255,200,120,.28);background:linear-gradient(120deg,rgba(255,170,60,.18),rgba(60,20,50,.3))}
+.ttlhd i{display:block;font-style:normal;font-size:11px;color:#b8987c;letter-spacing:.2em}.ttlhd b{display:block;font-size:22px;letter-spacing:.06em;text-shadow:0 0 12px rgba(0,0,0,.6)}.ttlhd span{font-size:12px;color:#e8d4c0}
+.ttlcnt{text-align:center;font:600 14px var(--font-hud);color:#c8b3a2}.ttlcnt b{font-size:24px;color:#ffd98a;display:inline}.ttlcnt small{display:block;font-size:10px;color:#a89080;font-family:var(--font-body)}
+.ttlg{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.ttl{position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:9px 10px 10px;border-radius:11px;border:1px solid rgba(255,255,255,.1);border-top:2px solid var(--tc);background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(0,0,0,.3));color:var(--ink);font-family:var(--font-body);cursor:pointer}
+.ttl em{font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:.2em;color:var(--tc)}
+.ttl b{font-size:16px;color:var(--tc);letter-spacing:.04em}.ttl span{font-size:11px;color:#e6d2be;line-height:1.35}.ttl small{font-size:10px;color:#a89080;margin-top:2px;line-height:1.3}
+.ttl>i{position:absolute;left:0;bottom:0;height:3px;background:var(--tc);opacity:.7}
+.ttl.lock{filter:saturate(.25) brightness(.75)}.ttl.lock b{color:#b8aaa0}
+.ttl.on{box-shadow:0 0 0 2px var(--tc),0 0 16px color-mix(in srgb,var(--tc) 55%,transparent)}.ttl.on small{color:var(--tc);font-weight:800}
+.ttl.r5:not(.lock){background:linear-gradient(160deg,rgba(255,80,60,.28),rgba(80,10,20,.5) 60%,rgba(255,170,60,.18));animation:ttlMy 2.4s ease-in-out infinite}
+.ttl.r4:not(.lock){background:linear-gradient(160deg,rgba(255,200,80,.2),rgba(40,20,10,.45))}
+@keyframes ttlMy{0%,100%{box-shadow:inset 0 0 12px rgba(255,90,60,.25)}50%{box-shadow:inset 0 0 22px rgba(255,140,60,.55)}}
+/* ---- caravan escort bar + blueprint build cards ---- */
+#cvBar{display:none;position:fixed;left:50%;top:calc(var(--st,0px) + 52px);transform:translateX(-50%);z-index:8;pointer-events:none;width:min(300px,62vw);padding:6px 10px 7px;border-radius:11px;background:rgba(24,12,8,.78);border:1px solid rgba(224,160,96,.55);box-shadow:0 4px 14px rgba(0,0,0,.45);font-size:11px;color:#f0dcc4}
+#cvBar b{color:#ffcf8a;font-size:12px;margin-right:6px}#cvBar span{color:#d8bfa4}#cvBar i{display:block;height:7px;margin-top:4px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden;margin-right:40px}#cvBar u{display:block;height:100%;background:linear-gradient(90deg,#e0a060,#ffd98a);transition:width .3s}
+#cvBar em{position:absolute;right:10px;bottom:5px;font:700 11px var(--font-hud);font-style:normal;color:#ffe2b8}#cvBar.hit{border-color:#ff6a5a}#cvBar.hit u{background:linear-gradient(90deg,#ff4a3a,#ff9a6a)}
+#build .card.bpc{border-color:rgba(159,232,255,.5)}#build .card.bplock{opacity:.55}#build .card.bplock span{color:#9fe8ff}
 </style>
 
 <canvas id="c"></canvas>
@@ -2508,7 +2569,7 @@ const S = {
 };
 const input = { mx: 0, mz: 0, fire: false };
 /* derived stats: weapon level + talent tree + player level + what you wear */
-const gst = k => ((typeof GEAR_READY !== 'undefined' && GEAR_READY) ? gearStat(k) : 0) + (typeof skSt === 'function' ? skSt(k) : 0) + (S.fbuf && S.fbuf[k] && S.fbuf[k].t > 0 ? S.fbuf[k].v : 0) + (typeof passSt === 'function' ? passSt(k) : 0) + (typeof wtSt === 'function' ? wtSt(k) : 0);      // gear + food buffs
+const gst = k => ((typeof GEAR_READY !== 'undefined' && GEAR_READY) ? gearStat(k) : 0) + (typeof skSt === 'function' ? skSt(k) : 0) + (S.fbuf && S.fbuf[k] && S.fbuf[k].t > 0 ? S.fbuf[k].v : 0) + (typeof passSt === 'function' ? passSt(k) : 0) + (typeof wtSt === 'function' ? wtSt(k) : 0) + (typeof titleSt === 'function' ? titleSt(k) : 0);      // gear + food buffs
 const weaponDmg = id => { id = id || S.wp; return WEAP[id].dmg * wLvMul(Math.max(1, wLv(id))) * (1 + (S.level - 1) * 0.015) * (1 + ts('dmg')) * (WEAP[id].cls === 'melee' ? 1 + ts('melee') : 1) * (1 + gst('dmg')) * (S.para ? 1 + .005 * S.para : 1) * (1 + wsSt(id, 'dmg')); };
 const magSizeNow = id => { id = id || S.wp; const W = WEAP[id]; if (W.cls === 'melee') return 0; return W.mag + Math.floor(W.mg * (Math.max(1, wLv(id)) - 1)) + Math.round(ts('mag') * W.mag / 30); };
 const fireInterval = id => { const W = WEAP[id || S.wp]; return W.iv / (1 + ts('rate') + gst('rate') + wsSt(id || S.wp, 'rate') + (S.frenzyT > 0 ? .35 : 0)) * (W.cls === 'melee' && S.exhausted ? 1.6 : 1); };
@@ -4647,12 +4708,12 @@ function toggleSprint() {
 function sprintTick(dt, moving) {
   if (S.sprint && S.exhausted) S.sprint = false;
   if (S.sprint && moving) {
-    S.sta -= 22 * (1 - Math.min(.6, ts('sprintCost'))) * dt; S.staCd = .8; S.idleT = 0;
+    S.sta -= 22 * (1 - Math.min(.6, ts('sprintCost'))) * staCostMul() * dt; S.staCd = .8; S.idleT = 0;
     if (S.sta <= 0) { S.sta = 0; S.sprint = false; S.exhausted = true; feed('体力耗尽，歇一会儿', '#ff9b8a'); }
   } else {
     if (S.sprint && !moving) { S.idleT = (S.idleT || 0) + dt; if (S.idleT > 1.2) S.sprint = false; }
     S.staCd -= dt;
-    if (S.staCd <= 0 && S.sta < S.maxSta) S.sta = Math.min(S.maxSta, S.sta + (14 + ts('staReg')) * dt);
+    if (S.staCd <= 0 && S.sta < S.maxSta) S.sta = Math.min(S.maxSta, S.sta + (14 + ts('staReg')) * staRegMul() * dt);
     if (S.exhausted && S.sta >= 25) S.exhausted = false;
   }
   const shown = Math.round(S.sta);
@@ -6459,13 +6520,19 @@ function eatSfx() { if (!AC) return;
 function cookSfx() { if (!AC) return; sfxNoise(.9, .12, 2600); sfxNoise(.5, .08, 5000, { delay: .2 }); sfxTone(520, 780, .08, .08, 'sine', { delay: .9 }); }
 
 /* ---- hunger, buffs and the HUD row under the health bar ---- */
+// 1 when fed (>= 30), falls to 0 at empty: stamina refill ×(0.25..1), stamina cost ×(1..2.2)
+const hungerK = () => S.food >= 30 ? 1 : Math.max(0, S.food) / 30;
+const staRegMul = () => .25 + .75 * hungerK(), staCostMul = () => 1 + 1.2 * (1 - hungerK());
 let _fdT = 0, _hungerWarn = 0;
 function foodTick(dt) {
   if (!S.started || S.paused) return;
   if (!S.dead) {
     S.food = Math.max(0, S.food - (S.isl ? .022 : .05) * (S.sprint ? 1.6 : 1) * dt);       // ~33 minutes from full on the mainland
-    if (S.food <= 0) { if (S.hp > 1) S.hp = Math.max(1, S.hp - 1.2 * dt); _hungerWarn -= dt; if (_hungerWarn <= 0) { _hungerWarn = 30; banner('饿坏了！', '生命在慢慢流失，快吃点东西', 2.4); } }
-    else if (S.food < 20) { _hungerWarn -= dt; if (_hungerWarn <= 0) { _hungerWarn = 60; feed('肚子咕咕叫了，找点吃的吧', '#ffd27a'); } }
+    // hunger matters: under 30 stamina refills slower and costs more; under 10 health drains (at 0 it can kill)
+    if (S.food <= 10) { const k = 1 - S.food / 10, d = S.maxHp * (.003 + .009 * k) * dt;
+      if (S.food <= 0) { S.hp -= d; if (S.hp <= 0) { S.hp = 0; feed('饿死了……', '#ff6a5a'); playerDie(); return; } } else if (S.hp > 1) S.hp = Math.max(1, S.hp - d);
+      _hungerWarn -= dt; if (_hungerWarn <= 0) { _hungerWarn = S.food <= 0 ? 15 : 30; S.food <= 0 ? banner('快饿死了！', '生命在快速流失，再不吃东西会死', 2.6) : banner('饿坏了！', '饱食度低于 10，生命在慢慢流失，快吃点东西', 2.4); } }
+    else if (S.food < 30) { _hungerWarn -= dt; if (_hungerWarn <= 0) { _hungerWarn = 60; feed('肚子饿了：体力恢复变慢、消耗变大，找点吃的吧', '#ffd27a'); } }
     for (const k in S.fbuf) { const b = S.fbuf[k]; b.t -= dt; if (b.t <= 0) { delete S.fbuf[k]; feed(BUFF_N[k][1] + '加成结束了', '#c1a597'); refreshHud(); } }
     if (foodStat('regen') && S.hp < S.maxHp) S.hp = Math.min(S.maxHp, S.hp + foodStat('regen') * dt);
   }
@@ -6476,7 +6543,7 @@ function foodHud(force) {
   const row = $('foodRow'); if (!row) return;
   const f = Math.round(S.food), bs = Object.keys(S.fbuf).map(k => k + Math.ceil(S.fbuf[k].t / 10)).join(','), key = f + '|' + bs;
   if (!force && key === _fdKey) return; _fdKey = key;
-  $('fdBar').style.width = f + '%'; $('fdTxt').textContent = f; row.classList.toggle('low', f < 20);
+  $('fdBar').style.width = f + '%'; $('fdTxt').textContent = f; row.classList.toggle('low', f < 30); row.classList.toggle('crit', f <= 10);
   const bx = $('fdBuf'); bx.innerHTML = '';
   for (const k in S.fbuf) { const B = BUFF_N[k], t = Math.ceil(S.fbuf[k].t), c = document.createElement('span'); c.className = 'fbuf'; c.style.setProperty('--bc', B[2]);
     c.innerHTML = '<i>' + B[0] + '</i>' + Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); bx.appendChild(c); }
@@ -7072,7 +7139,7 @@ function farmAct() {
   if (s.st === 'empty') { FM.sel = P; audioInit(); openPanel('farm', renderFarm); return; }
   if (s.st === 'w') { const C = CROPS[s.crop]; delete S.farm[P.id]; gain(C.seed, 1); feed(C.n + '枯萎了，只捡回 1 颗种子', '#c1a597'); FM.k = ''; saveGame(); return; }
   if (s.st !== 3) { feed(CROPS[s.crop].n + '还要 ' + fmtLeft(s.left) + ' 才成熟', '#c1a597'); return; }
-  const C = CROPS[s.crop], n = rint(C.y[0], C.y[1]); delete S.farm[P.id]; gain(C.item, n); gain(C.seed, rint(1, 2)); burst(P.x, .6, P.z, C.c, 10, 3); sfx.build();
+  const C = CROPS[s.crop], n = rint(C.y[0], C.y[1]); delete S.farm[P.id]; gain(C.item, n); gain(C.seed, rint(1, 2)); stInc('harvest'); burst(P.x, .6, P.z, C.c, 10, 3); sfx.build();
   try { questTick('pick', n); } catch (e) { } if (typeof seaXp === 'function') seaXp(8); FM.k = ''; saveGame();
 }
 function renderFarm() {
@@ -7119,17 +7186,9 @@ const DAY0 = new Date(2026, 9, 26).getTime();          // a Monday
 const dayNum = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return Math.round((d.getTime() - DAY0) / 864e5); };
 const weekIdx = () => Math.floor(dayNum() / 7), seasonIdx = () => Math.floor(dayNum() / 28);
 
-/* ---- today's world rule ---- */
-const DAYMODS = [
-  { id: 'blood', n: '血月之日', d: '丧尸生命和伤害 +20%，但经验 ×2', xp: 2, zhp: 1.2, zdmg: 1.2, c: '#ff5a4a' },
-  { id: 'harvest', n: '丰收日', d: '野果和农田长得快一倍，野外动物更多', grow: 2, animals: 3, c: '#8fe05a' },
-  { id: 'gold', n: '淘金日', d: '余烬币收入 ×1.5', coin: 1.5, c: '#ffc94a' },
-  { id: 'hunt', n: '狩猎日', d: '动物掉的肉翻倍，打动物经验 ×3', meat: 2, axp: 3, c: '#e0a060' },
-  { id: 'calm', n: '宁静日', d: '丧尸少一些，离开战斗后回血快 60%', zcap: -3, regen: 1.6, c: '#7de0ff' },
-  { id: 'gear', n: '装备日', d: '装备掉率 ×2', gdrop: 2, c: '#b77bff' },
-  { id: 'stone', n: '强化日', d: '强化装备成功率 +15%', enh: .15, c: '#5aa9ff' }
-];
-const dayMod = () => DAYMODS[strSeed('m' + dateKey()) % DAYMODS.length];
+/* ---- the daily world rule (天象) was removed: dm() always gives the default ---- */
+const DAYMODS = [];
+const dayMod = () => ({});
 const dm = (k, def) => { const m = dayMod(); return m[k] != null ? m[k] : def; };
 let _ddKey = '', _dd = null;
 function dayDiff() { const k = dateKey(); if (k !== _ddKey) { _ddKey = k; _dd = Object.assign({}, DIFF, { hp: DIFF.hp * dm('zhp', 1), dmg: DIFF.dmg * dm('zdmg', 1), cap: DIFF.cap + dm('zcap', 0) }); } return _dd; }
@@ -7168,7 +7227,7 @@ const enhRate = it => { const e = enhLv(it); return Math.min(1, (e < 5 ? 1 : e <
 function enhance(it) {
   if (!it || enhLv(it) >= 15) return; const c = enhCost(it); if (matHave('estone') < c.estone || S.coin < c.coin) { feed('强化石或余烬币不够', '#ff9b8a'); return; }
   matAdd('estone', -c.estone); S.coin -= c.coin; while (it.length < 8) it.push(it.length === 5 ? 100 : 0);
-  if (Math.random() < enhRate(it)) { it[7] = enhLv(it) + 1; feed('强化成功！+' + it[7], '#7de0ff'); sfx.build(); burst(player.pos.x, 1.6, player.pos.z, 0x7de0ff, 14, 5); if (it[7] >= 10) banner('强化 +' + it[7] + '！', gName(it), 2.4); }
+  if (Math.random() < enhRate(it)) { it[7] = enhLv(it) + 1; stMax('enh', it[7]); feed('强化成功！+' + it[7], '#7de0ff'); sfx.build(); burst(player.pos.x, 1.6, player.pos.z, 0x7de0ff, 14, 5); if (it[7] >= 10) banner('强化 +' + it[7] + '！', gName(it), 2.4); }
   else { const drop = enhLv(it) >= 10 ? 1 : 0; it[7] = enhLv(it) - drop; feed('强化失败…' + (drop ? '掉回 +' + it[7] : '材料没了'), '#ff9b8a'); sfxNoise(.2, .2, 300); }
   _gTot = null; gearChanged();
 }
@@ -7205,7 +7264,7 @@ const weekBossTp = () => weekIdx() % BOSS_TYPES.length;
 S.wb = '';
 function weeklyBossKill(b) {
   if (S.wb === 'w' + weekIdx()) { if (Math.random() < .5) gain('estone', 1); feed('周王本周奖励已领过', '#ffc94a'); return; }
-  S.wb = 'w' + weekIdx(); gain('heart', 2); gain('estone', 6); gain('crystal', 2); gain('coin', 300); giveGear(3); seaXp(120);
+  S.wb = 'w' + weekIdx(); stInc('wb'); gain('heart', 2); gain('estone', 6); gain('crystal', 2); gain('coin', 300); giveGear(3); seaXp(120);
   banner('击败本周周王！', '首领之心 ×2 · 强化石 ×6 · 史诗装备 · 下周一换新的周王', 4.5);
 }
 // the nearest lair of this week's boss type, around the region that fits your level
@@ -7238,10 +7297,10 @@ function waveSpawn() {
 }
 function waveEnd(win) {
   const kind = WV.on, n = WV.n; WV.on = null; WV.list = [];
-  if (kind === 'end') { const best = Math.max(0, n - 1); if (best > (S.sea.best || 0)) { S.sea.best = best; lbSubmit(); }
+  if (kind === 'end') { const best = Math.max(0, n - 1); stMax('wave', best); if (best > (S.sea.best || 0)) { S.sea.best = best; lbSubmit(); }
     banner('无尽尸潮结束', '撑过了 ' + best + ' 波' + (best >= (S.sea.best || 0) ? '（本赛季最好成绩）' : ' · 本赛季最好 ' + S.sea.best + ' 波'), 3.5); saveGame(); return; }
   if (!win) { banner('挑战失败', '离开了挑战区域或倒下了，明天之前都可以再来', 3); return; }
-  const t = lvTier(), first = S.dch.d !== dateKey(), team = typeof groundMates === 'function' && groundMates().length ? 1.5 : 1; S.dch = { d: dateKey(), n: (first ? 0 : S.dch.n) + 1 };
+  const t = lvTier(), first = S.dch.d !== dateKey(), team = typeof groundMates === 'function' && groundMates().length ? 1.5 : 1; S.dch = { d: dateKey(), n: (first ? 0 : S.dch.n) + 1 }; stInc('dch');
   if (first) { gain('coin', Math.round(80 * t * team)); gain('estone', Math.round(2 * team)); gain('powder', 3); gain('steel', 1); giveGear(2); seaXp(60); questTick('event', 1); }
   else { gain('coin', Math.round(20 * t * team)); if (Math.random() < .2) gain('estone', 1); seaXp(10); }
   banner('挑战完成！', (first ? '今日首次通关大奖已到手' : '今天已经拿过大奖，这次是小奖励') + (team > 1 ? ' · 组队加成 ×1.5' : ''), 3.5); sfx.build(); saveGame(); hubBadge();
@@ -7312,42 +7371,46 @@ function colClaim(i) { const c = COL[i]; if (!c.ks.every(x => S.col[x[0]]) || S.
 
 /* ---- the 活动 window ---- */
 let hubTab = 'day';
+const WKD = ['日', '一', '二', '三', '四', '五', '六'];
 const hubClaimable = () => calCanClaim() || (typeof premClaimable === 'function' && premClaimable()) || (seaEnsure(), Array.from({ length: seaLv() }, (_, i) => i + 1).some(i => !S.sea.c.includes(i))) || COL.some((c, i) => c.ks.every(x => S.col[x[0]]) && !S.col['done' + i]);
 function hubBadge() { const b = $('hubBadge'); if (b) b.style.display = hubClaimable() ? 'flex' : 'none'; }
 const fmtD = ms => { const h = Math.floor(ms / 36e5), m = Math.floor(ms % 36e5 / 6e4); return h ? h + ' 小时 ' + m + ' 分' : m + ' 分钟'; };
-function hubRow(box, title, desc, color, btn, fn, dis) { const row = shopRow(title, desc, color); if (btn) { const b = document.createElement('button'); b.className = 'sbtn'; b.textContent = btn; b.disabled = !!dis; b.addEventListener('click', fn); row.appendChild(b); } box.appendChild(row); return row; }
+function hubRow(box, title, desc, color, btn, fn, dis, glyph, tags) { const row = shopRow(title, desc, color); row.classList.add('hcard'); if (row.style && row.style.setProperty) row.style.setProperty('--ac', color || '#ffc94a');
+  if (glyph && row.insertBefore) { const g = document.createElement('i'); g.className = 'hbadge'; g.textContent = glyph; row.insertBefore(g, row.firstChild); }
+  if (tags && tags.length && row.querySelector) { const sn = row.querySelector('.sn'), tg = document.createElement('div'); tg.className = 'htags'; tags.forEach(t => { const c = document.createElement('em'); c.textContent = t; tg.appendChild(c); }); sn && sn.appendChild(tg); } if (btn) { const b = document.createElement('button'); b.className = 'sbtn'; b.textContent = btn; b.disabled = !!dis; b.addEventListener('click', fn); row.appendChild(b); } box.appendChild(row); return row; }
 function renderHub() {
   const box = $('hubList'); if (!box) return; box.innerHTML = ''; seaEnsure(); infDecay();
   const tabs = document.createElement('div'); tabs.className = 'tabs';
-  [['day', '今日'], ['cal', '签到'], ['week', '周王'], ['inf', '区域'], ['sea', '赛季'], ['col', '图鉴']].forEach(t => { const b = document.createElement('button'); b.className = 'sbtn' + (hubTab === t[0] ? ' on' : ''); b.textContent = t[1]; b.addEventListener('click', () => { hubTab = t[0]; renderHub(); if (t[0] === 'sea') lbLoad(); }); tabs.appendChild(b); });
+  [['day', '今日'], ['cal', '签到'], ['sea', '赛季'], ['col', '图鉴']].forEach(t => { const b = document.createElement('button'); b.className = 'sbtn' + (hubTab === t[0] ? ' on' : ''); b.textContent = t[1]; b.addEventListener('click', () => { hubTab = t[0]; renderHub(); if (t[0] === 'sea') lbLoad(); }); tabs.appendChild(b); });
   box.appendChild(tabs);
   const h3 = t => { const h = document.createElement('h3'); h.textContent = t; box.appendChild(h); };
   const note = t => { const n = document.createElement('div'); n.className = 'snote'; n.textContent = t; box.appendChild(n); };
   const tomorrow = () => { const d = new Date(); d.setHours(24, 0, 0, 0); return d.getTime() - Date.now(); };
   if (hubTab === 'day') {
-    const M = dayMod(); h3('今日天象 · ' + fmtD(tomorrow()) + '后换'); hubRow(box, M.n, M.d, M.c);
-    h3('今日挑战'); const done = S.dch.d === dateKey(), t = lvTier();
-    hubRow(box, dchName() + '（' + regionLabel(t) + '）', (done ? '今天已通关 ' + S.dch.n + ' 次（再打只有小奖励）' : '首次通关：余烬币 ' + 80 * t + ' · 强化石 ×2 · 高级以上装备 · 赛季经验 60') + ' · 走进金色圆圈开始，守住 3 波。和队友一起打奖励 ×1.5', '#ffc94a',
-      S.isl ? '去码头坐船' : '在地图上看', () => { if (S.isl) { closePanel('hub'); feed('去码头，船上选「今日挑战」', '#ffc94a'); } else { const p = dchSpot(); feed('今日挑战在你的' + dirName(p.x - player.pos.x, p.z - player.pos.z) + '方向约 ' + Math.round(Math.hypot(p.x - player.pos.x, p.z - player.pos.z)) + ' 米（地图上金色「挑」）', '#ffc94a'); showOnMap(p); } });
+    const d = new Date(), wl = (7 - ((d.getDay() + 6) % 7)) * 864e5 - (d.getHours() * 36e5 + d.getMinutes() * 6e4);
+    { const hero = document.createElement('div'); hero.className = 'hhero';
+      hero.innerHTML = '<div class="hdate"><b>' + (d.getMonth() + 1) + '月' + d.getDate() + '日</b><span>星期' + WKD[d.getDay()] + '</span></div><div class="hclk"><span><i>每日刷新</i>' + fmtD(tomorrow()) + '</span><span><i>每周刷新</i>' + fmtD(wl) + '</span></div>';
+      box.appendChild(hero); }
+    h3('每日');
+    { const done = S.dch.d === dateKey(), t = lvTier();
+      hubRow(box, '今日挑战 · ' + dchName(), (done ? '今天已通关 ' + S.dch.n + ' 次，再打只有小奖励。' : '走进金色圆圈开始，守住 3 波。') + regionLabel(t) + ' · 和队友一起打奖励 ×1.5', done ? '#8fd16f' : '#ffc94a',
+        done ? '再打一次' : S.isl ? '去码头坐船' : '在地图上看', () => { if (S.isl) { closePanel('hub'); feed('去码头，船上选「今日挑战」', '#ffc94a'); } else { const p = dchSpot(); feed('今日挑战在你的' + dirName(p.x - player.pos.x, p.z - player.pos.z) + '方向约 ' + Math.round(Math.hypot(p.x - player.pos.x, p.z - player.pos.z)) + ' 米（地图上金色「挑」）', '#ffc94a'); showOnMap(p); } }, false, '挑',
+        done ? ['已完成'] : ['余烬币 ' + 80 * t, '强化石 ×2', '高级以上装备', '赛季经验 60']); }
+    h3('每周');
+    { const T = BOSS_TYPES[weekBossTp()], got = S.wb === 'w' + weekIdx();
+      hubRow(box, '周王 · ' + T.name, '这周所有「' + T.name + '」都更强（生命 ×1.5、伤害 ×1.25）。五个首领轮流当周王，周一零点换。', got ? '#8fd16f' : '#ff7a5a',
+        got ? '本周已领' : '找最近的巢穴', () => { const l = weekLair(); if (!l) { feed('附近没找到它的巢穴', '#ff9b8a'); return; } WV.lair = l; if (!S.isl) showOnMap(l); feed(T.name + '的巢穴在' + regionLabel(tierAt(l.x, l.z)) + (S.isl ? ' · 去码头选「前往周王巢穴」' : ' · 你的' + dirName(l.x - player.pos.x, l.z - player.pos.z) + '方向约 ' + Math.round(Math.hypot(l.x - player.pos.x, l.z - player.pos.z)) + ' 米'), '#ffc94a'); }, got, '王',
+        got ? ['本周已完成'] : ['首领之心 ×2', '强化石 ×6', '腐化晶体 ×2', '史诗装备', '300 币']); }
+    try { if (typeof cvRow === 'function') cvRow(box); } catch (e) { console.warn(e); }
+    h3('海岛');
     try { idefRow(box); } catch (e) { console.warn(e); }
-    h3('农田'); const fs = farmSummary(); note(fs || '海岛上有 6 块农田，在小屋南边。种下种子后按真实时间生长（2～8 小时），成熟太久没收会枯萎。');
+    { const fs = farmSummary(); hubRow(box, '农田', fs || '小屋南边有 6 块农田。种子按真实时间生长（2～8 小时），成熟太久没收会枯萎。', '#8fe05a', null, null, false, '田'); }
   } else if (hubTab === 'cal') {
     const m = S.cal.m === monKey() ? S.cal.n : 0; h3('本月签到 ' + m + ' / 30 · 每天上线领一格，不用连续');
     const grid = document.createElement('div'); grid.className = 'calg';
     for (let i = 1; i <= 30; i++) { const r = calReward(i), c = document.createElement('div'); c.className = 'calc' + (i <= m ? ' on' : '') + (i === m + 1 && calCanClaim() ? ' cur' : '') + ([7, 14, 21, 28, 30].includes(i) ? ' big' : ''); c.innerHTML = '<b>' + i + '</b><span>' + r.d + '</span>'; grid.appendChild(c); }
     box.appendChild(grid);
     const b = document.createElement('button'); b.className = 'go' + (calCanClaim() ? '' : ' ghost'); b.disabled = !calCanClaim(); b.textContent = calCanClaim() ? '领取第 ' + (m + 1) + ' 天：' + calReward(m + 1).d : (m >= 30 ? '本月已全部领完' : '今天已签到，明天再来'); b.addEventListener('click', calClaim); box.appendChild(b);
-  } else if (hubTab === 'week') {
-    const T = BOSS_TYPES[weekBossTp()], got = S.wb === 'w' + weekIdx(), d = new Date(), left = (7 - ((d.getDay() + 6) % 7)) * 864e5 - (d.getHours() * 36e5 + d.getMinutes() * 6e4);
-    h3('本周周王 · ' + fmtD(left) + '后换');
-    hubRow(box, '周王 · ' + T.name, '这周所有「' + T.name + '」都更强（生命 ×1.5、伤害 ×1.25）。每周第一次击败：首领之心 ×2 · 强化石 ×6 · 腐化晶体 ×2 · 史诗装备 · 300 币', got ? '#8fd16f' : '#ff7a5a',
-      got ? '本周已领' : '找最近的巢穴', () => { const l = weekLair(); if (!l) { feed('附近没找到它的巢穴', '#ff9b8a'); return; } WV.lair = l; if (!S.isl) showOnMap(l); feed(T.name + '的巢穴在' + regionLabel(tierAt(l.x, l.z)) + (S.isl ? ' · 去码头选「前往周王巢穴」' : ' · 你的' + dirName(l.x - player.pos.x, l.z - player.pos.z) + '方向约 ' + Math.round(Math.hypot(l.x - player.pos.x, l.z - player.pos.z)) + ' 米'), '#ffc94a'); }, got);
-    note('五个首领每周轮流当周王，周一零点换。首领之心是武器突破的关键材料，也能在市场上和别人交易。');
-  } else if (hubTab === 'inf') {
-    h3('区域感染度 · 打丧尸降低，每天回升 8%');
-    for (let t = 1; t <= 10; t++) { const v = Math.round(infOf(t)); const row = hubRow(box, regionLabel(t), v <= 0 ? '已夺回：丧尸更少，经验和余烬币 +15%' : v <= 50 ? '感染度 ' + v + '% · 丧尸稍少，经验 +5%' : '感染度 ' + v + '%（降到 50% 和 0% 有奖励）', v <= 0 ? '#8fd16f' : v <= 50 ? '#ffd27a' : '#ff9b8a');
-      const bar = document.createElement('div'); bar.className = 'qbar'; bar.innerHTML = '<i style="width:' + v + '%;background:linear-gradient(90deg,#7a2a8a,#ff4a5a)"></i><span>' + v + '%</span>'; row.children[0].appendChild(bar); }
-    note('每打倒 1 只丧尸 -0.3%，精英 -5%，首领 -15%。');
   } else if (hubTab === 'sea') {
     const L = seaLv(), d = 28 - (dayNum() % 28); h3(seaName() + ' · 还剩 ' + d + ' 天');
     const row = hubRow(box, '赛季等级 ' + L + ' / ' + SEA_MAX, '打丧尸、做任务、今日挑战、周王、无尽尸潮都给赛季经验 · 赛季结束角色不重置', '#ffc94a');
@@ -7370,6 +7433,15 @@ function renderHub() {
   const o = document.createElement('div'); o.className = 'overlay scroll'; o.id = 'hub'; o.innerHTML = '<h2>活动</h2><div id="hubList" class="slist"></div>';
   const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => closePanel('hub')); o.appendChild(x);
   if (document.body && document.body.appendChild) document.body.appendChild(o); }
+// region infection now lives on the big map (it used to be its own 活动 tab)
+renderBigMap = (orig => function () { orig();
+  const side = document.querySelector && document.querySelector('#bigmap .mapside'); if (!side) return; infDecay();
+  let el = $('mapInf'); if (!el) { el = document.createElement('div'); el.id = 'mapInf'; const c = $('mapClose'); side.insertBefore(el, c || null); }
+  const here = S.isl ? 0 : tierAt(player.pos.x, player.pos.z); let h = '<div class="mih">区域感染度<small>打丧尸降低 · 每天回升 8%</small></div><div class="mig">';
+  for (let t = 1; t <= 10; t++) { const v = Math.round(infOf(t)), c = v <= 0 ? '#8fd16f' : v <= 50 ? '#ffd27a' : '#ff7a6a';
+    h += '<div class="mir' + (t === here ? ' here' : '') + '"><b>' + t + '</b><span>' + biomeOf(t).n + '</span><i><u style="width:' + v + '%;background:' + c + '"></u></i><em style="color:' + c + '">' + (v <= 0 ? '夺回' : v + '%') + '</em></div>'; }
+  el.innerHTML = h + '</div><div class="mif">≤50% 经验 +5% · 0% 夺回：丧尸更少、经验和币 +15%</div>';
+})(renderBigMap);
 // the boat: today's challenge and this week's boss lair
 renderPort = (orig => function () { orig();
   const box = $('portList'); if (!box || !box.insertBefore) return; const first = box.firstChild;
@@ -7385,7 +7457,7 @@ function dailyTick(dt) {
   waveTick(dt);
   _dlT -= dt; if (_dlT > 0) return; _dlT = 5;
   if (!S.isl) { const t = tierAt(player.pos.x, player.pos.z); colAdd('r:' + t); }
-  const k = dateKey(); if (k !== _dlDay) { const first = _dlDay === ''; _dlDay = k; _ddKey = ''; infDecay(); seaEnsure(); hubBadge(); const M = dayMod(); if (!first) banner('新的一天：' + M.n, M.d, 4); else setTimeout(() => { if (S.started) feed('今日天象：' + M.n + ' · ' + M.d, M.c); }, 9000); }
+  const k = dateKey(); if (k !== _dlDay) { const first = _dlDay === ''; _dlDay = k; _ddKey = ''; infDecay(); seaEnsure(); hubBadge(); if (!first) banner('新的一天', '今日挑战和签到已刷新', 3); }
 }
 function dailySave() { return { inf: S.inf.map(v => Math.round(v * 10) / 10), infT: S.infT, para: S.para, pxp: Math.round(S.pxp), cal: S.cal, wb: S.wb, dch: S.dch, sea: S.sea, col: S.col, seaTitle: S.seaTitle || '' }; }
 function dailyLoad(d) {
@@ -8958,7 +9030,9 @@ function wsHud() {
   b.style.setProperty('--cd', (k * 360) + 'deg'); b.classList.toggle('cool', left > 0); b.classList.toggle('on', !!on);
 }
 (() => { const act = $('act'); if (!act || !act.appendChild || !document.createElement) return; const b = document.createElement('button'); b.className = 'btn'; b.id = 'bSkill'; b.innerHTML = '<b></b><small></small>';
-  if (b.addEventListener) b.addEventListener('click', () => { try { audioInit(); } catch (e) { } wsCast(); });
+  b.innerHTML = '<i class="skr"></i><b></b><small></small>';
+  // pointerdown (not click): iOS drops "click" while another finger holds the joystick
+  if (b.addEventListener) b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); try { b.setPointerCapture(e.pointerId); } catch (er) { } try { audioInit(); } catch (er) { } wsCast(); b.classList.add('tap'); setTimeout(() => b.classList.remove('tap'), 160); });
   act.appendChild(b); const wt = $('wTrack'); if (wt && wt.addEventListener) wt.addEventListener('click', () => { try { sfx.pick(); } catch (e) { } wtPop(); });
   setInterval(() => { try { wsHud(); } catch (e) { } }, 200); })();
 
@@ -9044,7 +9118,7 @@ function idefTick(dt) {
 function idefEnd(win, why) {
   ID.on = false; for (const z of ID.zs) if (!z.dead) { scene.remove(z.g); z.removed = true; z.dead = true; } ID.zs = []; idefHud();
   if (!win) { idefRaid(why); return; }
-  S.idef = { d: ID.key || raidKey(), r: 1 };
+  S.idef = { d: ID.key || raidKey(), r: 1 }; stInc('idef');
   const t = ID.tier, c = 120 * t + 100; S.coin += c; matAdd('stone', 15 + 3 * t); matAdd('wood', 15 + 3 * t); matAdd('metal', 6 + t); matAdd('steel', 1 + Math.floor(t / 3)); matAdd('estone', 2);
   try { addGem(20, '海岛防守'); } catch (e) { } try { seaXp(60); } catch (e) { }
   let extra = ''; if (Math.random() < .35) { try { dropGear(makeGear(t, Math.max(1, S.level), 3, .5), player.pos.x, player.pos.z); extra = T2(' · 史诗以上装备 ×1', ' · Epic+ gear'); } catch (e) { } }
@@ -9088,8 +9162,8 @@ function idefRow(box) {
     (ID.on ? T2('正在防守！', 'Defending now!') : r === 1 ? T2('上一次守住了。', 'You held last time.') : r === 2 ? T2('上一次海岛被破坏了。', 'The island was raided last time.') : '') +
     T2('下一次袭击：' + idLeft(nextRaid()) + '后。到时在海岛上就会开打（等级跟着你的战力），守住有奖励；不在线或没赶回来，建筑会被破坏、储物柜物资会被抢走两成。',
       ' Next raid in ' + idLeft(nextRaid()) + '. Be on the island to fight (level follows your power) and win a reward; offline or away, buildings break and 20% of stored supplies is lost.'),
-    r === 2 ? '#ff9b8a' : '#ffc94a');
-  if (nb) hubRow(box, T2('修复建筑', 'Repair buildings'), T2(nb + ' 处建筑坏了 · 需要木头 ×' + nb * 2, nb + ' broken · wood ×' + nb * 2), '#ff9b8a', T2('一键修复', 'Repair all'), repairAll, matHave('wood') < nb * 2);
+    r === 2 ? '#ff9b8a' : '#ffc94a', null, null, false, '守');
+  if (nb) hubRow(box, T2('修复建筑', 'Repair buildings'), T2(nb + ' 处建筑坏了 · 需要木头 ×' + nb * 2, nb + ' broken · wood ×' + nb * 2), '#ff9b8a', T2('一键修复', 'Repair all'), repairAll, matHave('wood') < nb * 2, '修');
 }
 /* ============ 时装补给箱 + 礼包 ============
    A fourth box in the 商城: outfits and weapon skins, with all the weapon-upgrade materials as fillers.
@@ -9727,7 +9801,7 @@ function recruitAct() {
   if (S.comps.length >= compCap()) { feed('海岛上没床位了：在海岛放一张「床」，每张床多住 1 个同伴（最多 6 个）', '#ff9b8a'); return; }
   if (s.req === 'med') { if (matHave('med') < 1) { feed('你身上没有医疗包', '#ff9b8a'); return; } matAdd('med', -1); }
   if (s.req === 'food') { const k = FOOD_KEYS.find(f => matHave(f) > 0); if (!k) { feed('你身上没有熟食（去锅炉做一份）', '#ff9b8a'); return; } matAdd(k, -1); }
-  const c = s.c; c.mode = S.comps.filter(q => q.mode === 'follow').length >= 2 ? 'home' : 'follow'; c.hp = compMax(c); S.comps.push(c);
+  const c = s.c; c.mode = S.comps.filter(q => q.mode === 'follow').length >= 2 ? 'home' : 'follow'; c.hp = compMax(c); S.comps.push(c); stInc('recruit');
   const x = s.x, z = s.z; scene.remove(s.h.g); SOS.s = null; SOS.t = rand(200, 360); recruitBtn();
   burst(x, 1.2, z, 0x9fe8a0, 16, 4); sfx.build();
   banner(c.role + ' ' + c.n + ' 加入了！', c.mode === 'follow' ? '会跟着你战斗，回海岛后每天还会帮你干活' : '已经坐船回海岛了，每天会帮你干活', 3.5);
@@ -9820,6 +9894,166 @@ petsTick = (o => function (dt) { o(dt); try { compsTick(dt); } catch (e) { } })(
   const o = document.createElement('div'); o.className = 'overlay scroll'; o.id = 'comp'; o.innerHTML = '<h2>同伴</h2><div id="compList" class="slist"></div>';
   const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => closePanel('comp')); o.appendChild(x);
   if (document.body && document.body.appendChild) document.body.appendChild(o); }
+/* ============ 流浪商队: a weekly caravan escort ============
+   Once a week a trader caravan needs an escort across about 220 m of the mainland. It waits for you (stays put
+   when you are more than 16 m away), stops when zombies get close, and zombies next to a wagon hurt it. Get it
+   there with some of it left: the first escort each week pays rare gear and a 蓝图 (a blueprint that unlocks a
+   new defence to build). Later escorts that week pay a little. */
+const CV_LEN = 220, CV_SPD = 2.5;
+const CV = { on: null };
+S.cv = { w: '' }; S.bp = {};
+const BP = {
+  hmg: { n: '重机枪塔', d: '射得比炮塔快一倍、更远' },
+  tesla: { n: '电网塔', d: '每隔一会儿放电，一次连锁打 4 只丧尸' },
+  spike: { n: '尖刺陷阱', d: '踩上去的丧尸持续掉血、变慢' }
+};
+BT.hmg = { name: '重机枪塔', cat: 'df', k: 'free', cost: { wood: 8, metal: 18 }, hp: 260, hw: .75, hd: .75, ob: [[0, 0, .75, .75]], desc: '蓝图 · 射速翻倍、射程更远', bp: 1 };
+BT.tesla = { name: '电网塔', cat: 'df', k: 'free', cost: { wood: 4, metal: 16 }, hp: 220, hw: .6, hd: .6, ob: [[0, 0, .6, .6]], desc: '蓝图 · 连锁电击 4 只丧尸', bp: 1 };
+BT.spike = { name: '尖刺陷阱', cat: 'df', k: 'free', cost: { wood: 4, metal: 6 }, hp: 200, hw: 1.2, hd: 1.2, ob: [], pass: true, desc: '蓝图 · 踩上去掉血、变慢', bp: 1 };
+const bpLocked = k => BT[k] && BT[k].bp && !S.bp[k];
+const cvDone = () => S.cv.w === 'w' + weekIdx();
+
+/* ---- blueprint builds: meshes, locks, behaviour ---- */
+buildMesh = (orig => function (type) {
+  if (type !== 'hmg' && type !== 'tesla' && type !== 'spike') return orig(type);
+  const g = new THREE.Group(), dk = mat(0x2c3036), mid = mat(0x56606a), lt = mat(0x8a96a2);
+  if (type === 'hmg') {
+    box(1.5, .3, 1.5, dk, 0, .15, 0, g); box(1.1, .2, 1.1, mid, 0, .4, 0, g); box(.5, .9, .5, lt, 0, .95, 0, g);
+    const head = new THREE.Group(); head.position.y = 1.55; g.add(head); g.userData.head = head;
+    box(1.0, .55, 1.0, mat(0x4a525a), 0, 0, 0, head); box(.9, .45, .12, mat(0x6a747e), 0, .05, .5, head);
+    for (const s of [-1, 1]) { box(.12, .12, 1.4, mat(0x15181c), s * .17, .02, .9, head); box(.18, .18, .25, mat(0x2a2e33), s * .17, .02, 1.5, head); }
+    box(.3, .25, .45, mat(0x8a6a2a), -.6, -.05, -.05, head); box(.22, .1, .3, new THREE.MeshBasicMaterial({ color: 0xff5a2a }), 0, .33, -.2, head);
+  } else if (type === 'tesla') {
+    box(1.2, .3, 1.2, dk, 0, .15, 0, g); box(.36, 2.2, .36, mid, 0, 1.4, 0, g);
+    for (let i = 0; i < 4; i++) box(.8 - i * .12, .1, .8 - i * .12, mat(0xb07a3a), 0, .9 + i * .42, 0, g);
+    const core = box(.46, .46, .46, new THREE.MeshBasicMaterial({ color: 0x9fe8ff }), 0, 2.7, 0, g); core.rotation.set(.6, .6, 0); g.userData.core = core;
+    for (const [x, z] of [[-.5, -.5], [.5, -.5], [-.5, .5], [.5, .5]]) box(.12, .5, .12, lt, x, .5, z, g);
+  } else {
+    box(2.4, .08, 2.4, mat(0x3a3028), 0, .04, 0, g);
+    for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) { const s = box(.12, .42, .12, (i + j) % 2 ? lt : mid, i * .46, .25, j * .46, g); s.rotation.set(rand(-.2, .2), 0, rand(-.2, .2)); }
+  }
+  return g;
+})(buildMesh);
+canAfford = (orig => function (t) { return !bpLocked(t) && orig(t); })(canAfford);
+selectBuild = (orig => function (k) { if (bpLocked(k)) { feed('需要「' + BT[k].name + '」蓝图：护送流浪商队获得', '#ff9b8a'); return; } return orig(k); })(selectBuild);
+buildCards = (orig => function () { orig(); try { buildEl.querySelectorAll('.card').forEach(c => { const k = c.dataset.k; if (!BT[k] || !BT[k].bp) return; c.classList.add('bpc');
+  if (bpLocked(k)) { c.classList.add('bplock'); const sp = c.querySelector('span'); if (sp) sp.textContent = '🔒 需要蓝图 · 护送流浪商队获得'; } }); } catch (e) { } })(buildCards);
+let _bpT = 0;
+updateBuilds = (orig => function (dt) { orig(dt); _bpT += dt;
+  for (const b of builds) { if (b.broken || b.hp <= 0) continue;
+    if (b.type === 'hmg') { b.cd -= dt; let best = null, bd = 27;
+      for (const z of zombies) { if (z.dead || (z.animal && !z.hostile && !(z.angry > 0))) continue; const d = Math.hypot(z.pos.x - b.x, z.pos.z - b.z); if (d < bd) { bd = d; best = z; } }
+      if (best) { b.g.userData.head.rotation.y = Math.atan2(best.pos.x - b.x, best.pos.z - b.z) - b.rot;
+        if (b.cd <= 0) { b.cd = .13; tracer(b.x, 1.6 + b.y, b.z, best.pos.x, 1.2, best.pos.z, 0xffd060); hurtZombie(best, 9 * (1 + (S.level - 1) * .08) * (1 + ts('tur')), 0, 0); } } }
+    else if (b.type === 'tesla') { b.cd -= dt; const c = b.g.userData.core; if (c) { c.rotation.y += dt * 2; c.scale.setScalar(1 + Math.sin(S.t * 6 + b.x) * .12); }
+      if (b.cd <= 0) { let from = { x: b.x, y: 2.7 + b.y, z: b.z }; const hit = new Set();
+        for (let n = 0; n < 4; n++) { let best = null, bd = n ? 7 : 13; for (const z of zombies) { if (z.dead || hit.has(z) || (z.animal && !z.hostile && !(z.angry > 0))) continue; const d = Math.hypot(z.pos.x - from.x, z.pos.z - from.z); if (d < bd) { bd = d; best = z; } }
+          if (!best) break; hit.add(best); tracer(from.x, from.y, from.z, best.pos.x, 1.2, best.pos.z, 0x9fe8ff); burst(best.pos.x, 1.2, best.pos.z, 0x9fe8ff, 5, 3);
+          hurtZombie(best, 34 * (1 + (S.level - 1) * .08) * (1 + ts('tur')), 0, 0); from = { x: best.pos.x, y: 1.2, z: best.pos.z }; }
+        b.cd = hit.size ? 1.3 : .3; } }
+    else if (b.type === 'spike' && _bpT > .25) { for (const z of zombies) { if (z.dead || z.animal) continue; if (Math.abs(z.pos.x - b.x) < 1.25 && Math.abs(z.pos.z - b.z) < 1.25) { z.slowT = Math.max(z.slowT || 0, .6); hurtZombie(z, 7 * (1 + (S.level - 1) * .08), 0, 0); } } } }
+  if (_bpT > .25) _bpT = 0;
+})(updateBuilds);
+
+/* ---- the caravan itself ---- */
+function cvWagon(cloth) {
+  const g = new THREE.Group(), wd = mat(0x6a4a2e), wd2 = mat(0x8a6440), ir = mat(0x3a3a40);
+  box(1.5, .2, 2.6, wd, 0, .75, 0, g); box(1.5, .5, .1, wd2, 0, 1.1, 1.25, g); box(1.5, .5, .1, wd2, 0, 1.1, -1.25, g); box(.1, .5, 2.6, wd2, .72, 1.1, 0, g); box(.1, .5, 2.6, wd2, -.72, 1.1, 0, g);
+  for (const s of [-1, 1]) for (const z of [-.85, .85]) { box(.12, .78, .78, ir, s * .82, .42, z, g); box(.14, .5, .5, wd, s * .83, .42, z, g); }
+  const cm = mat(cloth); for (let i = 0; i < 4; i++) { const a = -1 + i * .66; box(1.56, .08, .62, cm, 0, 2.05 - Math.abs(a) * .25 - (i === 0 || i === 3 ? .1 : 0), -.98 + i * .66, g); }
+  for (const z of [-1.15, 1.15]) box(1.5, .7, .06, cm, 0, 1.6, z, g);
+  box(.5, .4, .5, mat(0xa07a40), .35, 1.25, -.5, g); box(.44, .34, .44, mat(0x6a8a50), -.32, 1.22, .4, g);
+  box(.1, .1, 1.4, wd, .35, .6, 1.95, g); box(.1, .1, 1.4, wd, -.35, .6, 1.95, g);
+  return g;
+}
+function cvRoute(x, z) {
+  // pick the direction with the least water along it
+  let best = 0, bs = 1e9; const a0 = Math.random() * 6.283;
+  for (let k = 0; k < 12; k++) { const a = a0 + k * .5236; let wet = 0; for (let d = 10; d <= CV_LEN + 10; d += 10) { const w = waterAt(x + Math.cos(a) * d, z + Math.sin(a) * d); if (w > -.6) wet += 1 + Math.max(0, w); }
+    if (wet < bs) { bs = wet; best = a; } }
+  const pts = [], bend = rand(-.35, .35);
+  for (let i = 0; i <= 22; i++) { const t = i / 22, a = best + Math.sin(t * 3.14) * bend; pts.push({ x: x + Math.cos(best) * 8 + Math.cos(a) * t * CV_LEN, z: z + Math.sin(best) * 8 + Math.sin(a) * t * CV_LEN }); }
+  return pts;
+}
+function cvStart() {
+  if (CV.on) { feed('商队已经在路上了', '#ffc94a'); return; }
+  if (S.isl) { feed('去码头，船上选「护送流浪商队」', '#ffc94a'); return; }
+  if (typeof WV !== 'undefined' && WV.on) { feed('先打完现在的挑战', '#ff9b8a'); return; }
+  const pts = cvRoute(player.pos.x, player.pos.z), carts = [];
+  [0xd8c8a0, 0x9a3a2a].forEach((c, i) => { const g = cvWagon(c); scene.add(g); carts.push({ g, d: -i * 4.2 }); });
+  const men = [0x3a6a8a, 0x8a5a2a].map((sh, i) => { const h = makeHuman({ skin: 0xd8a888, shirt: sh, pants: 0x3a3028, scale: 1 }); scene.add(h.g); return { h, side: i ? -1 : 1 }; });
+  const hp = 600 + 90 * lvTier();
+  CV.on = { pts, carts, men, d: 0, hp, max: hp, spawnT: 6, far: 0, wave: 0, hitT: 0, done: false };
+  cvPlace(); banner('流浪商队出发了', '跟着商队走，清掉路上的丧尸。商队走到终点就算成功', 4); sfx.build(); cvHud();
+}
+function cvAt(d) { const P = CV.on.pts, seg = CV_LEN / (P.length - 1), t = clamp(d, 0, CV_LEN) / seg, i = Math.min(P.length - 2, Math.floor(t)), f = t - i, a = P[i], b = P[i + 1];
+  return { x: a.x + (b.x - a.x) * f, z: a.z + (b.z - a.z) * f, r: Math.atan2(b.x - a.x, b.z - a.z) }; }
+function cvPlace() { const C = CV.on;
+  for (const c of C.carts) { const p = cvAt(C.d + c.d); c.x = p.x; c.z = p.z; c.g.position.set(p.x, 0, p.z); c.g.rotation.y = p.r; }
+  C.men.forEach((m, i) => { const p = cvAt(C.d + 2.2 - i * 4.2), ox = Math.cos(p.r) * 1.4 * m.side, oz = -Math.sin(p.r) * 1.4 * m.side; m.h.g.position.set(p.x + ox, 0, p.z + oz); m.h.g.rotation.y = p.r; }); }
+function cvEnd(win, why) {
+  const C = CV.on; if (!C) return; CV.on = null;
+  for (const c of C.carts) scene.remove(c.g); for (const m of C.men) scene.remove(m.h.g); cvHud();
+  if (!win) { banner('护送失败', why || '商队被丧尸毁了。这周还能再试', 3.5); return; }
+  const t = lvTier(), first = !cvDone(); stInc('cv'); burst(player.pos.x, 1.4, player.pos.z, 0xffc94a, 30, 6); sfx.build();
+  if (first) { S.cv.w = 'w' + weekIdx(); gain('coin', 400 * t); gain('estone', 4); gain('crystal', 1); giveGear(4); giveGear(3); if (typeof seaXp === 'function') seaXp(100);
+    const lock = Object.keys(BP).filter(k => !S.bp[k]); let bpTxt;
+    if (lock.length) { const k = pick(lock); S.bp[k] = 1; bpTxt = '蓝图「' + BP[k].n + '」（在建造 · 防御里）'; } else { gain('heart', 1); gain('estone', 6); bpTxt = '首领之心 + 强化石 ×6（蓝图已集齐）'; }
+    banner('商队安全抵达！', '传说装备 + 史诗装备 · ' + bpTxt + ' · 余烬币 ' + 400 * t, 5.5); }
+  else { gain('coin', 120 * t); gain('estone', 1); banner('商队安全抵达', '本周大奖已领过 · 余烬币 ' + 120 * t + ' · 强化石 ×1', 3.5); }
+  try { questTick('event', 1); } catch (e) { } saveGame(); try { hubBadge(); } catch (e) { }
+}
+function cvTick(dt) {
+  const C = CV.on; if (!C) return;
+  if (S.isl) { cvEnd(false, '你离开了大陆，商队没人护送'); return; }
+  if (S.dead) { cvEnd(false, '你倒下了，商队被丧尸冲散了'); return; }
+  const lead = C.carts[0], pd = Math.hypot(player.pos.x - lead.x, player.pos.z - lead.z);
+  let threat = 0;
+  for (const z of zombies) { if (z.dead || z.animal) continue;
+    for (const c of C.carts) { const d = Math.hypot(z.pos.x - c.x, z.pos.z - c.z); if (d < 8) threat++; if (d < 2.2) { C.hp -= (z.dmg || 8) * .7 * dt; C.hitT = .4; } } }
+  C.hitT -= dt;
+  const moving = pd < 16 && threat === 0;
+  if (moving) { C.d += CV_SPD * dt; cvPlace(); }
+  C.men.forEach((m, i) => { const w = moving ? Math.sin(S.t * 8 + i) * .6 : 0; m.h.legL.rotation.x = w; m.h.legR.rotation.x = -w; m.h.armL.rotation.x = -w * .6; m.h.armR.rotation.x = w * .6; });
+  C.far = pd > 70 ? C.far + dt : 0; if (C.far > 25) { cvEnd(false, '你离商队太远，商队被丧尸冲散了'); return; }
+  // waves come in from ahead and the sides, more of them further along the road
+  C.spawnT -= dt;
+  if (C.spawnT <= 0 && C.d < CV_LEN - 15) { C.wave++; C.spawnT = rand(10, 14); const p = cvAt(C.d + 22), n = 3 + Math.min(5, Math.floor(C.wave / 2));
+    for (let i = 0; i < n; i++) { const a = p.r + rand(-1.2, 1.2), r = rand(16, 24); const types = C.wave > 3 ? ['walker', 'runner', 'brute', 'runner'] : ['walker', 'runner'];
+      try { const zb = spawnZombie(pick(types), lead.x + Math.sin(a) * r, lead.z + Math.cos(a) * r, false); if (zb) zb.aggro = 60; } catch (e) { } }
+    if (C.wave % 3 === 0) feed('一大波丧尸冲着商队来了！', '#ff9b8a'); }
+  if (C.hp <= 0) { for (const c of C.carts) burst(c.x, 1.2, c.z, 0x8a6440, 18, 5); cvEnd(false); return; }
+  if (C.d >= CV_LEN) { cvEnd(true); return; }
+  cvHud();
+}
+let _cvH = '';
+function cvHud() {
+  let el = $('cvBar'); if (!el && document.createElement && document.body) { el = document.createElement('div'); el.id = 'cvBar'; document.body.appendChild(el); } if (!el) return;
+  const C = CV.on; if (!C) { el.style.display = 'none'; _cvH = ''; return; }
+  const hp = Math.max(0, Math.round(C.hp / C.max * 100)), left = Math.max(0, Math.round(CV_LEN - C.d)), pd = Math.hypot(player.pos.x - C.carts[0].x, player.pos.z - C.carts[0].z);
+  const st = pd >= 16 ? '商队在等你' : C.hitT > 0 ? '商队被攻击！' : left && (zombies.some(z => !z.dead && !z.animal && C.carts.some(c => Math.hypot(z.pos.x - c.x, z.pos.z - c.z) < 8))) ? '有丧尸挡路' : '前进中';
+  const h = hp + '|' + left + '|' + st; if (h === _cvH) return; _cvH = h;
+  el.style.display = 'block'; el.className = C.hitT > 0 ? 'hit' : '';
+  el.innerHTML = '<b>流浪商队</b><span>' + st + ' · 还有 ' + left + ' 米</span><i><u style="width:' + hp + '%"></u></i><em>' + hp + '%</em>';
+}
+// the 活动 card
+function cvRow(box) {
+  const done = cvDone(), t = lvTier();
+  hubRow(box, '流浪商队 · 每周一次', CV.on ? '正在护送，跟着商队走到终点。' : '护送商队走 ' + CV_LEN + ' 米：商队离你太远会停下等你，有丧尸靠近也会停下，被围攻会损坏。', done ? '#8fd16f' : '#e0a060',
+    CV.on ? '护送中' : done ? '再护送一次' : S.isl ? '去码头坐船' : '现在出发', () => { if (S.isl) { closePanel('hub'); feed('去码头，船上选「护送流浪商队」', '#ffc94a'); return; } closePanel('hub'); cvStart(); }, !!CV.on, '商',
+    done ? ['本周大奖已领', '再护送：余烬币 ' + 120 * t] : ['传说装备', '史诗装备', '随机蓝图', '余烬币 ' + 400 * t, '强化石 ×4']);
+}
+renderPort = (orig => function () { orig();
+  const box = $('portList'); if (!box || !box.insertBefore) return; const row = shopRow('护送流浪商队', cvDone() ? '本周大奖已领（再护送有小奖励）' : '每周第一次护送：传说装备 + 蓝图', '#e0a060'), b = document.createElement('button');
+  b.className = 'sbtn'; b.textContent = '开船'; b.addEventListener('click', () => { closePanel('port'); voyage('驶向商队营地', () => { const p = findRegion(lvTier(), S.gx != null ? S.gx : 0, S.gz != null ? S.gz : 0); goGround(p.x, p.z); setTimeout(() => { if (!S.isl && !CV.on) cvStart(); }, 2500); }); });
+  row.appendChild(b); box.insertBefore(row, box.firstChild);
+})(renderPort);
+drawExtraRadar = (orig => function (tx, tz, edgeMark) { orig(tx, tz, edgeMark); try { const C = CV.on; if (!C || S.isl) return; const k = _mapK || 2, e = cvAt(CV_LEN), l = C.carts[0];
+  mctx.strokeStyle = 'rgba(224,160,96,.55)'; mctx.lineWidth = 1.5 * k; mctx.setLineDash && mctx.setLineDash([4 * k, 4 * k]); mctx.beginPath(); mctx.moveTo(tx(l.x), tz(l.z)); mctx.lineTo(tx(e.x), tz(e.z)); mctx.stroke(); mctx.setLineDash && mctx.setLineDash([]);
+  edgeMark({ x: l.x, z: l.z }, '#e0a060'); mapPin(mctx, tx(l.x), tz(l.z), 5.5 * k, '#e0a060', '商', k); mapPin(mctx, tx(e.x), tz(e.z), 4.5 * k, '#8fd16f', '终', k); } catch (e) { } })(drawExtraRadar);
+petsTick = (o => function (dt) { o(dt); try { cvTick(dt); } catch (e) { console.warn(e); } })(petsTick);
+shopSave = (o => function () { const r = o(); try { r.cv = { w: S.cv.w, bp: Object.keys(S.bp).filter(k => BP[k]) }; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.cv = { w: '' }; S.bp = {}; try { const c = d && d.sh && d.sh.cv; if (c) { S.cv.w = typeof c.w === 'string' ? c.w : ''; if (Array.isArray(c.bp)) c.bp.forEach(k => { if (BP[k]) S.bp[k] = 1; }); } } catch (e) { } })(shopLoad);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -9957,31 +10191,76 @@ function weekEnsure() {
 function weekClaim(i) { const q = S.weekly.t[i]; if (!q || q.p < q.n || q.c) return; q.c = 1; try { gain('coin', q.coin); if (MAT[q.mat]) gain(q.mat, q.mq); sfx.build(); } catch (e) { console.warn(e); } renderQuest(); questBadge(); saveGame(); }
 function weekBonus() { if (!S.weekly.t.every(q => q.c) || S.weekly.bonus) return; S.weekly.bonus = 1; try { addGem(100, '每周大奖'); } catch (e) { } gain('heart', 1); gain('core', 1); gain('coin', 300); banner('每周大奖', '首领之心 + 终焉核心 + 300 余烬币', 3.4); renderQuest(); questBadge(); saveGame(); }
 
-/* ---- achievements: milestones with a reward and, for the big ones, a title you can wear ---- */
+/* ---- achievements: milestones with a reward; many unlock a title. A worn title adds a little to your stats
+   (and so to 战力). Titles come in five grades; the 神话 ones take months of play. Switch titles on the 角色 page. ---- */
+function stInc(k, n) { S.st = S.st || {}; S.st[k] = (S.st[k] || 0) + (n || 1); }
+function stMax(k, v) { S.st = S.st || {}; if (v > (S.st[k] || 0)) S.st[k] = v; }
+const TITLE_R = [null, { n: '普通', c: '#d6cfc6' }, { n: '稀有', c: '#5aa9ff' }, { n: '史诗', c: '#c084ff' }, { n: '传说', c: '#ffc94a' }, { n: '神话', c: '#ff5a4a' }];
+const ST_N = { dmg: ['伤害', 1], hp: ['生命', 0], hpPct: ['生命', 1], crit: ['暴击', 1], critDmg: ['暴击伤害', 1], spd: ['移速', 1], def: ['减伤', 1], regen: ['每秒回血', 0], xp: ['经验', 1], coin: ['余烬币', 1], rate: ['攻速', 1], sta: ['体力', 0] };
+const stTxt = o => Object.keys(o).map(k => ST_N[k][0] + ' +' + (ST_N[k][1] ? +(o[k] * 100).toFixed(1) + '%' : o[k])).join(' · ');
+const maxWlv = () => Math.max(0, ...W_ORDER.map(wLv)), compLvMax = () => Math.max(0, ...(S.comps || []).map(c => c.lv || 1));
 const ACH = [
   { id: 'k1', n: '第一滴血', d: '击败 100 只丧尸', v: () => S.kills, g: 100, rw: { coin: 200 } },
-  { id: 'k2', n: '老兵', d: '击败 1,000 只丧尸', v: () => S.kills, g: 1000, rw: { coin: 800, steel: 2 }, title: '老兵' },
-  { id: 'k3', n: '屠戮者', d: '击败 5,000 只丧尸', v: () => S.kills, g: 5000, rw: { coin: 3000, crystal: 2 }, title: '屠戮者' },
-  { id: 'k4', n: '末日传说', d: '击败 20,000 只丧尸', v: () => S.kills, g: 20000, rw: { coin: 10000, heart: 2 }, title: '末日传说' },
+  { id: 'k2', n: '老兵', d: '击败 1,000 只丧尸', v: () => S.kills, g: 1000, rw: { coin: 800, steel: 2 }, title: '老兵', tr: 1, ts: { hp: 40 } },
+  { id: 'k3', n: '屠戮者', d: '击败 5,000 只丧尸', v: () => S.kills, g: 5000, rw: { coin: 3000, crystal: 2 }, title: '屠戮者', tr: 2, ts: { dmg: .02 } },
+  { id: 'k4', n: '末日传说', d: '击败 20,000 只丧尸', v: () => S.kills, g: 20000, rw: { coin: 10000, heart: 2 }, title: '末日传说', tr: 4, ts: { dmg: .04, hpPct: .03, crit: .01 } },
+  { id: 'k5', n: '万尸之王', d: '击败 100,000 只丧尸', v: () => S.kills, g: 100000, rw: { coin: 30000, heart: 5, core: 3 }, title: '万尸之王', tr: 5, ts: { dmg: .07, hpPct: .05, crit: .02 } },
   { id: 'b1', n: '猎首者', d: '击败 1 个首领', v: () => S.bossKills, g: 1, rw: { coin: 300 } },
-  { id: 'b2', n: '首领克星', d: '击败 10 个首领', v: () => S.bossKills, g: 10, rw: { coin: 1500, core: 1 }, title: '首领克星' },
-  { id: 'b3', n: '弑神者', d: '击败 50 个首领', v: () => S.bossKills, g: 50, rw: { coin: 6000, heart: 2 }, title: '弑神者' },
+  { id: 'b2', n: '首领克星', d: '击败 10 个首领', v: () => S.bossKills, g: 10, rw: { coin: 1500, core: 1 }, title: '首领克星', tr: 2, ts: { critDmg: .06, dmg: .01 } },
+  { id: 'b3', n: '弑神者', d: '击败 50 个首领', v: () => S.bossKills, g: 50, rw: { coin: 6000, heart: 2 }, title: '弑神者', tr: 3, ts: { dmg: .03, critDmg: .08 } },
+  { id: 'b4', n: '众王之敌', d: '击败 300 个首领', v: () => S.bossKills, g: 300, rw: { coin: 15000, heart: 4 }, title: '众王之敌', tr: 4, ts: { dmg: .05, critDmg: .12 } },
   { id: 'r1', n: '走出郊区', d: '到达区域 3', v: () => S.st.maxT || 1, g: 3, rw: { coin: 300 } },
-  { id: 'r2', n: '深入废土', d: '到达区域 6', v: () => S.st.maxT || 1, g: 6, rw: { coin: 1200, serum: 2 }, title: '探险家' },
-  { id: 'r3', n: '余烬行者', d: '到达区域 10', v: () => S.st.maxT || 1, g: 10, rw: { coin: 5000, heart: 1 }, title: '余烬行者' },
+  { id: 'r2', n: '深入废土', d: '到达区域 6', v: () => S.st.maxT || 1, g: 6, rw: { coin: 1200, serum: 2 }, title: '探险家', tr: 1, ts: { spd: .02 } },
+  { id: 'r3', n: '余烬行者', d: '到达区域 10', v: () => S.st.maxT || 1, g: 10, rw: { coin: 5000, heart: 1 }, title: '余烬行者', tr: 3, ts: { spd: .03, hpPct: .02 } },
+  { id: 'lv1', n: '独当一面', d: '角色升到 Lv.50', v: () => S.level, g: 50, rw: { coin: 2000, estone: 5 } },
+  { id: 'lv2', n: '登峰造极', d: '角色升到 Lv.99', v: () => S.level, g: 99, rw: { coin: 8000, heart: 2 }, title: '登峰造极', tr: 3, ts: { hpPct: .03, dmg: .02 } },
+  { id: 'pa1', n: '巅峰之路', d: '巅峰等级达到 10', v: () => S.para || 0, g: 10, rw: { coin: 10000, core: 2 }, title: '巅峰', tr: 4, ts: { dmg: .03, hpPct: .04, def: .01 } },
+  { id: 'pa2', n: '超越者', d: '巅峰等级达到 100', v: () => S.para || 0, g: 100, rw: { coin: 50000, core: 5 }, title: '超越者', tr: 5, ts: { dmg: .06, hpPct: .06, def: .02 } },
+  { id: 'st1', n: '余烬见证者', d: '完成全部主线剧情', v: () => S.story ? S.story.c : 0, g: typeof STORY !== 'undefined' ? STORY.length : 9, rw: { coin: 3000, heart: 1 }, title: '余烬见证者', tr: 3, ts: { xp: .05, hpPct: .02 } },
   { id: 's1', n: '拾荒者', d: '搜刮 30 处柜子', v: () => S.st.search || 0, g: 30, rw: { coin: 300, med: 3 } },
-  { id: 's2', n: '搜刮大师', d: '搜刮 300 处柜子', v: () => S.st.search || 0, g: 300, rw: { coin: 2500, circuit: 6 }, title: '搜刮大师' },
+  { id: 's2', n: '搜刮大师', d: '搜刮 300 处柜子', v: () => S.st.search || 0, g: 300, rw: { coin: 2500, circuit: 6 }, title: '搜刮大师', tr: 1, ts: { coin: .03 } },
   { id: 'c1', n: '开箱达人', d: '打开 50 个物资箱', v: () => S.st.crate || 0, g: 50, rw: { coin: 600 } },
-  { id: 'c2', n: '物资猎人', d: '打开 300 个物资箱', v: () => S.st.crate || 0, g: 300, rw: { coin: 3000, crystal: 1 }, title: '物资猎人' },
-  { id: 'w1', n: '枪匠', d: '任意一把武器升到 Lv.10', v: () => Math.max(...W_ORDER.map(wLv)), g: 10, rw: { coin: 800 } },
-  { id: 'w2', n: '武器大师', d: '任意一把武器升到 Lv.20', v: () => Math.max(...W_ORDER.map(wLv)), g: 20, rw: { coin: 4000, heart: 1 }, title: '武器大师' },
-  { id: 'w3', n: '军火库', d: '集齐全部 7 把武器', v: () => W_ORDER.filter(id => wLv(id) > 0).length, g: 7, rw: { coin: 1500, steel: 3 }, title: '军火商' },
-  { id: 'x1', n: '收割者', d: '打出一次 50 连杀', v: () => S.bestStreak || 0, g: 50, rw: { coin: 1500 }, title: '收割者' },
-  { id: 'x2', n: '百人斩', d: '打出一次 100 连杀', v: () => S.bestStreak || 0, g: 100, rw: { coin: 4000, heart: 1 }, title: '百人斩' },
-  { id: 'e1', n: '救援专家', d: '完成 20 次空投或精英事件', v: () => S.st.event || 0, g: 20, rw: { coin: 2000, serum: 2 }, title: '救援专家' },
-  { id: 'h1', n: '建筑师', d: '建造 30 个建筑', v: () => S.st.build || 0, g: 30, rw: { coin: 1000 }, title: '建筑师' },
-  { id: 'l1', n: '忠实幸存者', d: '累计登录 30 天', v: () => S.st.days || 0, g: 30, rw: { coin: 3000, heart: 1 }, title: '忠实幸存者' }
+  { id: 'c2', n: '物资猎人', d: '打开 300 个物资箱', v: () => S.st.crate || 0, g: 300, rw: { coin: 3000, crystal: 1 }, title: '物资猎人', tr: 2, ts: { coin: .04, hp: 30 } },
+  { id: 'w1', n: '枪匠', d: '任意一把武器升到 Lv.10', v: maxWlv, g: 10, rw: { coin: 800 } },
+  { id: 'w2', n: '武器大师', d: '任意一把武器升到 Lv.30', v: maxWlv, g: 30, rw: { coin: 4000, heart: 1 }, title: '武器大师', tr: 3, ts: { dmg: .03, rate: .02 } },
+  { id: 'w3', n: '军火库', d: '集齐全部 7 把武器', v: () => W_ORDER.filter(id => wLv(id) > 0).length, g: 7, rw: { coin: 1500, steel: 3 }, title: '军火商', tr: 2, ts: { dmg: .015, hp: 30 } },
+  { id: 'w4', n: '神兵', d: '7 把武器全部升到 Lv.' + WMAX, v: () => W_ORDER.filter(id => wLv(id) >= WMAX).length, g: 7, rw: { coin: 40000, core: 5, heart: 5 }, title: '神兵', tr: 5, ts: { dmg: .08, rate: .03, crit: .02 } },
+  { id: 'en1', n: '锻造师', d: '把一件装备强化到 +10', v: () => S.st.enh || 0, g: 10, rw: { coin: 2000, estone: 10 }, title: '锻造师', tr: 2, ts: { def: .015, hp: 30 } },
+  { id: 'en2', n: '神匠', d: '把一件装备强化到 +15', v: () => S.st.enh || 0, g: 15, rw: { coin: 8000, estone: 20 }, title: '神匠', tr: 4, ts: { def: .03, hpPct: .04 } },
+  { id: 'x1', n: '收割者', d: '打出一次 50 连杀', v: () => S.bestStreak || 0, g: 50, rw: { coin: 1500 }, title: '收割者', tr: 2, ts: { rate: .02 } },
+  { id: 'x2', n: '百人斩', d: '打出一次 100 连杀', v: () => S.bestStreak || 0, g: 100, rw: { coin: 4000, heart: 1 }, title: '百人斩', tr: 3, ts: { rate: .03, crit: .01 } },
+  { id: 'x3', n: '杀戮机器', d: '打出一次 300 连杀', v: () => S.bestStreak || 0, g: 300, rw: { coin: 12000, heart: 3 }, title: '杀戮机器', tr: 4, ts: { rate: .04, crit: .02, dmg: .02 } },
+  { id: 'dc1', n: '挑战者', d: '通关今日挑战 30 次', v: () => S.st.dch || 0, g: 30, rw: { coin: 2000, estone: 8 }, title: '挑战者', tr: 2, ts: { dmg: .015, def: .01 } },
+  { id: 'dc2', n: '日日不息', d: '通关今日挑战 300 次', v: () => S.st.dch || 0, g: 300, rw: { coin: 15000, heart: 3 }, title: '日日不息', tr: 4, ts: { dmg: .04, def: .02, hpPct: .02 } },
+  { id: 'wb1', n: '周王猎手', d: '击败周王 10 次（每周算 1 次）', v: () => S.st.wb || 0, g: 10, rw: { coin: 4000, heart: 2 }, title: '周王猎手', tr: 3, ts: { dmg: .02, critDmg: .08 } },
+  { id: 'wb2', n: '年度屠王', d: '击败周王 52 次（整整一年）', v: () => S.st.wb || 0, g: 52, rw: { coin: 30000, heart: 6, core: 4 }, title: '年度屠王', tr: 5, ts: { dmg: .06, critDmg: .15, hpPct: .04 } },
+  { id: 'wv1', n: '尸潮砥柱', d: '无尽尸潮撑过 30 波', v: () => S.st.wave || 0, g: 30, rw: { coin: 5000, estone: 10 }, title: '尸潮砥柱', tr: 3, ts: { hpPct: .03, def: .015 } },
+  { id: 'wv2', n: '无尽之主', d: '无尽尸潮撑过 100 波', v: () => S.st.wave || 0, g: 100, rw: { coin: 30000, core: 5 }, title: '无尽之主', tr: 5, ts: { hpPct: .07, def: .03, dmg: .03 } },
+  { id: 'd1', n: '海岛守护者', d: '守住海岛防守 10 次', v: () => S.st.idef || 0, g: 10, rw: { coin: 3000, wood: 50 }, title: '海岛守护者', tr: 3, ts: { def: .025, hp: 60 } },
+  { id: 'd2', n: '不落要塞', d: '守住海岛防守 150 次', v: () => S.st.idef || 0, g: 150, rw: { coin: 30000, core: 4 }, title: '不落要塞', tr: 5, ts: { def: .05, hpPct: .06 } },
+  { id: 'cp1', n: '不再孤单', d: '招募 1 个同伴', v: () => S.st.recruit || 0, g: 1, rw: { coin: 500, med: 3 } },
+  { id: 'cp2', n: '领袖', d: '累计招募 10 个同伴', v: () => S.st.recruit || 0, g: 10, rw: { coin: 3000, heart: 1 }, title: '领袖', tr: 3, ts: { hpPct: .02, def: .015, regen: .5 } },
+  { id: 'cp3', n: '同生共死', d: '一个同伴升到 20 级', v: compLvMax, g: 20, rw: { coin: 6000, heart: 2 }, title: '同生共死', tr: 4, ts: { hpPct: .04, regen: 1 } },
+  { id: 'pt1', n: '驯犬师', d: '同时养 3 只狗', v: () => (S.pets || []).length, g: 3, rw: { coin: 1500, rmeat: 10 }, title: '驯犬师', tr: 2, ts: { spd: .02, hp: 30 } },
+  { id: 'f1', n: '老农', d: '收获农田 50 次', v: () => S.st.harvest || 0, g: 50, rw: { coin: 1500 }, title: '老农', tr: 1, ts: { regen: .4 } },
+  { id: 'f2', n: '丰收之神', d: '收获农田 500 次', v: () => S.st.harvest || 0, g: 500, rw: { coin: 10000, heart: 2 }, title: '丰收之神', tr: 4, ts: { regen: 1.2, hpPct: .03, sta: 20 } },
+  { id: 'ht1', n: '猎人', d: '猎到 100 只动物', v: () => S.st.hunt || 0, g: 100, rw: { coin: 1200 }, title: '猎人', tr: 1, ts: { crit: .01 } },
+  { id: 'cv1', n: '商队之友', d: '护送流浪商队 1 次', v: () => S.st.cv || 0, g: 1, rw: { coin: 800 } },
+  { id: 'cv2', n: '商路守护者', d: '护送流浪商队 20 次', v: () => S.st.cv || 0, g: 20, rw: { coin: 10000, heart: 2 }, title: '商路守护者', tr: 4, ts: { def: .02, spd: .02, coin: .06 } },
+  { id: 'e1', n: '救援专家', d: '完成 20 次空投或精英事件', v: () => S.st.event || 0, g: 20, rw: { coin: 2000, serum: 2 }, title: '救援专家', tr: 2, ts: { hp: 50 } },
+  { id: 'h1', n: '建筑师', d: '建造 30 个建筑', v: () => S.st.build || 0, g: 30, rw: { coin: 1000 }, title: '建筑师', tr: 1, ts: { def: .01 } },
+  { id: 'g1', n: '时尚达人', d: '时装抽奖 100 次', v: () => S.st.draws || 0, g: 100, rw: { coin: 2000 }, title: '时尚达人', tr: 2, ts: { spd: .015, xp: .03 } },
+  { id: 'l1', n: '忠实幸存者', d: '累计登录 30 天', v: () => S.st.days || 0, g: 30, rw: { coin: 3000, heart: 1 }, title: '忠实幸存者', tr: 2, ts: { hp: 40, xp: .03 } },
+  { id: 'l2', n: '末日元老', d: '累计登录 365 天', v: () => S.st.days || 0, g: 365, rw: { coin: 30000, core: 5, heart: 5 }, title: '末日元老', tr: 5, ts: { dmg: .05, hpPct: .05, xp: .1 } }
 ];
+// every title you can own: the achievement ones plus the season legend
+function titleList() { const L = ACH.filter(a => a.title).map(a => ({ n: a.title, r: a.tr || 1, ts: a.ts || {}, d: a.d, own: !!S.ach[a.id], a }));
+  if (S.seaTitle) L.unshift({ n: S.seaTitle, r: 4, ts: { dmg: .03, hpPct: .03 }, d: '赛季手册满级', own: true });
+  return L; }
+let _ttK = '', _ttO = null;
+function titleNow() { const k = (S.title || '') + '|' + (S.seaTitle || ''); if (k !== _ttK) { _ttK = k; _ttO = S.title ? titleList().find(t => t.n === S.title && t.own) || null : null; } return _ttO; }
+function titleSt(k) { const t = titleNow(); return t && t.ts[k] || 0; }
+function titleSet(n) { const hp0 = maxHpNow(); S.title = n; _ttK = ''; if (typeof refreshHud === 'function') refreshHud(); S.hp = Math.min(S.maxHp, S.hp + Math.max(0, S.maxHp - hp0)); saveGame(); }
 S.ach = S.ach || {};
 ACH.forEach(a => { if (a.rw.coin) a.rw.coin = Math.max(50, Math.round(a.rw.coin * .4 / 10) * 10); });   // coins are meant to be scarce
 const achDone = a => a.v() >= a.g;
@@ -9993,7 +10272,7 @@ function achCheck0() {
   for (const a of ready) if (!_achSeen.has(a.id)) { _achSeen.add(a.id); banner('成就达成 · ' + a.n, a.d + ' · 去「任务」领奖' + (a.title ? '，解锁称号「' + a.title + '」' : ''), 3.2); sfx.build(); }
   questBadge();
 }
-function achClaim(id) { const a = ACH.find(x => x.id === id); if (!a || !achDone(a) || S.ach[id]) return; S.ach[id] = 1; for (const k in a.rw) gain(k, a.rw[k]); if (a.title && !S.title) S.title = a.title; sfx.build(); renderQuest(); questBadge(); saveGame(); }
+function achClaim(id) { const a = ACH.find(x => x.id === id); if (!a || !achDone(a) || S.ach[id]) return; S.ach[id] = 1; for (const k in a.rw) gain(k, a.rw[k]); if (a.title && !S.title) { S.title = a.title; _ttK = ''; refreshHud(); } sfx.build(); renderQuest(); questBadge(); saveGame(); }
 const questClaimable = () => !!S.daily && (S.daily.t.some(q => q.p >= q.n && !q.c) || (S.daily.t.every(q => q.c) && !S.daily.bonus) || (S.login && S.login.pend)
   || (S.weekly && (S.weekly.t.some(q => q.p >= q.n && !q.c) || (S.weekly.t.every(q => q.c) && !S.weekly.bonus))) || ACH.some(a => achDone(a) && !S.ach[a.id]));
 function questBadge() { const b = $('qBadge'); if (b) b.style.display = questClaimable() ? 'flex' : 'none'; }
@@ -10048,12 +10327,11 @@ function renderQuest() {
     const all = S.weekly.t.every(q => q.c), bb = document.createElement('button'); bb.className = 'go' + (all && !S.weekly.bonus ? '' : ' ghost'); bb.disabled = !all || !!S.weekly.bonus;
     bb.textContent = S.weekly.bonus ? '本周大奖已领取' : all ? '领取每周大奖：首领之心 + 终焉核心' : '三个挑战全完成：首领之心 + 终焉核心 + 300 币'; bb.addEventListener('click', weekBonus); box.appendChild(bb);
   } else {
-    const titles = ACH.filter(a => a.title && S.ach[a.id]).map(a => a.title);
-    const th = document.createElement('div'); th.className = 'snote'; th.innerHTML = '当前称号：<b style="color:#ffc94a">' + (S.title || '无') + '</b>' + (titles.length ? ' · 点下面已解锁的称号可以换上' : ''); box.appendChild(th);
-    if (titles.length) { const tw = document.createElement('div'); tw.className = 'tabs'; titles.forEach(t => { const b = document.createElement('button'); b.className = 'sbtn' + (S.title === t ? ' on' : ''); b.textContent = t; b.addEventListener('click', () => { S.title = t; renderQuest(); saveGame(); }); tw.appendChild(b); }); box.appendChild(tw); }
+    const own = titleList().filter(t => t.own).length, tw = titleNow();
+    const th = document.createElement('div'); th.className = 'snote'; th.innerHTML = '已获得称号 <b style="color:#ffc94a">' + own + ' / ' + titleList().length + '</b> · 当前：' + (tw ? '<b style="color:' + TITLE_R[tw.r].c + '">' + tw.n + '</b>' : '无') + ' · 在「角色」页面换称号'; box.appendChild(th);
     ACH.slice().sort((a, b) => (S.ach[a.id] ? 1 : 0) - (S.ach[b.id] ? 1 : 0) || (achDone(b) ? 1 : 0) - (achDone(a) ? 1 : 0)).forEach(a => {
       const v = Math.min(a.v(), a.g), rw = Object.keys(a.rw).map(k => (k === 'coin' ? '余烬币' : (MAT[k] || { n: k === 'med' ? '医疗包' : k }).n) + ' ×' + a.rw[k]).join(' · ');
-      const row = shopRow(a.n + (a.title ? ' 〔称号：' + a.title + '〕' : ''), a.d + ' · 奖励：' + rw, S.ach[a.id] ? '#8fd16f' : achDone(a) ? '#ffc94a' : '#c1a597');
+      const row = shopRow(a.n + (a.title ? ' 〔' + TITLE_R[a.tr || 1].n + '称号：' + a.title + '〕' : ''), a.d + ' · 奖励：' + rw + (a.title ? ' · 称号属性：' + stTxt(a.ts || {}) : ''), S.ach[a.id] ? '#8fd16f' : achDone(a) ? '#ffc94a' : '#c1a597');
       const bar = document.createElement('div'); bar.className = 'qbar'; bar.innerHTML = '<i style="width:' + Math.round(v / a.g * 100) + '%"></i><span>' + v + ' / ' + a.g + '</span>'; row.children[0].appendChild(bar);
       const b = document.createElement('button'); b.className = 'sbtn'; b.disabled = !achDone(a) || !!S.ach[a.id]; b.textContent = S.ach[a.id] ? '已领取' : achDone(a) ? '领取' : '未达成'; b.addEventListener('click', () => achClaim(a.id)); row.appendChild(b); box.appendChild(row); });
   }
@@ -10133,6 +10411,29 @@ function evRadar(c, tx, tz, k, edgeMark) {
   const x = e.type === 'drop' ? e.x : e.z.pos.x, z = e.type === 'drop' ? e.z : e.z.pos.z; if (e.type === 'elite' && e.z.dead) return;
   mapPin(c, tx(x), tz(z), 6 * k, e.type === 'drop' ? '#4ad8e8' : '#ffc94a', e.type === 'drop' ? '空' : '精', k); edgeMark({ x, z }, e.type === 'drop' ? '#4ad8e8' : '#ffc94a');
 }
+
+/* ---- title picker, opened from the 角色 page ---- */
+function renderTitles() {
+  const box = $('titleList'); if (!box) return; box.innerHTML = ''; const L = titleList(), cur = titleNow();
+  const hd = document.createElement('div'); hd.className = 'ttlhd';
+  hd.innerHTML = '<div><i>当前称号</i><b style="color:' + (cur ? TITLE_R[cur.r].c : '#9a8a80') + '">' + (cur ? cur.n : '未佩戴') + '</b><span>' + (cur ? stTxt(cur.ts) + ' · 已算进战力' : '佩戴一个称号可以加属性') + '</span></div><div class="ttlcnt"><b>' + L.filter(t => t.own).length + '</b>/' + L.length + '<small>已获得</small></div>';
+  box.appendChild(hd);
+  const g = document.createElement('div'); g.className = 'ttlg';
+  L.slice().sort((a, b) => (b.own - a.own) || (b.r - a.r)).forEach(t => { const R = TITLE_R[t.r], on = cur && cur.n === t.n, c = document.createElement('button');
+    c.className = 'ttl r' + t.r + (t.own ? '' : ' lock') + (on ? ' on' : ''); c.style.setProperty('--tc', R.c);
+    const pr = !t.own && t.a ? Math.min(1, t.a.v() / t.a.g) : 1;
+    c.innerHTML = '<em>' + R.n + '</em><b>' + t.n + '</b><span>' + stTxt(t.ts) + '</span><small>' + (on ? '佩戴中' : t.own ? '点击佩戴' : t.d + (t.a ? ' · ' + Math.floor(pr * 100) + '%' : '')) + '</small>' + (!t.own && t.a ? '<i style="width:' + Math.round(pr * 100) + '%"></i>' : '');
+    c.addEventListener('click', () => { if (!t.own) { feed('还没获得：' + t.d + (t.a && achDone(t.a) ? '（已达成，去「任务 · 成就」领取）' : ''), '#c1a597'); return; } titleSet(on ? '' : t.n); sfx.pick(); renderTitles(); try { renderTalents(); } catch (e) { } });
+    g.appendChild(c); });
+  box.appendChild(g);
+  const n = document.createElement('div'); n.className = 'snote'; n.textContent = '称号从「任务 · 成就」里领取。同一时间只能佩戴一个，再点一次可以摘下。神话称号非常难拿。'; box.appendChild(n);
+}
+(() => { if (!document.createElement || !document.body || !document.body.appendChild) return;
+  const o = document.createElement('div'); o.className = 'overlay scroll'; o.id = 'titles'; o.innerHTML = '<h2>称号</h2><div id="titleList"></div>';
+  const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => o.classList.remove('show')); o.appendChild(x); document.body.appendChild(o);
+  const row = $('talOpenRow'); if (row && row.appendChild) { const b = document.createElement('button'); b.className = 'go ghost'; b.id = 'bTitle'; b.innerHTML = '称号<small id="bTitleN"></small>';
+    b.addEventListener('click', () => { renderTitles(); o.classList.add('show'); o.scrollTop = 0; try { sfx.pick(); } catch (e) { } }); row.appendChild(b); }
+  setInterval(() => { const s = $('bTitleN'); if (s) { const t = titleNow(); s.textContent = t ? t.n : '未佩戴'; s.style.color = t ? TITLE_R[t.r].c : ''; } }, 500); })();
 /* ============ shooting ============ */
 let lockTarget = null;
 function findTarget() {
@@ -10209,7 +10510,7 @@ function shoot() {
 function swing() {
   const W = curW(), R = RIG[S.wp]; S.fireCd = fireInterval(); S.idleT = 0;
   S.swingD = Math.min(R.dur, S.fireCd * .95); S.swingT = S.swingD;          // the same cut every time, sped up only if you swing faster
-  S.sta = Math.max(0, S.sta - W.sta * (1 - Math.min(.6, ts('swingCost')))); S.staCd = .7; if (S.sta <= 0 && !S.exhausted) { S.exhausted = true; feed('体力耗尽，挥得慢了', '#ff9b8a'); }
+  S.sta = Math.max(0, S.sta - W.sta * (1 - Math.min(.6, ts('swingCost'))) * staCostMul()); S.staCd = .7; if (S.sta <= 0 && !S.exhausted) { S.exhausted = true; feed('体力耗尽，挥得慢了', '#ff9b8a'); }
   playerEffort(S.wp !== 'blade');
   S.swingHit = { t: S.swingD * R.hit, wp: S.wp };
   { const MK = typeof wsMyth === 'function' ? wsMyth() : null; if (MK) setTimeout(() => { try { mythSwing(MK); } catch (e) { } }, S.swingD * R.hit * 1000); }                            // damage lands when the blade does
@@ -10514,7 +10815,7 @@ const TREE_GLYPH = {
 const treeGlyph = n => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (TREE_GLYPH[n.g] || TREE_GLYPH.dmg) + '</svg>';
 function renderTalents() {
   recalcTree(); { const b = $('talPtsB'); if (b) { b.textContent = S.tp > 0 ? S.tp : ''; b.classList.toggle('on', S.tp > 0); } }
-  $('talHead').innerHTML = '<span>' + (S.title ? '〔' + S.title + '〕' : '') + (S.name || '') + ' · Lv.' + S.level + '</span><span>经验 <b>' + (S.level >= 99 ? '满级' : Math.round(S.xp) + ' / ' + xpNeed(S.level)) + '</b></span><span>战力 <b>' + combatPower() + '</b></span><span class="tpc">可用天赋点 <b>' + S.tp + '</b></span><span>已投入 <b>' + treeSpent() + '</b></span>';
+  $('talHead').innerHTML = '<span>' + (typeof titleNow === 'function' && titleNow() ? '<i style="font-style:normal;color:' + TITLE_R[titleNow().r].c + '">〔' + S.title + '〕</i>' : '') + (S.name || '') + ' · Lv.' + S.level + '</span><span>经验 <b>' + (S.level >= 99 ? '满级' : Math.round(S.xp) + ' / ' + xpNeed(S.level)) + '</b></span><span>战力 <b>' + combatPower() + '</b></span><span class="tpc">可用天赋点 <b>' + S.tp + '</b></span><span>已投入 <b>' + treeSpent() + '</b></span>';
   renderCharStats();
   const tabs = $('treeTabs'); tabs.innerHTML = '';
   TREE_BR.forEach((B, i) => {
@@ -10767,4 +11068,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794081187').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794097690').catch(()=>{});</script></body></html>
