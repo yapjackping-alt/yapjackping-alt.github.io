@@ -12657,6 +12657,22 @@ coopElect = (o => function (dt) { if (!S.dun || typeof MP === 'undefined' || !MP
   if (!COOP.follow && prevFollow) { for (const z of zombies) if (z.mirror) scene.remove(z.g); for (let i = zombies.length - 1; i >= 0; i--) if (zombies[i].mirror) zombies.splice(i, 1);
     COOP.mirrors.clear(); if (boss && boss.mirror) { boss = null; el.boss.style.display = 'none'; } if (cand.length > 1) feed('你现在是副本队长', '#7de0ff'); }
   try { $('coopTxt').textContent = cand.length > 1 ? (COOP.follow ? '副本组队 · ' + cand.length + ' 人' : '副本队长 · ' + cand.length + ' 人') : ''; } catch (e) { } })(coopElect);
+/* ============ 副本小地图：显示可以搜索的柜子（金色箱子图标；没开过的会闪，保险箱和样本柜画大一点，搜空就消失） ============ */
+function chestIcon(c, x, y, s, lit, big) {
+  const w = s * (big ? 1.5 : 1.25), h = s, x0 = x - w / 2, y0 = y - h / 2;
+  c.fillStyle = 'rgba(0,0,0,.7)'; c.fillRect(x0 - 1.5, y0 - 1.5, w + 3, h + 3);
+  c.fillStyle = lit ? (big ? '#ffd24a' : '#e8a43a') : '#7a6a4a'; c.fillRect(x0, y0, w, h);
+  c.fillStyle = lit ? '#fff0b0' : '#a89870'; c.fillRect(x0, y0, w, h * .38);
+  c.fillStyle = '#3a2410'; c.fillRect(x0, y0 + h * .38, w, Math.max(1, h * .1));
+  c.fillStyle = lit ? '#fff' : '#caba90'; c.fillRect(x - w * .09, y0 + h * .3, w * .18, h * .3);
+}
+drawExtraRadar = (o => function (tx, tz, edgeMark) { o(tx, tz, edgeMark);
+  try { if (!S.dun || !DUN.cabs || !DUN.cabs.length) return; const c = mctx, k = _mapK || 2, pulse = 1 + Math.sin(S.t * 5) * .12;
+    for (const C of DUN.cabs) { if (C.empty) continue; const fresh = !C.items, big = C.type === 'safe' || C.type === 'lab';
+      chestIcon(c, tx(C.x), tz(C.z), (fresh ? 5.2 * pulse : 4.2) * k, fresh, big); } } catch (e) { } })(drawExtraRadar);
+let _chestTipDone = false;
+zSpecialTick = (o => function (dt) { o(dt);
+  try { if (S.dun && DUN.cabs && DUN.cabs.length && !_chestTipDone) { _chestTipDone = true; feed('小地图上的金色箱子图标 = 可以搜索的柜子', '#ffd24a'); } if (!S.dun) _chestTipDone = false; } catch (e) { } })(zSpecialTick);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -13684,4 +13700,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794165491').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794167768').catch(()=>{});</script></body></html>
