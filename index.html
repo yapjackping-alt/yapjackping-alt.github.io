@@ -875,6 +875,11 @@ button.wtrack{display:flex;align-items:center;gap:10px;width:min(760px,100%);mar
 .calm.can{cursor:pointer;border:1.5px solid #ffd98a;animation:calCur 1.6s ease-in-out infinite}.calm.can em{color:#ffe9a8}
 .calm.got{border-color:rgba(143,209,111,.5);background:linear-gradient(180deg,rgba(143,209,111,.18),rgba(20,40,20,.35))}.calm.got em{color:#9fe08a}.calm.got i{background:#8fd16f}
 @media (max-width:520px){.calm span{font-size:9px}}
+#bFish,#bBoat,#bTank{position:absolute;right:calc(var(--sr) + 214px);display:none;font-size:15px;min-width:76px}
+#bFish{bottom:calc(var(--sb) + 150px);border-color:#7de0ff;background:rgba(10,40,60,.88);color:#dff6ff}#bFish.bite{background:rgba(255,120,40,.95);border-color:#fff;color:#fff;font-weight:900;font-size:18px;animation:fbite .25s ease-in-out infinite alternate}
+@keyframes fbite{from{transform:scale(1)}to{transform:scale(1.12)}}
+#bBoat{bottom:calc(var(--sb) + 196px);border-color:#9fe8ff;background:rgba(20,60,90,.88);color:#e8faff}
+#bTank{bottom:calc(var(--sb) + 104px);border-color:#9fe8ff;background:rgba(20,60,90,.88);color:#e8faff}
 </style>
 
 <canvas id="c"></canvas>
@@ -10109,6 +10114,330 @@ drawExtraRadar = (orig => function (tx, tz, edgeMark) { orig(tx, tz, edgeMark); 
 petsTick = (o => function (dt) { o(dt); try { cvTick(dt); } catch (e) { console.warn(e); } })(petsTick);
 shopSave = (o => function () { const r = o(); try { r.cv = { w: S.cv.w, bp: Object.keys(S.bp).filter(k => BP[k]) }; } catch (e) { } return r; })(shopSave);
 shopLoad = (o => function (d) { o(d); S.cv = { w: '' }; S.bp = {}; try { const c = d && d.sh && d.sh.cv; if (c) { S.cv.w = typeof c.w === 'string' ? c.w : ''; if (Array.isArray(c.bp)) c.bp.forEach(k => { if (BP[k]) S.bp[k] = 1; }); } } catch (e) { } })(shopLoad);
+/* ============ fishing, the fishing boat, fish dishes and glass fish tanks ============
+   · A small fishing boat is moored on the beach west of the pier. Board it to sail the sea around the island
+     (up to 300 m out); the deep water past 150 m holds the big fish.
+   · Fish from the pier or the shallows, the island pond, the boat, or any river / sea on the mainland. Each spot
+     has its own species; some only bite at night. Cast, wait for the bite, then reel in quickly.
+   · Cook fish in the pot. Keep live fish in glass tanks: a tank is one storey tall, fully clear with only its
+     edges drawn, and tanks placed side by side join into one bigger tank. */
+const FISH = [
+  // id, name, colour, rarity 1-5, where, kg range, model length (m), extra
+  ['sard', '沙丁鱼', 0xc8d4e0, 1, ['shore', 'sea'], [.1, .3], .28],
+  ['mack', '鲭鱼', 0x4a7a96, 1, ['shore', 'sea'], [.3, 1.2], .38, { stripe: 0x1e3a50 }],
+  ['bass', '海鲈鱼', 0x9aa6ae, 2, ['shore', 'sea', 'deep'], [1, 4], .5],
+  ['clown', '小丑鱼', 0xff7a22, 2, ['shore'], [.05, .2], .22, { stripe: 0xffffff }],
+  ['puff', '河豚', 0xe8d08a, 2, ['shore', 'sea'], [.3, 1.5], .3, { fat: 1 }],
+  ['tang', '蓝唐王鱼', 0x2a62ff, 3, ['shore'], [.2, .6], .28, { fin: 0xffe040 }],
+  ['grou', '石斑鱼', 0x8a5a3a, 3, ['sea', 'deep'], [2, 12], .62, { stripe: 0x5a3a22 }],
+  ['squid', '鱿鱼', 0xf0b0a0, 2, ['sea', 'deep'], [.4, 2], .45, { night: 1, squid: 1 }],
+  ['octo', '章鱼', 0xc05a6a, 3, ['sea'], [1, 6], .45, { night: 1, squid: 1 }],
+  ['tuna', '金枪鱼', 0x2a3a6a, 3, ['sea', 'deep'], [10, 60], .9, { fin: 0xffd040 }],
+  ['sword', '旗鱼', 0x3a5aa0, 4, ['deep'], [40, 180], 1.1, { bill: 1 }],
+  ['shark', '鲨鱼', 0x7a8a96, 4, ['deep'], [80, 400], 1.2, { shark: 1 }],
+  ['lant', '灯笼鱼', 0x3a2a4a, 4, ['deep'], [.5, 3], .4, { night: 1, glow: 0x9fe8ff }],
+  ['coel', '远古腔棘鱼', 0x2a4a6a, 5, ['deep'], [30, 90], .9, { glow: 0x7de0ff, stripe: 0xd8e8f0 }],
+  ['koi', '余烬锦鲤', 0xff5a2a, 5, ['pond', 'river', 'shore'], [2, 9], .6, { glow: 0xffb040, stripe: 0xffffff }],
+  ['cruc', '鲫鱼', 0x8a9a7a, 1, ['pond', 'river'], [.2, .8], .3],
+  ['grass', '草鱼', 0x7a8a5a, 1, ['river'], [1, 6], .55],
+  ['carp', '鲤鱼', 0xc8a050, 2, ['pond', 'river'], [1, 8], .55],
+  ['gold', '金鱼', 0xffa030, 2, ['pond'], [.05, .3], .22, { fat: 1 }],
+  ['angel', '神仙鱼', 0xe8e8f0, 3, ['pond'], [.05, .2], .24, { stripe: 0x2a2a30, tall: 1 }],
+  ['cat', '鲶鱼', 0x5a5040, 2, ['river'], [2, 15], .65, { night: 1, whisk: 1 }],
+  ['snake', '黑鱼', 0x3a3a30, 3, ['river'], [1, 6], .6, { stripe: 0x1a1a14 }],
+  ['trout', '虹鳟', 0xd08aa0, 3, ['river'], [1, 5], .5, { stripe: 0x6a9a6a }],
+  ['pira', '变异食人鱼', 0x9a3030, 4, ['river'], [.5, 3], .35, { glow: 0xff4030, teeth: 1 }]
+].map(a => ({ id: a[0], n: a[1], c: a[2], r: a[3], hab: a[4], kg: a[5], len: a[6], x: a[7] || {} }));
+const FISH_BY = {}; FISH.forEach(f => { FISH_BY[f.id] = f; });
+const FISH_R = [null, ['普通', '#d6cfc6'], ['少见', '#7de08a'], ['稀有', '#5aa9ff'], ['史诗', '#c084ff'], ['传说', '#ffc94a']];
+const HAB_N = { shore: '海边浅水和码头', sea: '坐船出海', deep: '坐船去 150 米外的深海', pond: '海岛的池塘', river: '大陆的河流' };
+S.fishLog = {};          // best kg per species
+S.tanks = {};            // "x,z,lv" -> [fish ids]
+const fk = id => 'fi_' + id;
+// every fish is a raw food in the bag
+FISH.forEach(f => { const k = fk(f.id), hc = '#' + f.c.toString(16).padStart(6, '0');
+  FOODS[k] = { n: f.n, r: Math.min(4, f.r - 1), food: 4 + f.r * 2, raw: 1, c: hc, d: '钓上来的' + f.n + '（' + FISH_R[f.r][0] + '）。可以拿去锅炉做菜，也能放进鱼缸里养。',
+    src: '钓鱼：' + f.hab.map(h => HAB_N[h]).join('、') + (f.x.night ? '（只在晚上咬钩）' : '') };
+  MAT[k] = { n: f.n, c: hc, r: 0 }; ITEMS[k] = { n: f.n, r: FOODS[k].r, cat: 'food', d: FOODS[k].d, use: foodEffect(k) + '。在背包里点「食用」，或在锅炉做成鱼料理。', src: FOODS[k].src };
+  SELL_PRICE[k] = [0, 3, 8, 20, 60, 200][f.r]; });
+const fishCount = minR => FISH.reduce((a, f) => a + (f.r >= (minR || 1) ? (S.inv[fk(f.id)] || 0) : 0), 0);
+// "any fish" in recipes: counts every fish; uses up the most common ones first
+Object.defineProperty(FOODS, '_fish', { value: { n: '任意鱼' }, enumerable: false });
+Object.defineProperty(FOODS, '_rfish', { value: { n: '稀有以上的鱼' }, enumerable: false });
+matHave = (o => function (k) { if (k === '_fish') return fishCount(1); if (k === '_rfish') return fishCount(3); return o(k); })(matHave);
+matAdd = (o => function (k, n) {
+  if ((k === '_fish' || k === '_rfish') && n < 0) { let need = -n; const L = FISH.filter(f => f.r >= (k === '_rfish' ? 3 : 1)).sort((a, b) => a.r - b.r);
+    for (const f of L) { if (need <= 0) break; const h = S.inv[fk(f.id)] || 0, t = Math.min(h, need); if (t) { o(fk(f.id), -t); need -= t; } } return; }
+  return o(k, n); })(matAdd);
+[['grfish', { n: '烤鱼', r: 1, c: '#e0a060', d: '撒了点盐，烤得外皮焦香的鱼。' }, { need: { _fish: 1 }, food: 26, heal: 35, e: '饱食 +26，回复 35 生命' }],
+ ['fsoup', { n: '鲜鱼汤', r: 2, c: '#f0e0c0', d: '奶白色的鱼汤，加了蘑菇，又鲜又暖。' }, { need: { _fish: 2, mush: 1 }, food: 45, heal: 50, buff: ['regen', 1.5, 240], e: '饱食 +45，回复 50 生命，4 分钟内每秒回复 1.5 生命' }],
+ ['spfish', { n: '香辣烤鱼', r: 2, c: '#ff6a3a', d: '满满一层辣椒的烤鱼，辣得过瘾。' }, { need: { _fish: 2, chili: 2 }, food: 40, buff: ['dmg', .12, 300], e: '饱食 +40，5 分钟内伤害 +12%' }],
+ ['sashimi', { n: '刺身拼盘', r: 3, c: '#ff9a8a', d: '用稀有的鱼切成薄片，入口即化。' }, { need: { _rfish: 1 }, food: 30, buff: ['crit', .1, 300], e: '饱食 +30，5 分钟内暴击率 +10%' }],
+ ['feast', { n: '海鲜大餐', r: 4, c: '#ffc94a', d: '一大盘各种海鲜，吃完感觉什么都扛得住。' }, { need: { _rfish: 2, _fish: 2, herb: 1 }, food: 70, heal: 120, buff: ['hpPct', .2, 420], e: '饱食 +70，回复 120 生命，7 分钟内最大生命 +20%' }]
+].forEach(([k, F, R]) => { R.k = k; FOODS[k] = F; RECIPES.push(R); REC_BY[k] = R; F.food = R.food; F.heal = R.heal || 0; F.buff = R.buff; F.src = '在锅炉里烹饪：' + Object.keys(R.need).map(q => FOODS[q].n + '×' + R.need[q]).join(' + ');
+  MAT[k] = { n: F.n, c: F.c, r: 0 }; if (!(k in S.inv)) S.inv[k] = 0; ITEMS[k] = { n: F.n, r: F.r, cat: 'food', d: F.d, use: foodEffect(k) + '。在背包里点「食用」。', src: F.src };
+  if (typeof FOOD_KEYS !== 'undefined') FOOD_KEYS.push(k); });
+COL.push({ n: '鱼类图鉴', ks: FISH.map(f => ['fish:' + f.id, f.n]), rw: { heart: 2, estone: 10, coin: 2000 } });
+
+/* ---- fish models (boxes) ---- */
+function fishModel(f, L) {
+  const g = new THREE.Group(), s = L || f.len, X = f.x, m = mat(f.c), dk = mat(X.stripe || 0x222222);
+  if (X.squid) { box(s * .35, s * .35, s * .55, m, 0, 0, s * .1, g); for (let i = 0; i < 6; i++) { const a = i / 6 * 6.28; box(s * .06, s * .06, s * .5, m, Math.cos(a) * s * .1, Math.sin(a) * s * .1, -s * .35, g); }
+    box(s * .06, s * .06, s * .03, mat(0x111111), s * .12, s * .06, s * .3, g); box(s * .06, s * .06, s * .03, mat(0x111111), -s * .12, s * .06, s * .3, g); return g; }
+  const h = s * (X.tall ? .55 : X.fat ? .45 : X.shark ? .26 : .3), w = s * (X.fat ? .4 : .2);
+  box(w, h, s * .7, m, 0, 0, 0, g); box(w * .8, h * .78, s * .18, m, 0, 0, s * .42, g);
+  box(w * .5, h * .9, s * .2, mat(X.fin || f.c), 0, 0, -s * .44, g).scale.y = 1.3;
+  box(w * .25, h * .5, s * .3, mat(X.fin || f.c), 0, h * .6, -s * .02, g);
+  if (X.shark) { const d = box(w * .2, h * 1.4, s * .2, m, 0, h * .9, 0, g); d.rotation.x = -.3; box(w * 1.6, h * .1, s * .18, m, 0, -h * .4, s * .08, g); }
+  if (X.bill) box(w * .2, h * .15, s * .45, m, 0, h * .05, s * .72, g);
+  if (X.stripe) for (let i = -1; i <= 1; i++) box(w * 1.04, h * .9, s * .06, dk, 0, 0, i * s * .18, g);
+  if (X.whisk) for (const sx of [-1, 1]) box(s * .02, s * .02, s * .25, dk, sx * w * .45, -h * .2, s * .58, g);
+  if (X.teeth) box(w * .7, h * .12, s * .05, mat(0xffffff), 0, -h * .2, s * .52, g);
+  for (const sx of [-1, 1]) box(s * .02, h * .18, h * .18, mat(0x111111), sx * w * .42, h * .14, s * .38, g);
+  if (X.glow) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,255,255,.9)', 'rgba(0,0,0,0)'), color: X.glow, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+    sp.scale.set(s * 1.6, s * 1.2, 1); g.add(sp); }
+  return g;
+}
+// icons for the bag
+(function fishIcons() {
+  if (typeof ICON_URL === 'undefined' || !document.createElement) return; let R;
+  try { const c = document.createElement('canvas'); R = new THREE.WebGLRenderer({ canvas: c, alpha: true, antialias: true, preserveDrawingBuffer: true }); } catch (e) { return; }
+  try { R.setPixelRatio(1); R.setClearColor && R.setClearColor(0, 0); R.setSize(160, 160, false); const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xffe8d0, 0x3a2a48, 1.1));
+    const L = new THREE.DirectionalLight(0xffc8a0, 1); L.position.set(-2, 3, 3); sc.add(L); const cam = new THREE.PerspectiveCamera(28, 1, .1, 50);
+    const shot = (g, key) => { const hold = new THREE.Group(); hold.add(g); hold.rotation.set(.35, -1.2, 0); sc.add(hold); hold.updateMatrixWorld(true);
+      const bb = new THREE.Box3().setFromObject(hold), c = new THREE.Vector3(), z = new THREE.Vector3(); bb.getCenter(c); bb.getSize(z); hold.position.sub(c);
+      const r = Math.max(z.x, z.y) * .62; cam.position.set(0, 0, r / Math.tan(14 * Math.PI / 180) + z.z * .5); cam.lookAt(0, 0, 0); cam.updateProjectionMatrix();
+      R.render(sc, cam); ICON_URL[key] = R.domElement.toDataURL('image/png'); sc.remove(hold); };
+    FISH.forEach(f => shot(fishModel(f, 1), fk(f.id)));
+    const plate = (fc, extra) => { const g = new THREE.Group(); box(1.1, .08, .8, mat(0xe8e0d0), 0, 0, 0, g); const fsh = fishModel({ c: fc, len: .8, x: {} }); fsh.rotation.y = Math.PI / 2; fsh.position.y = .16; g.add(fsh); if (extra) extra(g); return g; };
+    shot(plate(0xb87a40), 'grfish'); shot(plate(0xd04a2a, g => { for (let i = 0; i < 6; i++) box(.08, .05, .18, mat(0xff2a1a), -.4 + i * .16, .3, .1, g); }), 'spfish');
+    { const g = new THREE.Group(); box(.9, .5, .9, mat(0x8a5a3a), 0, 0, 0, g); box(.8, .06, .8, mat(0xf4ecd8), 0, .26, 0, g); box(.2, .05, .2, mat(0xc89060), .2, .3, .1, g); shot(g, 'fsoup'); }
+    { const g = new THREE.Group(); box(1.2, .06, .8, mat(0x2a2a2a), 0, 0, 0, g); for (let i = 0; i < 5; i++) box(.18, .06, .5, mat(i % 2 ? 0xff8a7a : 0xffb0a0), -.4 + i * .2, .07, 0, g); shot(g, 'sashimi'); }
+    { const g = plate(0xff7a3a, g => { box(.3, .2, .3, mat(0xf0b0a0), .35, .25, .2, g); box(.25, .12, .25, mat(0x8fd16f), -.35, .2, -.2, g); }); g.scale.set(1.2, 1.2, 1.2); shot(g, 'feast'); }
+  } catch (e) { }
+  try { R.dispose(); R.forceContextLoss && R.forceContextLoss(); } catch (e) { }
+})();
+
+/* ---- the fishing boat ---- */
+const FB_HOME = { x: HOME.x - 9, z: HOME.z - ISL_R - 11.4 };
+const BOAT = { g: null, x: FB_HOME.x, z: FB_HOME.z, r: Math.PI / 2, lx: 0, lz: 0, wake: 0 };
+S.boat = false;
+(function boatBuild() {
+  const g = new THREE.Group(), wd = mat(0xd8d0c4), wd2 = mat(0x2a6a9a), dk = mat(0x5a3e28);
+  box(1.7, .55, 3.6, wd, 0, .1, 0, g); box(1.5, .5, .9, wd, 0, .1, 2.0, g).scale.x = .7; box(1.76, .14, 3.7, wd2, 0, .4, 0, g); box(1.5, .06, 3.2, mat(0x9a7450), 0, .36, -.1, g);
+  box(.9, .8, .9, mat(0xe8e4dc), 0, .8, -.6, g); box(1.0, .08, 1.0, wd2, 0, 1.24, -.6, g); box(.7, .3, .04, mat(0x8ad0f0), 0, .95, -.14, g);
+  box(.3, .55, .3, mat(0x2a2a2e), 0, .3, -1.95, g); box(.1, .5, .1, mat(0x2a2a2e), 0, -.1, -2.0, g);
+  const rod = box(.04, .04, 2.2, dk, .7, 1.1, .6, g); rod.rotation.x = -.7;
+  box(1.8, .06, .06, dk, 0, .5, 1.2, g);
+  scene.add(g); BOAT.g = g; g.visible = false;
+})();
+function boatPlace() { const g = BOAT.g; if (!g) return; g.visible = !!S.isl; g.position.set(BOAT.x, -.25 + Math.sin(S.t * 1.6) * .06, BOAT.z); g.rotation.set(Math.sin(S.t * 1.2) * .03, BOAT.r, Math.sin(S.t * 1.4) * .03); }
+const boatNear = () => S.isl && !S.boat && !S.dead && Math.hypot(player.pos.x - BOAT.x, player.pos.z - BOAT.z) < 4.4;
+const boatShore = () => S.boat && Math.hypot(player.pos.x - HOME.x, player.pos.z - HOME.z) < ISL_R + 22;
+let _islets = null;
+function isletList() { if (_islets) return _islets; _islets = [];
+  try { islandG.children.forEach(o => { const p = o.geometry && o.geometry.parameters, d = Math.hypot(o.position.x, o.position.z); if (p && p.radiusBottom && d > 150 && d < 300 && o.position.y < 0) _islets.push({ x: HOME.x + o.position.x, z: HOME.z + o.position.z, r: p.radiusBottom + 2.5 }); }); } catch (e) { }
+  return _islets; }
+function boatBoard() { if (!boatNear()) return; fishStop(); S.boat = true; player.pos.x = BOAT.x; player.pos.z = BOAT.z; BOAT.lx = BOAT.x; BOAT.lz = BOAT.z; feed('上船了：用摇杆开船，海上可以钓鱼，离岸 150 米外是深海', '#7de0ff'); try { sfx.pick(); } catch (e) { } }
+function boatLeave() { if (!boatShore()) { feed('靠近海岛岸边才能下船', '#ff9b8a'); return; } fishStop();
+  const dx = player.pos.x - HOME.x, dz = player.pos.z - HOME.z, d = Math.hypot(dx, dz) || 1; S.boat = false;
+  BOAT.x = HOME.x + dx / d * (ISL_R + 12); BOAT.z = HOME.z + dz / d * (ISL_R + 12); player.pos.x = HOME.x + dx / d * (ISL_R + 8); player.pos.z = HOME.z + dz / d * (ISL_R + 8); try { sfx.pick(); } catch (e) { } }
+function boatTick(dt) {
+  if (!S.isl) { if (S.boat) S.boat = false; if (BOAT.g) BOAT.g.visible = false; return; }
+  if (S.boat) {
+    if (S.dead) { S.boat = false; return; }
+    // the boat goes a bit faster than walking
+    const mdx = player.pos.x - BOAT.lx, mdz = player.pos.z - BOAT.lz, md = Math.hypot(mdx, mdz);
+    if (md > .001 && md < 2) { player.pos.x += mdx * .5; player.pos.z += mdz * .5; BOAT.r = Math.atan2(mdx, mdz); BOAT.wake -= dt; if (BOAT.wake <= 0) { BOAT.wake = .12; burst(player.pos.x - Math.sin(BOAT.r) * 1.9, -.1, player.pos.z - Math.cos(BOAT.r) * 1.9, 0xe8f6ff, 2, 1.5); } }
+    let dx = player.pos.x - HOME.x, dz = player.pos.z - HOME.z, d = Math.hypot(dx, dz) || 1;
+    if (d < ISL_R + 12) { player.pos.x = HOME.x + dx / d * (ISL_R + 12); player.pos.z = HOME.z + dz / d * (ISL_R + 12); }
+    if (d > 300) { player.pos.x = HOME.x + dx / d * 300; player.pos.z = HOME.z + dz / d * 300; S.seaT = (S.seaT || 0) - dt; if (S.seaT <= 0) { S.seaT = 3; feed('再往外就迷路了，回去吧', '#7de0ff'); } }
+    if (Math.abs(player.pos.x - PAD.x) < 6 && player.pos.z > PAD.z - 4 && player.pos.z < HOME.z - ISL_R) player.pos.x = PAD.x + (player.pos.x < PAD.x ? -6 : 6);   // around the pier
+    for (const I of isletList()) { const ix = player.pos.x - I.x, iz = player.pos.z - I.z, id = Math.hypot(ix, iz) || 1; if (id < I.r) { player.pos.x = I.x + ix / id * I.r; player.pos.z = I.z + iz / id * I.r; } }
+    BOAT.x = player.pos.x; BOAT.z = player.pos.z; BOAT.lx = player.pos.x; BOAT.lz = player.pos.z;
+    // stand on the deck, legs still
+    pm.g.position.y = .25 + Math.sin(S.t * 1.6) * .06; pm.legL.rotation.x = pm.legR.rotation.x = 0; pm.body.position.y = 0;
+  }
+  boatPlace();
+}
+islandTick = (o => function (dt) { if (S.boat) { const x = player.pos.x, z = player.pos.z; o(dt); player.pos.x = x; player.pos.z = z; } else o(dt); })(islandTick);
+goGround = (o => function (x, z) { S.boat = false; BOAT.x = FB_HOME.x; BOAT.z = FB_HOME.z; BOAT.r = Math.PI / 2; fishStop(); return o(x, z); })(goGround);
+
+/* ---- fishing ---- */
+const FI = { st: '', t: 0, hab: '', bx: 0, bz: 0, by: -.3, bob: null, line: null, rod: null, fish: null, win: 0 };
+function fishSpot() {
+  if (S.dead || S.up || (S.fl | 0) > 0) return null;
+  const px = player.pos.x, pz = player.pos.z, f = player.face;
+  if (S.isl) {
+    if (S.boat) { const d = Math.hypot(px - HOME.x, pz - HOME.z), a = f; return { hab: d > 150 ? 'deep' : 'sea', x: px + Math.sin(a) * 5, z: pz + Math.cos(a) * 5, y: -.3 }; }
+    const P = { x: HOME.x + ISLW.pond.x, z: HOME.z + ISLW.pond.z }, pd = Math.hypot(px - P.x, pz - P.z);
+    if (pd < 7.5) { const a = Math.atan2(P.x - px, P.z - pz); return { hab: 'pond', x: P.x - Math.sin(a) * 1.2, z: P.z - Math.cos(a) * 1.2, y: .02 }; }
+    const dx = px - HOME.x, dz = pz - HOME.z, d = Math.hypot(dx, dz), onPier = Math.abs(dx) < 1.6 && dz < -ISL_R + 2 && dz > PAD.z - HOME.z - 3;
+    if (onPier) { const sx = dx >= 0 ? 1 : -1; return { hab: 'shore', x: px + sx * 5, z: pz, y: -.3 }; }
+    if (d > ISL_R + 5) return { hab: 'shore', x: HOME.x + dx / d * (d + 6), z: HOME.z + dz / d * (d + 6), y: -.3 };
+    return null;
+  }
+  for (const r of [3.5, 5, 2.5]) { const x = px + Math.sin(f) * r, z = pz + Math.cos(f) * r, w = waterAt(x, z); if (w > .25) return { hab: w > 1.6 ? 'sea' : 'river', x, z, y: -.05 }; }
+  for (let k = 0; k < 8; k++) { const a = k / 8 * 6.283, x = px + Math.sin(a) * 3.5, z = pz + Math.cos(a) * 3.5, w = waterAt(x, z); if (w > .25) return { hab: w > 1.6 ? 'sea' : 'river', x, z, y: -.05 }; }
+  return null;
+}
+function fishRoll(hab) {
+  const night = DN.night > .5, tier = S.isl ? 1 : tierAt(player.pos.x, player.pos.z);
+  const L = FISH.filter(f => f.hab.includes(hab) && (!f.x.night || night) && !(f.id === 'pira' && tier < 5));
+  const W = { 1: 50, 2: 28, 3: 13, 4: hab === 'deep' ? 6 : 4.5, 5: hab === 'deep' ? 1.6 : 1 };
+  let tot = 0; const ws = L.map(f => { const w = W[f.r] * (f.x.night ? 1.6 : 1); tot += w; return w; });
+  let r = Math.random() * tot; for (let i = 0; i < L.length; i++) { r -= ws[i]; if (r <= 0) return L[i]; } return L[0];
+}
+function fishGfx(on) {
+  if (!FI.bob) { FI.bob = new THREE.Group(); box(.16, .14, .16, mat(0xffffff), 0, 0, 0, FI.bob); box(.17, .12, .17, mat(0xff3a2a), 0, .12, 0, FI.bob); scene.add(FI.bob);
+    FI.line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0xf0f0f0, transparent: true, opacity: .8 })); scene.add(FI.line);
+    FI.rod = box(.05, .05, 2.4, mat(0x6a4a2a), 0, 0, 0, scene); }
+  FI.bob.visible = FI.line.visible = FI.rod.visible = on;
+}
+function fishStop(msg) { if (!FI.st) return; FI.st = ''; fishGfx(false); fishBtn(); if (msg) feed(msg, '#c1a597'); }
+function fishAct() {
+  if (FI.st === 'bite') { fishCatch(); return; }
+  if (FI.st) { fishStop('收回了鱼线'); return; }
+  const sp = fishSpot(); if (!sp) { feed('要站在水边（码头、海边浅水、池塘、河边）或者在船上才能钓鱼', '#ff9b8a'); return; }
+  FI.st = 'wait'; FI.hab = sp.hab; FI.bx = sp.x; FI.bz = sp.z; FI.by = sp.y; FI.t = rand(3, 9) * (sp.hab === 'deep' ? 1.2 : 1); FI.fish = null;
+  player.face = Math.atan2(sp.x - player.pos.x, sp.z - player.pos.z); fishGfx(true); burst(sp.x, sp.y + .1, sp.z, 0xd8f0ff, 6, 2); try { sfx.swing(); } catch (e) { } fishBtn();
+}
+function fishCatch() {
+  const f = FI.fish; fishStop(); if (!f) return;
+  const kg = +(f.kg[0] + Math.pow(Math.random(), 1.6) * (f.kg[1] - f.kg[0])).toFixed(f.kg[1] < 5 ? 2 : 1), first = !S.fishLog[f.id], best = kg > (S.fishLog[f.id] || 0);
+  if (best) S.fishLog[f.id] = kg; gain(fk(f.id), 1); stInc('fish'); if (typeof colAdd === 'function') colAdd('fish:' + f.id); if (typeof seaXp === 'function') seaXp(3 + f.r * 3);
+  try { addXp(8 * f.r * f.r); } catch (e) { }
+  const R = FISH_R[f.r]; banner((first ? '新品种！' : '钓到了 ') + f.n, R[0] + ' · ' + kg + ' 公斤' + (best && !first ? ' · 个人纪录！' : ''), f.r >= 4 ? 3.6 : 2.4);
+  burst(FI.bx, FI.by + .3, FI.bz, f.c, 14, 4); try { sfx.build(); } catch (e) { } saveGame();
+}
+function fishTick(dt) {
+  boatTick(dt);
+  if (!FI.st) { fishBtn(); return; }
+  const moved = Math.hypot(input.mx, input.mz) > .3 || input.fire || S.dead;
+  if (moved || Math.hypot(player.pos.x - FI.bx, player.pos.z - FI.bz) > 9) { fishStop('一动鱼就跑了'); return; }
+  // rod and line
+  const f = player.face, hx = player.pos.x + Math.sin(f) * .35, hz = player.pos.z + Math.cos(f) * .35, hy = 1.2 + pm.g.position.y, tx = player.pos.x + Math.sin(f) * 2.3, tz = player.pos.z + Math.cos(f) * 2.3, ty = 2.6 + pm.g.position.y;
+  FI.rod.position.set((hx + tx) / 2, (hy + ty) / 2, (hz + tz) / 2); FI.rod.lookAt(tx, ty, tz);
+  FI.t -= dt; let dip = Math.sin(S.t * 3) * .04;
+  if (FI.st === 'wait' && FI.t <= 0) { FI.fish = fishRoll(FI.hab); FI.st = 'bite'; FI.win = Math.max(.75, 1.5 - FI.fish.r * .14); FI.t = FI.win; burst(FI.bx, FI.by, FI.bz, 0xffffff, 10, 3); try { sfx.hit(); } catch (e) { } if (navigator.vibrate) try { navigator.vibrate(60); } catch (e) { } fishBtn(); }
+  else if (FI.st === 'wait' && FI.t < 1.2 && Math.random() < dt * 3) dip -= .08;       // a nibble
+  if (FI.st === 'bite') { dip = -.22 + Math.sin(S.t * 30) * .05; if (FI.t <= 0) { FI.fish = null; fishStop(); feed('鱼跑了……咬钩时要马上点「收杆」', '#ff9b8a'); return; } }
+  FI.bob.position.set(FI.bx, FI.by + .05 + dip, FI.bz);
+  const p = FI.line.geometry.attributes.position; p.setXYZ(0, tx, ty, tz); p.setXYZ(1, FI.bx, FI.by + .1 + dip, FI.bz); p.needsUpdate = true;
+}
+let _fbK = '';
+function fishBtn() {
+  const b = $('bFish'), bb = $('bBoat'); if (!b) return;
+  const sp = !FI.st && S.started && !S.paused ? fishSpot() : null, k = FI.st + '|' + (!!sp) + '|' + boatNear() + '|' + boatShore() + '|' + S.boat;
+  if (k === _fbK) return; _fbK = k;
+  b.style.display = FI.st || sp ? 'block' : 'none'; b.textContent = FI.st === 'bite' ? '收杆！' : FI.st ? '等鱼咬钩…' : '钓鱼'; b.classList.toggle('bite', FI.st === 'bite');
+  if (bb) { bb.style.display = boatNear() || boatShore() ? 'block' : 'none'; bb.textContent = S.boat ? '下船' : '上船'; }
+}
+{ const H = $('hud'); if (H && H.appendChild) {
+  const b = document.createElement('button'); b.className = 'btn2'; b.id = 'bFish'; H.appendChild(b);
+  b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); try { audioInit(); } catch (er) { } fishAct(); });
+  const bb = document.createElement('button'); bb.className = 'btn2'; bb.id = 'bBoat'; H.appendChild(bb);
+  bb.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (S.boat) boatLeave(); else boatBoard(); _fbK = ''; fishBtn(); });
+  const t = document.createElement('button'); t.className = 'btn2'; t.id = 'bTank'; t.textContent = '鱼缸'; H.appendChild(t);
+  t.addEventListener('click', () => { const k = tankNear(); if (!k) return; TK.sel = k; try { audioInit(); } catch (e) { } openPanel('tank', renderTank); }); } }
+
+/* ---- glass fish tanks: 1.5 × 1.5 m, one storey tall, clear with only the outline; neighbours join ---- */
+const TK_S = 1.5, TK_H = UPY - .02, TK_CAP = 4;
+BT.tank = { name: '鱼缸', cat: 'fu', k: 'free', cost: { wood: 2, metal: 6 }, hp: 160, hw: .72, hd: .72, ob: [[0, 0, .72, .72]], desc: '玻璃鱼缸，一层楼高。并排放会连成一个大鱼缸，可以养鱼' };
+const tkKey = b => b.x.toFixed(2) + ',' + b.z.toFixed(2) + ',' + (b.lv | 0);
+const tkAt = (x, z, lv) => builds.find(b => b.type === 'tank' && b.hp > 0 && (b.lv | 0) === lv && Math.abs(b.x - x) < .1 && Math.abs(b.z - z) < .1);
+const TK = { sel: null, edge: mat(0xe8fbff), water: null, sand: mat(0xd8c08a), weed: [mat(0x3a9a4a), mat(0x5ab85a)] };
+TK.water = new THREE.MeshLambertMaterial({ color: 0x3aa8e0, transparent: true, opacity: .22, depthWrite: false, side: THREE.DoubleSide });
+TK.edge = new THREE.MeshBasicMaterial({ color: 0xe8fbff, transparent: true, opacity: .85 });
+// the tank's look depends on its neighbours: outline only on the outside of the joined shape, water walls only outside
+function tankFill(g, nb, seed) {
+  while (g.children.length) g.remove(g.children[0]);
+  const h = TK_S / 2, e = .035, H = TK_H, wy = H * .9, has = (dx, dz) => !!nb(dx, dz);
+  const bar = (w, hh, d, x, y, z) => { const m = box(w, hh, d, TK.edge, x, y, z, g); m.userData.noCast = 1; m.castShadow = false; return m; };
+  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { if (has(dx, dz)) continue;
+    const along = dx ? [e, e, TK_S] : [TK_S, e, e]; bar(along[0], along[1], along[2], dx * h, e / 2, dz * h); bar(along[0], along[1], along[2], dx * h, H - e / 2, dz * h); }
+  for (const [cx, cz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { const a = has(cx, 0), b = has(0, cz), c = has(cx, cz), n = 1 + a + b + c;
+    if (n === 1 || n === 3 || (n === 2 && c)) bar(e, H, e, cx * h, H / 2, cz * h); }
+  // water: top surface and the outer walls
+  const pl = (w, hh, x, y, z, ry, rx) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, hh), TK.water); m.position.set(x, y, z); m.rotation.set(rx || 0, ry || 0, 0); m.renderOrder = 4; m.userData.noCast = 1; g.add(m); };
+  pl(TK_S, TK_S, 0, wy, 0, 0, -Math.PI / 2);
+  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!has(dx, dz)) pl(TK_S, wy, dx * (h - .01), wy / 2, dz * (h - .01), dx ? Math.PI / 2 : 0);
+  // sand and a little weed
+  box(TK_S - .02, .06, TK_S - .02, TK.sand, 0, .03, 0, g); const R = mulberry32(seed || 7);
+  for (let i = 0; i < 3; i++) { const x = (R() - .5) * 1.1, z = (R() - .5) * 1.1, hh = .3 + R() * .7; box(.06, hh, .06, TK.weed[i % 2], x, hh / 2 + .05, z, g); box(.06, hh * .6, .06, TK.weed[(i + 1) % 2], x + .08, hh * .3 + .05, z + .05, g); }
+  if (R() < .6) box(.25, .18, .2, mat(0x8a8680), (R() - .5) * .9, .12, (R() - .5) * .9, g);
+}
+buildMesh = (orig => function (type) { if (type !== 'tank') return orig(type); const g = new THREE.Group(); g.add(new THREE.Group()); tankFill(g.children[0], () => false); g.userData.tank = g.children[0]; return g; })(buildMesh);
+function tankRefresh(b) { if (!b || !b.g || !b.g.userData.tank) return; tankFill(b.g.userData.tank, (dx, dz) => tkAt(b.x + dx * TK_S, b.z + dz * TK_S, b.lv | 0), Math.abs(Math.round(b.x * 7 + b.z * 13)) + 1); }
+function tankAround(b) { tankRefresh(b); for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) if (i || j) tankRefresh(tkAt(b.x + i * TK_S, b.z + j * TK_S, b.lv | 0)); }
+addBuild = (orig => function (type, x, z, rot, free, lv) { const b = orig(type, x, z, rot, free, lv); if (type === 'tank' && b) { b.rot = 0; b.g.rotation.y = 0; tankAround(b); } return b; })(addBuild);
+dropBuild = (orig => function (b) { const tk = b && b.type === 'tank'; let fish = null; if (tk) { fish = S.tanks[tkKey(b)]; delete S.tanks[tkKey(b)]; tankFishClear(b); }
+  const r = orig(b); if (tk) { if (fish && fish.length ) { fish.forEach(id => gain(fk(id), 1)); feed('鱼缸里的鱼放回了背包', '#7de0ff'); } for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) tankRefresh(tkAt(b.x + i * TK_S, b.z + j * TK_S, b.lv | 0)); } return r; })(dropBuild);
+// placing: tanks snap to a 1.5 m grid (the same lines as the foundations) so neighbours line up
+ghostTransform = (orig => function () {
+  if (buildSel !== 'tank') return orig();
+  const t = orig(), T = BT.tank, sn = v => (Math.floor(v / TK_S) + .5) * TK_S, lv = t.lv | 0;
+  if (lv > 0) { const x = sn(t.x), z = sn(t.z); return Object.assign({}, t, { x, z, rot: 0, ok: t.ok && !tkAt(x, z, lv) }); }
+  const aim = aimPoint(), ax = sn(aim.x), az = sn(aim.z); let best = null, bd = 1e9;
+  for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) { const x = ax + i * TK_S, z = az + j * TK_S, d = Math.hypot(x - aim.x, z - aim.z); if (d >= bd || tkAt(x, z, 0) || !spotOk(T, x, z, 0)) continue; bd = d; best = { x, z }; }
+  if (!best) return { x: ax, z: az, rot: 0, ok: false, why: '这里放不下鱼缸' };
+  return { x: best.x, z: best.z, rot: 0, ok: true };
+})(ghostTransform);
+// fish swimming in tanks
+const TKF = new Map();       // build -> [{g, f, x, y, z, tx, ty, tz, sp}]
+function tankFishClear(b) { const L = TKF.get(b); if (L) L.forEach(o => b.g.remove(o.g)); TKF.delete(b); }
+function tankFishSync(b) {
+  const ids = S.tanks[tkKey(b)] || [], L = TKF.get(b) || [];
+  if (L.length === ids.length && L.every((o, i) => o.f.id === ids[i])) return L;
+  tankFishClear(b); const out = [];
+  ids.forEach(id => { const f = FISH_BY[id]; if (!f) return; const L2 = Math.min(.55, Math.max(.2, f.len * .55)), g = fishModel(f, L2); b.g.add(g);
+    out.push({ g, f, x: rand(-.4, .4), y: rand(.5, 2.2), z: rand(-.4, .4), tx: 0, ty: 1.2, tz: 0, sp: rand(.25, .5), t: 0, L: L2 }); });
+  TKF.set(b, out); return out;
+}
+function tankTick(dt) {
+  const near = S.started && !S.dead ? tankNear() : null, tb = $('bTank'); if (tb) tb.style.display = near && !FI.st ? 'block' : 'none';
+  for (const b of builds) { if (b.type !== 'tank' || b.hp <= 0) continue; if (Math.hypot(b.x - player.pos.x, b.z - player.pos.z) > 60) continue;
+    const L = tankFishSync(b);
+    for (const o of L) { o.t -= dt;
+      if (o.t <= 0 || Math.hypot(o.tx - o.x, o.tz - o.z, o.ty - o.y) < .1) { o.t = rand(2, 5); const lim = .75 - o.L * .5;
+        // sometimes swim over into a joined neighbour
+        let ox = 0, oz = 0; if (Math.random() < .35) { const ns = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dz]) => tkAt(b.x + dx * TK_S, b.z + dz * TK_S, b.lv | 0)); if (ns.length) { const n = pick(ns); ox = n[0] * TK_S; oz = n[1] * TK_S; } }
+        o.tx = ox + rand(-lim, lim); o.tz = oz + rand(-lim, lim); o.ty = rand(.4, TK_H * .82); }
+      const dx = o.tx - o.x, dy = o.ty - o.y, dz = o.tz - o.z, d = Math.hypot(dx, dy, dz) || 1, v = Math.min(d, o.sp * dt);
+      o.x += dx / d * v; o.y += dy / d * v * .6; o.z += dz / d * v;
+      o.g.position.set(o.x, o.y, o.z); const want = Math.atan2(dx, dz); let a = want - o.g.rotation.y; a = Math.atan2(Math.sin(a), Math.cos(a)); o.g.rotation.y += a * Math.min(1, dt * 4);
+      o.g.rotation.z = Math.sin(S.t * 6 + o.sp * 10) * .08; } }
+}
+function tankNear() { let best = null, bd = 2.4; for (const b of builds) { if (b.type !== 'tank' || b.hp <= 0 || (b.lv | 0) !== (S.fl | 0)) continue; const d = Math.max(Math.abs(player.pos.x - b.x), Math.abs(player.pos.z - b.z)); if (d < bd) { bd = d; best = b; } } return best; }
+function renderTank() {
+  const box2 = $('tankList'), b = TK.sel; if (!box2) return; box2.innerHTML = ''; if (!b || b.hp <= 0) { closePanel('tank'); return; }
+  const k = tkKey(b), ids = S.tanks[k] || [];
+  const hd = document.createElement('div'); hd.className = 'snote'; hd.textContent = '这格鱼缸养了 ' + ids.length + ' / ' + TK_CAP + ' 条。并排的鱼缸会连成一个，鱼会游来游去。拆掉鱼缸时鱼会回到背包。'; box2.appendChild(hd);
+  const h3 = t => { const h = document.createElement('h3'); h.textContent = t; box2.appendChild(h); };
+  h3('缸里的鱼');
+  if (!ids.length) { const n = document.createElement('div'); n.className = 'snote'; n.textContent = '还是空的'; box2.appendChild(n); }
+  ids.forEach((id, i) => { const f = FISH_BY[id]; if (!f) return; const row = shopRow(f.n, FISH_R[f.r][0] + (S.fishLog[id] ? ' · 最大纪录 ' + S.fishLog[id] + ' 公斤' : ''), FISH_R[f.r][1]);
+    const ic = document.createElement('span'); ic.className = 'ckic'; ic.innerHTML = svgIcon(fk(id)); row.insertBefore(ic, row.firstChild);
+    const bt = document.createElement('button'); bt.className = 'sbtn'; bt.textContent = '捞出来'; bt.addEventListener('click', () => { const a = S.tanks[k] || []; a.splice(i, 1); if (!a.length) delete S.tanks[k]; gain(fk(id), 1); renderTank(); saveGame(); }); row.appendChild(bt); box2.appendChild(row); });
+  h3('背包里的鱼');
+  const have = FISH.filter(f => (S.inv[fk(f.id)] || 0) > 0);
+  if (!have.length) { const n = document.createElement('div'); n.className = 'snote'; n.textContent = '背包里没有鱼。去码头、海边、池塘、河边或者坐船出海钓鱼吧。'; box2.appendChild(n); }
+  have.forEach(f => { const row = shopRow(f.n + ' ×' + S.inv[fk(f.id)], FISH_R[f.r][0], FISH_R[f.r][1]);
+    const ic = document.createElement('span'); ic.className = 'ckic'; ic.innerHTML = svgIcon(fk(f.id)); row.insertBefore(ic, row.firstChild);
+    const bt = document.createElement('button'); bt.className = 'sbtn'; bt.textContent = '放进去'; bt.disabled = ids.length >= TK_CAP;
+    bt.addEventListener('click', () => { const a = S.tanks[k] = S.tanks[k] || []; if (a.length >= TK_CAP || !(S.inv[fk(f.id)] > 0)) return; matAdd(fk(f.id), -1); a.push(f.id); try { sfx.pick(); } catch (e) { } renderTank(); saveGame(); });
+    row.appendChild(bt); box2.appendChild(row); });
+}
+{ if (document.createElement && document.body && document.body.appendChild) { const o = document.createElement('div'); o.className = 'overlay scroll'; o.id = 'tank'; o.innerHTML = '<h2>鱼缸</h2><div id="tankList" class="slist"></div>';
+  const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => closePanel('tank')); o.appendChild(x); document.body.appendChild(o); } }
+
+petsTick = (o => function (dt) { o(dt); try { fishTick(dt); } catch (e) { console.warn(e); } try { tankTick(dt); } catch (e) { console.warn(e); } })(petsTick);
+drawExtraRadar = (orig => function (tx, tz, edgeMark) { orig(tx, tz, edgeMark); try { if (!S.isl || S.boat) return; const k = _mapK || 2; mapPin(mctx, tx(BOAT.x), tz(BOAT.z), 4.5 * k, '#7de0ff', '船', k); } catch (e) { } })(drawExtraRadar);
+shopSave = (o => function () { const r = o(); try { r.fish = { log: S.fishLog, tk: S.tanks }; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.fishLog = {}; S.tanks = {}; try { const F = d && d.sh && d.sh.fish; if (F) {
+  if (F.log && typeof F.log === 'object') for (const id in F.log) if (FISH_BY[id] && Number.isFinite(+F.log[id])) S.fishLog[id] = +F.log[id];
+  if (F.tk && typeof F.tk === 'object') for (const k in F.tk) if (Array.isArray(F.tk[k])) { const a = F.tk[k].filter(id => FISH_BY[id]).slice(0, TK_CAP); if (a.length) S.tanks[String(k).slice(0, 40)] = a; } } } catch (e) { }
+  TKF.forEach((L, b) => tankFishClear(b)); })(shopLoad);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -10302,6 +10631,10 @@ const ACH = [
   { id: 'ht1', n: '猎人', d: '猎到 100 只动物', v: () => S.st.hunt || 0, g: 100, rw: { coin: 1200 }, title: '猎人', tr: 1, ts: { crit: .01 } },
   { id: 'cv1', n: '商队之友', d: '护送流浪商队 1 次', v: () => S.st.cv || 0, g: 1, rw: { coin: 800 } },
   { id: 'cv2', n: '商路守护者', d: '护送流浪商队 20 次', v: () => S.st.cv || 0, g: 20, rw: { coin: 10000, heart: 2 }, title: '商路守护者', tr: 4, ts: { def: .02, spd: .02, coin: .06 } },
+  { id: 'fi1', n: '第一条鱼', d: '钓到 1 条鱼', v: () => S.st.fish || 0, g: 1, rw: { coin: 200 } },
+  { id: 'fi2', n: '钓鱼佬', d: '钓到 200 条鱼', v: () => S.st.fish || 0, g: 200, rw: { coin: 3000, estone: 5 }, title: '钓鱼佬', tr: 2, ts: { regen: .5, hp: 30 } },
+  { id: 'fi3', n: '海王', d: '集齐全部 ' + (typeof FISH !== 'undefined' ? FISH.length : 24) + ' 种鱼', v: () => Object.keys(S.fishLog || {}).length, g: typeof FISH !== 'undefined' ? FISH.length : 24, rw: { coin: 12000, heart: 3 }, title: '海王', tr: 4, ts: { hpPct: .04, regen: 1, spd: .02 } },
+  { id: 'fi4', n: '巨物猎人', d: '钓到一条 300 公斤以上的鲨鱼', v: () => (S.fishLog && S.fishLog.shark) || 0, g: 300, rw: { coin: 8000, heart: 2 }, title: '巨物猎人', tr: 4, ts: { dmg: .03, critDmg: .1 } },
   { id: 'e1', n: '救援专家', d: '完成 20 次空投或精英事件', v: () => S.st.event || 0, g: 20, rw: { coin: 2000, serum: 2 }, title: '救援专家', tr: 2, ts: { hp: 50 } },
   { id: 'h1', n: '建筑师', d: '建造 30 个建筑', v: () => S.st.build || 0, g: 30, rw: { coin: 1000 }, title: '建筑师', tr: 1, ts: { def: .01 } },
   { id: 'g1', n: '时尚达人', d: '时装抽奖 100 次', v: () => S.st.draws || 0, g: 100, rw: { coin: 2000 }, title: '时尚达人', tr: 2, ts: { spd: .015, xp: .03 } },
@@ -11123,4 +11456,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794099369').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794102516').catch(()=>{});</script></body></html>
