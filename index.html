@@ -12145,7 +12145,7 @@ function dunBuild() {
   const under = new THREE.Mesh(new THREE.PlaneGeometry(600, 400), new THREE.MeshBasicMaterial({ color: 0x050507 })); under.rotation.x = -Math.PI / 2; under.position.set(100, -.02, -30); DUN.G.add(under);
   /* ======== ground floor ======== */
   // outside: the ambulance bay
-  dFloor(14, 0, 46, 12, M.metal); dBox(4, 2.2, 7, new THREE.MeshLambertMaterial({ color: 0xe8e8e0 }), 22, 1.3, 7).rotation.y = .2; dBox(4.05, .3, 7.05, M.red, 22, 1.5, 7).rotation.y = .2;
+  dFloor(14, 0, 46, 12, M.metal); dRoom('bay', '', 14, 0, 46, 12); dRoom('lift1', '', -12, -23, -6, -17); dBox(4, 2.2, 7, new THREE.MeshLambertMaterial({ color: 0xe8e8e0 }), 22, 1.3, 7).rotation.y = .2; dBox(4.05, .3, 7.05, M.red, 22, 1.5, 7).rotation.y = .2;
   DUN.obs.push(addBox(dX(22), dZ(7), 2.4, 3.8)); for (let i = 0; i < 6; i++) dBox(.4, .9, .4, new THREE.MeshLambertMaterial({ color: i % 2 ? 0xff8a2a : 0xf0f0f0 }), 30 + i * 1.2, .45, 10.5);
   wallZ(14, 0, 12, [], M.wall2); wallZ(46, 0, 12, [], M.wall2); wallX(12, 14, 46, [], M.wall2, 1.2);
   // lobby
@@ -12247,10 +12247,10 @@ function dunSetup() {
   tape('r1', 15, -4); tape('r2', 22, -36.2); tape('r3', 27.5, -36); tape('r4', B + 50.5, -4);
   // crates for the explorers
   // searchable furniture (Delta Force style): walk up, search, the items show up one by one, tap them into your bag
-  [['locker', 5.5, -2.6, Math.PI], ['file', 4.6, -6, Math.PI / 2], ['med', 18.6, -14, Math.PI / 2], ['tool', -5.4, -30, Math.PI / 2], ['med', 13.4, -30, -Math.PI / 2], ['locker', 25.4, -30, -Math.PI / 2],
-   ['file', 35.4, -30, -Math.PI / 2], ['med', 47.4, -30, -Math.PI / 2], ['med', 49, -24.6, Math.PI], ['safe', 57.3, -27, -Math.PI / 2], ['tool', 59, -13.6, Math.PI],
-   ['lab', B + 10.6, -4, Math.PI / 2], ['lab', B + 45.4, -12, -Math.PI / 2], ['file', B + 23.4, -42, -Math.PI / 2], ['safe', B + 32.6, -36, Math.PI / 2], ['file', B - 1.4, -26, Math.PI / 2],
-   ['tool', B + 51.4, -8, -Math.PI / 2], ['lab', B + 46.6, -40, Math.PI / 2], ['lab', B + 81.4, -18, -Math.PI / 2]].forEach(c => dCab(c[0], c[1], c[2], c[3]));
+  [['locker', 5.5, -2.6, Math.PI, 'badge'], ['file', 4.6, -6, Math.PI / 2, 'badge'], ['med', 18.6, -14, Math.PI / 2], ['tool', -5.4, -30, Math.PI / 2], ['med', 13.4, -30, -Math.PI / 2, 'doll'], ['locker', 25.4, -30, -Math.PI / 2, 'doll'],
+   ['file', 35.4, -30, -Math.PI / 2], ['med', 47.4, -30, -Math.PI / 2, 'doll'], ['med', 49, -24.6, Math.PI], ['safe', 57.3, -27, -Math.PI / 2, 'card'], ['tool', 59, -13.6, Math.PI],
+   ['lab', B + 10.6, -4, Math.PI / 2, 'vial'], ['lab', B + 45.4, -12, -Math.PI / 2, 'vial'], ['file', B + 23.4, -42, -Math.PI / 2], ['safe', B + 32.6, -36, Math.PI / 2, 'card'], ['file', B - 1.4, -26, Math.PI / 2, 'steth'],
+   ['tool', B + 51.4, -8, -Math.PI / 2], ['lab', B + 46.6, -40, Math.PI / 2, 'vial'], ['lab', B + 81.4, -18, -Math.PI / 2, 'vial']].forEach(c => dCab(c[0], c[1], c[2], c[3], c[4]));
   // doors, switches, terminals, lifts
   dInt(30, -14.6, '刷门禁卡', () => st.stage === 1, () => { doorOpen('ward'); st.stage = 2; say('door'); });
   dInt(30, -14.6, '需要门禁卡', () => st.stage === 0, () => { feed('门锁着，要保安室的门禁卡', '#ff9b8a'); });
@@ -12316,6 +12316,9 @@ regionTick = (o => function (dt) { if (!S.dun) return o(dt);
   if (S.recallT > 0 && !S.dead) { S.recallT -= dt; const t = $('recallTxt'); if (t) t.textContent = Math.ceil(Math.max(0, S.recallT)) + ' 秒';
     if (S.recallT <= 0) { S.recallT = 0; if (t) t.textContent = ''; dunTravel('离开副本', '回到海岛', () => goIsland()); } } })(regionTick);
 try { evTick = (o => function (dt) { if (S.dun) return; return o(dt); })(evTick); } catch (e) { }
+try { animalTick = (o => function (dt) { if (S.dun) return; return o(dt); })(animalTick); } catch (e) { }
+try { farSpawn = (o => function (m) { if (S.dun) return null; return o(m); })(farSpawn); } catch (e) { }
+try { evSpot = (o => function (a, b) { if (S.dun) return null; return o(a, b); })(evSpot); } catch (e) { }
 try { encTick = (o => function (dt) { if (S.dun) return; return o(dt); })(encTick); } catch (e) { }
 try { merchTick = (o => function (dt) { if (S.dun) return; return o(dt); })(merchTick); } catch (e) { }
 waterAt = (o => function (x, z) { if (S.dun && Math.abs(x - DUN.x - 100) < 160 && Math.abs(z - DUN.z + 20) < 60) return -9; return o(x, z); })(waterAt);
@@ -12346,8 +12349,13 @@ function dunTick(dt) {
     while (st.wv < W.length && st.waveT >= W[st.wv][0]) { const n = W[st.wv][1]; for (let i = 0; i < n; i++) { const e = i % 2, x = e ? 56 + rand(0, 1) : -4 + rand(0, 1), z = -20 + rand(-2.5, 2.5); dz(pick(['walker', 'runner', 'walker', 'crawler', 'runner']), x, z, dLv(), 1); }
       st.wv++; banner('第 ' + st.wv + ' 波', '尸群从走廊两头冲过来了', 2); try { sfx.growl(); } catch (e) { } }
     if (st.waveT >= 45) { st.stage = 5; doorOpen('lift'); storyTalk(DUN_TXT.lift); banner('电梯启动了', '去走廊西头坐电梯', 3); } }
+  // nothing may live outside the building
+  DUN.strayT = (DUN.strayT || 0) - dt; if (DUN.strayT <= 0) { DUN.strayT = .8;
+    for (let i = zombies.length - 1; i >= 0; i--) { const z = zombies[i]; if (z.dead || z.mirror || z.boss) continue; const x = z.pos.x, zz = z.pos.z;
+      if (!DUN.rooms.some(r => x > r.x0 - 1.5 && x < r.x1 + 1.5 && zz > r.z0 - 1.5 && zz < r.z1 + 1.5)) { scene.remove(z.g); zombies.splice(i, 1); } } }
   if (st.stage === 7 && st.bossOn) st.stage = 8;
-  if (st.stage === 8 && st.boss && st.boss.dead) { st.stage = 9; doorOpen('exit'); storyTalk(DUN_TXT.win); }
+  if (st.stage === 8 && st.boss && st.boss.dead) { st.stage = 9; doorOpen('exit'); storyTalk(DUN_TXT.win);
+    if (!S.colx.coat && Math.random() < COLX.coat.ch) { const bx = st.boss.pos.x - DUN.x, bz = st.boss.pos.z - DUN.z; dPick(bx, bz, 'col', 0xff7ad8, () => colGet('coat')); banner('首领掉落了收藏品！', COLX.coat.n, 3); } }
   // tubes glow
   if (DUN.tubes) for (const g of DUN.tubes) g.material.opacity = .45 + Math.sin(S.t * 2) * .1;
   // interact button
@@ -12369,13 +12377,13 @@ function dunEnv() { if (!S.dun) return; scene.fog.color.setHex(0x07080b); scene.
   torch.intensity = 1.25; torchPool.visible = true; torchPool.material.opacity = .26; }
 dayNightTick = (o => function (dt) { o(dt); try { dunEnv(); } catch (e) { } })(dayNightTick);
 zSpecialTick = (o => function (dt) { o(dt); try { dunTick(dt); } catch (e) { console.warn('dun', e); } })(zSpecialTick);
-regionHud = (o => function () { if (S.dun) { const e = $('regTxt') || $('region'); if (e && e.textContent !== '副本 · 圣心医院') e.textContent = '副本 · 圣心医院'; return; } return o(); })(regionHud);
+regionHud = (o => function () { if (S.dun) { const e = $('regTxt') || $('region'); if (e && e.textContent !== '副本 · 圣心医院') e.textContent = '副本 · 圣心医院'; try { _regTxt = ''; } catch (er) { } return; } return o(); })(regionHud);
 // the map inside: dark, with the rooms you have walked into
 drawExtraRadar = (o => function (tx, tz, edgeMark) { if (!S.dun || !DUN.st) return o(tx, tz, edgeMark); try { const c = mctx, W = c.canvas.width, k = _mapK || 2, sc = tx(1) - tx(0);
   c.fillStyle = '#0a0a0e'; c.fillRect(0, 0, W, W);
   for (const r of DUN.rooms) { if (!r.seen) continue; c.fillStyle = r.id === 'cold' ? '#3a5a6a' : r.id === 'lab' || r.id === 'obs' || r.id === 'arc' ? '#2e3a40' : '#4a5248'; c.fillRect(tx(r.x0), tz(r.z0), (r.x1 - r.x0) * sc, (r.z1 - r.z0) * sc);
     c.strokeStyle = 'rgba(200,220,210,.5)'; c.lineWidth = k * .6; c.strokeRect(tx(r.x0), tz(r.z0), (r.x1 - r.x0) * sc, (r.z1 - r.z0) * sc); }
-  for (const p of DUN.picks) if (!p.taken) { const col = p.kind === 'tape' ? '#ff7ad8' : p.kind === 'key' ? '#5ad8ff' : '#ffd060'; mapPin(c, tx(p.x), tz(p.z), 4 * k, col, '', k); }
+  for (const p of DUN.picks) if (!p.taken) { const col = p.kind === 'tape' || p.kind === 'col' ? '#ff7ad8' : p.kind === 'key' ? '#5ad8ff' : '#ffd060'; mapPin(c, tx(p.x), tz(p.z), 4 * k, col, '', k); }
   for (const I of DUN.ints) if (I.ok() && !/需要|缺|没电|要 4 位/.test(I.lab)) { mapPin(c, tx(I.x), tz(I.z), 4.5 * k, '#7dff9a', '!', k); edgeMark({ x: I.x, z: I.z }, '#7dff9a'); }
   for (const z of zombies) { if (z.dead) continue; c.fillStyle = z.boss ? '#ff2a5a' : '#ff5a4a'; c.beginPath(); c.arc(tx(z.pos.x), tz(z.pos.z), (z.boss ? 3.5 : 2) * k, 0, 7); c.fill(); } } catch (e) { } })(drawExtraRadar);
 // the interact button + a little style
@@ -12419,6 +12427,8 @@ function openDunPage() { try { audioInit(); } catch (e) { } const old = $('dunPa
     '<div class="dunrw"><div class="' + (S.dg.first ? 'got' : '') + '"><small>首通奖励' + (S.dg.first ? ' · 已领取' : '') + '</small>经验 +' + xp1 + ' · 黄金装备 · 首领之心 ×2 · 图纸残页 ×40 · 精密零件 ×30 · 余烬币 3000 · 晶石 100</div>' +
     '<div><small>每次通关</small>经验 +' + xp2 + ' · 图纸残页 ×12 · 精密零件 ×10 · 余烬币 800 · 有机会掉史诗装备</div>' +
     '<div class="' + (S.dg.safe ? 'got' : '') + '"><small>隐藏 · 林医生的保险柜' + (S.dg.safe ? ' · 已打开' : '') + '</small>黄金配件 · 晶石 ×50 · 首领之心</div></div>' +
+    '<div class="duncol"><small>收藏品 ' + COL_ORDER.filter(k => S.colx[k]).length + ' / ' + COL_ORDER.length + ' · 只在这个副本出现，非常难找，可以放进海岛的「展示柜」</small><div>' +
+      COL_ORDER.map(k => '<span class="' + (S.colx[k] ? 'own' : '') + '">' + (S.colx[k] ? svgIcon('col_' + k) : '<em>?</em>') + '<b>' + (S.colx[k] ? COLX[k].n : '？？？') + '</b><i>' + COLX[k].w + '</i></span>').join('') + '</div></div>' +
     '<p class="dunnote">经验按副本等级（Lv.' + DUN_LV[1] + '）计算，你的等级超过 Lv.' + (DUN_LV[1] + 5) + ' 之后，通关经验会越来越少。<br>单人副本 · 中途按「回岛」离开或者倒下，这一趟进度不保存（录音和保险柜拿到就算数）。</p>' +
     '<button class="go dungo">进入副本</button></div>';
   document.body.appendChild(m); const close = () => m.remove(); m.addEventListener('click', e => { if (e.target === m) close(); }); m.querySelector('.dunmx').addEventListener('click', close);
@@ -12463,13 +12473,16 @@ const CABT = {
   safe: { n: '小保险箱', c: [3, 5], col: 0x2a2e33, t: [['coin', 8, 150, 400], ['steel', 6, 1, 3], ['estone', 6, 1, 3], ['crystal', 2, 1, 1], ['bpf', 5, 5, 10], ['gear', 4, 2, 3]] },
   lab: { n: '样本柜', c: [3, 5], col: 0x2a4a5a, t: [['serum', 8, 1, 2], ['elem', 4, 1, 2], ['apart', 6, 2, 4], ['crystal', 1.5, 1, 1], ['core', 1, 1, 1], ['zs2', 4, 1, 2]] } };
 const _iInfo = k => k === 'coin' ? { n: '余烬币', r: 0 } : (typeof ITEMS !== 'undefined' && ITEMS[k]) || MAT[k] || { n: k, r: 0 };
-const RCOL = ['#d0d0d0', '#7fe06a', '#5aa9ff', '#c28bff', '#ffc94a', '#ff4d8d'];
-function cabRoll(type) { const T = CABT[type], n = rint(T.c[0], T.c[1]), tot = T.t.reduce((a, x) => a + x[1], 0), out = [];
+const RCOL = ['#d0d0d0', '#7fe06a', '#5aa9ff', '#c28bff', '#ffc94a', '#ff4d8d', '#6ff6ff'];
+function cabRoll(type, colKey) { const T = CABT[type], n = rint(T.c[0], T.c[1]), tot = T.t.reduce((a, x) => a + x[1], 0), out = [];
   for (let i = 0; i < n; i++) { let r = Math.random() * tot, e = T.t[0]; for (const x of T.t) { r -= x[1]; if (r <= 0) { e = x; break; } }
-    if (e[0] === 'gear') { const q = rint(e[2], e[3]), it = makeGear(2, DUN_LV[1], q, 0); it[1] = Math.min(it[1], 3); out.push({ k: 'gear', it, r: it[1], n: 1 }); }
+    if (e[0] === 'gear') { const q = rint(e[2], e[3]), it = makeGear(2, DUN_LV[1], q, 0); it[1] = Math.min(it[1], 3);
+      if (Math.random() < .003) { it[1] = 6; it[2] = 100; it[5] = 100; it[6] = 0; it.length = 8; it[7] = it[7] | 0; try { afxGen(it); } catch (er) { } }   // 不朽: about 1 in 300 gear pieces
+      out.push({ k: 'gear', it, r: it[1], n: 1 }); }
     else out.push({ k: e[0], n: rint(e[2], e[3]), r: _iInfo(e[0]).r | 0 }); }
+  if (colKey && COLX[colKey] && !S.colx[colKey] && Math.random() < COLX[colKey].ch) out.push({ k: 'col', id: colKey, r: 5, n: 1 });
   return out.map(o => Object.assign(o, { shown: false, took: false, need: .5 + o.r * .35 + Math.random() * .3 })); }
-function dCab(type, x, z, rot) { const T = CABT[type], M = dunMats(), g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rot || 0; DUN.G.add(g);
+function dCab(type, x, z, rot, colKey) { const T = CABT[type], M = dunMats(), g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rot || 0; DUN.G.add(g);
   const col = new THREE.MeshLambertMaterial({ color: T.col }), H = type === 'safe' ? 1.0 : type === 'tool' ? .7 : 1.8, W = type === 'tool' ? 1.1 : .9;
   box(W, H, .6, col, 0, H / 2, 0, g); const door = new THREE.Group(); door.position.set(-W / 2, 0, .31); g.add(door);
   box(W - .04, H - .06, .05, col, W / 2, H / 2, 0, door); box(.06, .2, .06, M.trim, W - .14, H * .55, .04, door);
@@ -12479,14 +12492,15 @@ function dCab(type, x, z, rot) { const T = CABT[type], M = dunMats(), g = new TH
   if (type === 'file') for (let i = 0; i < 4; i++) box(W - .14, .02, .01, M.trim, W / 2, .3 + i * .4, .03, door);
   const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,230,160,.9)', 'rgba(255,200,120,0)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); tag.scale.set(.9, .9, 1); tag.position.set(0, H + .35, .2); g.add(tag);
   const c = (rot || 0), ax = Math.abs(Math.sin(c)) > .5; DUN.obs.push(addBox(dX(x), dZ(z), ax ? .3 : W / 2, ax ? W / 2 : .3));
-  const C = { type, g, door, tag, x: dX(x + Math.sin(c) * .9), z: dZ(z + Math.cos(c) * .9), items: null, empty: false };
+  const C = { type, g, door, tag, x: dX(x + Math.sin(c) * .9), z: dZ(z + Math.cos(c) * .9), items: null, empty: false, colKey };
   DUN.cabs = DUN.cabs || []; DUN.cabs.push(C);
   const I = dInt(x + Math.sin(c) * 1.1, z + Math.cos(c) * 1.1, '搜索' + T.n, () => !C.empty, () => lootOpen(C), 2.2); C.int = I; }
 const LP = { c: null, t: 0 };
-function lootOpen(C) { if (!C.items) { C.items = cabRoll(C.type); try { sfxNoise(.4, .1, 900); } catch (e) { } } LP.c = C; LP.t = 0; lootRender(); }
+function lootOpen(C) { if (!C.items) { C.items = cabRoll(C.type, C.colKey); try { sfxNoise(.4, .1, 900); } catch (e) { } } LP.c = C; LP.t = 0; lootRender(); }
 function lootClose() { LP.c = null; const p = $('lootP'); if (p) p.style.display = 'none'; }
 function lootTake(o) { if (!o.shown || o.took) return; const C = LP.c;
-  if (o.k === 'gear') { if (S.ginv.length >= gcap()) { feed('装备背包满了', '#ff9b8a'); return; } o.took = true; pickGear(o.it); }
+  if (o.k === 'gear') { if (S.ginv.length >= gcap()) { feed('装备背包满了', '#ff9b8a'); return; } o.took = true; pickGear(o.it); if (o.it[1] === 6) banner('不朽装备！', '「' + gName(o.it) + '」永不损坏', 4.5); }
+  else if (o.k === 'col') { o.took = true; colGet(o.id); }
   else { if (o.k !== 'coin' && typeof bagRoom === 'function' && bagRoom(o.k) < o.n) { feed('背包放不下' + _iInfo(o.k).n + '了', '#ff9b8a'); try { uiToast('背包满了'); } catch (e) { } return; } o.took = true; gain(o.k, o.n); }
   try { sfx.pick(); } catch (e) { } if (C && C.items.every(x => x.took)) { C.empty = true; C.tag.visible = false; } lootRender(); }
 function lootRender() { const C = LP.c, p = $('lootP'); if (!p) return; if (!C) { p.style.display = 'none'; return; } p.style.display = 'flex';
@@ -12496,14 +12510,14 @@ function lootRender() { const C = LP.c, p = $('lootP'); if (!p) return; if (!C) 
   C.items.forEach((o, i) => { const d = document.createElement('div'); const cur = !o.shown && C.items.findIndex(x => !x.shown) === i;
     if (o.took) d.className = 'lps took';
     else if (!o.shown) { d.className = 'lps hid' + (cur ? ' cur' : ''); d.innerHTML = cur ? '<i class="lspin"></i>' : '<em>?</em>'; }
-    else { const nm = o.k === 'gear' ? GQ[o.it[1]].n + gName(o.it) : _iInfo(o.k).n, ic = o.k === 'gear' ? icHtml('gsl:' + o.it[1] + ':' + gSlot(o.it)) : svgIcon(o.k);
-      d.className = 'lps'; d.style.setProperty('--rc', o.k === 'gear' ? GQ[o.it[1]].c : RCOL[o.r] || RCOL[0]); d.innerHTML = ic + '<b>' + nm + '</b><small>' + (o.k === 'gear' ? 'Lv.' + o.it[2] : '×' + o.n) + '</small>';
+    else { const nm = o.k === 'gear' ? GQ[o.it[1]].n + gName(o.it) : o.k === 'col' ? COLX[o.id].n : _iInfo(o.k).n, ic = o.k === 'gear' ? icHtml('gsl:' + o.it[1] + ':' + gSlot(o.it)) : o.k === 'col' ? svgIcon('col_' + o.id) : svgIcon(o.k);
+      d.className = 'lps' + (o.k === 'col' || (o.k === 'gear' && o.it[1] >= 5) ? ' rare' : ''); d.style.setProperty('--rc', o.k === 'gear' ? GQ[o.it[1]].c : RCOL[o.r] || RCOL[0]); d.innerHTML = ic + '<b>' + nm + '</b><small>' + (o.k === 'gear' ? 'Lv.' + o.it[2] : o.k === 'col' ? '收藏品' : '×' + o.n) + '</small>';
       d.addEventListener('click', e => { e.stopPropagation(); lootTake(o); }); }
     g.appendChild(d); });
   const all = p.querySelector('.lpall'); all.disabled = !C.items.some(o => o.shown && !o.took); }
 function lootTick(dt) { const C = LP.c; if (!C) return; if (S.dead || !S.dun || Math.hypot(player.pos.x - C.x, player.pos.z - C.z) > 3.4) { lootClose(); return; }
   if (C.door.rotation.y > -1.6) C.door.rotation.y -= dt * 4;
-  const o = C.items.find(x => !x.shown); if (!o) return; LP.t += dt; if (LP.t >= o.need) { LP.t = 0; o.shown = true; try { sfxTone(500 + o.r * 200, 800 + o.r * 300, .12, .08, 'sine'); } catch (e) { } if (o.r >= 3) S.shake = Math.max(S.shake, .08); lootRender(); } }
+  const o = C.items.find(x => !x.shown); if (!o) return; LP.t += dt; if (LP.t >= o.need) { LP.t = 0; o.shown = true; try { sfxTone(500 + o.r * 200, 800 + o.r * 300, .12, .08, 'sine'); } catch (e) { } if (o.r >= 3) S.shake = Math.max(S.shake, .08); if (o.k === 'col') banner('发现收藏品！', COLX[o.id].n, 2.5); else if (o.k === 'gear' && o.it[1] === 6) banner('不朽装备！！', '快点拿走', 2.5); lootRender(); } }
 zSpecialTick = (o => function (dt) { o(dt); try { lootTick(dt); } catch (e) { } })(zSpecialTick);
 try { if (document.createElement && document.body) { const p = document.createElement('div'); p.id = 'lootP'; p.className = 'lootp'; p.style.display = 'none';
   p.innerHTML = '<div class="lph"><b>柜子</b><small></small><button class="lpx" aria-label="关闭">✕</button></div><div class="lpg"></div><button class="lpall">全部拿取</button>';
@@ -12517,6 +12531,51 @@ try { if (document.createElement && document.body) { const p = document.createEl
     '.lps.took{visibility:hidden}.lspin{width:26px;height:26px;border-radius:50%;border:3px solid rgba(255,214,140,.25);border-top-color:#ffd98a;animation:lspin .7s linear infinite}@keyframes lspin{to{transform:rotate(360deg)}}' +
     '.lpall{padding:8px;border-radius:10px;border:1.5px solid #ffd98a;background:rgba(120,80,20,.5);color:#fff3d8;font-weight:900}.lpall:disabled{opacity:.4}';
   document.head.appendChild(st); } } catch (e) { }
+
+/* ---- collectibles: six rare keepsakes that only this dungeon gives, shown off in a 展示柜 on the island ---- */
+const COLX = {
+  badge: { n: '老王的旧警徽', w: '保安室的柜子', ch: .03 }, doll: { n: '小雨的布兔子', w: '病房的柜子', ch: .02 }, steth: { n: '林医生的听诊器', w: '林医生办公室', ch: .05 },
+  vial: { n: 'E-0 样本瓶', w: '实验室的样本柜', ch: .015 }, card: { n: '金色门禁卡', w: '小保险箱', ch: .02 }, coat: { n: '零号的白大褂', w: '零号病人身上', ch: .08 } };
+const COL_ORDER = ['badge', 'doll', 'steth', 'vial', 'card', 'coat'];
+S.colx = {};
+function colGet(id) { if (!COLX[id] || S.colx[id]) return; S.colx[id] = 1; banner('收藏品 · ' + COLX[id].n, '收藏 ' + COL_ORDER.filter(k => S.colx[k]).length + ' / 6 · 在海岛造一个「展示柜」把它摆出来', 4.5);
+  try { sfx.build(); sfxTone(700, 1400, .5, .14, 'triangle', { delay: .15 }); } catch (e) { } S.shake = Math.max(S.shake, .15); showcaseRefresh(); saveGame(); }
+function colModel(id) { const g = new THREE.Group(), L = c => new THREE.MeshLambertMaterial({ color: c }), B = c => new THREE.MeshBasicMaterial({ color: c });
+  if (id === 'badge') { box(.5, .55, .06, L(0xc8a040), 0, 0, 0, g); box(.36, .12, .07, L(0x2a3a6a), 0, .14, .01, g); const st = box(.18, .18, .08, L(0xffe08a), 0, -.08, .02, g); st.rotation.z = .78; box(.56, .06, .07, L(0x8a6a2a), 0, .3, 0, g); }
+  else if (id === 'doll') { const pk = L(0xf2b8c8), wh = L(0xfff0f4); box(.34, .36, .24, pk, 0, -.12, 0, g); box(.3, .28, .26, pk, 0, .2, 0, g); box(.08, .3, .06, pk, -.08, .48, 0, g); box(.08, .3, .06, pk, .08, .48, 0, g); box(.04, .2, .07, wh, -.08, .48, .01, g); box(.04, .2, .07, wh, .08, .48, .01, g);
+    box(.05, .05, .02, B(0x1a1a1a), -.07, .22, .14, g); box(.05, .05, .02, B(0x1a1a1a), .07, .22, .14, g); box(.12, .1, .02, wh, 0, -.1, .13, g); box(.1, .14, .1, pk, -.2, -.1, 0, g); box(.1, .14, .1, pk, .2, -.1, 0, g); }
+  else if (id === 'steth') { const dk = L(0x2a2a30), sv = L(0xd8dde4); box(.04, .5, .04, dk, -.12, .12, 0, g).rotation.z = .25; box(.04, .5, .04, dk, .12, .12, 0, g).rotation.z = -.25; box(.04, .36, .04, dk, 0, -.26, 0, g);
+    const cp = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, .05, 8), sv); cp.rotation.x = Math.PI / 2; cp.position.set(0, -.46, 0); g.add(cp); box(.06, .06, .06, sv, -.2, .38, 0, g); box(.06, .06, .06, sv, .2, .38, 0, g); }
+  else if (id === 'vial') { box(.26, .5, .26, new THREE.MeshLambertMaterial({ color: 0xbfeedd, transparent: true, opacity: .45 }), 0, 0, 0, g); box(.2, .34, .2, B(0x5aff9a), 0, -.06, 0, g); box(.3, .1, .3, L(0x5a6a72), 0, .3, 0, g); box(.16, .04, .01, B(0xff3a2a), 0, .08, .14, g); }
+  else if (id === 'card') { box(.6, .38, .03, L(0xe8b830), 0, 0, 0, g); box(.14, .11, .02, L(0xa8b0b8), -.16, .04, .02, g); box(.6, .07, .02, L(0x3a2a10), 0, -.1, .02, g); box(.2, .03, .02, L(0xfff2c8), .14, .1, .02, g); }
+  else if (id === 'coat') { const wc = L(0xeef0ea); box(.56, .5, .1, wc, 0, 0, 0, g); box(.2, .12, .11, L(0xc8d0d8), -.12, .2, 0, g); box(.2, .12, .11, L(0xc8d0d8), .12, .2, 0, g); box(.2, .16, .02, L(0x8a1a1a), .1, -.06, .06, g); box(.12, .1, .02, L(0x8a1a1a), -.14, -.14, .06, g); box(.14, .05, .02, L(0x5ad8ff), -.14, .12, .06, g); }
+  return g; }
+(function colIcons() { if (typeof ICON_URL === 'undefined' || !document.createElement) return; let R;
+  try { const c = document.createElement('canvas'); R = new THREE.WebGLRenderer({ canvas: c, alpha: true, antialias: true, preserveDrawingBuffer: true }); } catch (e) { return; }
+  try { R.setPixelRatio(1); R.setClearColor && R.setClearColor(0, 0); R.setSize(128, 128, false); const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xffffff, 0x3a2a48, 1.1)); const L = new THREE.DirectionalLight(0xffffff, .9); L.position.set(-2, 3, 3); sc.add(L);
+    const cam = new THREE.PerspectiveCamera(28, 1, .1, 50); cam.position.set(0, .35, 3); cam.lookAt(0, 0, 0);
+    for (const id of COL_ORDER) { const g = colModel(id); g.rotation.set(.15, -.45, 0); sc.add(g); R.render(sc, cam); ICON_URL['col_' + id] = R.domElement.toDataURL('image/png'); sc.remove(g); } } catch (e) { }
+  try { R.dispose(); R.forceContextLoss && R.forceContextLoss(); } catch (e) { } })();
+// the 展示柜: a glass cabinet with six spots; what you own sits inside, the rest shows an empty plaque
+BT.showcase = { name: '展示柜', cat: 'fu', k: 'free', cost: { wood: 6, metal: 4 }, hp: 200, hw: .9, hd: .35, ob: [[0, 0, .9, .35]], desc: '摆出副本里找到的收藏品' };
+function showcaseFill(g) { const sh = g.userData.shelf; if (!sh) return; while (sh.children.length) sh.remove(sh.children[0]);
+  COL_ORDER.forEach((id, i) => { const x = -.5 + (i % 3) * .5, y = i < 3 ? 1.6 : .85; if (S.colx[id]) { const m = colModel(id); m.scale.setScalar(.6); m.position.set(x, y + .18, 0); m.rotation.y = .3; sh.add(m); }
+    else box(.22, .04, .1, new THREE.MeshLambertMaterial({ color: 0x5a4a3a }), x, y, .12, sh); }); }
+buildMesh = (o => function (type) { if (type !== 'showcase') return o(type); const g = new THREE.Group(), wd = new THREE.MeshLambertMaterial({ color: 0x4a2e1c }), gold = new THREE.MeshLambertMaterial({ color: 0xc8a050 });
+  box(1.8, .25, .7, wd, 0, .12, 0, g); box(1.8, .12, .7, wd, 0, 2.3, 0, g); for (const x of [-.87, .87]) box(.06, 2.2, .66, wd, x, 1.2, 0, g); box(1.74, 2.2, .04, wd, 0, 1.2, -.32, g);
+  for (const y of [.62, 1.37]) { box(1.74, .04, .6, gold, 0, y, 0, g); } box(1.8, .04, .7, gold, 0, 2.24, 0, g);
+  box(1.7, 2.0, .02, new THREE.MeshLambertMaterial({ color: 0xcfefff, transparent: true, opacity: .18, depthWrite: false }), 0, 1.25, .33, g);
+  const lt = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,236,190,.7)', 'rgba(255,220,160,0)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); lt.scale.set(2.2, 1.6, 1); lt.position.set(0, 1.4, .2); g.add(lt);
+  const sh = new THREE.Group(); g.add(sh); g.userData.shelf = sh; showcaseFill(g); return g; })(buildMesh);
+function showcaseRefresh() { try { for (const b of builds) if (b.type === 'showcase' && b.g) showcaseFill(b.g); } catch (e) { } }
+// turn the keepsakes slowly
+petsTick = (o => function (dt) { o(dt); try { if (S.isl) for (const b of builds) if (b.type === 'showcase' && b.g && b.g.userData.shelf) for (const m of b.g.userData.shelf.children) if (m.isGroup) m.rotation.y += dt * .6; } catch (e) { } })(petsTick);
+shopSave = (o => function () { const r = o(); try { r.colx = COL_ORDER.filter(k => S.colx[k]); } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.colx = {}; try { const a = d && d.sh && d.sh.colx; if (Array.isArray(a)) a.forEach(k => { if (COLX[k]) S.colx[k] = 1; }); } catch (e) { } setTimeout(showcaseRefresh, 0); })(shopLoad);
+try { const st = document.createElement('style'); st.textContent = '.duncol{margin-top:10px;padding:8px 10px;border-radius:10px;background:rgba(255,122,216,.08);border:1px solid rgba(255,122,216,.35)}.duncol small{display:block;color:#ff9ae0;font-weight:800;font-size:12px;margin-bottom:6px}' +
+  '.duncol>div{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.duncol span{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;border-radius:8px;background:rgba(0,0,0,.25);text-align:center}.duncol span .ic{width:34px;height:34px}.duncol em{font-style:normal;font-size:20px;opacity:.35;height:34px;line-height:34px}' +
+  '.duncol span b{font-size:11.5px!important;line-height:1.2}.duncol i{font-style:normal;font-size:10px;opacity:.6}.duncol span.own b{color:#ff9ae0}.lps.rare{animation:lrare 1s ease-in-out infinite alternate}@keyframes lrare{to{box-shadow:inset 0 -18px 22px -10px var(--rc),0 0 14px var(--rc)}}';
+  document.head.appendChild(st); } catch (e) { }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -13544,4 +13603,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794163352').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794164210').catch(()=>{});</script></body></html>
