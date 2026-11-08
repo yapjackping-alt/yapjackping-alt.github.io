@@ -7832,6 +7832,8 @@ function skSt(k) { const K = S.skin && SKINS[S.skin]; return (K && K.st && K.st[
 // animate the outfit's moving parts and throw off sparkles
 const SKFX = { p: [], t: 0, geo: null, mats: null };
 function skinFxTick(dt) {
+  // outfit sparkles travel with you instead of being left behind where you were standing
+  { const P = pm.g.position; let dx = SKFX.lx == null ? 0 : P.x - SKFX.lx, dz = SKFX.lz == null ? 0 : P.z - SKFX.lz; if (Math.abs(dx) > 3 || Math.abs(dz) > 3) dx = dz = 0; SKFX.dx = dx; SKFX.dz = dz; SKFX.lx = P.x; SKFX.lz = P.z; }
   for (let i = BEAMS.length - 1; i >= 0; i--) { const b = BEAMS[i]; b.t += dt; const k = b.t / b.l; if (k >= 1) { scene.remove(b.m); b.m.material.dispose(); BEAMS.splice(i, 1); continue; } b.m.material.opacity = .75 * (1 - k); b.m.scale.x = b.m.scale.y = b.w * (1 - k * .6); }
   const T = S.t || 0;
   skinAnimate((pm && pm._outfit) || [], T);
@@ -7843,11 +7845,11 @@ function skinFxTick(dt) {
     SKFX.t -= dt; const moving = Math.hypot(input.mx || 0, input.mz || 0) > .1;
     while (SKFX.t <= 0 && SKFX.p.length < 46) { SKFX.t += moving ? .03 : .07; const a = Math.random() * 6.283, r = .35 + Math.random() * .4;
       const m = new THREE.Mesh(SKFX.geo, SKFX.mats[Math.floor(Math.random() * 4)].clone()); m.position.set(pm.g.position.x + Math.cos(a) * r, pm.g.position.y + .1 + Math.random() * 1.9, pm.g.position.z + Math.sin(a) * r); scene.add(m);
-      SKFX.p.push({ m, life: 1.1 + Math.random() * .6, t: 0, vx: (Math.random() - .5) * .25, vy: .45 + Math.random() * .5, vz: (Math.random() - .5) * .25, s: .6 + Math.random() * .9 }); } }
+      SKFX.p.push({ m, fol: 1, life: 1.1 + Math.random() * .6, t: 0, vx: (Math.random() - .5) * .25, vy: .45 + Math.random() * .5, vz: (Math.random() - .5) * .25, s: .6 + Math.random() * .9 }); } }
   try { skinPTick(dt); } catch (e) { }
   for (let i = SKFX.p.length - 1; i >= 0; i--) { const q = SKFX.p[i]; q.t += dt; const k = q.t / q.life;
     if (k >= 1) { scene.remove(q.m); q.m.material.dispose(); SKFX.p.splice(i, 1); continue; }
-    q.m.position.x += q.vx * dt; q.m.position.y += q.vy * dt; q.m.position.z += q.vz * dt; q.m.rotation.y += dt * 4; const sc = q.s * (k < .2 ? k / .2 : 1 - (k - .2) / .8); q.m.scale.setScalar(Math.max(.01, sc)); q.m.material.opacity = 1 - k * .5; }
+    q.m.position.x += q.vx * dt + (q.fol ? SKFX.dx : 0); q.m.position.y += q.vy * dt; q.m.position.z += q.vz * dt + (q.fol ? SKFX.dz : 0); q.m.rotation.y += dt * 4; const sc = q.s * (k < .2 ? k / .2 : 1 - (k - .2) / .8); q.m.scale.setScalar(Math.max(.01, sc)); q.m.material.opacity = 1 - k * .5; }
 }
 // outfit particles: each emitter sits at a point on the body (body coordinates) and throws glowing bits
 const SKIN_P = {
@@ -7873,7 +7875,7 @@ function skinPTick(dt) {
         SKP.p.push({ m, vel, t: 0, life: e.life * (.7 + Math.random() * .6), s: e.sz * (.7 + Math.random() * .6) }); } }); }
   for (let i = SKP.p.length - 1; i >= 0; i--) { const q = SKP.p[i]; q.t += dt; const k = q.t / q.life;
     if (k >= 1) { scene.remove(q.m); q.m.material.dispose(); SKP.p.splice(i, 1); continue; }
-    q.m.position.addScaledVector(q.vel, dt); q.m.rotation.y += dt * 5; q.m.scale.setScalar(Math.max(.002, q.s * (k < .15 ? k / .15 : 1 - (k - .15) / .85))); q.m.material.opacity = 1 - k * .6; }
+    q.m.position.addScaledVector(q.vel, dt); q.m.position.x += SKFX.dx || 0; q.m.position.z += SKFX.dz || 0; q.m.rotation.y += dt * 5; q.m.scale.setScalar(Math.max(.002, q.s * (k < .15 ? k / .15 : 1 - (k - .15) / .85))); q.m.material.opacity = 1 - k * .6; }
 }
 const _capeMv = () => { try { return Math.min(1, Math.hypot(input.mx || 0, input.mz || 0)); } catch (e) { return 0; } };
 // animate one outfit's moving parts (halo, wings, rings, motes)
@@ -12275,9 +12277,10 @@ function dunBoss() { const st = DUN.st; st.bossOn = true; const B = 150;
 function dunSafe() { try { const sl = pick(['mz', 'gr', 'bl', 'hd', 'el']), kd = rint(0, 2); S.av.push([sl, kd, 4]); addGem(50, '林医生的保险柜'); gain('heart', 1);
     banner('林医生的保险柜', '黄金配件「' + ATT_K[sl][kd].n + '」（在配件库）· 晶石 ×50 · 首领之心', 4); if (DUN.safeM) DUN.safeM.material = new THREE.MeshBasicMaterial({ color: 0x5aff7a }); saveGame(); } catch (e) { console.warn(e); } }
 function dunWin() { const st = DUN.st; if (st.done) return; st.done = true; const first = !S.dg.first; S.dg.c = (S.dg.c || 0) + 1;
-  if (first) { S.dg.first = 1; gain('heart', 2); giveGear(4); gain('bpf', 40); gain('apart', 30); gain('coin', 3000); addGem(100, '副本首通'); banner('副本通关 · 首通奖励', '首领之心 ×2 · 黄金装备 · 图纸残页 ×40 · 精密零件 ×30 · 余烬币 3000 · 晶石 100', 5); }
-  else { gain('bpf', 12); gain('apart', 10); gain('coin', 800); if (Math.random() < .3) giveGear(3); banner('副本通关', '第 ' + S.dg.c + ' 次通关 · 图纸残页 ×12 · 精密零件 ×10 · 余烬币 800', 4); }
-  try { sfx.build(); } catch (e) { } saveGame(); setTimeout(() => { if (S.dun) voyage('坐电梯回到地面……', () => goIsland(false)); }, 1800); }
+  const xp = Math.round(xpNeed(S.level) * (first ? .8 : .3)); try { addXp(xp, player.pos); } catch (e) { }
+  if (first) { S.dg.first = 1; gain('heart', 2); giveGear(4); gain('bpf', 40); gain('apart', 30); gain('coin', 3000); addGem(100, '副本首通'); banner('副本通关 · 首通奖励', '经验 +' + xp + ' · 首领之心 ×2 · 黄金装备 · 图纸残页 ×40 · 精密零件 ×30 · 余烬币 3000 · 晶石 100', 5); }
+  else { gain('bpf', 12); gain('apart', 10); gain('coin', 800); if (Math.random() < .3) giveGear(3); banner('副本通关', '第 ' + S.dg.c + ' 次通关 · 经验 +' + xp + ' · 图纸残页 ×12 · 精密零件 ×10 · 余烬币 800', 4); }
+  try { sfx.build(); } catch (e) { } saveGame(); setTimeout(() => { if (S.dun) dunTravel('电梯上行', '离开圣心医院', () => goIsland(false)); }, 1800); }
 
 /* ---- enter / leave ---- */
 function dunEnter() {
@@ -12287,7 +12290,7 @@ function dunEnter() {
   S.spawnT = 1e9; S.hordeT = 1e9; S.landT = S.t; dunPower(false);
   document.body.classList.add('inDun'); banner('副本 · 圣心医院', '零号病人 · 推荐 Lv.' + DUN_LV[0] + ' 以上 · 左下角「回岛」可以随时离开（进度不保存）', 4.5);
   if (!S.dg.seen) { S.dg.seen = 1; storyTalk(DUN_TXT.intro); } else storyTalk([DUN_TXT.intro[1]]);
-  try { stTrk(); } catch (e) { } refreshHud(); saveGame();
+  try { dunTrk(); } catch (e) { } refreshHud(); saveGame();
 }
 function dunCleanup() {
   if (!DUN.on) return; DUN.on = false; S.dun = 0;
@@ -12296,13 +12299,14 @@ function dunCleanup() {
   for (const L of DUN.lights) scene.remove(L); DUN.lights = [];
   if (DUN.G) scene.remove(DUN.G); DUN.G = null;
   DUN.walls = []; DUN.rooms = []; DUN.doors = {}; DUN.ints = []; DUN.picks = []; DUN.anch = []; DUN.tubes = []; DUN.st = null;
-  document.body.classList.remove('inDun'); const b = $('bDunI'); if (b) b.style.display = 'none';
+  document.body.classList.remove('inDun'); const b = $('bDunI'); if (b) b.style.display = 'none'; const ob = $('dunObj'); if (ob) ob.style.display = 'none';
   try { renderer.setClearColor(0x2a1a28); } catch (e) { }
   const sd = scene.getObjectByName('skydome'); if (sd) sd.visible = true;
 }
-goIsland = (o => function (silent) { const was = S.dun; if (was) { dunCleanup(); } const r = o(silent); if (was) { S.gx = DUN.gx; S.gz = DUN.gz; try { stTrk(); } catch (e) { } saveGame(); } return r; })(goIsland);
+goIsland = (o => function (silent) { const was = S.dun; if (was) { dunCleanup(); } const r = o(silent); if (was) { S.gx = DUN.gx; S.gz = DUN.gz; try { dunTrk(); } catch (e) { } saveGame(); } return r; })(goIsland);
 goGround = (o => function (x, z) { if (S.dun) dunCleanup(); return o(x, z); })(goGround);
-updateWorld = (o => function (px, pz) { if (S.dun) return; return o(px, pz); })(updateWorld);
+updateWorld = (o => function (px, pz) { if (!S.dun) return o(px, pz); const w = S.isl; S.isl = true; try { return o(px, pz); } finally { S.isl = w; } })(updateWorld);
+try { sosTick = (o => function (dt) { if (S.dun) return; return o(dt); })(sosTick); } catch (e) { }
 regionTick = (o => function (dt) { if (S.dun) return; return o(dt); })(regionTick);
 try { evTick = (o => function (dt) { if (S.dun) return; return o(dt); })(evTick); } catch (e) { }
 try { encTick = (o => function (dt) { if (S.dun) return; return o(dt); })(encTick); } catch (e) { }
@@ -12310,13 +12314,13 @@ try { merchTick = (o => function (dt) { if (S.dun) return; return o(dt); })(merc
 waterAt = (o => function (x, z) { if (S.dun && Math.abs(x - DUN.x - 100) < 160 && Math.abs(z - DUN.z + 20) < 60) return -9; return o(x, z); })(waterAt);
 renderPort = (o => function () { o(); try { const box = $('portList'); if (!box) return; const rc = recCP(2), ok = combatPower() >= rc * .8;
   const row = shopRow('副本 · 圣心医院「零号病人」', '有剧情的地下城 · Lv.' + DUN_LV[0] + '-' + DUN_LV[1] + ' · 建议战力 ' + rc + (S.dg.first ? ' · 已通关 ' + S.dg.c + ' 次' : ' · 首通奖励：黄金装备、首领之心 ×2'), ok ? '#c9a0ff' : '#ff9b8a');
-  row.classList.add('dunrow'); const go = document.createElement('button'); go.className = 'sbtn' + (ok ? '' : ' ghostb'); go.textContent = '进入';
-  go.addEventListener('click', () => { closePanel('port'); voyage('驶向郊区的圣心医院', dunEnter); }); row.appendChild(go); box.insertBefore(row, box.firstChild); } catch (e) { console.warn(e); } })(renderPort);
+  row.classList.add('dunrow'); const go = document.createElement('button'); go.className = 'sbtn' + (ok ? '' : ' ghostb'); go.textContent = '查看';
+  go.addEventListener('click', () => { closePanel('port'); openDunPage(); }); row.appendChild(go); box.insertBefore(row, box.firstChild); } catch (e) { console.warn(e); } })(renderPort);
 // the tracker under the health bar shows the dungeon goal while you are inside
 const DUN_GOAL = ['找到保安室的门禁卡（大厅西边）', '用门禁卡打开住院部的门（大厅北边）', '找回保险丝', '去走廊东头的配电室接通电源', '坚守，等电梯启动', '坐电梯下到地下二层（走廊西头）', '读取实验室的终端记录', '进入冷藏库', '击败零号病人 · 林曼', '坐冷藏库东边的电梯撤离'];
-stTrk = (o => function () { if (!S.dun || !DUN.st) return o(); const e = $('storyTrk'); if (!e) return; const st = DUN.st;
+function dunTrk() { const e = $('dunObj'); if (!e) return; if (!S.dun || !DUN.st) { e.style.display = 'none'; return; } e.style.display = ''; const st = DUN.st;
   let g = DUN_GOAL[st.stage] || ''; if (st.stage === 2) g += ' ' + st.fuse + ' / 3'; if (st.stage === 4) g += ' ' + Math.max(0, Math.ceil(45 - st.waveT)) + ' 秒'; if (st.stage === 6) g += ' ' + Object.keys(st.terms).length + ' / 3';
-  e.classList.remove('done'); e.innerHTML = '<b>副本 · 圣心医院</b><span>▸ ' + g + '</span><small class="dunsub">录音 ' + Object.keys(S.dg.rec).length + ' / 4' + (S.dg.safe ? ' · 保险柜已开' : '') + '</small>'; })(stTrk);
+  const h = '<b>副本 · 圣心医院</b><span>▸ ' + g + '</span><small class="dunsub">录音 ' + Object.keys(S.dg.rec).length + ' / 4' + (S.dg.safe ? ' · 保险柜已开' : '') + ' · 点我看怎么做</small>'; if (e.innerHTML !== h) e.innerHTML = h; }
 
 /* ---- every frame inside ---- */
 let _dunT = 0, _dunTrk = 0;
@@ -12347,7 +12351,7 @@ function dunTick(dt) {
     DUN.lights.forEach((L, i) => { const a = A[i]; if (a) L.position.set(a[0], 2.3, a[1]); }); }
   for (const w of DUN.walls) { const front = w.z0 > pz - .2 && w.z0 < pz + 7.5 && w.x1 > px - 4.5 && w.x0 < px + 4.5, want = front ? .22 : 1, m = w.m.material;
     if (Math.abs((m.opacity == null ? 1 : m.opacity) - want) > .01) { m.transparent = true; m.opacity += (want - m.opacity) * Math.min(1, dt * 8); m.depthWrite = m.opacity > .9; } }
-  _dunTrk -= dt; if (_dunTrk <= 0) { _dunTrk = .5; try { stTrk(); } catch (e) { } }
+  _dunTrk -= dt; if (_dunTrk <= 0) { _dunTrk = .5; try { dunTrk(); } catch (e) { } }
   // the boss stays in its room
   if (st.boss && !st.boss.dead) { const bb = st.boss; bb.pos.x = clamp(bb.pos.x, dX(150 + 47), dX(150 + 81)); bb.pos.z = clamp(bb.pos.z, dZ(-43), dZ(-15)); }
 }
@@ -12369,13 +12373,74 @@ drawExtraRadar = (o => function (tx, tz, edgeMark) { if (!S.dun || !DUN.st) retu
   for (const z of zombies) { if (z.dead) continue; c.fillStyle = z.boss ? '#ff2a5a' : '#ff5a4a'; c.beginPath(); c.arc(tx(z.pos.x), tz(z.pos.z), (z.boss ? 3.5 : 2) * k, 0, 7); c.fill(); } } catch (e) { } })(drawExtraRadar);
 // the interact button + a little style
 try { if (document.createElement && document.body) { const H = $('hud'); if (H && H.appendChild) { const b = document.createElement('button'); b.className = 'btn2'; b.id = 'bDunI'; H.appendChild(b);
-    b.addEventListener('click', () => { const I = DUN.cur; if (!I || !I.ok()) return; try { audioInit(); } catch (e) { } try { I.fn(); } catch (e) { console.warn(e); } try { stTrk(); } catch (e) { } }); }
+    b.addEventListener('click', () => { const I = DUN.cur; if (!I || !I.ok()) return; try { audioInit(); } catch (e) { } try { I.fn(); } catch (e) { console.warn(e); } try { dunTrk(); } catch (e) { } }); }
   const st = document.createElement('style'); st.textContent = '#bDunI{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--sb) + 96px);display:none;border-color:#c9a0ff;background:rgba(40,20,60,.9);color:#f0e4ff;font-size:15px;white-space:nowrap}' +
     '.dunsub{display:block;opacity:.7;font-size:11px;margin-top:2px}.dunrow{border-color:rgba(201,160,255,.6)!important;background:linear-gradient(90deg,rgba(80,40,120,.35),rgba(20,10,30,.2))!important}';
   document.head.appendChild(st); } } catch (e) { }
 // the save keeps tapes, the safe, clears
 shopSave = (o => function () { const r = o(); try { r.dg = { c: S.dg.c | 0, first: S.dg.first | 0, rec: Object.keys(S.dg.rec), safe: S.dg.safe | 0, seen: S.dg.seen | 0 }; } catch (e) { } return r; })(shopSave);
 shopLoad = (o => function (d) { o(d); S.dg = { c: 0, first: 0, rec: {}, safe: 0 }; try { const g = d && d.sh && d.sh.dg; if (g) { S.dg.c = g.c | 0; S.dg.first = g.first | 0; S.dg.safe = g.safe | 0; S.dg.seen = g.seen | 0; if (Array.isArray(g.rec)) g.rec.forEach(k => { if (/^r[1-4]$/.test(k)) S.dg.rec[k] = 1; }); } } catch (e) { } })(shopLoad);
+
+/* ---- the dungeon's own objective card (the main-story tracker is hidden inside) and its how-to popup ---- */
+const DUN_HOW = [
+  '从大厅西边的门走进保安室，门禁卡就在桌子旁边，发蓝光。',
+  '回到大厅，走到北边中间的铁门前，按屏幕下方的「刷门禁卡」。',
+  '保险丝发黄光，分别在病房 1、护士站、药房（走廊北边的房间）。小地图上的黄点就是。',
+  '走到走廊最东边的配电室，在墙上的配电箱前按「接通电源」。',
+  '电源一接通，尸群会从走廊两头冲过来。撑到倒数结束，电梯就会启动。',
+  '电梯在走廊最西边，门已经打开。走过去按「坐电梯去地下二层」。',
+  '三台终端：实验大厅中间一台、北边观察室一台、档案室一台。走到发蓝光的屏幕前按「读取终端」。',
+  '冷藏库在实验大厅东边，三台终端读完后门会打开（门上的灯变绿）。',
+  '零号病人会放毒圈：地上出现绿色的圈就马上离开。血量剩一半时会暴怒并召唤病人。',
+  '冷藏库最东边的电梯门打开了，走过去按「坐电梯撤离」，就能领奖励回到海岛。'];
+function dunGuide() { if (!S.dun || !DUN.st) return; const st = DUN.st, old = $('dunGuideM'); if (old) old.remove();
+  const m = document.createElement('div'); m.id = 'dunGuideM'; m.className = 'dunm'; const rec = Object.keys(S.dg.rec).length;
+  m.innerHTML = '<div class="dunmb"><button class="dunmx" aria-label="关闭">✕</button><b class="dunmh">副本指引 · 圣心医院</b>' +
+    '<div class="dunnow"><small>现在要做</small><b>' + DUN_GOAL[st.stage] + '</b><p>' + DUN_HOW[st.stage] + '</p></div><ol class="dunlist">' +
+    DUN_GOAL.map((g, i) => '<li class="' + (i < st.stage ? 'ok' : i === st.stage ? 'on' : '') + '">' + (i < st.stage ? '✓ ' : '') + g + '</li>').join('') + '</ol>' +
+    '<div class="dunsec">隐藏任务：录音 ' + rec + ' / 4' + (S.dg.safe ? ' · 保险柜已打开' : ' · 四段录音各藏一个数字，集齐后去地下二层「林医生办公室」打开保险柜') + '</div>' +
+    '<div class="dunsec">小地图：绿色「!」是可以互动的地方，黄点是保险丝，粉点是录音，蓝点是门禁卡。中途按「回岛」离开，这一趟的进度不保存。</div></div>';
+  document.body.appendChild(m); const close = () => m.remove(); m.addEventListener('click', e => { if (e.target === m) close(); }); m.querySelector('.dunmx').addEventListener('click', close); }
+/* ---- the dungeon page (from the pier) ---- */
+function openDunPage() { try { audioInit(); } catch (e) { } const old = $('dunPageM'); if (old) old.remove(); const rc = recCP(2), cp = combatPower(), ok = cp >= rc * .8, rec = Object.keys(S.dg.rec).length;
+  const xp1 = Math.round(xpNeed(S.level) * .8), xp2 = Math.round(xpNeed(S.level) * .3);
+  const m = document.createElement('div'); m.id = 'dunPageM'; m.className = 'dunm';
+  m.innerHTML = '<div class="dunmb dunpage"><button class="dunmx" aria-label="关闭">✕</button>' +
+    '<div class="dunban"><i></i><div><small>副本 · 第一章</small><b>圣心医院</b><em>零号病人</em></div></div>' +
+    '<p class="dunstory">郊区的圣心医院一直在重复播放求救信号：“我是林曼医生……地下二层……血清……快来……”。整栋楼断电，丧尸横行，地下二层藏着末日真正的源头。</p>' +
+    '<div class="dunfacts"><span>推荐等级 <b>Lv.' + DUN_LV[0] + '+</b></span><span>丧尸等级 <b>Lv.' + DUN_LV[0] + '-' + DUN_LV[1] + '</b></span><span>建议战力 <b style="color:' + (ok ? '#8fe05a' : '#ff9b8a') + '">' + rc + '</b>（你 ' + cp + '）</span><span>通关 <b>' + (S.dg.c | 0) + '</b> 次</span><span>录音 <b>' + rec + ' / 4</b></span></div>' +
+    '<div class="dunrw"><div class="' + (S.dg.first ? 'got' : '') + '"><small>首通奖励' + (S.dg.first ? ' · 已领取' : '') + '</small>经验 +' + xp1 + ' · 黄金装备 · 首领之心 ×2 · 图纸残页 ×40 · 精密零件 ×30 · 余烬币 3000 · 晶石 100</div>' +
+    '<div><small>每次通关</small>经验 +' + xp2 + ' · 图纸残页 ×12 · 精密零件 ×10 · 余烬币 800 · 有机会掉史诗装备</div>' +
+    '<div class="' + (S.dg.safe ? 'got' : '') + '"><small>隐藏 · 林医生的保险柜' + (S.dg.safe ? ' · 已打开' : '') + '</small>黄金配件 · 晶石 ×50 · 首领之心</div></div>' +
+    '<p class="dunnote">单人副本 · 中途按「回岛」离开或者倒下，这一趟进度不保存（录音和保险柜拿到就算数）。</p>' +
+    '<button class="go dungo">进入副本</button></div>';
+  document.body.appendChild(m); const close = () => m.remove(); m.addEventListener('click', e => { if (e.target === m) close(); }); m.querySelector('.dunmx').addEventListener('click', close);
+  m.querySelector('.dungo').addEventListener('click', () => { close(); dunTravel('正在进入副本', '圣心医院 · 零号病人', dunEnter); }); }
+// a loading screen of its own (not the boat)
+function dunTravel(t1, t2, fn) { const f = $('fade'); input.fire = false; if (!f) { fn(); return; }
+  f.innerHTML = '<div class="dunload"><div class="dunlh"><i></i><i></i><i></i></div><small>' + t1 + '</small><b>' + t2 + '</b><u><s></s></u><span>' + pick(['断电的走廊里，只有红色应急灯在闪。', '地下二层的信号还在重复……', '小心病房里躲着的东西。', '录音里好像藏着数字。']) + '</span></div>';
+  f.classList.add('on', 'dunf'); try { sfxNoise(1.2, .1, 300); } catch (e) { }
+  setTimeout(() => { try { fn(); } finally { setTimeout(() => { f.classList.remove('on'); setTimeout(() => { if (!f.classList.contains('on')) { f.innerHTML = ''; f.classList.remove('dunf'); } }, 400); }, 300); } }, 1700); }
+try { if (document.createElement && document.body) {
+  const L = $('left'), sTrk = $('storyTrk'); if (L && L.insertBefore) { const t = document.createElement('div'); t.id = 'dunObj'; t.className = 'panel'; t.setAttribute('role', 'button'); t.style.display = 'none';
+    ['pointerdown', 'touchstart'].forEach(ev => t.addEventListener(ev, e => e.stopPropagation())); t.addEventListener('click', e => { e.stopPropagation(); dunGuide(); }); L.insertBefore(t, sTrk ? sTrk.nextSibling : null); }
+  const st = document.createElement('style'); st.textContent =
+    'body.inDun #storyTrk{display:none!important}#dunObj{padding:5px 8px;font-size:11px;line-height:1.35;display:flex;flex-direction:column;gap:1px;pointer-events:auto;cursor:pointer;border-left:3px solid #c9a0ff}#dunObj b{color:#d8b8ff;font-size:11.5px}#dunObj span{color:#f3e6d6}' +
+    '.dunm{position:fixed;inset:0;z-index:70;display:flex;align-items:center;justify-content:center;background:rgba(6,4,10,.8);padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));box-sizing:border-box}' +
+    '.dunmb{position:relative;width:min(560px,100%);max-height:100%;overflow:auto;padding:16px 18px;border-radius:16px;border:1.5px solid #8a6ac8;background:linear-gradient(160deg,#1c1430,#0e0a16);color:#f0e8ff;text-align:left;box-sizing:border-box}' +
+    '.dunmx{position:absolute;right:8px;top:8px;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.4);color:#fff;font-size:16px}' +
+    '.dunmh{display:block;font-size:16px;color:#d8b8ff;margin-bottom:8px}.dunnow{padding:10px 12px;border-radius:12px;background:rgba(201,160,255,.14);border:1px solid rgba(201,160,255,.4)}.dunnow small{opacity:.7}.dunnow b{display:block;font-size:15px;margin:2px 0}.dunnow p{margin:4px 0 0;font-size:13px;line-height:1.5}' +
+    '.dunlist{margin:10px 0;padding-left:20px;font-size:12.5px;line-height:1.7}.dunlist li{opacity:.55}.dunlist li.ok{opacity:.8;color:#8fe05a}.dunlist li.on{opacity:1;color:#ffd98a;font-weight:800}.dunsec{font-size:12px;opacity:.85;margin-top:6px;line-height:1.5}' +
+    '.dunban{display:flex;align-items:center;gap:14px;padding:14px;border-radius:12px;background:linear-gradient(120deg,#3a1420,#14101e 70%);border:1px solid rgba(255,90,90,.35)}.dunban i{width:58px;height:58px;flex:none;border-radius:10px;background:#e8ece8;position:relative;box-shadow:0 0 18px rgba(255,60,60,.4)}' +
+    '.dunban i::before{content:"";position:absolute;left:23px;top:10px;width:12px;height:38px;background:#c82a2a}.dunban i::after{content:"";position:absolute;left:10px;top:23px;width:38px;height:12px;background:#c82a2a}' +
+    '.dunban small{opacity:.7;font-size:12px}.dunban b{display:block;font-size:24px;letter-spacing:.1em}.dunban em{font-style:normal;color:#ff8a8a;font-weight:800}' +
+    '.dunstory{font-size:13px;line-height:1.6;margin:10px 0;opacity:.9}.dunfacts{display:flex;flex-wrap:wrap;gap:6px}.dunfacts span{font-size:12px;padding:4px 8px;border-radius:8px;background:rgba(255,255,255,.07)}' +
+    '.dunrw{display:flex;flex-direction:column;gap:6px;margin-top:10px}.dunrw div{font-size:12.5px;padding:8px 10px;border-radius:10px;background:rgba(255,201,74,.08);border:1px solid rgba(255,201,74,.3);line-height:1.5}.dunrw small{display:block;color:#ffc94a;font-weight:800}.dunrw .got{opacity:.5}' +
+    '.dunnote{font-size:11.5px;opacity:.65;margin:10px 0}.dungo{width:100%;font-size:16px;padding:12px}' +
+    '#fade.dunf{background:radial-gradient(circle at 50% 40%,#2a1222,#06040a 70%)}.dunload{display:flex;flex-direction:column;align-items:center;gap:6px;color:#f0e8ff;text-align:center}.dunload small{opacity:.7;letter-spacing:.2em}.dunload b{font-size:22px;letter-spacing:.12em}.dunload span{font-size:12.5px;opacity:.75;max-width:80vw}' +
+    '.dunload u{display:block;width:200px;height:4px;border-radius:2px;background:rgba(255,255,255,.15);overflow:hidden;margin:6px 0}.dunload s{display:block;height:100%;width:0;background:#c9a0ff;animation:dunbar 1.6s linear forwards}@keyframes dunbar{to{width:100%}}' +
+    '.dunlh{display:flex;gap:6px;margin-bottom:6px}.dunlh i{width:10px;height:10px;background:#ff3a2a;animation:dunblink 1s infinite}.dunlh i:nth-child(2){animation-delay:.2s}.dunlh i:nth-child(3){animation-delay:.4s}@keyframes dunblink{50%{opacity:.2}}';
+  document.head.appendChild(st); } } catch (e) { }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -13403,4 +13468,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794161636').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794162248').catch(()=>{});</script></body></html>
