@@ -13195,7 +13195,7 @@ zSpecialTick = (o => function (dt) { o(dt); if (input.fire && !FIREP.size && !ke
    出处：每件收藏品只会出现在指定副本的指定种类柜子里（另有两件是首领掉落）；一个柜子最多出一件收藏品。
    没通关就离开，这一趟拿到的收藏品照样收回（z_dunend.js）。 */
 // 卖 1 件多余的收藏品换多少遗物币：按品质，再按副本难度翻倍（副本一 ×1，副本二 ×2，以后的副本更贵）
-const RELIC_P = { 2: 1, 3: 2, 4: 5, 5: 20 };
+const RELIC_P = { 0: 1, 2: 2, 3: 4, 4: 8, 5: 25 };
 const relicPrice = k => Math.max(1, Math.round(RELIC_P[COLX[k].r] * (1 + .2 * (COLX[k].d - 1))));   // each harder dungeon ×1.2 more
 S.relic = 0;
 // the hospital's six become 神话 (r 5); `src` = the kinds of cupboard it can be in, `d` = which dungeon, `ch` = chance per cupboard
@@ -13232,11 +13232,18 @@ Object.assign(COLX, {
   mitt: { n: '防寒手套', r: 2, d: 2, src: ['locker', 'tool'], ch: .05, w: '副本二 · 储物柜、工具箱' }, can: { n: '冻硬的罐头', r: 2, d: 2, src: ['med', 'locker'], ch: .05, w: '副本二 · 医药柜、储物柜' },
   goggle: { n: '雪地护目镜', r: 2, d: 2, src: ['locker', 'tool'], ch: .05, w: '副本二 · 储物柜、工具箱' }, thermo: { n: '老式温度计', r: 2, d: 2, src: ['lab', 'tool'], ch: .05, w: '副本二 · 样本柜、工具箱' } });
 // a little less 传说 now that there are four tiers
-for (const k of ['chart', 'pills', 'wradio', 'syringe', 'keys', 'scarf', 'mug', 'sradio', 'torch2', 'map', 'card2', 'photo']) COLX[k].ch = .015;
-Object.assign(COLX.badge, { ch: .006 }); Object.assign(COLX.doll, { ch: .005 }); Object.assign(COLX.steth, { ch: .007 }); Object.assign(COLX.vial, { ch: .005 }); Object.assign(COLX.card, { ch: .008 });
-Object.assign(COLX.ore, { ch: .005 }); Object.assign(COLX.plate, { ch: .005 }); Object.assign(COLX.sign, { ch: .006 }); COLX.coat.ch = .04; COLX.glasses.ch = .04;
-COL_ORDER.length = 0; COL_ORDER.push('badge', 'doll', 'steth', 'vial', 'card', 'coat', 'chart', 'pills', 'wradio', 'photo', 'syringe', 'keys', 'stamp', 'mask', 'xray', 'rack', 'cup', 'bedtag', 'gloves', 'bulb',
-  'glasses', 'ore', 'plate', 'sign', 'scarf', 'mug', 'sradio', 'torch2', 'map', 'card2', 'icecore', 'log', 'medal', 'bit', 'mitt', 'can', 'goggle', 'thermo');
+for (const k of ['chart', 'pills', 'wradio', 'syringe', 'keys', 'scarf', 'mug', 'sradio', 'torch2', 'map', 'card2', 'photo']) COLX[k].ch = .025;
+Object.assign(COLX.badge, { ch: .014 }); Object.assign(COLX.doll, { ch: .013 }); Object.assign(COLX.steth, { ch: .016 }); Object.assign(COLX.vial, { ch: .016 }); Object.assign(COLX.card, { ch: .025 });
+for (const k of ['cup', 'bedtag', 'gloves', 'bulb', 'mitt', 'can', 'goggle', 'thermo']) COLX[k].ch = .08;
+for (const k of ['stamp', 'mask', 'xray', 'rack', 'icecore', 'log', 'medal', 'bit']) COLX[k].ch = .045;    // 稀有: about two a run
+// 普通 (r 0): small things everywhere, mostly to sell
+Object.assign(COLX, { pen: { n: '圆珠笔', r: 0, d: 1, src: ['med', 'locker', 'tool', 'file', 'safe', 'lab'], ch: .04, w: '副本一 · 任何柜子' }, bandage: { n: '绷带卷', r: 0, d: 1, src: ['med', 'locker', 'tool', 'file', 'safe', 'lab'], ch: .04, w: '副本一 · 任何柜子' },
+  news: { n: '旧报纸', r: 0, d: 1, src: ['med', 'locker', 'tool', 'file', 'safe', 'lab'], ch: .04, w: '副本一 · 任何柜子' }, button: { n: '病号服纽扣', r: 0, d: 1, src: ['med', 'locker', 'tool', 'file', 'safe', 'lab'], ch: .04, w: '副本一 · 任何柜子' },
+  bolt: { n: '生锈的螺丝', r: 0, d: 2, src: ['med', 'locker', 'tool', 'file', 'safe', 'lab'], ch: .04, w: '副本二 · 任何柜子' }, battery: { n: '冻坏的电池', r: 0, d: 2, src: ['med', 'locker', 'tool', 'file', 'safe', 'lab'], ch: .04, w: '副本二 · 任何柜子' },
+  spoon: { n: '食堂铁勺', r: 0, d: 2, src: ['med', 'locker', 'tool', 'file', 'safe', 'lab'], ch: .04, w: '副本二 · 任何柜子' }, candle: { n: '半截蜡烛', r: 0, d: 2, src: ['med', 'locker', 'tool', 'file', 'safe', 'lab'], ch: .04, w: '副本二 · 任何柜子' } });
+Object.assign(COLX.ore, { ch: .016 }); Object.assign(COLX.plate, { ch: .012 }); Object.assign(COLX.sign, { ch: .012 }); COLX.coat.ch = .1; COLX.glasses.ch = .1;
+COL_ORDER.length = 0; COL_ORDER.push('badge', 'doll', 'steth', 'vial', 'card', 'coat', 'chart', 'pills', 'wradio', 'photo', 'syringe', 'keys', 'stamp', 'mask', 'xray', 'rack', 'cup', 'bedtag', 'gloves', 'bulb', 'pen', 'bandage', 'news', 'button',
+  'glasses', 'ore', 'plate', 'sign', 'scarf', 'mug', 'sradio', 'torch2', 'map', 'card2', 'icecore', 'log', 'medal', 'bit', 'mitt', 'can', 'goggle', 'thermo', 'bolt', 'battery', 'spoon', 'candle');
 const colOf = d => COL_ORDER.filter(k => COLX[k].d === d), colN = k => S.colx[k] | 0, colRN = r => ['普通', '优秀', '稀有', '史诗', '传说', '神话'][r], colRC = r => ['#d0d0d0', '#7fe06a', '#5aa9ff', '#c28bff', '#ffc94a', '#ff4d8d'][r];
 
 /* ---- getting one: the first is new for your collection, the rest are spares for the merchant ---- */
@@ -13247,7 +13254,7 @@ colGet = function (id) { if (!COLX[id]) return; const n = colN(id) + 1; S.colx[i
 // cupboards: the hospital's old one-key-per-cupboard roll is replaced by a roll over everything that kind of cupboard can hold here
 cabRoll = (o => function (type, colKey) { const out = o(type, null); try { const did = DUN.id || 1, pool = COL_ORDER.filter(k => COLX[k].d === did && COLX[k].src.includes(type));
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-    for (const k of pool) if (Math.random() < COLX[k].ch) { const r = COLX[k].r; out.push({ k: 'col', id: k, r, n: 1, shown: false, took: false, need: .5 + r * .35 + Math.random() * .3 }); break; } } catch (e) { console.warn('relic roll', e); } return out; })(cabRoll);
+    let got = 0; for (const k of pool) if (Math.random() < COLX[k].ch) { const r = COLX[k].r; out.push({ k: 'col', id: k, r, n: 1, shown: false, took: false, need: .5 + r * .35 + Math.random() * .3 }); if (++got >= 2) break; }   /* up to two per cupboard */ } catch (e) { console.warn('relic roll', e); } return out; })(cabRoll);
 // the loot window: the rarity colour and tag
 lootRender = (o => function () { o(); try { const C = LP.c, p = $('lootP'); if (!C || !p) return; const tiles = p.querySelectorAll('.lpg .lps');
     C.items.forEach((x, i) => { if (x.k !== 'col' || !x.shown || x.took || !tiles[i]) return; const c = COLX[x.id]; tiles[i].style.setProperty('--rc', colRC(c.r)); const s = tiles[i].querySelector('small'); if (s) s.textContent = colRN(c.r) + '收藏品'; }); } catch (e) { } })(lootRender);
@@ -13298,6 +13305,19 @@ colModel = (o => function (id) { const L = c => new THREE.MeshLambertMaterial({ 
   else if (id === 'thermo') { box(.16, .62, .04, L(0xe8e2d0), 0, 0, 0, g); const t = cyl(.025, .025, .46, new THREE.MeshLambertMaterial({ color: 0xeef6ff, transparent: true, opacity: .6 }), 0, .04, .03); cyl(.02, .02, .12, B(0xd02a2a), 0, -.13, .03); const bb = new THREE.Mesh(new THREE.SphereGeometry(.05, 8, 6), B(0xd02a2a)); bb.position.set(0, -.22, .03); g.add(bb); for (let i = 0; i < 6; i++) box(.05, .01, .01, L(0x3a3a3a), -.05, -.12 + i * .06, .025, g); }
   else return o(id);
   return g; })(colModel);
+// 普通 models
+colModel = (o => function (id) { const L = c => new THREE.MeshLambertMaterial({ color: c }), B = c => new THREE.MeshBasicMaterial({ color: c }), g = new THREE.Group();
+  const cyl = (r1, r2, h, m, x, y, z) => { const c = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 10), m); c.position.set(x, y, z); g.add(c); return c; };
+  if (id === 'pen') { const b = cyl(.04, .04, .6, L(0x2a5ad8), 0, 0, 0); b.rotation.z = .9; const t = new THREE.Mesh(new THREE.ConeGeometry(.04, .1, 8), L(0xd8d8d8)); t.position.set(.27, -.2, 0); t.rotation.z = .9 + Math.PI; g.add(t); box(.02, .16, .03, L(0xd8d8d8), -.18, .2, .04, g).rotation.z = .9; }
+  else if (id === 'bandage') { const r = cyl(.18, .18, .2, L(0xf2efe6), 0, 0, 0); r.rotation.x = Math.PI / 2; const h = cyl(.06, .06, .21, L(0xb8b4aa), 0, 0, 0); h.rotation.x = Math.PI / 2; box(.3, .02, .18, L(0xf2efe6), .18, -.18, 0, g); }
+  else if (id === 'news') { box(.56, .02, .4, L(0xe8e2d0), 0, 0, 0, g).rotation.x = -1.1; box(.4, .03, .1, L(0x2a2a2a), 0, .12, .06, g).rotation.x = -1.1; for (let i = 0; i < 3; i++) box(.4, .03, .02, L(0x7a7a7a), 0, .02 - i * .07, .02, g).rotation.x = -1.1; }
+  else if (id === 'button') { const b = cyl(.18, .18, .06, L(0x7aa8d8), 0, 0, 0); b.rotation.x = Math.PI / 2; for (const [x, y] of [[-.05, .05], [.05, .05], [-.05, -.05], [.05, -.05]]) { const h = cyl(.02, .02, .07, L(0x2a3a5a), x, y, 0); h.rotation.x = Math.PI / 2; } }
+  else if (id === 'bolt') { const h = cyl(.14, .14, .08, L(0x8a5a3a), 0, .22, 0); h.material = L(0x8a5a3a); cyl(.06, .06, .42, L(0x7a5040), 0, 0, 0); for (let i = 0; i < 5; i++) cyl(.07, .07, .02, L(0x6a4030), 0, -.15 + i * .07, 0); }
+  else if (id === 'battery') { cyl(.1, .1, .44, L(0x2a2a2a), 0, 0, 0); cyl(.1, .1, .14, L(0xd8a020), 0, -.15, 0); cyl(.03, .03, .05, L(0xc8c8c8), 0, .24, 0); for (let i = 0; i < 3; i++) { const f = new THREE.Mesh(new THREE.OctahedronGeometry(.04, 0), L(0xeaf8ff)); f.position.set(-.06 + i * .06, .08, .09); g.add(f); } }
+  else if (id === 'spoon') { const b = new THREE.Mesh(new THREE.SphereGeometry(.12, 10, 8), L(0xc8ccd2)); b.scale.set(1, .3, 1.4); b.position.set(0, 0, .18); g.add(b); box(.05, .03, .4, L(0xc8ccd2), 0, .02, -.12, g); g.rotation.x = -.8; }
+  else if (id === 'candle') { cyl(.09, .1, .26, L(0xf2ead8), 0, -.08, 0); box(.01, .06, .01, L(0x2a2a2a), 0, .08, 0, g); const f = new THREE.Mesh(new THREE.ConeGeometry(.04, .12, 8), B(0xffb040)); f.position.y = .16; g.add(f); cyl(.18, .18, .03, L(0x8a8a8a), 0, -.22, 0); }
+  else return o(id);
+  return g; })(colModel);
 (function relicIcons() { if (typeof ICON_URL === 'undefined' || !document.createElement) return; let R;
   try { const c = document.createElement('canvas'); R = new THREE.WebGLRenderer({ canvas: c, alpha: true, antialias: true, preserveDrawingBuffer: true }); } catch (e) { return; }
   try { R.setPixelRatio(1); R.setClearColor && R.setClearColor(0, 0); R.setSize(128, 128, false); const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xffffff, 0x3a2a48, 1.1)); const L = new THREE.DirectionalLight(0xffffff, .9); L.position.set(-2, 3, 3); sc.add(L);
@@ -13316,14 +13336,14 @@ shopLoad = (o => function (d) { o(d); try { const c = d && d.sh && d.sh.colx2; i
 
 /* ---- the collection grid on the dungeon pages ---- */
 function colGrid(did) { const ks = colOf(did), own = ks.filter(k => colN(k)).length;
-  return '<small>收藏品 ' + own + ' / ' + ks.length + ' · 稀有 < 史诗 < 传说 < <b style="color:#ff4d8d">神话</b> · 同一品质集齐有永久加成 · 多出来的找码头的老钱换遗物币</small><div>' +
+  return '<small>收藏品 ' + own + ' / ' + ks.length + ' · 普通 < 稀有 < 史诗 < 传说 < <b style="color:#ff4d8d">神话</b> · 同一品质集齐有永久加成 · 多出来的找码头的老钱换遗物币</small><div>' +
     ks.slice().sort((a, b) => COLX[b].r - COLX[a].r).map(k => { const C = COLX[k], n = colN(k); return '<span class="' + (n ? 'own' : '') + '" style="--rc:' + colRC(C.r) + '">' + (n ? svgIcon('col_' + k) : '<em>?</em>') + '<b>' + (n ? C.n : '？？？') + '</b><i>' + colRN(C.r) + (n > 1 ? ' · ×' + n : '') + '</i></span>'; }).join('') + '</div>'; }
 openDunPage = (o => function () { o(); try { const e = document.querySelector('#dunPageM .duncol'); if (e) e.innerHTML = colGrid(1); } catch (e) { } })(openDunPage);
 openDun2Page = (o => function () { o(); try { const m = $('dunPageM'), n = m && m.querySelector('.dunnote'); if (n) { const d = document.createElement('div'); d.className = 'duncol'; d.innerHTML = colGrid(2); n.parentNode.insertBefore(d, n); } } catch (e) { } })(openDun2Page);
 
 /* ---- collection sets: finish every keepsake of one rarity in a dungeon for a lasting bonus (counted in 战力) ---- */
-const COLSET = { 1: { 2: { hpPct: .01 }, 3: { dmg: .01 }, 4: { hpPct: .02, dmg: .01 }, 5: { dmg: .03, def: .02 } },
-                 2: { 2: { hpPct: .012 }, 3: { dmg: .012 }, 4: { hpPct: .024, dmg: .012 }, 5: { dmg: .036, def: .024 } } };   // each harder dungeon ×1.2
+const COLSET = { 1: { 0: { hpPct: .005 }, 2: { hpPct: .01 }, 3: { dmg: .01 }, 4: { hpPct: .02, dmg: .01 }, 5: { dmg: .03, def: .02 } },
+                 2: { 0: { hpPct: .006 }, 2: { hpPct: .012 }, 3: { dmg: .012 }, 4: { hpPct: .024, dmg: .012 }, 5: { dmg: .036, def: .024 } } };   // each harder dungeon ×1.2
 const COLSET_N = { hpPct: '生命', dmg: '伤害', def: '减伤' };
 const colSetDone = (d, r) => { const ks = colOf(d).filter(k => COLX[k].r === r); return ks.length > 0 && ks.every(k => colN(k) > 0); };
 function colSetSt(k) { let v = 0; for (const d in COLSET) for (const r in COLSET[d]) if (COLSET[d][r][k] && colSetDone(+d, +r)) v += COLSET[d][r][k]; return v; }
@@ -13347,7 +13367,7 @@ function openRelic() { try { audioInit(); } catch (e) { } const old = $('relicM'
   const render = () => { const ks = colOf(relicTab), spareAll = COL_ORDER.reduce((a, k) => a + relicSpare(k) * relicPrice(k), 0); let body = '';
     if (relicPg === 'sell') {
       body = '<div class="tabs rltabs"><button class="sbtn' + (relicTab === 1 ? ' on' : '') + '" data-t="1">圣心医院</button><button class="sbtn' + (relicTab === 2 ? ' on' : '') + '" data-t="2">永冬站</button></div>' +
-        '<div class="rlsets">' + [5, 4, 3, 2].map(r => { const ok = colSetDone(relicTab, r), ks2 = colOf(relicTab).filter(k => COLX[k].r === r);
+        '<div class="rlsets">' + [5, 4, 3, 2, 0].map(r => { const ok = colSetDone(relicTab, r), ks2 = colOf(relicTab).filter(k => COLX[k].r === r);
           return '<span class="' + (ok ? 'ok' : '') + '" style="--rc:' + colRC(r) + '"><b>' + (ok ? '✓ ' : '') + colRN(r) + ' ' + ks2.filter(k => colN(k)).length + '/' + ks2.length + '</b><small>集齐：' + colSetTxt(COLSET[relicTab][r]) + '</small></span>'; }).join('') + '</div>' +
         '<div class="rlg">' + ks.slice().sort((a, b) => COLX[b].r - COLX[a].r).map(k => { const C = COLX[k], n = colN(k), sp = relicSpare(k);
           return '<div class="rlc2' + (n ? '' : ' no') + '" style="--rc:' + colRC(C.r) + '">' + (n ? svgIcon('col_' + k) : '<em>?</em>') + '<b>' + (n ? C.n : '？？？') + '</b><small>' + colRN(C.r) + ' · ' + (n ? '拥有 ×' + n : C.w) + '</small>' +
@@ -14885,4 +14905,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794215869').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794216178').catch(()=>{});</script></body></html>
