@@ -13415,7 +13415,8 @@ try { const st = document.createElement('style'); st.textContent =
      例：余烬币  普通 20 · 稀有 50 · 史诗 100 · 传说 200 · 神话 650
          图纸残页 普通 1 · 稀有 2 · 史诗 3 · 传说 5 · 神话 10
    格子的颜色、搜索时间都跟着品质走（品质越高搜得越久）。副本二的数量再 ×1.2。
-   本身就很珍贵的东西（晶体、核心、元素晶核、首领之心……）和装备、收藏品不受影响，照原来的品质。 */
+   装备也一样先抽品质：普通 28% · 特级 30% · 高级 24% · 史诗 12% · 黄金 4.7% · 神话 0.8% · 不朽 0.5%（不朽 = 永不损坏，非常难出）。
+   本身就很珍贵的东西（晶体、核心、元素晶核、首领之心……）和收藏品不受影响，照原来的品质。 */
 const LQ_P = [.52, .28, .13, .06, .01], LQ_R = [0, 2, 3, 4, 5];      // the five tiers and the colour index each one uses
 const LQ_L = {
   coin: [20, 50, 100, 200, 650], wood: [6, 12, 25, 45, 100], metal: [5, 10, 20, 35, 80], powder: [2, 4, 8, 14, 30],
@@ -13429,6 +13430,13 @@ cabRoll = (o => function (type, colKey) { const out = o(type, colKey); try { con
 // the tile says which tier it is
 lootRender = (o => function () { o(); try { const C = LP.c, p = $('lootP'); if (!C || !p) return; const tiles = p.querySelectorAll('.lpg .lps');
     C.items.forEach((x, i) => { if (x.k === 'gear' || x.k === 'col' || !x.shown || x.took || !tiles[i] || !lqLadder(x.k)) return; const s = tiles[i].querySelector('small'); if (s) s.textContent = '×' + x.n + ' · ' + ['普通', '优秀', '稀有', '史诗', '传说', '神话'][x.r]; }); } catch (e) { } })(lootRender);
+// gear slots: quality by the same idea, with 不朽 at the very top
+const LQ_GW = [28, 30, 24, 12, 4.7, .8, .5];
+function lqGearQ() { let r = Math.random() * LQ_GW.reduce((a, b) => a + b, 0); for (let i = 0; i < LQ_GW.length; i++) { r -= LQ_GW[i]; if (r <= 0) return i; } return 0; }
+cabRoll = (o => function (type, colKey) { const out = o(type, colKey); try { for (const x of out) { if (x.k !== 'gear') continue; const q = lqGearQ();
+      const it = makeGear(2, DUN_LV[1], Math.min(q, 5), 0); it[1] = Math.min(q, 5);
+      if (q === 6) { it[1] = 6; it[2] = 100; it[5] = 100; it[6] = 0; it.length = 8; it[7] = it[7] | 0; try { afxGen(it); } catch (er) { } }   // 不朽: the same make as the old 1-in-300
+      x.it = it; x.r = it[1]; x.need = .5 + Math.min(5, x.r) * .35 + Math.random() * .3 + (q === 6 ? .8 : 0); } } catch (e) { console.warn('lootq gear', e); } return out; })(cabRoll);
 /* ============ 副本小地图：显示可以搜索的柜子（金色箱子图标；没开过的会闪，保险箱和样本柜画大一点，搜空就消失） ============ */
 function chestIcon(c, x, y, s, lit, big) {
   const w = s * (big ? 1.5 : 1.25), h = s, x0 = x - w / 2, y0 = y - h / 2;
@@ -14925,4 +14933,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794216922').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794217347').catch(()=>{});</script></body></html>
