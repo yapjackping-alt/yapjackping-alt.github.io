@@ -5472,7 +5472,7 @@ const GSLOT = ['helm', 'armor', 'gloves', 'pants', 'boots', 'pack'];
 const GSLOT_N = { helm: '头盔', armor: '护甲', gloves: '手套', pants: '长裤', boots: '战靴', pack: '背包' };
 const GQ = [
   { n: '普通', c: '#e6e6e6', h: 0xd8d8d8 }, { n: '特级', c: '#43d6c8', h: 0x3cc8b8 }, { n: '高级', c: '#4f9dff', h: 0x3a7ae0 },
-  { n: '史诗', c: '#b77bff', h: 0x9a5ae8 }, { n: '黄金', c: '#ffc23a', h: 0xffb020 }, { n: '神话', c: '#ff4a4a', h: 0xff3030 }, { n: '不朽', c: '#6ff6ff', h: 0x5ef0ff }];
+  { n: '史诗', c: '#b77bff', h: 0x9a5ae8 }, { n: '黄金', c: '#ffc23a', h: 0xffb020 }, { n: '神话', c: '#ff4a4a', h: 0xff3030 }, { n: '不朽', c: '#16e0a8', h: 0x10d8a0 }];
 // one look per region: [name prefix, main colour, trim colour]
 const GSET = [['拾荒者', 0x6a6458, 0x8a7a60], ['猎人', 0x4a5a34, 0x7a5a3a], ['沙漠', 0xb0905a, 0x7a5a38], ['防毒', 0x4a6a4a, 0x2a2a2a], ['极地', 0xd8dde4, 0x5a7a9a],
   ['防暴', 0x2a2e36, 0x5a6470], ['岩甲', 0x8a4a34, 0x5a3424], ['耐热', 0x5a4a44, 0xff7a2a], ['暗影', 0x3a2e4a, 0x8a5aff], ['余烬', 0x3a1a14, 0xffa040]];
@@ -6035,7 +6035,7 @@ function gearDetail(box) {
   if (bagSel[0] === 'g') { const g = GEAR.find(x => 'g:' + x[0] === bagSel) || GEAR[0], slot = g[0], cur = S.gear[slot];
     const statHtml = it => { const o = gStats(it, 'base'); return (gSlot(it) === 'pack' ? '<span class="gst">背包格子 <b>+' + (PACK_CAP[it[1]] + Math.floor((it[7] || 0) / 5)) + '</b></span>' : '') + Object.keys(o).map(k => '<span class="gst">' + GSTAT_N[k][0] + ' <b>' + GSTAT_N[k][1](o[k]) + '</b></span>').join('') + '</div><div class="gtrs">' + gearTraitHtml(it); };
     const card = (it, tag) => { const Q = GQ[it[1]]; return '<div class="gcard" style="--qc:' + Q.c + '"><div class="gtop"><b style="color:' + Q.c + '">' + Q.n + ' · ' + gName(it) + '</b><span>Lv.' + it[2] + ' · 评分 ' + gScore(it) + (tag || '') + '</span></div><div class="gsts">' + statHtml(it) + '</div>' + durHtml(it) + '</div>'; };
-    const durHtml = it => { if (it[1] === 6) return '<span class="gdtx" style="color:#6ff6ff">不朽：永不损坏 · 等级永远最高 · 所有词条都能洗练</span>'; const d = gDur(it), left = GREP_MAX - gRep(it); return '<div class="gdur"><i style="width:' + d + '%;background:' + (d > 50 ? '#8fe05a' : d > 20 ? '#ffd24a' : '#ff5a4a') + '"></i></div><span class="gdtx">耐久 ' + Math.ceil(d) + '%' + (d <= 0 ? ' · 已损坏' : '') + ' · ' + (left > 0 ? '还能修理 ' + left + ' 次' : '不能再修，坏了就报废') + '</span>'; };
+    const durHtml = it => { if (it[1] === 6) return '<span class="gdtx" style="color:#16e0a8">不朽：永不损坏 · 等级永远最高 · 所有词条都能洗练</span>'; const d = gDur(it), left = GREP_MAX - gRep(it); return '<div class="gdur"><i style="width:' + d + '%;background:' + (d > 50 ? '#8fe05a' : d > 20 ? '#ffd24a' : '#ff5a4a') + '"></i></div><span class="gdtx">耐久 ' + Math.ceil(d) + '%' + (d <= 0 ? ' · 已损坏' : '') + ' · ' + (left > 0 ? '还能修理 ' + left + ' 次' : '不能再修，坏了就报废') + '</span>'; };
     d.innerHTML = '<div class="nm" style="font-size:18px;font-weight:900">' + g[1] + '</div>' + (cur ? card(cur, ' · 穿着中') : '<p class="dd">这个部位还没有装备。打丧尸会掉落，越深的区域越容易出好品质，首领必掉。</p>');
     if (cur) { const u = document.createElement('button'); u.className = 'sbtn ghostb'; u.textContent = '脱下'; u.addEventListener('click', () => { unequipGear(slot); renderBag(); }); d.appendChild(u); d.appendChild(enhBtn(cur)); { const n = document.createElement('div'); n.className = 'snote nsrc'; n.textContent = '强化石获取：' + ((ITEMS.estone && ITEMS.estone.src) || ''); d.appendChild(n); } rerollBtns(cur).forEach(b => d.appendChild(b)); }
     { const sn = gearStat('setN') || 0; const n = document.createElement('div'); n.className = 'snote'; n.textContent = '套装：穿同一地区的装备 4 件 → 伤害 +8%、减伤 +4%；6 件 → 再加生命 +60、暴击 +4%。现在最多 ' + sn + ' 件同套' + (sn >= 6 ? '（6 件套生效）' : sn >= 4 ? '（4 件套生效）' : '') + '。'; d.appendChild(n); }
@@ -12508,7 +12508,7 @@ const CABT = {
   safe: { n: '小保险箱', c: [3, 5], col: 0x2a2e33, t: [['coin', 8, 150, 400], ['steel', 6, 1, 3], ['estone', 6, 1, 3], ['crystal', 2, 1, 1], ['bpf', 5, 5, 10], ['gear', 4, 2, 3]] },
   lab: { n: '样本柜', c: [3, 5], col: 0x2a4a5a, t: [['serum', 8, 1, 2], ['elem', 4, 1, 2], ['apart', 6, 2, 4], ['crystal', 1.5, 1, 1], ['core', 1, 1, 1], ['zs2', 4, 1, 2]] } };
 const _iInfo = k => k === 'coin' ? { n: '余烬币', r: 0 } : (typeof ITEMS !== 'undefined' && ITEMS[k]) || MAT[k] || { n: k, r: 0 };
-const RCOL = ['#d0d0d0', '#7fe06a', '#5aa9ff', '#c28bff', '#ffc94a', '#ff4d8d', '#6ff6ff'];
+const RCOL = ['#d0d0d0', '#7fe06a', '#5aa9ff', '#c28bff', '#ffc94a', '#ff4d8d', '#16e0a8'];
 function cabRoll(type, colKey) { const T = CABT[type], n = rint(T.c[0], T.c[1]), tot = T.t.reduce((a, x) => a + x[1], 0), out = [];
   for (let i = 0; i < n; i++) { let r = Math.random() * tot, e = T.t[0]; for (const x of T.t) { r -= x[1]; if (r <= 0) { e = x; break; } }
     if (e[0] === 'gear') { const q = rint(e[2], e[3]), it = makeGear(2, DUN_LV[1], q, 0); it[1] = Math.min(it[1], 3);
@@ -14964,4 +14964,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794221498').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794223413').catch(()=>{});</script></body></html>
