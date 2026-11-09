@@ -12050,6 +12050,10 @@ const DUN = { on: false, x: -19000, z: 0, G: null, obs: [], walls: [], rooms: []
 S.dg = { c: 0, first: 0, rec: {}, safe: 0 };
 const DUN_LV = [12, 18], DUN_H = 2.6;
 const dX = x => DUN.x + x, dZ = z => DUN.z + z;
+DUN.id = 1;   // which dungeon is picked / running: 1 圣心医院, 2 永冬站 (z_dun2.js)
+const dunNm = () => DUN.id === 2 ? '永冬站 · 冰封者' : '圣心医院 · 零号病人';
+const dunTxt = () => DUN.id === 2 && typeof D2_TXT !== 'undefined' ? D2_TXT : DUN_TXT;
+const inDunArea = (x, z) => Math.abs(x - DUN.x - 100) < 170 && z - DUN.z > -140 && z - DUN.z < 50;
 const DUN_TXT = {
   intro: [['老陈', '有情况。我截到一段一直在重复的求救信号，来源是郊区的圣心医院。'], ['林曼医生（信号）', '……这里是圣心医院……我是林曼医生……地下二层……血清……快来……'],
     ['老陈', '血清？如果是真的，这可能是我们翻盘的机会。医院正门被封了，从救护车通道进去。里面没电，靠你的肩灯。小心点。']],
@@ -12269,7 +12273,7 @@ function dunSetup() {
 function dunPower(on) { DUN.powered = on; for (const L of DUN.lights) L.color.setHex(on ? 0xfff2d8 : 0xff3a2a);
   DUN.G.traverse(o => { if (o.userData && o.userData.lampFx) o.material = on ? dunMats().lampW : dunMats().lamp; }); if (DUN.pbox) DUN.pbox.material = new THREE.MeshBasicMaterial({ color: on ? 0x5aff7a : 0xff3a2a });
   if (on) { try { sfxTone(400, 900, .6, .14, 'square'); } catch (e) { } S.shake = Math.max(S.shake, .2); } }
-function dunTo(x, z, then) { const f = $('fade'); if (f) { f.innerHTML = '<div class="voy"><b>电梯下行中……</b><span>地下二层</span></div>'; f.classList.add('on'); } input.fire = false;
+function dunTo(x, z, then) { const f = $('fade'); if (f) { f.innerHTML = DUN.id === 2 ? '<div class="voy"><b>升降机下行中……</b><span>冰层 · 地下 400 米</span></div>' : '<div class="voy"><b>电梯下行中……</b><span>地下二层</span></div>'; f.classList.add('on'); } input.fire = false;
   setTimeout(() => { player.pos.set(dX(x), 0, dZ(z)); camPos.set(player.pos.x, camH, player.pos.z + camD); try { then && then(); } catch (e) { } setTimeout(() => { if (f) { f.classList.remove('on'); setTimeout(() => { if (!f.classList.contains('on')) f.innerHTML = ''; }, 400); } }, 300); }, 1300); }
 function dunBoss() { const st = DUN.st; st.bossOn = true; const B = 150;
   try { spawnBoss({ id: 'dun1', x: dX(B + 70), z: dZ(-29), tp: 1, rb: 4, level: DUN_LV[1] - 1, bn: '', buff: null }); } catch (e) { console.warn(e); }
@@ -12290,10 +12294,11 @@ function dunWin() { const st = DUN.st; if (st.done) return; st.done = true; cons
 /* ---- enter / leave ---- */
 function dunEnter() {
   if (S.dun) return; DUN.gx = S.gx; DUN.gz = S.gz; S.isl = false; S.recallT = 0; clearGround(); S.dun = 1; DUN.on = true;
-  try { dunBuild(); dunSetup(); } catch (e) { console.warn('dun build', e); dunCleanup(); goIsland(true); banner('副本加载失败', '已送回海岛', 3); return; } setLayerVisuals(); groundMesh.visible = mountains.visible = false; embers.p.visible = false;
+  try { if (DUN.id === 2) { dun2Build(); dun2Setup(); } else { dunBuild(); dunSetup(); } } catch (e) { console.warn('dun build', e); dunCleanup(); goIsland(true); banner('副本加载失败', '已送回海岛', 3); return; } setLayerVisuals(); groundMesh.visible = mountains.visible = false; embers.p.visible = false;
+  S.spawnT = 1e9; S.hordeT = 1e9; S.landT = S.t; dunPower(false); document.body.classList.add('inDun');
+  if (DUN.id === 2) { dun2Start(); try { dunTrk(); } catch (e) { } refreshHud(); saveGame(); return; }
   player.pos.set(dX(30), 0, dZ(8)); player.face = Math.PI; camPos.set(player.pos.x, camH, player.pos.z + camD);
-  S.spawnT = 1e9; S.hordeT = 1e9; S.landT = S.t; dunPower(false);
-  document.body.classList.add('inDun'); banner('副本 · 圣心医院', '零号病人 · 推荐 Lv.' + DUN_LV[0] + ' 以上 · 左下角「回岛」可以随时离开（进度不保存）', 4.5);
+  banner('副本 · 圣心医院', '零号病人 · 推荐 Lv.' + DUN_LV[0] + ' 以上 · 左下角「回岛」可以随时离开（进度不保存）', 4.5);
   if (!S.dg.seen) { S.dg.seen = 1; storyTalk(DUN_TXT.intro); } else storyTalk([DUN_TXT.intro[1]]);
   try { dunTrk(); } catch (e) { } refreshHud(); saveGame();
 }
@@ -12322,11 +12327,11 @@ try { farSpawn = (o => function (m) { if (S.dun) return null; return o(m); })(fa
 try { evSpot = (o => function (a, b) { if (S.dun) return null; return o(a, b); })(evSpot); } catch (e) { }
 try { encTick = (o => function (dt) { if (S.dun) return; return o(dt); })(encTick); } catch (e) { }
 try { merchTick = (o => function (dt) { if (S.dun) return; return o(dt); })(merchTick); } catch (e) { }
-waterAt = (o => function (x, z) { if (S.dun && Math.abs(x - DUN.x - 100) < 160 && Math.abs(z - DUN.z + 20) < 60) return -9; return o(x, z); })(waterAt);
+waterAt = (o => function (x, z) { if (S.dun && inDunArea(x, z)) return -9; return o(x, z); })(waterAt);
 renderPort = (o => function () { o(); try { const box = $('portList'); if (!box) return; const rc = recCP(2), ok = combatPower() >= rc * .8;
   const row = shopRow('副本 · 圣心医院「零号病人」', '有剧情的地下城 · Lv.' + DUN_LV[0] + '-' + DUN_LV[1] + ' · 建议战力 ' + rc + (S.dg.first ? ' · 已通关 ' + S.dg.c + ' 次' : ' · 首通奖励：黄金装备、首领之心 ×2'), ok ? '#c9a0ff' : '#ff9b8a');
   row.classList.add('dunrow'); const go = document.createElement('button'); go.className = 'sbtn' + (ok ? '' : ' ghostb'); go.textContent = '查看';
-  go.addEventListener('click', () => { closePanel('port'); openDunPage(); }); row.appendChild(go); box.insertBefore(row, box.firstChild); } catch (e) { console.warn(e); } })(renderPort);
+  go.addEventListener('click', () => { closePanel('port'); openDunPage(); }); row.appendChild(go); box.insertBefore(row, box.firstChild); if (typeof dun2Row === 'function') dun2Row(box, row); } catch (e) { console.warn(e); } })(renderPort);
 // the tracker under the health bar shows the dungeon goal while you are inside
 const DUN_GOAL = ['找到保安室的门禁卡（大厅西边）', '用门禁卡打开住院部的门（大厅北边）', '找回保险丝', '去走廊东头的配电室接通电源', '坚守，等电梯启动', '坐电梯下到地下二层（走廊西头）', '读取实验室的终端记录', '进入冷藏库', '击败零号病人 · 林曼', '坐冷藏库东边的电梯撤离'];
 function dunTrk() { const e = $('dunObj'); if (!e) return; if (!S.dun || !DUN.st) { e.style.display = 'none'; return; } e.style.display = ''; const st = DUN.st;
@@ -12336,7 +12341,7 @@ function dunTrk() { const e = $('dunObj'); if (!e) return; if (!S.dun || !DUN.st
 /* ---- every frame inside ---- */
 let _dunT = 0, _dunTrk = 0;
 function dunTick(dt) {
-  if (!S.dun || !DUN.st) { if (!S.isl && !S.dun && S.started && Math.abs(player.pos.x - DUN.x - 100) < 160 && Math.abs(player.pos.z - DUN.z + 20) < 60) goIsland(true); return; }
+  if (!S.dun || !DUN.st) { if (!S.isl && !S.dun && S.started && inDunArea(player.pos.x, player.pos.z)) goIsland(true); return; }
   const st = DUN.st, px = player.pos.x, pz = player.pos.z; S.spawnT = 1e9; S.hordeT = 1e9; S.landT = S.t;
   // rooms
   const settling = typeof MP !== 'undefined' && MP.on && MP.others.size && Date.now() - (DUN.enterW || 0) < 2500;
@@ -12349,8 +12354,9 @@ function dunTick(dt) {
   for (const k in DUN.doors) { const D = DUN.doors[k]; if (D.open && D.t < 1) { D.t = Math.min(1, D.t + dt * 1.6); D.g.position.y = -DUN_H * D.t; } }
   // the wave after the power comes back
   const AU = dunAuth();
-  if (st.stage === 4 && !AU) st.waveT = Math.min(45, st.waveT + dt);
-  if (st.stage === 4 && AU) { st.waveT += dt; const W = [[0, 6], [15, 7], [30, 8]];
+  const D1 = DUN.id !== 2;
+  if (D1 && st.stage === 4 && !AU) st.waveT = Math.min(45, st.waveT + dt);
+  if (D1 && st.stage === 4 && AU) { st.waveT += dt; const W = [[0, 6], [15, 7], [30, 8]];
     while (st.wv < W.length && st.waveT >= W[st.wv][0]) { const n = W[st.wv][1]; for (let i = 0; i < n; i++) { const e = i % 2, x = e ? 56 + rand(0, 1) : -4 + rand(0, 1), z = -20 + rand(-2.5, 2.5); dz(pick(['walker', 'runner', 'walker', 'crawler', 'runner']), x, z, dLv(), 1); }
       st.wv++; banner('第 ' + st.wv + ' 波', '尸群从走廊两头冲过来了', 2); try { sfx.growl(); } catch (e) { } }
     if (st.waveT >= 45) { st.stage = 5; doorOpen('lift'); say2('lift'); banner('电梯启动了', '去走廊西头坐电梯', 3); } }
@@ -12358,10 +12364,10 @@ function dunTick(dt) {
   DUN.strayT = (DUN.strayT || 0) - dt; if (DUN.strayT <= 0) { DUN.strayT = .8;
     for (let i = zombies.length - 1; i >= 0; i--) { const z = zombies[i]; if (z.dead || z.mirror || z.boss) continue; const x = z.pos.x, zz = z.pos.z;
       if (!DUN.rooms.some(r => x > r.x0 - 1.5 && x < r.x1 + 1.5 && zz > r.z0 - 1.5 && zz < r.z1 + 1.5)) { scene.remove(z.g); zombies.splice(i, 1); } } }
-  if (AU && st.stage === 7 && st.bossOn) st.stage = 8;
-  if (AU && st.stage === 8 && st.boss && st.boss.dead) { st.stage = 9; doorOpen('exit'); say2('win'); DUN.bx = st.boss.pos.x; DUN.bz = st.boss.pos.z; }
-  if (AU && st.bossOn && st.stage >= 7 && st.stage < 9 && !(st.boss && !st.boss.mirror && !st.boss.removed) && !(boss && !boss.mirror)) { st.bossOn = false; dunBoss(); }   // the old leader left mid-fight
-  if (st.stage === 9 && !DUN.coatRolled) { DUN.coatRolled = 1; if (!S.colx.coat && Math.random() < COLX.coat.ch) { const bx = (DUN.bx != null ? DUN.bx : dX(220)) - DUN.x, bz = (DUN.bz != null ? DUN.bz : dZ(-29)) - DUN.z; dPick(bx, bz, 'col', 0xff7ad8, () => colGet('coat')); banner('首领掉落了收藏品！', COLX.coat.n, 3); } }
+  if (D1 && AU && st.stage === 7 && st.bossOn) st.stage = 8;
+  if (D1 && AU && st.stage === 8 && st.boss && st.boss.dead) { st.stage = 9; doorOpen('exit'); say2('win'); DUN.bx = st.boss.pos.x; DUN.bz = st.boss.pos.z; }
+  if (D1 && AU && st.bossOn && st.stage >= 7 && st.stage < 9 && !(st.boss && !st.boss.mirror && !st.boss.removed) && !(boss && !boss.mirror)) { st.bossOn = false; dunBoss(); }   // the old leader left mid-fight
+  if (D1 && st.stage === 9 && !DUN.coatRolled) { DUN.coatRolled = 1; if (!S.colx.coat && Math.random() < COLX.coat.ch) { const bx = (DUN.bx != null ? DUN.bx : dX(220)) - DUN.x, bz = (DUN.bz != null ? DUN.bz : dZ(-29)) - DUN.z; dPick(bx, bz, 'col', 0xff7ad8, () => colGet('coat')); banner('首领掉落了收藏品！', COLX.coat.n, 3); } }
   if (AU && typeof MP !== 'undefined' && MP.on && MP.others.size) { DUN.syncT = (DUN.syncT || 0) - dt; if (DUN.syncT <= 0) { DUN.syncT = .5; dunSync(); } }
   // tubes glow
   if (DUN.tubes) for (const g of DUN.tubes) g.material.opacity = .45 + Math.sin(S.t * 2) * .1;
@@ -12375,7 +12381,7 @@ function dunTick(dt) {
     if (Math.abs((m.opacity == null ? 1 : m.opacity) - want) > .01) { m.transparent = true; m.opacity += (want - m.opacity) * Math.min(1, dt * 8); m.depthWrite = m.opacity > .9; } }
   _dunTrk -= dt; if (_dunTrk <= 0) { _dunTrk = .5; try { dunTrk(); } catch (e) { } }
   // the boss stays in its room
-  if (st.boss && !st.boss.dead) { const bb = st.boss; bb.pos.x = clamp(bb.pos.x, dX(150 + 47), dX(150 + 81)); bb.pos.z = clamp(bb.pos.z, dZ(-43), dZ(-15)); }
+  if (D1 && st.boss && !st.boss.dead) { const bb = st.boss; bb.pos.x = clamp(bb.pos.x, dX(150 + 47), dX(150 + 81)); bb.pos.z = clamp(bb.pos.z, dZ(-43), dZ(-15)); }
 }
 function dunEnv() { if (!S.dun) return; scene.fog.color.setHex(0x07080b); scene.fog.near = 12; scene.fog.far = 40;
   hemiLight.color.setHex(0xc8d4e0); if (hemiLight.groundColor) hemiLight.groundColor.setHex(0x1a1a22); hemiLight.intensity = DUN.powered ? .75 : .5; sunLight.intensity = .18; fillLight.intensity = .12;
@@ -12384,11 +12390,11 @@ function dunEnv() { if (!S.dun) return; scene.fog.color.setHex(0x07080b); scene.
   torch.intensity = 1.25; torchPool.visible = true; torchPool.material.opacity = .26; }
 dayNightTick = (o => function (dt) { o(dt); try { dunEnv(); } catch (e) { } })(dayNightTick);
 zSpecialTick = (o => function (dt) { o(dt); try { dunTick(dt); } catch (e) { console.warn('dun', e); } })(zSpecialTick);
-regionHud = (o => function () { if (S.dun) { const e = $('regTxt') || $('region'); if (e && e.textContent !== '副本 · 圣心医院') e.textContent = '副本 · 圣心医院'; try { _regTxt = ''; } catch (er) { } return; } return o(); })(regionHud);
+regionHud = (o => function () { if (S.dun) { const e = $('regTxt') || $('region'), nm = '副本 · ' + (DUN.id === 2 ? '永冬站' : '圣心医院'); if (e && e.textContent !== nm) e.textContent = nm; try { _regTxt = ''; } catch (er) { } return; } return o(); })(regionHud);
 // the map inside: dark, with the rooms you have walked into
 drawExtraRadar = (o => function (tx, tz, edgeMark) { if (!S.dun || !DUN.st) return o(tx, tz, edgeMark); try { const c = mctx, W = c.canvas.width, k = _mapK || 2, sc = tx(1) - tx(0);
   c.fillStyle = '#0a0a0e'; c.fillRect(0, 0, W, W);
-  for (const r of DUN.rooms) { if (!r.seen) continue; c.fillStyle = r.id === 'cold' ? '#3a5a6a' : r.id === 'lab' || r.id === 'obs' || r.id === 'arc' ? '#2e3a40' : '#4a5248'; c.fillRect(tx(r.x0), tz(r.z0), (r.x1 - r.x0) * sc, (r.z1 - r.z0) * sc);
+  for (const r of DUN.rooms) { if (!r.seen) continue; c.fillStyle = r.id === 'cold' || r.ice ? '#3a5a6a' : r.id === 'lab' || r.id === 'obs' || r.id === 'arc' ? '#2e3a40' : '#4a5248'; c.fillRect(tx(r.x0), tz(r.z0), (r.x1 - r.x0) * sc, (r.z1 - r.z0) * sc);
     c.strokeStyle = 'rgba(200,220,210,.5)'; c.lineWidth = k * .6; c.strokeRect(tx(r.x0), tz(r.z0), (r.x1 - r.x0) * sc, (r.z1 - r.z0) * sc); }
   const sg = DUN.st.stage;
   for (const p of DUN.picks) if (!p.taken && ((p.kind === 'key' && sg === 0) || (p.kind === 'fuse' && sg === 2))) { mapPin(c, tx(p.x), tz(p.z), 4.5 * k, p.kind === 'key' ? '#5ad8ff' : '#ffd060', '', k); edgeMark({ x: p.x, z: p.z }, p.kind === 'key' ? '#5ad8ff' : '#ffd060'); }
@@ -12425,7 +12431,7 @@ function dunGuide() { if (!S.dun || !DUN.st) return; const st = DUN.st, old = $(
     '<div class="dunsec">小地图：绿色「!」是现在要去的地方，黄点是保险丝，蓝点是门禁卡。中途按「回岛」离开，这一趟的进度不保存。</div></div>';
   document.body.appendChild(m); const close = () => m.remove(); m.addEventListener('click', e => { if (e.target === m) close(); }); m.querySelector('.dunmx').addEventListener('click', close); }
 /* ---- the dungeon page (from the pier) ---- */
-function openDunPage() { try { audioInit(); } catch (e) { } const old = $('dunPageM'); if (old) old.remove(); const rc = recCP(2), cp = combatPower(), ok = cp >= rc * .8, rec = Object.keys(S.dg.rec).length;
+function openDunPage() { DUN.id = 1; try { audioInit(); } catch (e) { } const old = $('dunPageM'); if (old) old.remove(); const rc = recCP(2), cp = combatPower(), ok = cp >= rc * .8, rec = Object.keys(S.dg.rec).length;
   const xp1 = dunXp(true), xp2 = dunXp(false);
   const m = document.createElement('div'); m.id = 'dunPageM'; m.className = 'dunm';
   m.innerHTML = '<div class="dunmb dunpage"><button class="dunmx" aria-label="关闭">✕</button>' +
@@ -12443,7 +12449,7 @@ function openDunPage() { try { audioInit(); } catch (e) { } const old = $('dunPa
   m.querySelector('.dungo').addEventListener('click', () => { close(); dunTravel('正在进入副本', '圣心医院 · 零号病人', dunEnter); }); }
 // a loading screen of its own (not the boat)
 function dunTravel(t1, t2, fn) { const f = $('fade'); input.fire = false; if (!f) { fn(); return; }
-  f.innerHTML = '<div class="dunload"><div class="dunlh"><i></i><i></i><i></i></div><small>' + t1 + '</small><b>' + t2 + '</b><u><s></s></u><span>' + pick(['断电的走廊里，只有红色应急灯在闪。', '地下二层的信号还在重复……', '小心病房里躲着的东西。', '录音里好像藏着数字。']) + '</span></div>';
+  f.innerHTML = '<div class="dunload"><div class="dunlh"><i></i><i></i><i></i></div><small>' + t1 + '</small><b>' + t2 + '</b><u><s></s></u><span>' + pick(DUN.id === 2 ? ['零下四十度，别在雪地里待太久。', '暖气一开，冻住的东西会醒过来。', '冰层下面，有人一直在等。', '体温掉光了会开始掉血。'] : ['断电的走廊里，只有红色应急灯在闪。', '地下二层的信号还在重复……', '小心病房里躲着的东西。', '录音里好像藏着数字。']) + '</span></div>';
   f.classList.add('on', 'dunf'); try { sfxNoise(1.2, .1, 300); } catch (e) { }
   setTimeout(() => { try { fn(); } finally { setTimeout(() => { f.classList.remove('on'); setTimeout(() => { if (!f.classList.contains('on')) { f.innerHTML = ''; f.classList.remove('dunf'); } }, 400); }, 300); } }, 1700); }
 try { if (document.createElement && document.body) {
@@ -12590,14 +12596,14 @@ try { const st = document.createElement('style'); st.textContent = '.duncol{marg
    sends back. Tapes, the safe, cupboards, collectibles and rewards stay personal. ---- */
 const dunAuth = () => !(typeof MP !== 'undefined' && MP.on && COOP.follow);
 function dunSend(topic, data) { try { if (typeof MP !== 'undefined' && MP.on) coopSend(topic, data); } catch (e) { } }
-function say2(k) { storyTalk(DUN_TXT[k]); if (dunAuth()) dunSend('dunT', { k }); }
+function say2(k) { storyTalk(dunTxt()[k]); if (dunAuth()) dunSend('dunT', { k }); }
 function dunFire(r) { if (!r || r.fired) return; r.fired = 1; if (r.enter) try { r.enter(); } catch (e) { console.warn(e); } }
 DUN.inside = new Set(); DUN.inT = new Map(); DUN.since = 0;
 function dunSync() { const st = DUN.st; if (!st || !S.dun) return;
   dunSend('dunS', { s: st.stage, f: st.fuse, t: Object.keys(st.terms), w: Math.round(st.waveT * 10) / 10, d: Object.keys(DUN.doors).filter(k => DUN.doors[k].open), p: DUN.picks.filter(p => p.sh && p.taken).map(p => p.id),
     r: DUN.rooms.filter(r => r.fired).map(r => r.id), pw: DUN.powered ? 1 : 0, bo: st.bossOn ? 1 : 0, bx: DUN.bx != null ? Math.round(DUN.bx) : null, bz: DUN.bz != null ? Math.round(DUN.bz) : null }); }
 function onDunS(m) { if (!m || m.isMe || !S.dun || !DUN.st || dunAuth() || m.peer !== COOP.follow) return; const d = m.data || {}, st = DUN.st;
-  if (Number.isFinite(d.s) && d.s >= st.stage) st.stage = clamp(d.s | 0, 0, 9); if (Number.isFinite(d.f)) st.fuse = clamp(d.f | 0, 0, 3);
+  if (Number.isFinite(d.s) && d.s >= st.stage) st.stage = clamp(d.s | 0, 0, 12); if (Number.isFinite(d.f)) st.fuse = clamp(d.f | 0, 0, 3);
   if (Array.isArray(d.t)) d.t.forEach(k => { if (/^[abc]$/.test(k)) st.terms[k] = 1; }); if (Number.isFinite(d.w) && st.stage === 4) st.waveT = d.w;
   if (Array.isArray(d.d)) d.d.forEach(k => { if (DUN.doors[k]) doorOpen(k); }); if (d.pw && !DUN.powered) dunPower(true); if (d.bo) st.bossOn = true;
   if (Array.isArray(d.p)) d.p.forEach(id => { const p = DUN.picks.find(q => q.id === id); if (p && !p.taken) { p.taken = true; DUN.G.remove(p.g); } });
@@ -12609,32 +12615,34 @@ function onDunA(m) { if (!m || m.isMe || !S.dun || !DUN.st || !dunAuth()) return
   else if (d.op === 'int') { const I = DUN.ints.find(q => q.id === d.id && q.sh); if (I && I.ok()) try { I.fn(); } catch (e) { } }
   else if (d.op === 'b2') { if (st.stage === 5) st.stage = 6; }
   dunSync(); }
-function onDunT(m) { if (!m || m.isMe || !S.dun || dunAuth()) return; const k = m.data && m.data.k; if (DUN_TXT[k]) storyTalk(DUN_TXT[k]); }
+function onDunT(m) { if (!m || m.isMe || !S.dun || dunAuth()) return; const k = m.data && m.data.k, T = dunTxt(); if (T[k]) storyTalk(T[k]); }
 function onDunI(m) { if (!m || m.isMe || !m.data) return; const d = m.data;
-  if (d.op === 'in' || d.op === 'here') { DUN.inside.add(m.peer); DUN.inT.set(m.peer, Number(d.t) || Date.now()); if (d.op === 'in' && S.dun) dunSend('dunI', { op: 'here', t: DUN.since }); }
+  if ((d.op === 'in' || d.op === 'here') && (d.d || 1) !== DUN.id) return;
+  if (d.op === 'in' || d.op === 'here') { DUN.inside.add(m.peer); DUN.inT.set(m.peer, Number(d.t) || Date.now()); if (d.op === 'in' && S.dun) dunSend('dunI', { op: 'here', t: DUN.since, d: DUN.id }); }
   else if (d.op === 'out') { DUN.inside.delete(m.peer); DUN.inT.delete(m.peer); }
-  else if (d.op === 'inv' && !S.dun && !S.dead && S.started) dunInvite(String(d.nm || '队友').slice(0, 16), m.peer); }
+  else if (d.op === 'inv' && !S.dun && !S.dead && S.started) dunInvite(String(d.nm || '队友').slice(0, 16), m.peer, d.d === 2 ? 2 : 1); }
 coopWire = (o => function (r) { o(r); try { r.on('dunA', onDunA); r.on('dunS', onDunS); r.on('dunT', onDunT); r.on('dunI', onDunI); } catch (e) { } })(coopWire);
 function dunPartyN() { return DUN.inside.size + (S.dun ? 1 : 0); }
-function dunInvite(nm, peer) { const old = $('dunInvM'); if (old) old.remove(); const m = document.createElement('div'); m.id = 'dunInvM'; m.className = 'dunm';
-  m.innerHTML = '<div class="dunmb" style="text-align:center"><b class="dunmh">组队邀请</b><p style="font-size:14px;line-height:1.6">「' + nm.replace(/[<>&]/g, '') + '」邀请你一起进入副本<br><b style="color:#ffd98a">圣心医院 · 零号病人</b></p><div style="display:flex;gap:8px"><button class="go ghost dunno" style="flex:1">不了</button><button class="go dunyes" style="flex:1">加入</button></div></div>';
+function dunInvite(nm, peer, did) { const nmD = did === 2 ? '永冬站 · 冰封者' : '圣心医院 · 零号病人'; const old = $('dunInvM'); if (old) old.remove(); const m = document.createElement('div'); m.id = 'dunInvM'; m.className = 'dunm';
+  m.innerHTML = '<div class="dunmb" style="text-align:center"><b class="dunmh">组队邀请</b><p style="font-size:14px;line-height:1.6">「' + nm.replace(/[<>&]/g, '') + '」邀请你一起进入副本<br><b style="color:#ffd98a">' + nmD + '</b></p><div style="display:flex;gap:8px"><button class="go ghost dunno" style="flex:1">不了</button><button class="go dunyes" style="flex:1">加入</button></div></div>';
   document.body.appendChild(m); const close = () => m.remove(); const t = setTimeout(close, 25000);
   m.querySelector('.dunno').addEventListener('click', () => { clearTimeout(t); close(); });
-  m.querySelector('.dunyes').addEventListener('click', () => { clearTimeout(t); close(); if (DUN.inside.size >= 4) { feed('副本里已经有 4 个人了', '#ff9b8a'); return; } try { closePanel('port'); } catch (e) { } dunTravel('和队友一起进入', '圣心医院 · 零号病人', dunEnter); }); }
-dunEnter = (o => function () { o(); if (S.dun) { DUN.since = Date.now(); DUN.enterT = S.t; DUN.enterW = Date.now(); dunSend('dunI', { op: 'in', t: DUN.since }); dunSend('dunA', { op: 'sync' }); } })(dunEnter);
+  m.querySelector('.dunyes').addEventListener('click', () => { clearTimeout(t); close(); if (DUN.inside.size >= 4) { feed('副本里已经有 4 个人了', '#ff9b8a'); return; } try { closePanel('port'); } catch (e) { } DUN.id = did; if (did === 2) dun2Enter(); else dunTravel('和队友一起进入', nmD, dunEnter); }); }
+dunEnter = (o => function () { o(); if (S.dun) { DUN.since = Date.now(); DUN.enterT = S.t; DUN.enterW = Date.now(); dunSend('dunI', { op: 'in', t: DUN.since, d: DUN.id }); dunSend('dunA', { op: 'sync' }); } })(dunEnter);
 dunCleanup = (o => function () { const was = DUN.on; o(); if (was) { dunSend('dunI', { op: 'out' }); DUN.coatRolled = 0; DUN.bx = DUN.bz = null; } })(dunCleanup);
 onDunA = (o => function (m) { if (m && m.data && m.data.op === 'sync') { if (S.dun && dunAuth()) dunSync(); return; } return o(m); })(onDunA);
 // mirrors of the host's zombies: the region kinds keep their own look, dogs don't bring a pack, the boss keeps its name
 try { for (const k of RZ) if (k && !ZT_IDX.includes(k)) ZT_IDX.push(k); } catch (e) { }
 makeMirror = (o => function (id, ti, x, z, lv, buff, elite, btp) { _packing = true; let zb; try { zb = o(id, ti, x, z, lv, buff, elite, btp); } finally { _packing = false; }
-  if (zb && zb.boss && S.dun) { zb.title = '零号病人 · 林曼'; el.bossName.textContent = zb.title + ' Lv.' + lv; } return zb; })(makeMirror);
+  if (zb && zb.boss && S.dun) { zb.title = DUN.id === 2 ? '冰封者 · 周岩' : '零号病人 · 林曼'; el.bossName.textContent = zb.title + ' Lv.' + lv; } return zb; })(makeMirror);
 // the dungeon page gets a party button when teammates are in your room
-openDunPage = (o => function () { o(); try { const m = $('dunPageM'); if (!m || typeof MP === 'undefined' || !MP.on || !MP.others.size) return; const go = m.querySelector('.dungo'); if (!go) return;
+openDunPage = (o => function () { o(); dunPartyAdd(); })(openDunPage);
+function dunPartyAdd() { try { const m = $('dunPageM'); if (!m || typeof MP === 'undefined' || !MP.on || !MP.others.size) return; const go = m.querySelector('.dungo'); if (!go) return;
   const ins = DUN.inside.size, box = document.createElement('div'); box.className = 'dunparty';
   box.innerHTML = '<small>组队 · 最多 4 人</small><span>房间里还有 ' + MP.others.size + ' 位队友' + (ins ? ' · 已有 ' + ins + ' 人在副本里，进去会自动和他们一起' : '') + '</span>';
   const inv = document.createElement('button'); inv.className = 'go dunpgo'; inv.textContent = ins >= 4 ? '副本已满 4 人' : '组队进入（邀请房间里的队友）'; inv.disabled = ins >= 4;
-  inv.addEventListener('click', () => { m.remove(); dunSend('dunI', { op: 'inv', nm: S.name || '队友' }); feed('已邀请房间里的队友', '#c9a0ff'); dunTravel('正在进入副本', '圣心医院 · 零号病人', dunEnter); });
-  box.appendChild(inv); go.parentNode.insertBefore(box, go); go.textContent = ins >= 4 ? '副本已满' : '单人进入'; go.disabled = ins >= 4; } catch (e) { console.warn(e); } })(openDunPage);
+  inv.addEventListener('click', () => { m.remove(); dunSend('dunI', { op: 'inv', nm: S.name || '队友', d: DUN.id }); feed('已邀请房间里的队友', '#c9a0ff'); if (DUN.id === 2) dun2Enter(); else dunTravel('正在进入副本', dunNm(), dunEnter); });
+  box.appendChild(inv); go.parentNode.insertBefore(box, go); go.textContent = ins >= 4 ? '副本已满' : '单人进入'; go.disabled = ins >= 4; } catch (e) { console.warn(e); } }
 
 /* ---- the pier menu gets three tabs: 区域 · 活动 · 副本 ---- */
 let portTab = 'reg';
@@ -12658,7 +12666,390 @@ coopElect = (o => function (dt) { if (!S.dun || typeof MP === 'undefined' || !MP
   if (!COOP.follow && prevFollow) { for (const z of zombies) if (z.mirror) scene.remove(z.g); for (let i = zombies.length - 1; i >= 0; i--) if (zombies[i].mirror) zombies.splice(i, 1);
     COOP.mirrors.clear(); if (boss && boss.mirror) { boss = null; el.boss.style.display = 'none'; } if (cand.length > 1) feed('你现在是副本队长', '#7de0ff'); }
   try { $('coopTxt').textContent = cand.length > 1 ? (COOP.follow ? '副本组队 · ' + cand.length + ' 人' : '副本队长 · ' + cand.length + ' 人') : ''; } catch (e) { } })(coopElect);
-/* ============ 副本小地图：显示可以搜索的柜子（金色箱子图标；没开过的会闪，保险箱和样本柜画大一点，搜空就消失） ============ */
+/* ============ 副本二：永冬站 · 冰封者 ============
+   林曼医生的日记把你指向「北方冻土研究所」——永冬站。周岩博士在这里研究血清，也是这里第一次把 E-0 从冰层里挖了出来。
+   地面：雪原、主楼大厅、宿舍、车库、食堂、锅炉房、泵房、无线电室、升降机。冰层（地下 400 米）：冰窟走廊、周博士实验室、
+   立项档案室、冷冻舱大厅、钻探井（首领）。用的是副本一同一套引擎（z_dun.js）：DUN.id = 2 时跑这张图。
+   独有机制「体温」：雪地和冰层里会慢慢变冷，掉光了开始掉血；锅炉点着之后站里是暖的，实验室和档案室有暖气。 */
+S.dg2 = { c: 0, first: 0, seen: 0 };
+const D2_LV = [22, 28];
+const D2_TXT = {
+  intro: [['老陈', '林医生日记里说的「北方冻土研究所」，正式名字叫「永冬站」。周岩博士最后一次发信号，是三个月前。'],
+    ['老陈', '雪地车只能送你到大门口。外面零下四十度，在雪地里待久了会冻伤——留意左上角的「体温」。'],
+    ['老陈', '先让站里暖起来。没有暖气，你在里面也撑不了多久。']],
+  torch: [['老陈', '喷灯！锅炉房的门被冰封住了，用它把冰化开。锅炉房在大厅北边。']],
+  door: [['老陈', '门开了……锅炉的三个阀门都被人关死了：宿舍、食堂、泵房各一个。全部拧开才能点火。']],
+  valves: [['老陈', '三个阀门都开了。回锅炉房，点火！']],
+  boil: [['老陈', '暖气上来了……等等，大厅里那些冰块在裂开。'], ['老陈', '里面冻着的是丧尸！暖气把它们化开了！撑住，升降机要 40 秒预热！']],
+  warm: [['老陈', '撑过去了。升降机还要密码……去宿舍北边的无线电室，我帮你接进站里的系统。']],
+  radio: [['无线电 · 旧录音', '（沙沙声）……永冬站钻探计划，第 41 次会议。周岩博士要求立刻停止钻探：样本 E-0 风险不明。'],
+    ['无线电 · 旧录音', '项目负责人意见：继续。签字——陈。'], ['老陈', '……'],
+    ['老陈', '是我。圣心医院那份「继续」，也是我签的。那时候我以为，自己是在救人类。'],
+    ['老陈', '升降机的密码，是我设的。下去吧……下面的东西，我欠你一个解释。']],
+  ice: [['老陈', '这就是冰层下面……灯是周博士自己接的。'], ['老陈', '实验室和档案室在走廊南边。把终端里的资料读出来。']],
+  t1: [['终端 · 立项文件', '永冬站钻探计划。目标：冻土层下方 400 米的一处异常热源。'], ['终端 · 立项文件', '钻探点 #1 在第 212 天打穿冰层，取出样本，编号 E-0。']],
+  t2: [['终端 · 周博士日志', '林曼把女儿送来了。小雨对 E-0 完全免疫——她的血，就是血清缺的最后一步。'],
+    ['终端 · 周博士日志', '站里爆发了。我把小雨放进冷冻舱 C-07，低温能保住她。'], ['终端 · 周博士日志', '我被咬了。我会守在舱旁边，直到有人来。谁都别想碰她。']],
+  labs: [['老陈', '小雨……林医生的女儿，在这里？'], ['老陈', '冷冻舱大厅的门开了。去找 C-07。']],
+  pod: [['冷冻舱 C-07', '舱盖上结着一层霜。霜下面，是一个睡着的小女孩。'], ['冷冻舱 C-07', '标签：林小雨，7 岁。生命体征：稳定。'],
+    ['老陈', '她还活着……她就是血清的答案。'], ['老陈', '等一下——钻探井那边有动静。有什么东西醒了。']],
+  boss: [['冰封者 · 周岩', '……C-07……别碰她……'], ['冰封者 · 周岩', '……我答应过林曼……谁都……不许……']],
+  win: [['周岩博士（最后的录音）', '如果你听到这个，说明我已经守不住了。带小雨走，她的血能救所有人。'], ['周岩博士（最后的录音）', '还有……别相信签字的人。'],
+    ['老陈', '……他说得对。'], ['老陈', '冷冻舱不能断电，我们现在带不走她。我会派人来接她。坐升降机回地面吧。']]
+};
+const D2_GOAL = ['找到喷灯（大厅东边的车库）', '用喷灯化开锅炉房的冰门（大厅北边）', '拧开锅炉的三个阀门', '回锅炉房点火', '坚守，等升降机预热', '去无线电室（宿舍北边）',
+  '坐升降机下到冰层（食堂北边）', '读取实验室和档案室的终端', '检查冷冻舱 C-07', '击败冰封者 · 周岩', '坐钻探井东边的升降机撤离'];
+const D2_HOW = [
+  '从大厅东边的门进车库，喷灯在车库里面，发蓝光。小地图上的蓝点就是。',
+  '回到大厅，北边右侧那扇结冰的门就是锅炉房，走过去按「用喷灯化冰」。',
+  '三个阀门：宿舍（大厅西边）、食堂（大厅北边左侧）、泵房（车库北边）。小地图上的绿色「!」就是。',
+  '回锅炉房，站到锅炉前面按「点燃锅炉」。',
+  '暖气会把大厅里冻住的丧尸化开。撑到倒数结束，升降机就预热好了。',
+  '无线电室在宿舍的北边。走到桌前按「接通无线电」。',
+  '升降机在食堂北边，门已经打开。走进去按「坐升降机下到冰层」。',
+  '两台终端：走廊南边的周博士实验室一台，档案室一台。冰层里很冷，实验室和档案室有暖气可以回暖。',
+  '冷冻舱大厅在走廊最东边。中间亮蓝光的那个舱就是 C-07，走过去按「检查冷冻舱」。',
+  '周岩会吐冰霜：看到前方的扇形就往旁边躲。冰投手的冰块打中会变慢，先清掉它们。',
+  '钻探井最东边的升降机门打开了，走过去按「坐升降机撤离」。'];
+const D2_ICE = 95;   // x beyond this (local) is the ice level
+
+/* ---- materials ---- */
+let _d2M = null;
+function d2Mats() { if (_d2M) return _d2M; const L = (c, o) => new THREE.MeshLambertMaterial(Object.assign({ color: c }, o || {}));
+  _d2M = { snow: L(0xffffff, { map: dunTex('#eef4fa', '#e2eaf2', '#cfdbe6', 6) }), floor: L(0xffffff, { map: dunTex('#6a7480', '#5e6874', '#4a525c', 5) }),
+    wood: L(0xffffff, { map: dunTex('#7a5a3e', '#6e5036', '#52402c', 6) }), iceF: L(0xffffff, { map: dunTex('#a8c8dc', '#9cbcd2', '#86a8c0', 3) }),
+    wall: L(0x8e9aa8), wall2: L(0x6a7684), orange: L(0xd8641e), iceW: L(0xbfe4f6), iceB: new THREE.MeshLambertMaterial({ color: 0xcfefff, transparent: true, opacity: .55, depthWrite: false }),
+    rust: L(0x7a4a32), pipe: L(0x9a6a3a), glow: new THREE.MeshBasicMaterial({ color: 0x8fe0ff }), fire: new THREE.MeshBasicMaterial({ color: 0xff8a2a }), dark: L(0x23282e) };
+  return _d2M; }
+function d2Room(id, n, x0, z0, x1, z1, o) { dRoom(id, n, x0, z0, x1, z1); Object.assign(DUN.rooms[DUN.rooms.length - 1], o || {}); }
+
+/* ---- the map ---- */
+function dun2Build() {
+  const M = dunMats(), W = d2Mats(); DUN.G = new THREE.Group(); DUN.G.position.set(DUN.x, 0, DUN.z); scene.add(DUN.G);
+  const under = new THREE.Mesh(new THREE.PlaneGeometry(400, 200), new THREE.MeshBasicMaterial({ color: 0x0b1018 })); under.rotation.x = -Math.PI / 2; under.position.set(100, -.02, -40); DUN.G.add(under);
+  /* ===== surface ===== */
+  // snowfield: the snowcat, a fence, drifts
+  dFloor(-20, 0, 64, 20, W.snow); d2Room('snow', '雪原', -20, 0, 64, 20, { cold: 1 });
+  wallZ(-20, 0, 20, [], W.wall2, 1.2); wallZ(64, 0, 20, [], W.wall2, 1.2); wallX(20, -20, 64, [], W.wall2, 1.2);
+  { const g = new THREE.Group(); g.position.set(22, 0, 12); g.rotation.y = .25; DUN.G.add(g); box(3.2, 1.4, 5, W.orange, 0, 1.1, 0, g); box(2.8, 1.1, 2.4, W.orange, 0, 2.2, .6, g); box(2.6, .8, .06, M.glass, 0, 2.3, -.62, g);
+    for (const s of [-1, 1]) box(.7, .7, 5.6, W.dark, s * 1.6, .35, 0, g); box(.5, .3, .1, M.lampW, -1, 1.4, -2.52, g); box(.5, .3, .1, M.lampW, 1, 1.4, -2.52, g); DUN.obs.push(addBox(dX(22), dZ(12), 1.9, 2.9)); }
+  for (let i = 0; i < 14; i++) { const d = new THREE.Mesh(new THREE.SphereGeometry(1, 7, 5), W.snow); d.scale.set(rand(1, 2.4), rand(.25, .6), rand(1, 2)); d.position.set(rand(-18, 62), 0, rand(2, 18)); if (Math.abs(d.position.x - 22) < 5) continue; d.userData.noCast = 1; DUN.G.add(d); }
+  { const sg = new THREE.Group(); sg.position.set(14, 0, 2.2); DUN.G.add(sg); box(.15, 2.2, .15, M.trim, -1.2, 1.1, 0, sg); box(.15, 2.2, .15, M.trim, 1.2, 1.1, 0, sg); box(3, .9, .1, W.wall2, 0, 2.2, 0, sg); box(2.6, .2, .12, M.lampW, 0, 2.4, 0, sg); }
+  dAnchor(22, 6); dAnchor(4, 10); dAnchor(40, 10);
+  // the station walls (shared walls built once)
+  dFloor(4, -18, 40, 0, W.floor); d2Room('hall', '主楼大厅', 4, -18, 40, 0, { st: 1 });
+  wallX(0, -14, 58, [[20, 24]], W.wall); wallZ(4, -32, 0, [[-11, -7]], W.wall); wallZ(40, -32, 0, [[-11, -7]], W.wall);
+  wallX(-18, -14, 58, [[-8, -4], [10, 14], [29, 33], [47, 51]], W.wall); dDoor('boil', 'x', 31, -18, 4, 0x8fe0ff);
+  { const ic = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2.5, .7), W.iceB); ic.position.set(31, 1.25, -17.6); DUN.G.add(ic); DUN.boilIce = ic; }
+  fDesk(22, -9, 5, 1.2, true); for (let i = 0; i < 2; i++) { dBox(3, .45, .7, M.trim, 10, .25, -4 - i * 3); DUN.obs.push(addBox(dX(10), dZ(-4 - i * 3), 1.5, .35)); dBox(3, .45, .7, M.trim, 34, .25, -4 - i * 3); DUN.obs.push(addBox(dX(34), dZ(-4 - i * 3), 1.5, .35)); }
+  // the frozen ones in the hall: ice blocks with a dark shape inside (they wake when the heat comes on)
+  DUN.d2blocks = [];
+  for (const [x, z] of [[8, -14], [16, -15], [27, -13], [37, -14], [14, -2.5], [30, -2.5]]) { const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rand(-.4, .4); DUN.G.add(g);
+    box(.5, 1.5, .4, W.dark, 0, .9, 0, g); box(.35, .35, .35, W.dark, 0, 1.85, 0, g); const c = box(1.3, 2.4, 1.1, W.iceB, 0, 1.2, 0, g); DUN.d2blocks.push({ g, x, z }); }
+  dBlood(20, -5, 2, .8, .3); dAnchor(12, -9); dAnchor(30, -9);
+  // dorm
+  dFloor(-14, -18, 4, 0, W.wood); d2Room('dorm', '宿舍', -14, -18, 4, 0, { st: 1 }); wallZ(-14, -32, 0, [], W.wall);
+  for (const x of [-11, -6]) { fBed(x, -15, 0); } fBed(-1, -3.5, Math.PI); dAnchor(-5, -9);
+  // garage
+  dFloor(40, -18, 58, 0, W.floor); d2Room('gar', '车库', 40, -18, 58, 0, { st: 1 }); wallZ(58, -32, 0, [], W.wall);
+  { const g = new THREE.Group(); g.position.set(48, 0, -8); g.rotation.y = 1.4; DUN.G.add(g); box(2.6, 1.1, 4, W.orange, 0, .9, 0, g); box(2.3, .9, 1.8, W.orange, 0, 1.8, .5, g); for (const s of [-1, 1]) box(.6, .6, 4.4, W.dark, s * 1.3, .3, 0, g); DUN.obs.push(addBox(dX(48), dZ(-8), 2.2, 1.4)); }
+  for (let i = 0; i < 4; i++) { dBox(.8, 1, .8, W.rust, 42 + i * 1.1, .5, -16.8); } DUN.obs.push(addBox(dX(43.6), dZ(-16.8), 2.2, .4)); dAnchor(50, -9);
+  // mess hall
+  dFloor(4, -32, 22, -18, W.floor); d2Room('mess', '食堂', 4, -32, 22, -18, { st: 1 }); wallZ(22, -32, -18, [], W.wall); wallX(-32, -14, 58, [[16, 20]], W.wall);
+  for (const z of [-22, -27]) { dBox(6, .8, 1.4, W.wood, 11, .4, z); DUN.obs.push(addBox(dX(11), dZ(z), 3, .7)); }
+  dBox(1.2, 1.1, 3, M.trim, 20.8, .55, -24); DUN.obs.push(addBox(dX(20.8), dZ(-24), .6, 1.5)); dAnchor(12, -25);
+  // boiler room: the boiler, pipes up the walls
+  dFloor(22, -32, 40, -18, W.floor); d2Room('boil', '锅炉房', 22, -32, 40, -18, { st: 1 });
+  { const g = new THREE.Group(); g.position.set(31, 0, -27.5); DUN.G.add(g); const b = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 3.6, 12), W.rust); b.rotation.z = Math.PI / 2; b.position.y = 2; g.add(b);
+    box(4.4, .4, 3, W.dark, 0, .2, 0, g); const f = box(1.1, .9, .1, W.dark, 0, 1.4, 2.02, g); DUN.boilFire = f; for (let i = 0; i < 3; i++) box(.3, 3, .3, W.pipe, -1.5 + i * 1.5, 3.6, -1, g); DUN.obs.push(addBox(dX(31), dZ(-27.5), 2.2, 2.1)); }
+  for (const x of [23, 39]) dBox(.25, 2.6, 12, W.pipe, x, 1.3, -25); dAnchor(31, -22);
+  // pump room
+  dFloor(40, -32, 58, -18, W.floor); d2Room('pump', '泵房', 40, -32, 58, -18, { st: 1 });
+  for (let i = 0; i < 3; i++) { const p = new THREE.Mesh(new THREE.CylinderGeometry(.8, .8, 1.6, 10), W.wall2); p.position.set(44 + i * 4, .8, -29.5); DUN.G.add(p); DUN.obs.push(addBox(dX(44 + i * 4), dZ(-29.5), .8, .8)); }
+  dAnchor(49, -24);
+  // radio room
+  dFloor(-14, -32, 4, -18, W.wood); d2Room('radio', '无线电室', -14, -32, 4, -18, { st: 1 });
+  fDesk(-5, -29.5, 5, 1.2, true); for (let i = 0; i < 3; i++) { dBox(.9, .7, .5, W.dark, -7 + i * 1.6, 1.25, -30.3); dBox(.6, .12, .02, W.glow, -7 + i * 1.6, 1.4, -30.04); }
+  dBox(.12, 3.2, .12, M.trim, 2.5, 1.6, -30.5); dAnchor(-5, -25);
+  // the lift down
+  dFloor(14, -38, 22, -32, M.metal); d2Room('lift1', '升降机', 14, -38, 22, -32, { st: 1 }); wallX(-38, 14, 22, [], W.wall2); wallZ(14, -38, -32, [], W.wall2); wallZ(22, -38, -32, [], W.wall2);
+  dDoor('lift', 'x', 18, -32, 4, 0xff3a2a);
+  /* ===== the ice, 400 m down ===== */
+  dFloor(100, -66, 108, -58, M.metal); d2Room('ilift', '升降井底', 100, -66, 108, -58, { cold: 1, ice: 1 }); wallX(-66, 100, 108, [], W.iceW); wallX(-58, 100, 108, [], W.iceW); wallZ(100, -66, -58, [], W.iceW);
+  dFloor(108, -70, 140, -62, W.iceF); d2Room('icor', '冰窟走廊', 108, -70, 140, -62, { cold: 1, ice: 1 }); wallX(-70, 108, 140, [], W.iceW); wallZ(108, -70, -66, [], W.iceW);
+  wallX(-62, 108, 140, [[114, 118], [130, 134]], W.iceW);
+  for (let i = 0; i < 9; i++) { const c = new THREE.Mesh(new THREE.OctahedronGeometry(.5 + Math.random() * .5, 0), M.ice); c.position.set(110 + i * 3.4, .4, i % 2 ? -69.2 : -62.8); c.scale.y = 2; DUN.G.add(c); }
+  for (const x of [112, 124, 136]) dAnchor(x, -66);
+  // Dr Zhou's lab (warm: a heater) and the archive
+  dFloor(108, -62, 124, -46, W.floor); d2Room('zlab', '周博士实验室', 108, -62, 124, -46, { ice: 1, warm: 1 }); wallZ(108, -62, -46, [], W.wall2); wallX(-46, 108, 124, [], W.wall2); wallZ(124, -62, -46, [], W.wall2);
+  fDesk(116, -57, 5, 1.2, true); DUN.d2t2 = fTerm(116, -54.4, Math.PI); for (let i = 0; i < 2; i++) fTube(111 + i * 3, -48.5, i === 1); fShelf(123.4, -50, 3, -Math.PI / 2);
+  { const h = dBox(1.2, 1, .5, W.rust, 110, .5, -60.8); const f = dBox(.9, .3, .05, W.fire, 110, .6, -60.5); DUN.obs.push(addBox(dX(110), dZ(-60.8), .6, .3)); } dAnchor(116, -52);
+  dFloor(124, -62, 140, -50, W.floor); d2Room('arch', '立项档案室', 124, -62, 140, -50, { ice: 1, warm: 1 }); wallX(-50, 124, 140, [], W.wall2);
+  for (let i = 0; i < 3; i++) fShelf(127 + i * 4.4, -51, 3.4, Math.PI); DUN.d2t1 = fTerm(136, -57, -Math.PI / 2);
+  { dBox(1.2, 1, .5, W.rust, 126, .5, -60.8); dBox(.9, .3, .05, W.fire, 126, .6, -60.5); DUN.obs.push(addBox(dX(126), dZ(-60.8), .6, .3)); } dAnchor(131, -56);
+  // cryo hall: two rows of pods, C-07 on a platform in the middle
+  dFloor(140, -80, 176, -50, W.iceF); d2Room('cryo', '冷冻舱大厅', 140, -80, 176, -50, { cold: 1, ice: 1 }); wallX(-80, 140, 176, [], W.iceW); wallX(-50, 140, 176, [], W.iceW);
+  wallZ(140, -80, -50, [[-68, -64]], W.iceW); dDoor('cryo', 'z', 140, -66, 4, 0x8fe0ff); wallZ(176, -80, -50, [[-68, -62]], W.iceW); dDoor('drill', 'z', 176, -65, 6, 0xff3a2a);
+  const pod = (x, z, main) => { const g = new THREE.Group(); g.position.set(x, 0, z); DUN.G.add(g); box(1.4, .6, 2.6, W.wall2, 0, .3, 0, g);
+    const gl = new THREE.Mesh(new THREE.CylinderGeometry(.62, .62, 2.4, 10, 1, false, 0, Math.PI), W.iceB); gl.rotation.z = Math.PI / 2; gl.rotation.y = Math.PI / 2; gl.position.y = .62; g.add(gl);
+    if (main) { box(.32, .2, 1.1, new THREE.MeshLambertMaterial({ color: 0xf2b8c8 }), 0, .72, .1, g); box(.24, .2, .24, new THREE.MeshLambertMaterial({ color: 0xf0d8c8 }), 0, .72, -.65, g); }
+    else if (Math.random() < .5) box(.4, .2, 1.6, W.dark, 0, .72, 0, g);
+    box(.6, .14, .02, main ? W.glow : M.lamp, 0, .45, 1.31, g); DUN.obs.push(addBox(dX(x), dZ(z), .7, 1.3)); return g; };
+  for (let i = 0; i < 5; i++) { pod(146 + i * 6.5, -74); pod(146 + i * 6.5, -56); }
+  dBox(4, .25, 4, M.trim, 158, .12, -65); DUN.c07 = pod(158, -65, 1);
+  { const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(150,230,255,.9)', 'rgba(150,230,255,0)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); gl.scale.set(4, 4, 1); gl.position.set(158, 1.2, -65); DUN.G.add(gl); DUN.c07gl = gl; }
+  for (const x of [146, 158, 170]) for (const z of [-60, -70]) dAnchor(x, z);
+  // the drill shaft (boss) and the way out
+  dFloor(176, -82, 212, -48, W.iceF); d2Room('drill', '钻探井 #1', 176, -82, 212, -48, { cold: 1, ice: 1 }); wallX(-82, 176, 212, [], W.iceW); wallX(-48, 176, 212, [], W.iceW);
+  wallZ(212, -82, -48, [[-68, -62]], W.iceW);
+  { const g = new THREE.Group(); g.position.set(200, 0, -76); DUN.G.add(g); for (const [a, b] of [[-1.6, -1.6], [1.6, -1.6], [-1.6, 1.6], [1.6, 1.6]]) box(.3, 9, .3, W.rust, a, 4.5, b, g);
+    box(3.6, .3, 3.6, W.rust, 0, 9, 0, g); const bit = new THREE.Mesh(new THREE.CylinderGeometry(.5, .1, 6, 8), W.wall2); bit.position.y = 3; g.add(bit);
+    const hole = new THREE.Mesh(new THREE.CircleGeometry(2.4, 16), new THREE.MeshBasicMaterial({ color: 0xff6a2a })); hole.rotation.x = -Math.PI / 2; hole.position.y = .04; g.add(hole); DUN.drillHole = hole; DUN.obs.push(addBox(dX(200), dZ(-76), 2, 2)); }
+  for (let i = 0; i < 10; i++) { const c = new THREE.Mesh(new THREE.OctahedronGeometry(.6 + Math.random() * .6, 0), M.ice); c.position.set(178 + Math.random() * 32, .4, Math.random() < .5 ? -81 : -49); c.scale.y = 2.2; DUN.G.add(c); }
+  for (const x of [184, 196, 206]) for (const z of [-58, -72]) dAnchor(x, z);
+  dFloor(212, -68, 220, -62, M.metal); dBox(.2, 2.4, 6.2, M.trim, 212.1, 1.2, -65); dDoor('exit', 'z', 212, -65, 5.6, 0xff3a2a); wallX(-68, 212, 220, [], W.iceW); wallX(-62, 212, 220, [], W.iceW); wallZ(220, -68, -62, [], W.iceW);
+  // searchable furniture (same loot window as the hospital; the level follows this dungeon)
+  [['locker', -13.4, -4, Math.PI / 2], ['locker', -13.4, -9, Math.PI / 2], ['tool', 57.4, -4, -Math.PI / 2], ['tool', 57.4, -13, -Math.PI / 2], ['med', 4.6, -29, Math.PI / 2], ['med', 39.4, -3, -Math.PI / 2],
+   ['tool', 57.4, -24, -Math.PI / 2], ['file', -13.4, -24, Math.PI / 2], ['safe', -13.4, -29.5, Math.PI / 2], ['file', 4.6, -15, Math.PI / 2],
+   ['lab', 120, -68.6, 0], ['lab', 108.6, -51, Math.PI / 2], ['safe', 123.4, -58, -Math.PI / 2], ['file', 139.4, -53, -Math.PI / 2], ['lab', 150, -78.6, 0], ['lab', 166, -78.6, 0], ['med', 175.4, -54, -Math.PI / 2], ['safe', 141, -51, Math.PI]
+  ].forEach(c => dCab(c[0], c[1], c[2], c[3]));
+  for (let i = 0; i < 3; i++) { const L = new THREE.PointLight(0xff3a2a, 1.2, 16, 1.4); L.position.set(DUN.x, 2.3, DUN.z); scene.add(L); DUN.lights.push(L); }
+  // falling snow over the snowfield
+  { const n = 260, g = new THREE.BufferGeometry(), a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = rand(-18, 18); a[i * 3 + 1] = rand(0, 9); a[i * 3 + 2] = rand(-14, 14); }
+    g.setAttribute('position', new THREE.BufferAttribute(a, 3)); const p = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: .12, transparent: true, opacity: .85, depthWrite: false })); p.frustumCulled = false; scene.add(p); DUN.snowP = p; }
+}
+
+/* ---- the run ---- */
+function dun2Setup() {
+  const st = DUN.st = { stage: 0, fuse: 0, terms: {}, waveT: 0, wv: 0, bossOn: false, boss: null, done: false, valves: {} };
+  const L = () => rint(D2_LV[0], D2_LV[0] + 3), R = (id, f) => { const r = DUN.rooms.find(q => q.id === id); if (r) r.enter = f; };
+  R('snow', () => { dz('walker', 4, 4, L()); dz('walker', 42, 6, L()); });
+  R('hall', () => { dz('frost', 36, -8, L()); dz('walker', 10, -9, L(), 1); });
+  R('dorm', () => { dz('crawler', -10, -6, L() + 1, 1); dz('crawler', -4, -12, L() + 1, 1); dz('walker', -9, -16, L(), 1); });
+  R('gar', () => { dz('brute', 53, -12, L() + 2, 1); dz('runner', 45, -4, L(), 1); });
+  R('mess', () => { dz('bloat', 9, -25, L() + 1, 1); dz('walker', 15, -21, L(), 1); dz('walker', 6, -28, L(), 1); });
+  R('boil', () => { dz('frost', 25, -22, L() + 1, 1); dz('frost', 37, -22, L() + 1, 1); });
+  R('pump', () => { dz('shield', 50, -24, L() + 1, 1); dz('spitter', 55, -29, L() + 1, 1); });
+  R('radio', () => { dz('screamer', -9, -24, L() + 2, 1); dz('walker', -2, -21, L(), 1); });
+  R('icor', () => { say2('ice'); dz('frost', 128, -66, D2_LV[0] + 3, 1); dz('runner', 134, -64, D2_LV[0] + 3, 1); dz('runner', 136, -68, D2_LV[0] + 3, 1); });
+  R('zlab', () => { dz('shade', 118, -50, D2_LV[0] + 4, 1); dz('crawler', 112, -56, D2_LV[0] + 4, 1); });
+  R('arch', () => { dz('spitter', 132, -53, D2_LV[0] + 4, 1); dz('healer', 128, -58, D2_LV[0] + 4, 1); });
+  R('cryo', () => { dz('frost', 166, -60, D2_LV[0] + 4, 1); dz('frost', 166, -70, D2_LV[0] + 4, 1); dz('brute', 172, -65, D2_LV[0] + 5, 1); dz('shade', 150, -62, D2_LV[0] + 4, 1); });
+  R('drill', () => { if (st.stage === 9 && !st.bossOn) dun2Boss(); });
+  // the blowtorch
+  dPick(53, -5, 'key', 0x5ad8ff, () => { st.stage = 1; feed('拿到「喷灯」', '#5ad8ff'); say2('torch'); });
+  dInt(31, -16.2, '用喷灯化冰', () => st.stage === 1, () => { doorOpen('boil'); if (DUN.boilIce) { burst(dX(31), 1.4, dZ(-17.6), 0xdff6ff, 30, 6); DUN.G.remove(DUN.boilIce); DUN.boilIce = null; } st.stage = 2; say2('door'); }, 0, { sh: 1, goal: 1 });
+  dInt(31, -16.2, '门被冰封住了', () => st.stage === 0, () => { feed('门被厚厚的冰封住了，要找个能化冰的东西', '#ff9b8a'); });
+  // three valves
+  const valve = (k, x, z, nm) => { const g = new THREE.Group(); g.position.set(x, 0, z); DUN.G.add(g); const W = d2Mats(); box(.2, 1.6, .2, W.pipe, 0, .8, 0, g);
+    const wh = new THREE.Mesh(new THREE.TorusGeometry(.32, .06, 6, 12), new THREE.MeshLambertMaterial({ color: 0xc82a2a })); wh.position.y = 1.3; g.add(wh); st.valves[k] = { wh };
+    dInt(x, z, '拧开阀门（' + nm + '）', () => st.stage === 2 && !st.terms['v' + k], () => { st.terms['v' + k] = 1; st.fuse = Object.keys(st.terms).filter(q => q[0] === 'v').length; wh.material.color.setHex(0x5aff7a); wh.rotation.z += 1.6;
+      try { sfxNoise(.5, .12, 300); } catch (e) { } feed('阀门 ' + st.fuse + ' / 3', '#ffd060'); if (st.fuse >= 3) { st.stage = 3; st.terms = {}; say2('valves'); } }, 2.2, { sh: 1, goal: 2 }); };
+  valve('a', -12.6, -12, '宿舍'); valve('b', 6, -20, '食堂'); valve('c', 56.4, -20, '泵房');
+  dInt(31, -24.8, '点燃锅炉', () => st.stage === 3, () => { st.stage = 4; st.waveT = 0; st.wv = 0; say2('boil'); dunPower(true); d2Thaw(); }, 0, { sh: 1, goal: 3 });
+  dInt(31, -24.8, '锅炉（阀门没开）', () => st.stage === 2, () => { feed('阀门还没全开（' + st.fuse + ' / 3）', '#ff9b8a'); });
+  dInt(-5, -27.8, '接通无线电', () => st.stage === 5, () => { st.stage = 6; doorOpen('lift'); say2('radio'); }, 0, { sh: 1, goal: 5 });
+  dInt(18, -35, '坐升降机下到冰层', () => st.stage >= 6, () => dunTo(104, -62, () => { if (dunAuth()) { if (st.stage === 6) st.stage = 7; } else dunSend('dunA', { op: 'd2ice' }); }), 3, { goal: 6 });
+  dInt(18, -30.6, '升降机（还没启动）', () => st.stage < 6, () => { feed(st.stage < 5 ? '升降机没有暖气启动不了' : '升降机要密码：去无线电室', '#ff9b8a'); }, 2.4);
+  dInt(104, -62, '坐升降机回地面', () => st.stage >= 7, () => dunTo(18, -35), 2.2);
+  const term = (k, x, z, txt) => dInt(x, z, '读取终端', () => st.stage === 7 && !st.terms[k], () => { st.terms[k] = 1; say2(txt); const n = Object.keys(st.terms).length; feed('终端资料 ' + n + ' / 2', '#5ad8ff');
+    if (n >= 2) { st.stage = 8; doorOpen('cryo'); setTimeout(() => say2('labs'), 400); } }, 0, { sh: 1, goal: 7 });
+  term('a', 136, -56, 't1'); term('b', 116, -55.4, 't2');
+  dInt(158, -62.8, '检查冷冻舱 C-07', () => st.stage === 8, () => { st.stage = 9; say2('pod'); doorOpen('drill'); }, 2.6, { sh: 1, goal: 8 });
+  dInt(158, -62.8, '冷冻舱 C-07', () => st.stage >= 9, () => { feed('舱里的孩子睡得很安稳', '#9fe8ff'); }, 2.6);
+  dInt(211, -65, '坐升降机撤离', () => st.stage === 10, () => dunTravel('升降机上行', '离开永冬站', () => goIsland(false)), 0, { goal: 10 });
+}
+function dun2Start() {
+  DUN_LV[0] = D2_LV[0]; DUN_LV[1] = D2_LV[1]; S.d2tmp = 100;
+  player.pos.set(dX(22), 0, dZ(6)); player.face = Math.PI; camPos.set(player.pos.x, camH, player.pos.z + camD);
+  banner('副本 · 永冬站', '冰封者 · 推荐 Lv.' + D2_LV[0] + ' 以上 · 注意体温 · 左下角「回岛」可以随时离开（进度不保存）', 4.5);
+  if (!S.dg2.seen) { S.dg2.seen = 1; storyTalk(D2_TXT.intro); } else storyTalk([D2_TXT.intro[1]]);
+}
+// pick the hospital or the station from the pier, then call this: it is what the pier, invites and the party button use
+function dun2Enter() { DUN.id = 2; dunTravel('正在进入副本', '永冬站 · 冰封者', dunEnter); }
+// the heat cracks the ice blocks in the hall
+function d2Thaw() { for (const b of DUN.d2blocks || []) { burst(dX(b.x), 1.2, dZ(b.z), 0xdff6ff, 18, 5); DUN.G.remove(b.g); } S.shake = Math.max(S.shake, .25);
+  if (DUN.boilFire) DUN.boilFire.material = d2Mats().fire; }
+function dun2Boss() { const st = DUN.st; st.bossOn = true;
+  try { spawnBoss({ id: 'dun2', x: dX(198), z: dZ(-65), tp: 3, rb: 5, level: D2_LV[1] - 1, bn: '', buff: null }); } catch (e) { console.warn(e); }
+  if (!boss) return; st.boss = boss; boss.weekly = false; boss.title = '冰封者 · 周岩'; boss.site.rb = 5; boss.dun = 1; el.bossName.textContent = boss.title + ' Lv.' + D2_LV[1];
+  boss.hp = boss.max = Math.round(boss.max * 1.2); boss.state = 'chase';
+  try { const h = boss.h, Y = h.hip || 1, coat = new THREE.MeshLambertMaterial({ color: 0xe8ece8 }), ice = new THREE.MeshLambertMaterial({ color: 0xcfefff });
+    box(.74, 1.2, .46, coat, 0, Y + .2, 0, h.body); box(.3, .06, .02, new THREE.MeshLambertMaterial({ color: 0x5ad8ff }), -.18, Y + .72, .24, h.body);
+    for (let i = 0; i < 5; i++) { const c = new THREE.Mesh(new THREE.OctahedronGeometry(.18 + i * .03, 0), ice); c.scale.y = 2; c.position.set(-.4 + i * .2, Y + 1.0 + (i % 2) * .15, -.25); c.rotation.z = (i - 2) * .25; h.body.add(c); } } catch (e) { }
+  storyTalk(D2_TXT.boss); dunSend('dunT', { k: 'boss' }); banner('冰封者 · 周岩', '最终首领 · 他在守着 C-07', 3.5); refreshBossHud(); }
+function d2Xp(first) { const L = D2_LV[1], over = S.level - (L + 5), k = over > 0 ? Math.max(.1, 1 - over * .1) : 1; return Math.max(1, Math.round(xpNeed(Math.min(S.level, L)) * (first ? .8 : .3) * k)); }
+// the clear: each player gets their own rewards when the run reaches the last stage
+function d2Win() { const st = DUN.st; if (!st || st.done) return; st.done = true; const first = !S.dg2.first; S.dg2.c = (S.dg2.c || 0) + 1;
+  const xp = d2Xp(first); try { addXp(xp, player.pos); } catch (e) { }
+  if (first) { S.dg2.first = 1; gain('heart', 3); giveGear(4); gain('bpf', 60); gain('apart', 40); gain('coin', 5000); addGem(150, '副本首通'); banner('永冬站通关 · 首通奖励', '经验 +' + xp + ' · 首领之心 ×3 · 黄金装备 · 图纸残页 ×60 · 精密零件 ×40 · 余烬币 5000 · 晶石 150', 5); }
+  else { gain('bpf', 18); gain('apart', 14); gain('coin', 1200); if (Math.random() < .4) giveGear(3); banner('永冬站通关', '第 ' + S.dg2.c + ' 次通关 · 经验 +' + xp + ' · 图纸残页 ×18 · 精密零件 ×14 · 余烬币 1200', 4); }
+  try { sfx.build(); } catch (e) { } saveGame(); }
+
+/* ---- every frame in the station ---- */
+function d2Tick(dt) {
+  if (!S.dun || DUN.id !== 2 || !DUN.st) { if (DUN.snowP && !S.dun) { scene.remove(DUN.snowP); DUN.snowP = null; } return; }
+  const st = DUN.st, px = player.pos.x, pz = player.pos.z, AU = dunAuth(), lx = px - DUN.x, lz = pz - DUN.z;
+  // the thaw wave: 40 s, the frozen ones from the hall plus more through the gate
+  if (st.stage === 4 && !AU) st.waveT = Math.min(40, st.waveT + dt);
+  if (st.stage === 4 && AU) { st.waveT += dt; const Wv = [[0, 6], [13, 7], [26, 8]];
+    while (st.wv < Wv.length && st.waveT >= Wv[st.wv][0]) { const n = Wv[st.wv][1], bl = DUN.d2blocks || [];
+      for (let i = 0; i < n; i++) { const b = bl[i % bl.length], gate = i % 3 === 2, x = gate ? 22 + rand(-1.5, 1.5) : (b ? b.x : 20) + rand(-1, 1), z = gate ? -1.5 : (b ? b.z : -9) + rand(-1, 1);
+        dz(pick(['walker', 'runner', 'frost', 'crawler', 'walker']), x, z, rint(D2_LV[0], D2_LV[0] + 3), 1); }
+      st.wv++; banner('第 ' + st.wv + ' 波', '化开的丧尸冲过来了', 2); try { sfx.growl(); } catch (e) { } }
+    if (st.waveT >= 40) { st.stage = 5; say2('warm'); banner('升降机预热完成', '去宿舍北边的无线电室', 3); } }
+  if (AU && st.stage === 9 && st.boss && st.boss.dead) { st.stage = 10; doorOpen('exit'); say2('win'); }
+  if (AU && st.stage === 9 && st.bossOn && !(st.boss && !st.boss.mirror && !st.boss.removed) && !(boss && !boss.mirror)) { st.bossOn = false; dun2Boss(); }
+  if (st.stage >= 10 && !st.done) d2Win();
+  if (st.boss && !st.boss.dead) { const bb = st.boss; bb.pos.x = clamp(bb.pos.x, dX(177), dX(211)); bb.pos.z = clamp(bb.pos.z, dZ(-81), dZ(-49)); }
+  // body heat
+  const room = DUN.rooms.find(r => px > r.x0 && px < r.x1 && pz > r.z0 && pz < r.z1), warm = room && (room.warm || (room.st && (st.stage >= 4 || room.id === 'boil' && st.stage >= 4)));
+  if (S.d2tmp == null) S.d2tmp = 100;
+  if (!S.dead) { if (warm) S.d2tmp = Math.min(100, S.d2tmp + dt * 22); else S.d2tmp = Math.max(0, S.d2tmp - dt * (room && room.st ? .9 : 1.35));
+    if (S.d2tmp <= 0) { S.hp -= S.maxHp * .015 * dt; DUN.coldT = (DUN.coldT || 0) - dt; if (DUN.coldT <= 0) { DUN.coldT = 1; refreshHud(); burst(px, 1.3, pz, 0xdff6ff, 4, 2); } if (S.hp <= 0) { S.hp = 0; playerDie(); } }
+    if (S.d2tmp < 30 && !DUN.coldWarn) { DUN.coldWarn = 1; feed('好冷……找暖和的地方（站里点了锅炉就暖，冰层里去实验室）', '#9fe8ff'); } if (S.d2tmp > 60) DUN.coldWarn = 0; }
+  // lights: icy blue down in the ice
+  if (lx > D2_ICE) for (const L of DUN.lights) L.color.setHex(0x8fd0ff); else for (const L of DUN.lights) L.color.setHex(DUN.powered ? 0xfff2d8 : 0xff3a2a);
+  // snow falls around you on the snowfield
+  if (DUN.snowP) { DUN.snowP.visible = !!(room && room.id === 'snow') || (lz > -1 && lx < 70); DUN.snowP.position.set(px, 0, pz); const a = DUN.snowP.geometry.attributes.position;
+    for (let i = 0; i < a.count; i++) { let y = a.getY(i) - dt * 1.6; if (y < 0) y += 9; a.setY(i, y); a.setX(i, a.getX(i) + Math.sin(S.t + i) * dt * .2); } a.needsUpdate = true; }
+  if (DUN.c07gl) DUN.c07gl.material.opacity = .6 + Math.sin(S.t * 2) * .25;
+  if (DUN.drillHole) DUN.drillHole.material.color.setHSL(.05, 1, .45 + Math.sin(S.t * 3) * .08);
+  if (DUN.boilFire && st.stage >= 4) DUN.boilFire.scale.y = 1 + Math.sin(S.t * 14) * .12;
+}
+zSpecialTick = (o => function (dt) { o(dt); try { d2Tick(dt); } catch (e) { console.warn('dun2', e); } })(zSpecialTick);
+onDunA = (o => function (m) { if (m && m.data && m.data.op === 'd2ice') { if (S.dun && DUN.id === 2 && DUN.st && dunAuth() && DUN.st.stage === 6) { DUN.st.stage = 7; dunSync(); } return; } return o(m); })(onDunA);
+// the frozen ones break out on the teammates' screens too
+onDunS = (o => function (m) { const was = DUN.st && DUN.st.stage; o(m); try { if (S.dun && DUN.id === 2 && DUN.st && was < 4 && DUN.st.stage >= 4) d2Thaw(); if (S.dun && DUN.id === 2 && DUN.st && DUN.st.stage >= 2 && DUN.boilIce) { DUN.G.remove(DUN.boilIce); DUN.boilIce = null; } } catch (e) { } })(onDunS);
+// a colder, bluer look; brighter out on the snow
+dunEnv = (o => function () { o(); if (!S.dun || DUN.id !== 2) return; const lx = player.pos.x - DUN.x, lz = player.pos.z - DUN.z, out = lz > 0 && lx < 70;
+  scene.fog.color.setHex(out ? 0x8a9aae : 0x0a1018); scene.fog.near = out ? 14 : 12; scene.fog.far = out ? 46 : 40; hemiLight.color.setHex(0xc8dcf4); hemiLight.intensity = out ? 1.05 : DUN.powered || lx > D2_ICE ? .78 : .55;
+  try { renderer.setClearColor(out ? 0x8a9aae : 0x0a1018); } catch (e) { } })(dunEnv);
+dunCleanup = (o => function () { const was = DUN.on && DUN.id === 2; o(); if (DUN.snowP) { scene.remove(DUN.snowP); DUN.snowP = null; } DUN.d2blocks = []; DUN.boilIce = DUN.boilFire = DUN.c07 = DUN.c07gl = DUN.drillHole = null;
+  if (was) { DUN_LV[0] = 12; DUN_LV[1] = 18; S.d2tmp = 100; } })(dunCleanup);
+
+/* ---- the objective card, the how-to, the pier page ---- */
+dunTrk = (o => function () { if (!S.dun || DUN.id !== 2) return o(); const e = $('dunObj'); if (!e) return; if (!DUN.st) { e.style.display = 'none'; return; } e.style.display = ''; const st = DUN.st;
+  let g = D2_GOAL[st.stage] || ''; if (st.stage === 2) g += ' ' + st.fuse + ' / 3'; if (st.stage === 4) g += ' ' + Math.max(0, Math.ceil(40 - st.waveT)) + ' 秒'; if (st.stage === 7) g += ' ' + Object.keys(st.terms).length + ' / 2';
+  const t = Math.round(S.d2tmp == null ? 100 : S.d2tmp), tc = t > 50 ? '#9fe8ff' : t > 20 ? '#ffd98a' : '#ff6a5a';
+  const h = '<b>副本 · 永冬站</b><span>▸ ' + g + '</span><small class="dunsub"><i class="d2tmp" style="--t:' + t + '%;--c:' + tc + '"></i>体温 ' + t + '%' + (t <= 0 ? ' · 正在冻伤！' : '') + ' · 点我看怎么做</small>'; if (e.innerHTML !== h) e.innerHTML = h; })(dunTrk);
+// refresh the card a little faster so the heat bar moves
+zSpecialTick = (o => function (dt) { o(dt); if (S.dun && DUN.id === 2) { DUN._tk = (DUN._tk || 0) - dt; if (DUN._tk <= 0) { DUN._tk = .25; try { dunTrk(); } catch (e) { } } } })(zSpecialTick);
+dunGuide = (o => function () { if (!S.dun || DUN.id !== 2) return o(); if (!DUN.st) return; const st = DUN.st, old = $('dunGuideM'); if (old) old.remove();
+  const m = document.createElement('div'); m.id = 'dunGuideM'; m.className = 'dunm d2m';
+  m.innerHTML = '<div class="dunmb"><button class="dunmx" aria-label="关闭">✕</button><b class="dunmh">副本指引 · 永冬站</b>' +
+    '<div class="dunnow"><small>现在要做</small><b>' + D2_GOAL[st.stage] + '</b><p>' + D2_HOW[st.stage] + '</p></div><ol class="dunlist">' +
+    D2_GOAL.map((g, i) => '<li class="' + (i < st.stage ? 'ok' : i === st.stage ? 'on' : '') + '">' + (i < st.stage ? '✓ ' : '') + g + '</li>').join('') + '</ol>' +
+    '<div class="dunsec">体温：雪地和冰层里会越来越冷，掉到 0 开始掉血。锅炉点着之后，站里的房间都是暖的；冰层里去周博士实验室或档案室回暖。</div>' +
+    '<div class="dunsec">小地图：绿色「!」是现在要去的地方，蓝点是喷灯。中途按「回岛」离开，这一趟的进度不保存。</div></div>';
+  document.body.appendChild(m); const close = () => m.remove(); m.addEventListener('click', e => { if (e.target === m) close(); }); m.querySelector('.dunmx').addEventListener('click', close); })(dunGuide);
+function openDun2Page() { DUN.id = 2; try { audioInit(); } catch (e) { } const old = $('dunPageM'); if (old) old.remove(); const rc = recCP(3), cp = combatPower(), ok = cp >= rc * .8, lock = !S.dg.first;
+  const m = document.createElement('div'); m.id = 'dunPageM'; m.className = 'dunm d2m';
+  m.innerHTML = '<div class="dunmb dunpage"><button class="dunmx" aria-label="关闭">✕</button>' +
+    '<div class="dunban d2ban"><i></i><div><small>副本 · 第二章</small><b>永冬站</b><em>冰封者</em></div></div>' +
+    '<p class="dunstory">林医生的日记写着：血清配方交给了北方冻土研究所的周博士。那里叫「永冬站」，零下四十度，三个月没有任何消息。末日的源头 E-0，就是从这里的冰层下面挖出来的。</p>' +
+    '<div class="dunfacts"><span>推荐等级 <b>Lv.' + D2_LV[0] + '+</b></span><span>丧尸等级 <b>Lv.' + D2_LV[0] + '-' + D2_LV[1] + '</b></span><span>建议战力 <b style="color:' + (ok ? '#8fe05a' : '#ff9b8a') + '">' + rc + '</b>（你 ' + cp + '）</span><span>通关 <b>' + (S.dg2.c | 0) + '</b> 次</span><span>特殊：<b style="color:#9fe8ff">体温</b></span></div>' +
+    '<div class="dunrw"><div class="' + (S.dg2.first ? 'got' : '') + '"><small>首通奖励' + (S.dg2.first ? ' · 已领取' : '') + '</small>经验 +' + d2Xp(true) + ' · 黄金装备 · 首领之心 ×3 · 图纸残页 ×60 · 精密零件 ×40 · 余烬币 5000 · 晶石 150</div>' +
+    '<div><small>每次通关</small>经验 +' + d2Xp(false) + ' · 图纸残页 ×18 · 精密零件 ×14 · 余烬币 1200 · 有机会掉史诗装备</div></div>' +
+    '<p class="dunnote">打开过圣心医院林医生的保险柜、或者收集到「小雨的布兔子」的人，在冷冻舱那里会看到不一样的剧情。<br>经验按副本等级（Lv.' + D2_LV[1] + '）计算，你超过 Lv.' + (D2_LV[1] + 5) + ' 之后会越来越少。中途「回岛」或倒下，这一趟进度不保存。</p>' +
+    (lock ? '<button class="go dungo" disabled>先通关「圣心医院」才能进入</button>' : '<button class="go dungo">进入副本</button>') + '</div>';
+  document.body.appendChild(m); const close = () => m.remove(); m.addEventListener('click', e => { if (e.target === m) close(); }); m.querySelector('.dunmx').addEventListener('click', close);
+  if (lock) return; m.querySelector('.dungo').addEventListener('click', () => { close(); dun2Enter(); }); dunPartyAdd(); }
+function dun2Row(box, after) { const rc = recCP(3), ok = combatPower() >= rc * .8 && S.dg.first;
+  const row = shopRow('副本 · 永冬站「冰封者」', S.dg.first ? '第二章 · Lv.' + D2_LV[0] + '-' + D2_LV[1] + ' · 建议战力 ' + rc + (S.dg2.first ? ' · 已通关 ' + S.dg2.c + ' 次' : ' · 首通奖励：黄金装备、首领之心 ×3') : '第二章 · 通关「圣心医院」后解锁', ok ? '#9fe8ff' : '#ff9b8a');
+  row.classList.add('dunrow', 'd2row'); const go = document.createElement('button'); go.className = 'sbtn' + (ok ? '' : ' ghostb'); go.textContent = '查看';
+  go.addEventListener('click', () => { closePanel('port'); openDun2Page(); }); row.appendChild(go); box.insertBefore(row, after.nextSibling); }
+shopSave = (o => function () { const r = o(); try { r.dg2 = { c: S.dg2.c | 0, first: S.dg2.first | 0, seen: S.dg2.seen | 0 }; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.dg2 = { c: 0, first: 0, seen: 0 }; try { const g = d && d.sh && d.sh.dg2; if (g) { S.dg2.c = g.c | 0; S.dg2.first = g.first | 0; S.dg2.seen = g.seen | 0; } } catch (e) { } })(shopLoad);
+try { const st = document.createElement('style'); st.textContent =
+  '.d2tmp{display:inline-block;width:38px;height:6px;border-radius:3px;margin-right:5px;vertical-align:middle;background:linear-gradient(90deg,var(--c) var(--t),rgba(255,255,255,.15) var(--t))}' +
+  '.d2m .dunmb{border-color:#6ab4d8;background:linear-gradient(160deg,#122232,#080e16)}.d2m .dunmh{color:#9fe8ff}.d2m .dunnow{background:rgba(143,224,255,.12);border-color:rgba(143,224,255,.4)}' +
+  '.d2ban{background:linear-gradient(120deg,#16384a,#0c141e 70%)!important;border-color:rgba(143,224,255,.45)!important}.d2ban i{background:linear-gradient(160deg,#eaf8ff,#9fd4ee)!important;box-shadow:0 0 18px rgba(143,224,255,.5)!important}' +
+  '.d2ban i::before,.d2ban i::after{background:#2a6a8a!important}.d2ban i::before{left:27px!important;top:8px!important;width:4px!important;height:42px!important}.d2ban i::after{left:8px!important;top:27px!important;width:42px!important;height:4px!important}.d2ban em{color:#9fe8ff!important}' +
+  '.d2row{border-color:rgba(143,224,255,.6)!important;background:linear-gradient(90deg,rgba(40,90,120,.4),rgba(10,20,30,.2))!important}';
+  document.head.appendChild(st); } catch (e) { }
+/* ======================================================================
+   z_dun2_衔接.js —— 副本二「永冬站」的剧情衔接 + 一处位置修正（补丁，不改任何别的文件）
+   放进 build.sh：排在「副本二那个文件」之后、x_fp.js 之前。
+
+   这个补丁做三件事：
+   1. 把「世界真相」的线头接起来：圣心医院 → 永冬站 → 主线终章，E-0 的来源是同一个地方。
+   2. 给玩过副本一的玩家几处「认得出来」的小呼应（保险柜密码 0917、小雨的布兔子）。
+   3. 修一个柜子摆到墙外面去的位置错误（冰窟走廊北墙外的样本柜）。
+
+   【假设游戏里有这些东西（都在 z_dun.js / y_story.js 里确认过）】
+   - D2_TXT / D2_GOAL / dun2Build / dun2Enter / d2Win   ：副本二文件里的东西（dun2Build、dun2Enter、d2Win 是 function 声明，可以包）
+   - D2_TXT.t1 / radio / pod                              ：副本二的三段台词（数组，每项 [说话人, 内容]）
+   - S.dg.safe                                            ：副本一里是否打开过林曼医生的保险柜（密码 0917）
+   - S.colx.doll                                          ：是否收集到副本一的收藏品「小雨的布兔子」
+   - DUN.cabs                                             ：每个柜子 { g, x, z, int }，g 是柜子的 3D 组，int 是互动点
+   - dX / dZ / banner / feed
+   ====================================================================== */
+
+/* ---- 1. 世界真相的线头 ----------------------------------------------------
+   副本一终端：样本 E-0「采集自余烬核心外围」。
+   主线终章：「余烬核心」是一切开始的地方。
+   所以在副本二的立项文件里，补一句把它们接起来：钻探点 #1 就是「核心外围」。 */
+try {
+  D2_TXT.t1.push(['终端 · 立项文件', '附：钻探点 #1 的坐标，与圣心医院样本标签上写的「余烬核心外围」，是同一个地方。']);
+  D2_TXT.t1.push(['终端 · 立项文件', '它不是后来才烧起来的。它从被挖出来的那天起，就一直在那里烧。']);
+} catch (e) { console.warn('d2 link t1', e); }
+
+/* 无线电室那场：老陈承认了「继续」是他签的，但主线第九章他还会说出「是我亲手点燃了余烬」。
+   所以这里让他明确留一个口子：还有一件比签字更早的事，现在不说。主线那句话就成了兑现，而不是重复。 */
+try {
+  D2_TXT.radio.splice(D2_TXT.radio.length - 1, 0,
+    ['老陈', '还有一件事，比签字更早。我现在说不出口。等我们走到最黑的地方，我会亲口告诉你。']);
+} catch (e) { console.warn('d2 link radio', e); }
+
+/* ---- 2. 给玩过副本一的玩家的小呼应 -----------------------------------------
+   每次进副本二时，按这个玩家的存档重新拼一遍「冷冻舱 C-07」那段台词。 */
+const _D2_POD0 = (typeof D2_TXT !== 'undefined' && D2_TXT.pod) ? D2_TXT.pod.slice() : null;
+dun2Enter = (o => function () {
+  try {
+    if (_D2_POD0) {
+      const pod = _D2_POD0.slice(), extra = [];
+      if (S.dg && S.dg.safe) {
+        extra.push(['冷冻舱 C-07', '舱盖上的小键盘亮着：请输入四位生日。']);
+        extra.push(['老陈', '……0917。你在圣心医院听到过的那串数字，林医生保险柜的密码。她把女儿的生日，锁进了两个地方。']);
+      }
+      if (S.colx && S.colx.doll) {
+        extra.push(['冷冻舱 C-07', '你口袋里那只旧布兔子，和她怀里的那只一模一样。一只留在了医院的病房，一只被带到了这里。']);
+        extra.push(['冷冻舱 C-07', '你把它贴在舱盖的霜上。里面的孩子睫毛轻轻动了一下，像是在梦里抱紧了什么。']);
+      }
+      pod.splice(1, 0, ...extra);          // 紧跟在「舱盖上结着一层霜……」之后
+      D2_TXT.pod = pod;
+    }
+  } catch (e) { console.warn('d2 link pod', e); }
+  return o();
+})(dun2Enter);
+
+/* 通关后，补一块「真相碎片」（等通关横幅放完再出） */
+d2Win = (o => function () {
+  const r = o();
+  try {
+    setTimeout(() => {
+      if (S.dun) banner('真相碎片 · 余烬', 'E-0 不是病毒。它在学习怎么当「人」；而你，是它想要的那个模板。', 5);
+    }, 6500);
+  } catch (e) { }
+  return r;
+})(d2Win);
+
+/* ---- 3. 修位置：冰窟走廊北墙外面的样本柜 -------------------------------------
+   原来写的是 dCab('lab', 120, -70.6, π/2)。冰窟走廊的北墙在 z = -70，-70.6 在墙外面，而且朝向也不对。
+   改成贴着北墙里面、朝向走廊（和冷冻舱大厅里贴北墙的 -78.6 是同一种摆法）：z = -68.6，旋转 0。 */
+dun2Build = (o => function () {
+  const r = o();
+  try {
+    const bad = (DUN.cabs || []).find(C => Math.abs(C.x - dX(120.9)) < .02 && Math.abs(C.z - dZ(-70.6)) < .02);
+    if (bad) {
+      bad.g.position.z = -68.6; bad.g.rotation.y = 0;                         // 柜子本体
+      bad.x = dX(120); bad.z = dZ(-68.6 + .9);                                // 小地图上的位置（柜子前面一点）
+      if (bad.int) { bad.int.x = dX(120); bad.int.z = dZ(-68.6 + 1.1); }      // 搜索按钮出现的位置
+    }
+  } catch (e) { console.warn('d2 cab fix', e); }
+  return r;
+})(dun2Build);/* ============ 副本小地图：显示可以搜索的柜子（金色箱子图标；没开过的会闪，保险箱和样本柜画大一点，搜空就消失） ============ */
 function chestIcon(c, x, y, s, lit, big) {
   const w = s * (big ? 1.5 : 1.25), h = s, x0 = x - w / 2, y0 = y - h / 2;
   c.fillStyle = 'rgba(0,0,0,.7)'; c.fillRect(x0 - 1.5, y0 - 1.5, w + 3, h + 3);
@@ -14154,4 +14545,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794173997').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794205090').catch(()=>{});</script></body></html>
