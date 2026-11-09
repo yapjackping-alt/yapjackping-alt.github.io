@@ -13437,6 +13437,23 @@ cabRoll = (o => function (type, colKey) { const out = o(type, colKey); try { for
       const it = makeGear(2, DUN_LV[1], Math.min(q, 5), 0); it[1] = Math.min(q, 5);
       if (q === 6) { it[1] = 6; it[2] = 100; it[5] = 100; it[6] = 0; it.length = 8; it[7] = it[7] | 0; try { afxGen(it); } catch (er) { } }   // 不朽: the same make as the old 1-in-300
       x.it = it; x.r = it[1]; x.need = .5 + Math.min(5, x.r) * .35 + Math.random() * .3 + (q === 6 ? .8 : 0); } } catch (e) { console.warn('lootq gear', e); } return out; })(cabRoll);
+/* ============ 兑换码（设置里） ============
+   码不写在代码里（只存它的指纹），每个角色每个码只能用一次。
+   现在只有一个码：一整套不朽装备（6 个部位各 1 件，永不损坏）。 */
+const RDM_H = s => { let x = 5381; for (const c of s) x = ((x * 33) ^ c.charCodeAt(0)) >>> 0; return x; };
+const RDM = { 2373533752: { id: 'imm6', n: '一整套不朽装备', f() {
+  if (S.ginv.length + GSLOT.length > gcap()) { feed('装备背包要空出 ' + GSLOT.length + ' 格才能领', '#ff9b8a'); return false; }
+  GSLOT.forEach((s, i) => { const it = makeGear(10, 100, 5, 0); it[0] = i; it[1] = 6; it[2] = 100; it[5] = 100; it[6] = 0; it.length = 8; it[7] = 0; try { afxGen(it); } catch (e) { } pickGear(it); });
+  banner('不朽装备 ×' + GSLOT.length, '头盔、护甲、手套、长裤、战靴、背包 · 在背包的「装备」里', 4.5); return true; } } };
+S.rdm = {};
+function redeem(code) { const R = RDM[RDM_H(String(code || '').trim().toLowerCase())]; if (!R) { feed('兑换码不对', '#ff9b8a'); return; }
+  if (S.rdm[R.id]) { feed('这个角色已经用过这个兑换码了', '#ff9b8a'); return; }
+  if (R.f() === false) return; S.rdm[R.id] = 1; try { sfx.build(); } catch (e) { } refreshHud(); saveGame(); }
+shopSave = (o => function () { const r = o(); try { r.rdm = Object.keys(S.rdm); } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.rdm = {}; try { const a = d && d.sh && d.sh.rdm; if (Array.isArray(a)) a.forEach(k => { if (typeof k === 'string') S.rdm[k] = 1; }); } catch (e) { } })(shopLoad);
+renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!box) return; const r = document.createElement('div'); r.className = 'setrow';
+  r.innerHTML = '<span>兑换码</span><div class="opts" style="gap:6px"><input id="rdmIn" maxlength="32" placeholder="输入兑换码" autocomplete="off" style="width:140px;padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.35);color:#fff;font-size:14px"><button class="sbtn on" id="rdmGo">兑换</button></div>';
+  box.appendChild(r); r.querySelector('#rdmGo').addEventListener('click', () => { const i = $('rdmIn'); redeem(i && i.value); if (i) i.value = ''; }); } catch (e) { console.warn(e); } })(renderSettings);
 /* ============ 副本小地图：显示可以搜索的柜子（金色箱子图标；没开过的会闪，保险箱和样本柜画大一点，搜空就消失） ============ */
 function chestIcon(c, x, y, s, lit, big) {
   const w = s * (big ? 1.5 : 1.25), h = s, x0 = x - w / 2, y0 = y - h / 2;
@@ -14933,4 +14950,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794217347').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794217647').catch(()=>{});</script></body></html>
