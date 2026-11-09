@@ -13194,7 +13194,9 @@ zSpecialTick = (o => function (dt) { o(dt); if (input.fire && !FIREP.size && !ke
    遗物币先存着，以后再规划能买什么。
    出处：每件收藏品只会出现在指定副本的指定种类柜子里（另有两件是首领掉落）；一个柜子最多出一件收藏品。
    没通关就离开，这一趟拿到的收藏品照样收回（z_dunend.js）。 */
-const RELIC_P = { 4: 15, 5: 60 };     // 卖 1 件多余的收藏品换多少遗物币：传说 15，神话 60
+// 卖 1 件多余的收藏品换多少遗物币：按品质，再按副本难度翻倍（副本一 ×1，副本二 ×2，以后的副本更贵）
+const RELIC_P = { 2: 1, 3: 2, 4: 5, 5: 20 }, RELIC_DM = { 1: 1, 2: 2 };
+const relicPrice = k => RELIC_P[COLX[k].r] * (RELIC_DM[COLX[k].d] || COLX[k].d);
 S.relic = 0;
 // the hospital's six become 神话 (r 5); `src` = the kinds of cupboard it can be in, `d` = which dungeon, `ch` = chance per cupboard
 Object.assign(COLX.badge, { r: 5, d: 1, src: ['locker', 'file'], ch: .012, w: '副本一 · 储物柜、文件柜' });
@@ -13219,9 +13221,21 @@ Object.assign(COLX, {
   sradio: { n: '站里的旧对讲机', r: 4, d: 2, src: ['file', 'tool'], ch: .05, w: '副本二 · 文件柜、工具箱' },
   torch2: { n: '老式喷灯', r: 4, d: 2, src: ['tool'], ch: .05, w: '副本二 · 工具箱' },
   map: { n: '钻探井图纸', r: 4, d: 2, src: ['file'], ch: .05, w: '副本二 · 文件柜' },
-  card2: { n: '永冬站工牌', r: 4, d: 2, src: ['locker', 'safe'], ch: .05, w: '副本二 · 储物柜、小保险箱' } });
-COL_ORDER.length = 0; COL_ORDER.push('badge', 'doll', 'steth', 'vial', 'card', 'coat', 'chart', 'pills', 'wradio', 'photo', 'syringe', 'keys', 'glasses', 'ore', 'plate', 'sign', 'scarf', 'mug', 'sradio', 'torch2', 'map', 'card2');
-const colOf = d => COL_ORDER.filter(k => COLX[k].d === d), colN = k => S.colx[k] | 0, colRN = r => r === 5 ? '神话' : '传说', colRC = r => r === 5 ? '#ff4d8d' : '#ffc94a';
+  card2: { n: '永冬站工牌', r: 4, d: 2, src: ['locker', 'safe'], ch: .05, w: '副本二 · 储物柜、小保险箱' },
+  // 史诗 (r 3) and 稀有 (r 2): easier, so the shelves fill up and the spares feed the merchant
+  stamp: { n: '院长的印章', r: 3, d: 1, src: ['file', 'safe'], ch: .03, w: '副本一 · 文件柜、小保险箱' }, mask: { n: '旧防毒面具', r: 3, d: 1, src: ['locker', 'tool'], ch: .03, w: '副本一 · 储物柜、工具箱' },
+  xray: { n: '一张 X 光片', r: 3, d: 1, src: ['file', 'med'], ch: .03, w: '副本一 · 文件柜、医药柜' }, rack: { n: '血样试管架', r: 3, d: 1, src: ['lab', 'med'], ch: .03, w: '副本一 · 样本柜、医药柜' },
+  cup: { n: '护士站的保温杯', r: 2, d: 1, src: ['med', 'file'], ch: .05, w: '副本一 · 医药柜、文件柜' }, bedtag: { n: '病床床头卡', r: 2, d: 1, src: ['file', 'locker'], ch: .05, w: '副本一 · 文件柜、储物柜' },
+  gloves: { n: '橡胶手套', r: 2, d: 1, src: ['med', 'tool'], ch: .05, w: '副本一 · 医药柜、工具箱' }, bulb: { n: '应急灯泡', r: 2, d: 1, src: ['tool', 'locker'], ch: .05, w: '副本一 · 工具箱、储物柜' },
+  icecore: { n: '冰芯样本', r: 3, d: 2, src: ['lab', 'safe'], ch: .03, w: '副本二 · 样本柜、小保险箱' }, log: { n: '值班日志', r: 3, d: 2, src: ['file', 'locker'], ch: .03, w: '副本二 · 文件柜、储物柜' },
+  medal: { n: '极地勋章', r: 3, d: 2, src: ['safe', 'file'], ch: .03, w: '副本二 · 小保险箱、文件柜' }, bit: { n: '断掉的钻头', r: 3, d: 2, src: ['tool', 'safe'], ch: .03, w: '副本二 · 工具箱、小保险箱' },
+  mitt: { n: '防寒手套', r: 2, d: 2, src: ['locker', 'tool'], ch: .05, w: '副本二 · 储物柜、工具箱' }, can: { n: '冻硬的罐头', r: 2, d: 2, src: ['med', 'locker'], ch: .05, w: '副本二 · 医药柜、储物柜' },
+  goggle: { n: '雪地护目镜', r: 2, d: 2, src: ['locker', 'tool'], ch: .05, w: '副本二 · 储物柜、工具箱' }, thermo: { n: '老式温度计', r: 2, d: 2, src: ['lab', 'tool'], ch: .05, w: '副本二 · 样本柜、工具箱' } });
+// a little less 传说 now that there are four tiers
+for (const k of ['chart', 'pills', 'wradio', 'syringe', 'keys', 'scarf', 'mug', 'sradio', 'torch2', 'map', 'card2']) COLX[k].ch = .035; COLX.photo.ch = .03;
+COL_ORDER.length = 0; COL_ORDER.push('badge', 'doll', 'steth', 'vial', 'card', 'coat', 'chart', 'pills', 'wradio', 'photo', 'syringe', 'keys', 'stamp', 'mask', 'xray', 'rack', 'cup', 'bedtag', 'gloves', 'bulb',
+  'glasses', 'ore', 'plate', 'sign', 'scarf', 'mug', 'sradio', 'torch2', 'map', 'card2', 'icecore', 'log', 'medal', 'bit', 'mitt', 'can', 'goggle', 'thermo');
+const colOf = d => COL_ORDER.filter(k => COLX[k].d === d), colN = k => S.colx[k] | 0, colRN = r => ['普通', '优秀', '稀有', '史诗', '传说', '神话'][r], colRC = r => ['#d0d0d0', '#7fe06a', '#5aa9ff', '#c28bff', '#ffc94a', '#ff4d8d'][r];
 
 /* ---- getting one: the first is new for your collection, the rest are spares for the merchant ---- */
 colGet = function (id) { if (!COLX[id]) return; const n = colN(id) + 1; S.colx[id] = n; const C = COLX[id], own = colOf(C.d).filter(k => colN(k)).length;
@@ -13261,6 +13275,27 @@ colModel = (o => function (id) { if (['badge', 'doll', 'steth', 'vial', 'card', 
   else if (id === 'map') { box(.64, .46, .02, L(0x2a4a7a), 0, 0, 0, g); for (let i = 0; i < 4; i++) box(.5, .01, .01, L(0xcfe4ff), 0, .16 - i * .1, .015, g); box(.01, .36, .01, L(0xcfe4ff), .05, 0, .015, g); const c = new THREE.Mesh(new THREE.RingGeometry(.04, .07, 14), B(0xff6a2a)); c.position.set(.16, -.08, .02); g.add(c); cyl(.04, .04, .5, L(0xe8dcc0), -.32, 0, 0); }
   else if (id === 'card2') { box(.4, .56, .03, L(0xeaf2f8), 0, 0, 0, g); box(.4, .14, .035, L(0x2a6a9a), 0, .21, 0, g); box(.16, .18, .01, L(0xb8c4cc), -.08, .02, .02, g); for (let i = 0; i < 2; i++) box(.12, .02, .01, L(0x3a4a5a), .1, .06 - i * .06, .02, g); box(.1, .04, .01, B(0x8fe0ff), 0, -.2, .02, g); box(.06, .12, .02, L(0x9a9aa0), 0, .32, 0, g); }
   return g; })(colModel);
+// 史诗 / 稀有 models
+colModel = (o => function (id) { const L = c => new THREE.MeshLambertMaterial({ color: c }), B = c => new THREE.MeshBasicMaterial({ color: c }), g = new THREE.Group();
+  const cyl = (r1, r2, h, m, x, y, z) => { const c = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 10), m); c.position.set(x, y, z); g.add(c); return c; };
+  if (id === 'stamp') { cyl(.16, .18, .16, L(0x8a2a2a), 0, -.14, 0); cyl(.06, .08, .22, L(0x6a4a2e), 0, .05, 0); const k = new THREE.Mesh(new THREE.SphereGeometry(.1, 8, 6), L(0x6a4a2e)); k.position.y = .22; g.add(k); box(.3, .02, .3, B(0xd02a2a), 0, -.23, 0, g); }
+  else if (id === 'mask') { const f = new THREE.Mesh(new THREE.SphereGeometry(.26, 10, 8), L(0x4a5a4a)); f.scale.set(1, 1.15, .7); g.add(f); for (const x of [-.1, .1]) { const e = new THREE.Mesh(new THREE.CircleGeometry(.07, 12), L(0xbfe0e8)); e.position.set(x, .06, .18); g.add(e); } const c = cyl(.08, .1, .14, L(0x2a2e2a), 0, -.14, .16); c.rotation.x = Math.PI / 2; box(.6, .04, .04, L(0x2a2a2a), 0, .06, -.05, g); }
+  else if (id === 'xray') { box(.5, .6, .01, new THREE.MeshLambertMaterial({ color: 0x1a2a3a, transparent: true, opacity: .9 }), 0, 0, 0, g); box(.06, .4, .02, B(0xdfefff), 0, 0, .01, g); for (let i = 0; i < 4; i++) box(.3 - i * .02, .03, .02, B(0xbfd8f0), 0, .14 - i * .08, .01, g); box(.12, .06, .02, L(0xf4f0e2), .17, .25, .01, g); }
+  else if (id === 'rack') { box(.6, .06, .2, L(0xd8dde4), 0, -.2, 0, g); box(.6, .04, .2, L(0xd8dde4), 0, .06, 0, g); [0xd02a2a, 0x8a1a1a, 0xd02a2a, 0x5aff9a].forEach((c, i) => { const t = cyl(.04, .04, .36, new THREE.MeshLambertMaterial({ color: 0xeef6ff, transparent: true, opacity: .55 }), -.21 + i * .14, -.02, 0); cyl(.035, .035, .2, L(c), -.21 + i * .14, -.1, 0); cyl(.045, .045, .05, L(i % 2 ? 0x5a9ad8 : 0xd8d8d8), -.21 + i * .14, .17, 0); }); }
+  else if (id === 'cup') { cyl(.13, .13, .46, L(0xd8dde4), 0, 0, 0); cyl(.14, .14, .1, L(0xe87a9a), 0, .26, 0); box(.2, .1, .01, L(0xe87a9a), 0, -.02, .13, g); }
+  else if (id === 'bedtag') { box(.5, .34, .03, L(0xf4f0e2), 0, 0, 0, g); box(.5, .07, .035, L(0x4a8ad8), 0, .135, 0, g); for (let i = 0; i < 3; i++) box(.34, .02, .01, L(0x5a5a5a), 0, .04 - i * .07, .02, g); box(.08, .08, .01, B(0xd02a2a), .18, -.1, .02, g); }
+  else if (id === 'gloves') { const y = L(0xe8d060); for (const s of [-1, 1]) { const h = new THREE.Group(); h.position.x = s * .14; h.rotation.z = s * .2; g.add(h); box(.2, .26, .06, y, 0, 0, 0, h); for (let i = 0; i < 4; i++) box(.04, .14, .05, y, -.075 + i * .05, .2, 0, h); box(.05, .1, .05, y, s * .12, .04, 0, h); box(.22, .1, .07, y, 0, -.17, 0, h); } }
+  else if (id === 'bulb') { const gl = new THREE.Mesh(new THREE.SphereGeometry(.2, 12, 10), new THREE.MeshLambertMaterial({ color: 0xfff4c8, transparent: true, opacity: .7 })); gl.position.y = .08; g.add(gl); box(.04, .14, .04, B(0xffb020), 0, .08, 0, g); cyl(.1, .1, .18, L(0xa8acb4), 0, -.18, 0); }
+  else if (id === 'icecore') { const c = cyl(.12, .12, .62, new THREE.MeshLambertMaterial({ color: 0xcfefff, transparent: true, opacity: .75 }), 0, 0, 0); c.rotation.z = Math.PI / 2.3; const d = cyl(.06, .06, .5, B(0x6aa8d8), 0, 0, 0); d.rotation.z = Math.PI / 2.3; for (let i = 0; i < 3; i++) { const b = cyl(.125, .125, .02, L(0x3a4a5a), -.18 + i * .18, -.08 + i * .08, 0); b.rotation.z = Math.PI / 2.3; } }
+  else if (id === 'log') { box(.44, .56, .08, L(0x2a4a6a), 0, 0, 0, g); box(.4, .52, .07, L(0xf4f0e2), .02, 0, 0, g); box(.03, .56, .09, L(0x1a2a3a), -.2, 0, 0, g); box(.24, .08, .01, B(0x8fe0ff), .02, .16, .046, g); }
+  else if (id === 'medal') { const r = new THREE.Mesh(new THREE.CylinderGeometry(.18, .18, .04, 16), L(0xc8d4e0)); r.rotation.x = Math.PI / 2; r.position.y = -.08; g.add(r); const st = new THREE.Mesh(new THREE.OctahedronGeometry(.1, 0), B(0x8fe0ff)); st.position.set(0, -.08, .04); st.scale.set(1, 1, .3); g.add(st); box(.16, .22, .02, L(0x2a6a9a), -.05, .2, 0, g).rotation.z = .2; box(.16, .22, .02, L(0xf2f2f2), .05, .2, 0, g).rotation.z = -.2; }
+  else if (id === 'bit') { const c = new THREE.Mesh(new THREE.ConeGeometry(.18, .5, 6), L(0x8a8f96)); c.rotation.z = Math.PI; c.position.y = -.05; g.add(c); cyl(.1, .1, .2, L(0x6a4a2e), 0, .3, 0); for (let i = 0; i < 3; i++) box(.4 - i * .1, .03, .03, L(0xc8ccd2), 0, .1 - i * .12, 0, g).rotation.y = i; }
+  else if (id === 'mitt') { const c = L(0x2a6a9a), w = L(0xf2f2f2); box(.26, .32, .12, c, 0, 0, 0, g); box(.1, .16, .1, c, .17, .02, 0, g).rotation.z = -.5; box(.28, .08, .14, w, 0, -.18, 0, g); box(.22, .03, .13, w, 0, .08, 0, g); }
+  else if (id === 'can') { cyl(.17, .17, .32, L(0xa8acb4), 0, 0, 0); box(.35, .16, .01, L(0xd8641e), 0, 0, .17, g); box(.14, .06, .01, L(0xf2f2f2), 0, .01, .18, g); for (let i = 0; i < 4; i++) { const f = new THREE.Mesh(new THREE.OctahedronGeometry(.04, 0), L(0xeaf8ff)); f.position.set(-.12 + i * .08, .17, 0); g.add(f); } }
+  else if (id === 'goggle') { box(.6, .2, .1, L(0x2a2a30), 0, 0, 0, g); box(.54, .14, .02, new THREE.MeshLambertMaterial({ color: 0xffa040, transparent: true, opacity: .85 }), 0, 0, .06, g); box(.1, .06, .1, L(0x2a2a30), 0, -.08, 0, g); box(.8, .05, .02, L(0x2a6a9a), 0, 0, -.06, g); }
+  else if (id === 'thermo') { box(.16, .62, .04, L(0xe8e2d0), 0, 0, 0, g); const t = cyl(.025, .025, .46, new THREE.MeshLambertMaterial({ color: 0xeef6ff, transparent: true, opacity: .6 }), 0, .04, .03); cyl(.02, .02, .12, B(0xd02a2a), 0, -.13, .03); const bb = new THREE.Mesh(new THREE.SphereGeometry(.05, 8, 6), B(0xd02a2a)); bb.position.set(0, -.22, .03); g.add(bb); for (let i = 0; i < 6; i++) box(.05, .01, .01, L(0x3a3a3a), -.05, -.12 + i * .06, .025, g); }
+  else return o(id);
+  return g; })(colModel);
 (function relicIcons() { if (typeof ICON_URL === 'undefined' || !document.createElement) return; let R;
   try { const c = document.createElement('canvas'); R = new THREE.WebGLRenderer({ canvas: c, alpha: true, antialias: true, preserveDrawingBuffer: true }); } catch (e) { return; }
   try { R.setPixelRatio(1); R.setClearColor && R.setClearColor(0, 0); R.setSize(128, 128, false); const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xffffff, 0x3a2a48, 1.1)); const L = new THREE.DirectionalLight(0xffffff, .9); L.position.set(-2, 3, 3); sc.add(L);
@@ -13279,30 +13314,57 @@ shopLoad = (o => function (d) { o(d); try { const c = d && d.sh && d.sh.colx2; i
 
 /* ---- the collection grid on the dungeon pages ---- */
 function colGrid(did) { const ks = colOf(did), own = ks.filter(k => colN(k)).length;
-  return '<small>收藏品 ' + own + ' / ' + ks.length + ' · <b style="color:#ff4d8d">神话</b>很难出 · <b style="color:#ffc94a">传说</b>比较常见 · 多出来的可以找码头的老钱换遗物币</small><div>' +
-    ks.map(k => { const C = COLX[k], n = colN(k); return '<span class="' + (n ? 'own' : '') + '" style="--rc:' + colRC(C.r) + '">' + (n ? svgIcon('col_' + k) : '<em>?</em>') + '<b>' + (n ? C.n : '？？？') + '</b><i>' + colRN(C.r) + (n > 1 ? ' · ×' + n : '') + '</i></span>'; }).join('') + '</div>'; }
+  return '<small>收藏品 ' + own + ' / ' + ks.length + ' · 稀有 < 史诗 < 传说 < <b style="color:#ff4d8d">神话</b> · 同一品质集齐有永久加成 · 多出来的找码头的老钱换遗物币</small><div>' +
+    ks.slice().sort((a, b) => COLX[b].r - COLX[a].r).map(k => { const C = COLX[k], n = colN(k); return '<span class="' + (n ? 'own' : '') + '" style="--rc:' + colRC(C.r) + '">' + (n ? svgIcon('col_' + k) : '<em>?</em>') + '<b>' + (n ? C.n : '？？？') + '</b><i>' + colRN(C.r) + (n > 1 ? ' · ×' + n : '') + '</i></span>'; }).join('') + '</div>'; }
 openDunPage = (o => function () { o(); try { const e = document.querySelector('#dunPageM .duncol'); if (e) e.innerHTML = colGrid(1); } catch (e) { } })(openDunPage);
 openDun2Page = (o => function () { o(); try { const m = $('dunPageM'), n = m && m.querySelector('.dunnote'); if (n) { const d = document.createElement('div'); d.className = 'duncol'; d.innerHTML = colGrid(2); n.parentNode.insertBefore(d, n); } } catch (e) { } })(openDun2Page);
 
-/* ---- 副本商人「老钱」: buys spare keepsakes for 遗物币 ---- */
-let relicTab = 1;
+/* ---- collection sets: finish every keepsake of one rarity in a dungeon for a lasting bonus (counted in 战力) ---- */
+const COLSET = { 1: { 2: { hpPct: .01 }, 3: { dmg: .01 }, 4: { hpPct: .02, dmg: .01 }, 5: { dmg: .03, def: .02 } },
+                 2: { 2: { hpPct: .015 }, 3: { dmg: .015 }, 4: { hpPct: .03, dmg: .015 }, 5: { dmg: .045, def: .03 } } };
+const COLSET_N = { hpPct: '生命', dmg: '伤害', def: '减伤' };
+const colSetDone = (d, r) => { const ks = colOf(d).filter(k => COLX[k].r === r); return ks.length > 0 && ks.every(k => colN(k) > 0); };
+function colSetSt(k) { let v = 0; for (const d in COLSET) for (const r in COLSET[d]) if (COLSET[d][r][k] && colSetDone(+d, +r)) v += COLSET[d][r][k]; return v; }
+const colSetTxt = st => Object.keys(st).map(k => COLSET_N[k] + ' +' + Math.round(st[k] * 1000) / 10 + '%').join('、');
+passSt = (o => function (k) { return o(k) + colSetSt(k); })(passSt);
+// finishing a set says so
+colGet = (o => function (id) { const C = COLX[id], before = C ? colSetDone(C.d, C.r) : true; o(id); try { if (C && !before && colSetDone(C.d, C.r)) { setTimeout(() => banner('收藏套装完成 · 副本' + (C.d === 2 ? '二' : '一') + ' · ' + colRN(C.r), '永久加成：' + colSetTxt(COLSET[C.d][C.r]) + '（算进战力）', 4.5), 4600); S.maxHp = maxHpNow(); refreshHud(); } } catch (e) { } })(colGet);
+
+/* ---- 副本商人「老钱」: buys spare keepsakes for 遗物币, sells ammo and weapon materials ---- */
+let relicTab = 1, relicPg = 'sell';
 const RELIC_COIN = '<i class="rlc">遗</i>';
+// what he sells: [item, how many, price in 遗物币]. 'ammo' goes to your reserve
+const RELIC_SHOP = [['ammo', 60, 2], ['powder', 5, 2], ['metal', 10, 2], ['circuit', 3, 3], ['steel', 2, 6], ['plate', 1, 10], ['venom', 1, 10], ['shade', 1, 10], ['magma', 1, 10], ['serum', 1, 8], ['crystal', 1, 18], ['core', 1, 30]];
+const relicItN = k => k === 'ammo' ? '子弹' : _iInfo(k).n;
 function relicSpare(k) { return Math.max(0, colN(k) - 1); }
-function relicSell(k, n) { n = Math.min(n, relicSpare(k)); if (n <= 0) return 0; S.colx[k] = colN(k) - n; const g = n * RELIC_P[COLX[k].r]; S.relic = (S.relic | 0) + g; return g; }
+function relicSell(k, n) { n = Math.min(n, relicSpare(k)); if (n <= 0) return 0; S.colx[k] = colN(k) - n; const g = n * relicPrice(k); S.relic = (S.relic | 0) + g; return g; }
+function relicBuy(i) { const [k, n, p] = RELIC_SHOP[i]; if ((S.relic | 0) < p) { feed('遗物币不够', '#ff9b8a'); return false; }
+  if (k !== 'ammo' && typeof bagRoom === 'function' && bagRoom(k) < n) { feed('背包放不下了', '#ff9b8a'); return false; }
+  S.relic -= p; if (k === 'ammo') { S.reserve += n; feed('+' + n + ' 子弹', '#f2c14e'); } else gain(k, n); refreshHud(); saveGame(); return true; }
 function openRelic() { try { audioInit(); } catch (e) { } const old = $('relicM'); if (old) old.remove(); const m = document.createElement('div'); m.id = 'relicM'; m.className = 'dunm'; document.body.appendChild(m);
-  const render = () => { const ks = colOf(relicTab), spareAll = COL_ORDER.reduce((a, k) => a + relicSpare(k) * RELIC_P[COLX[k].r], 0);
+  const render = () => { const ks = colOf(relicTab), spareAll = COL_ORDER.reduce((a, k) => a + relicSpare(k) * relicPrice(k), 0); let body = '';
+    if (relicPg === 'sell') {
+      body = '<div class="tabs rltabs"><button class="sbtn' + (relicTab === 1 ? ' on' : '') + '" data-t="1">圣心医院</button><button class="sbtn' + (relicTab === 2 ? ' on' : '') + '" data-t="2">永冬站</button></div>' +
+        '<div class="rlsets">' + [5, 4, 3, 2].map(r => { const ok = colSetDone(relicTab, r), ks2 = colOf(relicTab).filter(k => COLX[k].r === r);
+          return '<span class="' + (ok ? 'ok' : '') + '" style="--rc:' + colRC(r) + '"><b>' + (ok ? '✓ ' : '') + colRN(r) + ' ' + ks2.filter(k => colN(k)).length + '/' + ks2.length + '</b><small>集齐：' + colSetTxt(COLSET[relicTab][r]) + '</small></span>'; }).join('') + '</div>' +
+        '<div class="rlg">' + ks.slice().sort((a, b) => COLX[b].r - COLX[a].r).map(k => { const C = COLX[k], n = colN(k), sp = relicSpare(k);
+          return '<div class="rlc2' + (n ? '' : ' no') + '" style="--rc:' + colRC(C.r) + '">' + (n ? svgIcon('col_' + k) : '<em>?</em>') + '<b>' + (n ? C.n : '？？？') + '</b><small>' + colRN(C.r) + ' · ' + (n ? '拥有 ×' + n : C.w) + '</small>' +
+            (n ? '<button class="sbtn' + (sp ? '' : ' ghostb') + '" data-k="' + k + '"' + (sp ? '' : ' disabled') + '>' + (sp ? '卖 1 件 +' + relicPrice(k) : '永久保存') + '</button>' : '') + '</div>'; }).join('') + '</div>' +
+        '<button class="go rlall"' + (spareAll ? '' : ' disabled') + '>' + (spareAll ? '多出来的全部卖掉（每种留 1 件）+' + spareAll : '没有多出来的收藏品') + '</button>' +
+        '<p class="dunnote">每种收藏品的第一件永久保存，不能卖；拿到第二件开始才能卖。越难的副本，收藏品卖得越贵（永冬站是圣心医院的 2 倍）。</p>';
+    } else {
+      body = '<div class="rlshop">' + RELIC_SHOP.map((x, i) => { const [k, n, p] = x, ok = (S.relic | 0) >= p;
+        return '<div class="rlsi"><span>' + (k === 'ammo' ? svgIcon('ammo') : svgIcon(k)) + '</span><b>' + relicItN(k) + ' ×' + n + '</b><small>' + (k === 'ammo' ? '弹药' : '武器升级材料') + '</small><button class="sbtn' + (ok ? '' : ' ghostb') + '" data-i="' + i + '">' + RELIC_COIN + ' ' + p + '</button></div>'; }).join('') + '</div>' +
+        '<p class="dunnote">以后这里还会卖皮肤。</p>'; }
     m.innerHTML = '<div class="dunmb rlb"><button class="dunmx" aria-label="关闭">✕</button>' +
-      '<div class="rlhead"><div class="rlface" aria-hidden="true"><i></i><u></u><s></s></div><div><b>老钱 · 遗物商人</b><p>「副本里带出来的老物件，多出来的我都收。一件不留也行，可总得留一件给自己看吧？」</p></div></div>' +
-      '<div class="rlbal">' + RELIC_COIN + ' 遗物币 <b>' + (S.relic | 0) + '</b><small>传说 1 件 = ' + RELIC_P[4] + ' · 神话 1 件 = ' + RELIC_P[5] + '</small></div>' +
-      '<div class="tabs rltabs"><button class="sbtn' + (relicTab === 1 ? ' on' : '') + '" data-t="1">圣心医院</button><button class="sbtn' + (relicTab === 2 ? ' on' : '') + '" data-t="2">永冬站</button></div>' +
-      '<div class="rlg">' + ks.map(k => { const C = COLX[k], n = colN(k), sp = relicSpare(k);
-        return '<div class="rlc2' + (n ? '' : ' no') + '" style="--rc:' + colRC(C.r) + '">' + (n ? svgIcon('col_' + k) : '<em>?</em>') + '<b>' + (n ? C.n : '？？？') + '</b><small>' + colRN(C.r) + ' · ' + (n ? '拥有 ×' + n : C.w) + '</small>' +
-          (n ? '<button class="sbtn' + (sp ? '' : ' ghostb') + '" data-k="' + k + '"' + (sp ? '' : ' disabled') + '>' + (sp ? '卖 1 件 +' + RELIC_P[C.r] : '只有 1 件') + '</button>' : '') + '</div>'; }).join('') + '</div>' +
-      '<button class="go rlall"' + (spareAll ? '' : ' disabled') + '>' + (spareAll ? '多出来的全部卖掉（两个副本，每种留 1 件）+' + spareAll : '没有多出来的收藏品') + '</button>' +
-      '<p class="dunnote">每种收藏品都会帮你留 1 件，不会卖掉你的最后一件。遗物币以后可以在这里换东西。</p></div>';
+      '<div class="rlhead"><div class="rlface" aria-hidden="true"><i></i><u></u><s></s></div><div><b>老钱 · 遗物商人</b><p>「副本里带出来的老物件，多出来的我都收。第一件你自己留着，那是你的。」</p></div></div>' +
+      '<div class="rlbal">' + RELIC_COIN + ' 遗物币 <b>' + (S.relic | 0) + '</b></div>' +
+      '<div class="tabs rlpg"><button class="sbtn' + (relicPg === 'sell' ? ' on' : '') + '" data-p="sell">卖收藏品 · 图鉴</button><button class="sbtn' + (relicPg === 'shop' ? ' on' : '') + '" data-p="shop">老钱的货</button></div>' + body + '</div>';
     m.querySelector('.dunmx').addEventListener('click', () => m.remove());
+    m.querySelectorAll('.rlpg button').forEach(b => b.addEventListener('click', () => { relicPg = b.dataset.p; render(); }));
     m.querySelectorAll('.rltabs button').forEach(b => b.addEventListener('click', () => { relicTab = +b.dataset.t; render(); }));
     m.querySelectorAll('.rlg button[data-k]').forEach(b => b.addEventListener('click', () => { const g = relicSell(b.dataset.k, 1); if (g) { feed('卖给老钱 · 遗物币 +' + g, '#ffd98a'); try { sfx.pick(); } catch (e) { } showcaseRefresh(); saveGame(); } render(); }));
+    m.querySelectorAll('.rlshop button[data-i]').forEach(b => b.addEventListener('click', () => { if (relicBuy(+b.dataset.i)) { try { sfx.pick(); } catch (e) { } } render(); }));
     const all = m.querySelector('.rlall'); if (all) all.addEventListener('click', () => { let g = 0; for (const k of COL_ORDER) g += relicSell(k, 999); if (g) { banner('老钱收下了', '遗物币 +' + g, 2.5); try { sfx.build(); } catch (e) { } showcaseRefresh(); saveGame(); } render(); }); };
   render(); m.addEventListener('click', e => { if (e.target === m) m.remove(); }); }
 // his row sits in the pier's 副本 tab, under the two dungeons
@@ -13321,6 +13383,8 @@ try { const st = document.createElement('style'); st.textContent =
   '.rltabs{display:flex;gap:6px;margin-bottom:8px}.rltabs .sbtn{flex:1}.rlg{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:6px;max-height:44vh;overflow:auto}' +
   '.rlc2{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 4px;border-radius:10px;background:rgba(0,0,0,.3);border:1.5px solid var(--rc);text-align:center}.rlc2.no{border-color:rgba(255,255,255,.12);opacity:.6}' +
   '.rlc2 .ic{width:38px;height:38px}.rlc2 em{font-style:normal;font-size:22px;opacity:.35;height:38px;line-height:38px}.rlc2 b{font-size:11.5px;line-height:1.2;color:var(--rc)}.rlc2.no b{color:#ccc}.rlc2 small{font-size:10.5px;opacity:.75;line-height:1.3}.rlc2 .sbtn{font-size:11.5px;padding:4px 6px;width:100%}' +
+  '.rlall{width:100%;margin-top:10px}.rlpg{display:flex;gap:6px;margin-bottom:8px}.rlpg .sbtn{flex:1}.rlsets{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;margin-bottom:8px}.rlsets span{padding:5px 8px;border-radius:9px;border:1px solid var(--rc);background:rgba(0,0,0,.25);opacity:.7}.rlsets span.ok{opacity:1;background:rgba(255,255,255,.08)}.rlsets b{display:block;font-size:12px;color:var(--rc)}.rlsets small{font-size:10.5px;opacity:.85}' +
+  '.rlshop{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:6px;max-height:48vh;overflow:auto}.rlsi{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:10px;background:rgba(0,0,0,.3);border:1px solid rgba(255,214,140,.35);text-align:center}.rlsi .ic{width:36px;height:36px}.rlsi b{font-size:12px}.rlsi small{font-size:10.5px;opacity:.7}.rlsi .sbtn{width:100%;display:flex;align-items:center;justify-content:center;gap:4px}.rlsi .rlc{width:16px;height:16px;font-size:9px}' +
   '.rlall{width:100%;margin-top:10px}.rlrow{border-color:rgba(255,217,138,.6)!important;background:linear-gradient(90deg,rgba(120,80,20,.4),rgba(30,20,10,.2))!important}';
   document.head.appendChild(st); } catch (e) { }
 /* ============ 副本小地图：显示可以搜索的柜子（金色箱子图标；没开过的会闪，保险箱和样本柜画大一点，搜空就消失） ============ */
@@ -14819,4 +14883,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794213507').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794214546').catch(()=>{});</script></body></html>
