@@ -13195,8 +13195,8 @@ zSpecialTick = (o => function (dt) { o(dt); if (input.fire && !FIREP.size && !ke
    出处：每件收藏品只会出现在指定副本的指定种类柜子里（另有两件是首领掉落）；一个柜子最多出一件收藏品。
    没通关就离开，这一趟拿到的收藏品照样收回（z_dunend.js）。 */
 // 卖 1 件多余的收藏品换多少遗物币：按品质，再按副本难度翻倍（副本一 ×1，副本二 ×2，以后的副本更贵）
-const RELIC_P = { 2: 1, 3: 2, 4: 5, 5: 20 }, RELIC_DM = { 1: 1, 2: 2 };
-const relicPrice = k => RELIC_P[COLX[k].r] * (RELIC_DM[COLX[k].d] || COLX[k].d);
+const RELIC_P = { 2: 1, 3: 2, 4: 5, 5: 20 };
+const relicPrice = k => Math.max(1, Math.round(RELIC_P[COLX[k].r] * (1 + .2 * (COLX[k].d - 1))));   // each harder dungeon ×1.2 more
 S.relic = 0;
 // the hospital's six become 神话 (r 5); `src` = the kinds of cupboard it can be in, `d` = which dungeon, `ch` = chance per cupboard
 Object.assign(COLX.badge, { r: 5, d: 1, src: ['locker', 'file'], ch: .012, w: '副本一 · 储物柜、文件柜' });
@@ -13232,7 +13232,9 @@ Object.assign(COLX, {
   mitt: { n: '防寒手套', r: 2, d: 2, src: ['locker', 'tool'], ch: .05, w: '副本二 · 储物柜、工具箱' }, can: { n: '冻硬的罐头', r: 2, d: 2, src: ['med', 'locker'], ch: .05, w: '副本二 · 医药柜、储物柜' },
   goggle: { n: '雪地护目镜', r: 2, d: 2, src: ['locker', 'tool'], ch: .05, w: '副本二 · 储物柜、工具箱' }, thermo: { n: '老式温度计', r: 2, d: 2, src: ['lab', 'tool'], ch: .05, w: '副本二 · 样本柜、工具箱' } });
 // a little less 传说 now that there are four tiers
-for (const k of ['chart', 'pills', 'wradio', 'syringe', 'keys', 'scarf', 'mug', 'sradio', 'torch2', 'map', 'card2']) COLX[k].ch = .035; COLX.photo.ch = .03;
+for (const k of ['chart', 'pills', 'wradio', 'syringe', 'keys', 'scarf', 'mug', 'sradio', 'torch2', 'map', 'card2', 'photo']) COLX[k].ch = .015;
+Object.assign(COLX.badge, { ch: .006 }); Object.assign(COLX.doll, { ch: .005 }); Object.assign(COLX.steth, { ch: .007 }); Object.assign(COLX.vial, { ch: .005 }); Object.assign(COLX.card, { ch: .008 });
+Object.assign(COLX.ore, { ch: .005 }); Object.assign(COLX.plate, { ch: .005 }); Object.assign(COLX.sign, { ch: .006 }); COLX.coat.ch = .04; COLX.glasses.ch = .04;
 COL_ORDER.length = 0; COL_ORDER.push('badge', 'doll', 'steth', 'vial', 'card', 'coat', 'chart', 'pills', 'wradio', 'photo', 'syringe', 'keys', 'stamp', 'mask', 'xray', 'rack', 'cup', 'bedtag', 'gloves', 'bulb',
   'glasses', 'ore', 'plate', 'sign', 'scarf', 'mug', 'sradio', 'torch2', 'map', 'card2', 'icecore', 'log', 'medal', 'bit', 'mitt', 'can', 'goggle', 'thermo');
 const colOf = d => COL_ORDER.filter(k => COLX[k].d === d), colN = k => S.colx[k] | 0, colRN = r => ['普通', '优秀', '稀有', '史诗', '传说', '神话'][r], colRC = r => ['#d0d0d0', '#7fe06a', '#5aa9ff', '#c28bff', '#ffc94a', '#ff4d8d'][r];
@@ -13334,7 +13336,7 @@ colGet = (o => function (id) { const C = COLX[id], before = C ? colSetDone(C.d, 
 let relicTab = 1, relicPg = 'sell';
 const RELIC_COIN = '<i class="rlc">遗</i>';
 // what he sells: [item, how many, price in 遗物币]. 'ammo' goes to your reserve
-const RELIC_SHOP = [['ammo', 60, 2], ['powder', 5, 2], ['metal', 10, 2], ['circuit', 3, 3], ['steel', 2, 6], ['plate', 1, 10], ['venom', 1, 10], ['shade', 1, 10], ['magma', 1, 10], ['serum', 1, 8], ['crystal', 1, 18], ['core', 1, 30]];
+const RELIC_SHOP = [['ammo', 60, 5], ['powder', 5, 5], ['metal', 10, 4], ['circuit', 3, 8], ['steel', 2, 15], ['serum', 1, 20], ['plate', 1, 25], ['venom', 1, 25], ['shade', 1, 25], ['magma', 1, 25], ['crystal', 1, 45], ['core', 1, 80]];
 const relicItN = k => k === 'ammo' ? '子弹' : _iInfo(k).n;
 function relicSpare(k) { return Math.max(0, colN(k) - 1); }
 function relicSell(k, n) { n = Math.min(n, relicSpare(k)); if (n <= 0) return 0; S.colx[k] = colN(k) - n; const g = n * relicPrice(k); S.relic = (S.relic | 0) + g; return g; }
@@ -13351,7 +13353,7 @@ function openRelic() { try { audioInit(); } catch (e) { } const old = $('relicM'
           return '<div class="rlc2' + (n ? '' : ' no') + '" style="--rc:' + colRC(C.r) + '">' + (n ? svgIcon('col_' + k) : '<em>?</em>') + '<b>' + (n ? C.n : '？？？') + '</b><small>' + colRN(C.r) + ' · ' + (n ? '拥有 ×' + n : C.w) + '</small>' +
             (n ? '<button class="sbtn' + (sp ? '' : ' ghostb') + '" data-k="' + k + '"' + (sp ? '' : ' disabled') + '>' + (sp ? '卖 1 件 +' + relicPrice(k) : '永久保存') + '</button>' : '') + '</div>'; }).join('') + '</div>' +
         '<button class="go rlall"' + (spareAll ? '' : ' disabled') + '>' + (spareAll ? '多出来的全部卖掉（每种留 1 件）+' + spareAll : '没有多出来的收藏品') + '</button>' +
-        '<p class="dunnote">每种收藏品的第一件永久保存，不能卖；拿到第二件开始才能卖。越难的副本，收藏品卖得越贵（永冬站是圣心医院的 2 倍）。</p>';
+        '<p class="dunnote">每种收藏品的第一件永久保存，不能卖；拿到第二件开始才能卖。越难的副本，收藏品卖得越贵（每难一个副本 ×1.2）。</p>';
     } else {
       body = '<div class="rlshop">' + RELIC_SHOP.map((x, i) => { const [k, n, p] = x, ok = (S.relic | 0) >= p;
         return '<div class="rlsi"><span>' + (k === 'ammo' ? svgIcon('ammo') : svgIcon(k)) + '</span><b>' + relicItN(k) + ' ×' + n + '</b><small>' + (k === 'ammo' ? '弹药' : '武器升级材料') + '</small><button class="sbtn' + (ok ? '' : ' ghostb') + '" data-i="' + i + '">' + RELIC_COIN + ' ' + p + '</button></div>'; }).join('') + '</div>' +
@@ -14883,4 +14885,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794214546').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794215606').catch(()=>{});</script></body></html>
