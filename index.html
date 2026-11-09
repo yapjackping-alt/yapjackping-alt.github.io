@@ -308,6 +308,7 @@ img.ic{object-fit:contain;display:block}
 #foodRow svg{width:15px;height:15px;flex:none}#foodRow .bar.fdb{width:64px;height:6px;flex:none}#foodRow .bar.fdb i{background:linear-gradient(90deg,#c8742a,#ffc46b)}
 #foodRow b{font:11px var(--font-hud);color:#ffe0b0;min-width:18px}#foodRow.low .bar.fdb i{background:#ff5a3a;animation:hpPulse .8s infinite}#foodRow.low b{color:#ff8a6a}
 #foodRow.low:not(.crit) .bar.fdb i{background:#ffa53a;animation:none}#foodRow.crit .bar.fdb i{background:#ff3a2a}
+.bar.fdx{height:4px!important;margin-top:-1px}.bar.fdx i{background:linear-gradient(90deg,#c8742a,#ffc46b)}.bar.fdx.low i{background:#ffa53a}.bar.fdx.crit i{background:#ff3a2a;animation:hpPulse .8s infinite}
 #fdBuf{display:flex;gap:3px;flex-wrap:wrap}.fbuf{display:inline-flex;align-items:center;gap:2px;font:10px var(--font-hud);color:#fff;background:rgba(0,0,0,.45);border:1px solid var(--bc);border-radius:7px;padding:0 4px 0 1px}
 .fbuf i{font-style:normal;font-size:9px;width:13px;height:13px;border-radius:50%;background:var(--bc);color:#1a0e12;display:inline-flex;align-items:center;justify-content:center;font-weight:700}
 #bPet{display:none;align-items:center;gap:5px;margin-top:4px;padding:3px 8px 3px 5px;border-radius:9px;border:1px solid rgba(159,232,255,.5);background:rgba(16,30,40,.7);color:#dff6ff;font:11px var(--font-body);pointer-events:auto;cursor:pointer}
@@ -6662,14 +6663,17 @@ function foodHud(force) {
   const row = $('foodRow'); if (!row) return;
   const f = Math.round(S.food), bs = Object.keys(S.fbuf).map(k => k + Math.ceil(S.fbuf[k].t / 10)).join(','), key = f + '|' + bs;
   if (!force && key === _fdKey) return; _fdKey = key;
-  $('fdBar').style.width = f + '%'; $('fdTxt').textContent = f; row.classList.toggle('low', f < 30); row.classList.toggle('crit', f <= 10);
+  $('fdBar').style.width = f + '%'; $('fdTxt').textContent = f; const fb = $('fdBox'); if (fb) { fb.classList.toggle('low', f < 30); fb.classList.toggle('crit', f <= 10); fb.title = '饱食度 ' + f + ' / 100'; }
+  row.style.display = Object.keys(S.fbuf).length ? '' : 'none';   // the row now only carries food buffs; the hunger bar sits under the XP bar
   const bx = $('fdBuf'); bx.innerHTML = '';
   for (const k in S.fbuf) { const B = BUFF_N[k], t = Math.ceil(S.fbuf[k].t), c = document.createElement('span'); c.className = 'fbuf'; c.style.setProperty('--bc', B[2]);
     c.innerHTML = '<i>' + B[0] + '</i>' + Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); bx.appendChild(c); }
 }
 { const st = $('status'), L = st && st.parentNode;
   if (L && L.insertBefore) { const r = document.createElement('div'); r.id = 'foodRow'; r.setAttribute('role', 'button'); r.setAttribute('aria-label', '饱食度');
-    r.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 3.5a5 5 0 0 1 0 7l-3 3-5-5 3-3a5 5 0 0 1 5-2z" fill="#e0a060" stroke="#fff" stroke-width="1.3"/><path d="M7.5 13.5l-3 3m0 0l-1.5-.5.5 2 2 .5-.5-1.5" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg><div class="bar fdb"><i id="fdBar"></i></div><b id="fdTxt">100</b><span id="fdBuf"></span>';
+    r.innerHTML = '<b id="fdTxt" hidden>100</b><span id="fdBuf"></span>';
+    // hunger: a thin bar right under the XP bar, like it
+    { const fx = document.createElement('div'); fx.className = 'bar fdx'; fx.id = 'fdBox'; fx.title = '饱食度'; fx.innerHTML = '<i id="fdBar"></i>'; const xb = st.querySelector('.bar.xp'); st.insertBefore(fx, xb ? xb.nextSibling : null); }
     L.insertBefore(r, st.nextSibling); r.addEventListener('click', () => { if (!S.started || S.dead || S.paused) return; bagTab = 'food'; openBag(); }); } }
 
 /* ---- wild plants: apple trees, berry bushes, chili plants, mushrooms. Picked plants regrow in a few minutes ---- */
@@ -14678,4 +14682,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794208599').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794209407').catch(()=>{});</script></body></html>
