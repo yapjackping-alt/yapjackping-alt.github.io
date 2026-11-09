@@ -13454,6 +13454,18 @@ shopLoad = (o => function (d) { o(d); S.rdm = {}; try { const a = d && d.sh && d
 renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!box) return; const r = document.createElement('div'); r.className = 'setrow';
   r.innerHTML = '<span>兑换码</span><div class="opts" style="gap:6px"><input id="rdmIn" maxlength="32" placeholder="输入兑换码" autocomplete="off" style="width:140px;padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.35);color:#fff;font-size:14px"><button class="sbtn on" id="rdmGo">兑换</button></div>';
   box.appendChild(r); r.querySelector('#rdmGo').addEventListener('click', () => { const i = $('rdmIn'); redeem(i && i.value); if (i) i.value = ''; }); } catch (e) { console.warn(e); } })(renderSettings);
+/* ============ 修复：从副本出来后去区域，传送成功了人却又回到海岛（朋友写的补丁，原样接入） ============
+   原因：副本在 x≈-19000 的假坐标上，有三条路会把副本坐标当成「上次离开的位置」S.gx/S.gz：
+   在副本里存档、在副本坐标上被送回海岛、码头用 S.gx/S.gz 找最近的区域。落点歪到副本附近，又被送回海岛。
+   修复：存档按「在海岛」存；回岛不许记副本坐标；出海目标在副本里就直接回岛；读档清掉被污染的位置；找区域起点是副本坐标就用原点。 */
+const dunBad = (x, z) => x != null && z != null && Number.isFinite(+x) && Number.isFinite(+z) && inDunArea(+x, +z);
+serialize = (o => function () { const d = o(); try { if (S.dun || (!S.isl && dunBad(player.pos.x, player.pos.z))) d.isl = 1; } catch (e) { } return d; })(serialize);
+goIsland = (o => function (silent) { const gx0 = S.gx, gz0 = S.gz; const r = o(silent);
+  try { if (dunBad(S.gx, S.gz)) { const ok = !dunBad(gx0, gz0); S.gx = ok ? gx0 : null; S.gz = ok ? gz0 : null; } } catch (e) { } return r; })(goIsland);
+goGround = (o => function (x, z) { if (dunBad(x, z)) { try { feed('这个位置在副本里，已送回海岛', '#ffd98a'); } catch (e) { } return goIsland(true); } return o(x, z); })(goGround);
+applySave = (o => function (d) { const r = o(d);
+  try { if (dunBad(S.gx, S.gz)) { S.gx = null; S.gz = null; } if (S._resume && dunBad(S._resume.x, S._resume.z)) S._resume = null; } catch (e) { } return r; })(applySave);
+findRegion = (o => function (t, x, z) { if (dunBad(x, z)) { x = 0; z = 0; } return o(t, x, z); })(findRegion);
 /* ============ 副本小地图：显示可以搜索的柜子（金色箱子图标；没开过的会闪，保险箱和样本柜画大一点，搜空就消失） ============ */
 function chestIcon(c, x, y, s, lit, big) {
   const w = s * (big ? 1.5 : 1.25), h = s, x0 = x - w / 2, y0 = y - h / 2;
@@ -14952,4 +14964,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794220307').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794221498').catch(()=>{});</script></body></html>
