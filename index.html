@@ -5416,11 +5416,14 @@ function onRemoteShot(m) {
   const d = m.data, x = +d.x, z = +d.z, dx = +d.dx, dz = +d.dz, l = clamp(+d.l, 0, 40);
   if (![x, z, dx, dz, l].every(Number.isFinite)) return;
   if (Math.hypot(x - player.pos.x, z - player.pos.z) > 90) return;
-  tracer(x, 1.5, z, x + dx * l, 1.5, z + dz * l, 0x7de0ff);
+  // the same streak the shooter sees: their weapon's colour, and every pellet for a shotgun
+  const c = Number.isFinite(+d.c) ? clamp(+d.c | 0, 0, 0xffffff) : 0xffe0a0, n = clamp(+d.p | 0, 1, 12), sp = clamp(+d.s || 0, 0, .5);
+  for (let i = 0; i < n; i++) { const a = i ? rand(-1, 1) * sp : 0, ca = Math.cos(a), sa = Math.sin(a), ux = dx * ca - dz * sa, uz = dx * sa + dz * ca; tracer(x, 1.5, z, x + ux * l, 1.45, z + uz * l, c); }
+  burst(x + dx * l, 1, z + dz * l, 0xffc080, 2, 2);
 }
-function mpShot(ox, oz, dx, dz, len) {
-  if (!MP.on || S.t - MP.tShot < .15) return; MP.tShot = S.t;
-  MP.room.emit('shot', { x: +ox.toFixed(1), z: +oz.toFixed(1), dx: +dx.toFixed(2), dz: +dz.toFixed(2), l: +len.toFixed(1) }).catch(() => { });
+function mpShot(ox, oz, dx, dz, len, col, pel, spr) {
+  if (!MP.on || S.t - MP.tShot < .1) return; MP.tShot = S.t;
+  MP.room.emit('shot', { x: +ox.toFixed(1), z: +oz.toFixed(1), dx: +dx.toFixed(2), dz: +dz.toFixed(2), l: +len.toFixed(1), c: col | 0, p: pel | 0, s: +(spr || 0).toFixed(2) }).catch(() => { });
 }
 function mpTick(dt) {
   if (!MP.on || !S.started) return;
@@ -6128,7 +6131,7 @@ function coopTick(dt) {
     const mates = groundMates().map(e => e[1]), md = z => z.boss ? -1 : Math.min(...mates.map(o => Math.hypot(o.tx - z.pos.x, o.tz - z.pos.z)));
     const cand = zombies.filter(z => !z.dead && !z.mirror && !z.animal).map(z => [md(z), z]).sort((p, q) => p[0] - q[0]).slice(0, 48).map(p => p[1]);   // boss first, then what's nearest to teammates
     for (const z of cand) { if (!z.nid) z.nid = ++COOP.nid;
-      list.push([z.nid, z.boss ? 3 : ZT_IDX.indexOf(z.type), Math.round(z.pos.x * 10), Math.round(z.pos.z * 10), Math.round(z.face * 100), Math.round(z.hp / z.max * 100), z.lv | 0, BUFF_IDX.indexOf(z.buff), z.elite ? 1 : 0, z.boss ? z.T && BOSS_TYPES.indexOf(z.T) : 0]); }
+      list.push([z.nid, z.boss ? 3 : ZT_IDX.indexOf(z.type), Math.round(z.pos.x * 10), Math.round(z.pos.z * 10), Math.round(z.face * 100), Math.round(z.hp / z.max * 100), z.lv | 0, BUFF_IDX.indexOf(z.buff), z.elite ? 1 : 0, z.boss ? z.T && BOSS_TYPES.indexOf(z.T) : 0, Math.round(z.max)]); }
     coopSend('zs', { z: list });
   }
 }
@@ -6141,7 +6144,12 @@ function onSnap(m) {
     const [id, ti, x10, z10, f100, hpp, lv, bi, el2, btp] = r; seen.add(id); let z = COOP.mirrors.get(id);
     if (!z) z = makeMirror(id, ti, x10 / 10, z10 / 10, clamp(lv, 1, 100), BUFF_IDX[bi] || null, !!el2, clamp(btp | 0, 0, BOSS_TYPES.length - 1));
     if (!z) continue; { const ag = S.t - (z.seen || 0); if (z.seen && ag > .05 && ag < 1) { z.vx = clamp((x10 / 10 - z.tx) / ag, -12, 12); z.vz = clamp((z10 / 10 - z.tz) / ag, -12, 12); } }
-    z.tx = x10 / 10; z.tz = z10 / 10; z.tf = f100 / 100; z.hp = Math.max(0, z.max * hpp / 100); z.seen = S.t;
+    if (Number.isFinite(r[10]) && r[10] > 0) z.max = r[10];     // the host's real max HP (a teammate's copy used to guess its own, so a hit showed empty and the next update full)
+    z.tx = x10 / 10; z.tz = z10 / 10; z.tf = f100 / 100; z.seen = S.t;
+    // my own hits show at once; the host's number only wins once it has had time to hear about them (no more full-empty-full flicker)
+    { const nh = Math.max(0, z.max * hpp / 100); z.hp = S.t - (z.hitT || -9) < 1.6 ? Math.min(z.hp, nh) : nh; }
+    // a short buffer of where the host says it is, played back a moment late so it moves smoothly
+    { const now = nowS(), B = z.buf || (z.buf = []); B.push([now, x10 / 10, z10 / 10, f100 / 100]); if (B.length > 8) B.shift(); }
   }
   for (const [id, z] of COOP.mirrors) if (!seen.has(id) && !z.dead) { z.gone = (z.gone || 0) + 1; if (z.gone > 6) dropMirror(z); } else if (seen.has(id)) z.gone = 0;
   if (boss && boss.mirror) refreshBossHud();
@@ -6158,19 +6166,27 @@ function makeMirror(id, ti, x, z, lv, buff, elite, btp) {
   zombies.push(zb); COOP.mirrors.set(id, zb); return zb;
 }
 function dropMirror(z) { COOP.mirrors.delete(z.nid); scene.remove(z.g); z.removed = true; z.dead = true; if (z === boss) { boss = null; el.boss.style.display = 'none'; } }
+// play a buffer of [time, x, z, face] samples back about two network ticks late: smooth even when packets arrive unevenly
+const nowS = () => (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now()) / 1000;
+function bufAt(B, x, z, f) { if (!B || !B.length) return [x, z, f]; const now = nowS(), n = B.length;
+  const gap = n > 1 ? clamp((B[n - 1][0] - B[0][0]) / (n - 1), .08, .4) : .2, rt = now - Math.min(.45, gap * 1.6);
+  if (rt <= B[0][0]) return [B[0][1], B[0][2], B[0][3]];
+  for (let i = n - 1; i > 0; i--) { const a = B[i - 1], b = B[i]; if (rt >= a[0] && rt <= b[0]) { const t = (rt - a[0]) / Math.max(.001, b[0] - a[0]); let df = b[3] - a[3]; df = Math.atan2(Math.sin(df), Math.cos(df)); return [a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + df * t]; } }
+  const L = B[n - 1], M = n > 1 ? B[n - 2] : L, dt = Math.max(.001, L[0] - M[0]), ex = Math.min(.25, rt - L[0]);     // ran past the newest: carry on a little
+  return [L[1] + (L[1] - M[1]) / dt * ex * (n > 1 ? 1 : 0), L[2] + (L[2] - M[2]) / dt * ex * (n > 1 ? 1 : 0), L[3]]; }
 function mirrorUpdate(z, dt) {
   if (z.dead) { z.deadT += dt; z.g.rotation.x = -Math.min(1.55, z.deadT * 5); if (z.deadT > 3) { COOP.mirrors.delete(z.nid); scene.remove(z.g); z.removed = true; if (z === boss) boss = null; } return; }
-  const ag = Math.min(.3, S.t - (z.seen || S.t)), ex = z.tx + (z.vx || 0) * ag, ez = z.tz + (z.vz || 0) * ag;      // carry on along its last movement until the next snapshot
-  const k = 1 - Math.exp(-12 * dt), dx = ex - z.pos.x, dz = ez - z.pos.z, mv = Math.hypot(dx, dz);
-  if (mv > 12) { z.pos.x = z.tx; z.pos.z = z.tz; } else { z.pos.x += dx * k; z.pos.z += dz * k; }
-  let d = z.tf - z.face; d = Math.atan2(Math.sin(d), Math.cos(d)); z.face += d * k; z.g.rotation.y = z.face;
+  const P = bufAt(z.buf, z.tx, z.tz, z.tf), k = 1 - Math.exp(-20 * dt), dx = P[0] - z.pos.x, dz = P[1] - z.pos.z, mv = Math.hypot(dx, dz);
+  if (mv > 12) { z.pos.x = P[0]; z.pos.z = P[1]; } else { z.pos.x += dx * k; z.pos.z += dz * k; }
+  let d = P[2] - z.face; d = Math.atan2(Math.sin(d), Math.cos(d)); z.face += d * k; z.g.rotation.y = z.face;
   z.anim = (z.anim || 0) + dt * Math.min(8, mv * 6);
   if (z.h && z.h.legL) { const sw = Math.sin(z.anim) * .7; z.h.legL.rotation.x = sw; z.h.legR.rotation.x = -sw; }
   if (COOP.follow && S.t - COOP.lastSnap > 3) dropMirror(z);       // host went quiet
 }
 // a hit on a mirrored zombie: show it here, let the host do the maths
 function coopHit(z, dmg) {
-  z.hp = Math.max(0, z.hp - dmg); burst(z.pos.x, 1.2 * z.sc, z.pos.z, z.boss ? 0x8d1621 : 0x6a1a22, z.boss ? 3 : 4, 3);
+  z.hp = Math.max(0, z.hp - dmg); z.hitT = S.t;
+  if (z.hp <= 0 && !z.boss && !z.dead) { z.dead = true; z.deadT = 0; }     // falls straight away here; the host confirms the kill (and your reward) a moment later burst(z.pos.x, 1.2 * z.sc, z.pos.z, z.boss ? 0x8d1621 : 0x6a1a22, z.boss ? 3 : 4, 3);
   COOP.hq.set(z.nid, (COOP.hq.get(z.nid) || 0) + dmg);
   if (z === boss) refreshBossHud();
 }
@@ -11068,6 +11084,7 @@ syncRemote = function (p) {
   if (!o) { o = makeRemote(name, lv, p.peer); o.g.position.set(x, 0, z); MP.others.set(p.peer, o); }
   else if (o.name !== name || o.lv !== lv) { o.name = name; o.lv = lv; setRemoteLabel(o); }
   if (o.tx !== x || o.tz !== z || o.rt == null) o.rt = Date.now();
+  { const f = +pr.f || 0, B = o.buf || (o.buf = []), L = B[B.length - 1]; if (!L || L[1] !== x || L[2] !== z || L[3] !== f || nowS() - L[0] > .5) { B.push([nowS(), x, z, f]); if (B.length > 8) B.shift(); } }
   o.tx = x; o.tz = z; o.vx = clamp(+pr.vx || 0, -20, 20); o.vz = clamp(+pr.vz || 0, -20, 20); o.tf = +pr.f || 0; o.mv = !!pr.mv; o.dead = !!pr.d; o.isl = !!pr.i;
   const sk = SKINS[pr.sk] ? pr.sk : '', gl = String(pr.gl || '').slice(0, 80), lk = sk + '|' + gl;
   if (lk !== o.lk) { o.lk = lk; remoteDress(o, sk, gl); }
@@ -11077,10 +11094,10 @@ syncRemote = function (p) {
 remotesTick = function (dt) {
   const now = Date.now();
   for (const o of MP.others.values()) {
-    const p = o.g.position, ag = Math.min(.35, (now - (o.rt || now)) / 1000), ex = o.tx + (o.vx || 0) * ag, ez = o.tz + (o.vz || 0) * ag;
-    const k = 1 - Math.exp(-12 * dt), dist = Math.hypot(ex - p.x, ez - p.z);
+    const p = o.g.position, P = bufAt(o.buf, o.tx, o.tz, o.tf), ex = P[0], ez = P[1];
+    const k = 1 - Math.exp(-20 * dt), dist = Math.hypot(ex - p.x, ez - p.z);
     if (dist > 25) { p.x = ex; p.z = ez; } else { p.x += (ex - p.x) * k; p.z += (ez - p.z) * k; }
-    let d = o.tf - o.g.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); o.g.rotation.y += d * k;
+    let d = P[2] - o.g.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); o.g.rotation.y += d * k;
     const spd = Math.hypot(o.vx || 0, o.vz || 0), moving = o.mv || spd > .5 || dist > .3; if (moving) o.walk += dt * Math.min(14, 6 + spd);
     const sw = moving ? Math.sin(o.walk) * .75 : 0; o.h.legL.rotation.x = sw; o.h.legR.rotation.x = -sw;
     o.g.rotation.x = o.dead ? -1.4 : 0; o.g.visible = !(o.isl || S.isl);
@@ -12749,7 +12766,7 @@ function dun2Build() {
   dBlood(20, -5, 2, .8, .3); dAnchor(12, -9); dAnchor(30, -9);
   // dorm
   dFloor(-14, -18, 4, 0, W.wood); d2Room('dorm', '宿舍', -14, -18, 4, 0, { st: 1 }); wallZ(-14, -32, 0, [], W.wall);
-  for (const x of [-11, -6]) { fBed(x, -15, 0); } fBed(-1, -3.5, Math.PI); dAnchor(-5, -9);
+  for (const x of [-11, 0]) { fBed(x, -14, 0); } fBed(-1, -3.5, Math.PI); dAnchor(-5, -9);
   // garage
   dFloor(40, -18, 58, 0, W.floor); d2Room('gar', '车库', 40, -18, 58, 0, { st: 1 }); wallZ(58, -32, 0, [], W.wall);
   { const g = new THREE.Group(); g.position.set(48, 0, -8); g.rotation.y = 1.4; DUN.G.add(g); box(2.6, 1.1, 4, W.orange, 0, .9, 0, g); box(2.3, .9, 1.8, W.orange, 0, 1.8, .5, g); for (const s of [-1, 1]) box(.6, .6, 4.4, W.dark, s * 1.3, .3, 0, g); DUN.obs.push(addBox(dX(48), dZ(-8), 2.2, 1.4)); }
@@ -13049,7 +13066,63 @@ dun2Build = (o => function () {
     }
   } catch (e) { console.warn('d2 cab fix', e); }
   return r;
-})(dun2Build);/* ============ 副本小地图：显示可以搜索的柜子（金色箱子图标；没开过的会闪，保险箱和样本柜画大一点，搜空就消失） ============ */
+})(dun2Build);/* ============ 副本里的丧尸寻路 + 副本里禁止建造 ============
+   副本是一间间房间和门，丧尸以前只会直线冲向你，隔着墙就卡住。现在副本里有一张 1 米一格的通行图（墙、门、家具都算挡路，
+   开着的门不算），从每个玩家的位置往外算「还要走几步」，丧尸顺着步数变少的方向走，会自己绕到门口进来。
+   离你很近、中间又没有墙的时候，还是直接扑过来。首领不用这个（首领房间是空的）。 */
+const DNAV = { blk: null, W: 0, H: 0, x0: 0, z0: 0, fields: new Map(), t: 0, sig: '' };
+const DNAV_R = .32;   // how much room a zombie needs next to a wall
+function dnavBuild() {
+  if (!DUN.rooms.length) { DNAV.blk = null; return; }
+  let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9; for (const r of DUN.rooms) { x0 = Math.min(x0, r.x0); z0 = Math.min(z0, r.z0); x1 = Math.max(x1, r.x1); z1 = Math.max(z1, r.z1); }
+  x0 = Math.floor(x0) - 2; z0 = Math.floor(z0) - 2; const W = Math.ceil(x1) + 2 - x0, H = Math.ceil(z1) + 2 - z0, blk = new Uint8Array(W * H).fill(1);
+  // walkable: inside a room (rooms share their walls, so a 1-cell margin joins them through doorways)
+  for (const r of DUN.rooms) for (let j = Math.floor(r.z0 - z0) - 1; j <= Math.ceil(r.z1 - z0); j++) for (let i = Math.floor(r.x0 - x0) - 1; i <= Math.ceil(r.x1 - x0); i++) if (i >= 0 && j >= 0 && i < W && j < H) blk[j * W + i] = 0;
+  for (const o of DUN.obs) { if (!o || !o.ck) continue;   // a removed obstacle (an open door) has no cells
+    const hw = (o.t === 0 ? o.r : o.hw) + DNAV_R, hd = (o.t === 0 ? o.r : o.hd) + DNAV_R;
+    for (let j = Math.floor(o.z - hd - z0); j <= Math.floor(o.z + hd - z0 - 1e-6); j++) for (let i = Math.floor(o.x - hw - x0); i <= Math.floor(o.x + hw - x0 - 1e-6); i++) if (i >= 0 && j >= 0 && i < W && j < H) blk[j * W + i] = 1; }
+  Object.assign(DNAV, { blk, W, H, x0, z0 }); DNAV.fields.clear(); }
+const dnCell = (x, z) => { const i = Math.floor(x - DNAV.x0), j = Math.floor(z - DNAV.z0); return i < 0 || j < 0 || i >= DNAV.W || j >= DNAV.H ? -1 : j * DNAV.W + i; };
+// the nearest open cell to a spot (people can stand where the zombie-sized margin says no)
+function dnOpen(c) { if (c < 0 || !DNAV.blk[c]) return c; const W = DNAV.W, i0 = c % W, j0 = (c / W) | 0;
+  for (let r = 1; r <= 3; r++) for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) { const i = i0 + di, j = j0 + dj; if (i < 0 || j < 0 || i >= W || j >= DNAV.H) continue; const k = j * W + i; if (!DNAV.blk[k]) return k; } return -1; }
+// steps-to-target from one goal cell (plain breadth-first over 8 neighbours, no cutting corners)
+function dnField(goal) { const W = DNAV.W, N = W * DNAV.H, d = new Int32Array(N).fill(-1), q = new Int32Array(N), blk = DNAV.blk; let h = 0, t = 0; d[goal] = 0; q[t++] = goal;
+  while (h < t) { const c = q[h++], i = c % W, j = (c / W) | 0, nd = d[c] + 1;
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { if (!di && !dj) continue; const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= W || jj >= DNAV.H) continue; const k = jj * W + ii; if (blk[k] || d[k] >= 0) continue;
+      if (di && dj && (blk[j * W + ii] || blk[jj * W + i])) continue; d[k] = nd; q[t++] = k; } }
+  return d; }
+function dnFieldFor(key, x, z) { const g = dnOpen(dnCell(x, z)); if (g < 0) return null; let F = DNAV.fields.get(key);
+  if (!F || F.g !== g) { if (DNAV.budget <= 0 && F) return F.d; DNAV.budget--; F = { g, d: dnField(g) }; DNAV.fields.set(key, F); } return F.d; }
+// is the straight line clear (for the last few metres)?
+function dnClear(ax, az, bx, bz) { const L = Math.hypot(bx - ax, bz - az), n = Math.ceil(L / .4); for (let s = 1; s < n; s++) { const c = dnCell(ax + (bx - ax) * s / n, az + (bz - az) * s / n); if (c < 0 || DNAV.blk[c]) return false; } return true; }
+function dnWay(z, tg) { const d = dnFieldFor(tg.peer || 'me', tg.x, tg.z); if (!d) return null; const W = DNAV.W, blk = DNAV.blk;
+  let c = dnOpen(dnCell(z.pos.x, z.pos.z)); if (c < 0 || d[c] < 0) return null;
+  for (let s = 0; s < 4; s++) { const i = c % W, j = (c / W) | 0; let best = c, bd = d[c];
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { if (!di && !dj) continue; const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= W || jj >= DNAV.H) continue; const k = jj * W + ii;
+      if (blk[k] || d[k] < 0 || d[k] >= bd) continue; if (di && dj && (blk[j * W + ii] || blk[jj * W + i])) continue; best = k; bd = d[k]; }
+    if (best === c) break; c = best; if (!dnClear(z.pos.x, z.pos.z, DNAV.x0 + c % W + .5, DNAV.z0 + ((c / W) | 0) + .5)) break; }
+  let wx = DNAV.x0 + c % W + .5, wz = DNAV.z0 + ((c / W) | 0) + .5;
+  // keep the waypoint a few metres out, so a zombie never "attacks" a doorway
+  const vx = wx - z.pos.x, vz = wz - z.pos.z, vl = Math.hypot(vx, vz); if (vl < .05) return null; if (vl < 3) { wx = z.pos.x + vx / vl * 3; wz = z.pos.z + vz / vl * 3; }
+  return [wx, wz]; }
+zTarget = (o => function (z) { const tg = o(z); if (!S.dun || !DNAV.blk || z.boss || z.mirror || !(tg.d < 1e8)) return tg;
+  try { if (tg.d < 5 && dnClear(z.pos.x, z.pos.z, tg.x, tg.z)) return tg; const w = dnWay(z, tg); if (w) return { x: w[0], z: w[1], peer: tg.peer, d: tg.d }; } catch (e) { } return tg; })(zTarget);
+// keep the map current: rebuilt when a door opens or a room is built, at most a couple of new step-maps a frame
+zSpecialTick = (o => function (dt) { o(dt); if (!S.dun || !DUN.st) { if (DNAV.blk) { DNAV.blk = null; DNAV.fields.clear(); DNAV.sig = ''; } return; }
+  DNAV.budget = 2; DNAV.t -= dt; if (DNAV.t > 0 && DNAV.blk) return; DNAV.t = .5;
+  const sig = DUN.rooms.length + ':' + DUN.obs.length + ':' + Object.keys(DUN.doors).filter(k => DUN.doors[k].open).join(',') + ':' + (DUN.id || 1);
+  if (sig !== DNAV.sig || !DNAV.blk) { DNAV.sig = sig; try { dnavBuild(); } catch (e) { console.warn('dnav', e); DNAV.blk = null; } } })(zSpecialTick);
+
+/* ---- no building inside a dungeon; anything built in there before is taken down and paid back ---- */
+toggleBuild = (o => function () { if (S.dun) { feed('副本里不能建造', '#ff9b8a'); return; } return o(); })(toggleBuild);
+placeBuild = (o => function () { if (S.dun) return; return o(); })(placeBuild);
+function dunClearBuilds() { let n = 0; try { for (const b of builds.slice()) if (b && inDunArea(b.x, b.z)) { try { const c = costOf(b.type); S.wood += c.wood || 0; S.metal += c.metal || 0; } catch (e) { } dropBuild(b); n++; } } catch (e) { }
+  if (n) { feed('副本里不能建造：之前在里面造的 ' + n + ' 个建筑已拆掉，材料全额退回', '#ffd98a'); refreshHud(); saveGame(); } }
+dunEnter = (o => function () { if (S.dun) return o(); try { if (typeof buildOpen !== 'undefined' && buildOpen) toggleBuild(); } catch (e) { } o(); if (S.dun) dunClearBuilds(); })(dunEnter);
+shopLoad = (o => function (d) { o(d); setTimeout(() => { if (!S.dun) dunClearBuilds(); }, 0); })(shopLoad);
+try { const st = document.createElement('style'); st.textContent = 'body.inDun #bBuild{display:none!important}'; document.head.appendChild(st); } catch (e) { }
+/* ============ 副本小地图：显示可以搜索的柜子（金色箱子图标；没开过的会闪，保险箱和样本柜画大一点，搜空就消失） ============ */
 function chestIcon(c, x, y, s, lit, big) {
   const w = s * (big ? 1.5 : 1.25), h = s, x0 = x - w / 2, y0 = y - h / 2;
   c.fillStyle = 'rgba(0,0,0,.7)'; c.fillRect(x0 - 1.5, y0 - 1.5, w + 3, h + 3);
@@ -13964,7 +14037,7 @@ function shoot() {
     { const MK = typeof wsMyth === 'function' ? wsMyth() : null, fm = (typeof fpMuzzle === 'function' ? fpMuzzle() : null) || (typeof tpMuzzle === 'function' ? tpMuzzle() : null);   // first person: the shot leaves your own gun
       { const L2 = FPS && fm ? Math.min(.35, 1.4 / Math.max(1, end)) : 0; fm && L2 && fm.set(fm.x + (ox + ndx * end - fm.x) * L2, fm.y + ((FPS ? Math.max(.02, yAt(end)) : 1.45 + PY) - fm.y) * L2, fm.z + (oz + ndz * end - fm.z) * L2); }   // first person: the streak starts a little ahead of the gun, not as a wide band across the screen
       tracer(fm ? fm.x : ox, fm ? fm.y : 1.55 + PY, fm ? fm.z : oz, ox + ndx * end, FPS ? Math.max(.02, yAt(end)) : 1.45 + PY, oz + ndz * end, MK ? MK.tr : W.pierce ? 0xbfe6ff : 0xffe0a0); if (FPS) { const t = tracePool[(traceI - 1) % tracePool.length]; t.m.scale.x = t.m.scale.y = .3; } if (MK) try { mythShot(MK, ox, oz, ndx, ndz, end, n > 0, fm, p); } catch (e) { } }
-    if (p === 0) mpShot(ox, oz, ndx, ndz, end);
+    if (p === 0) mpShot(ox, oz, ndx, ndz, end, (typeof wsMyth === "function" && wsMyth()) ? wsMyth().tr : W.pierce ? 0xbfe6ff : 0xffe0a0, W.pel, W.spr);
     for (let i = 0; i < n; i++) {
       const z = hits[i][1], r = dmgRoll(z, base * Math.pow(.8, i)); hurtZombie(z, r.d, ndx, ndz); traitHit(z, r.d, r.crit); if (ts('burn') && !z.dead) { z.burnD = Math.max(z.burnT > 0 ? (z.burnD || 0) : 0, r.d * .1 * ts('burn')); z.burnT = 3; }
       if (W.kb && !z.boss) { z.knx = ndx * W.kb * 2.4; z.knz = ndz * W.kb * 2.4; }
@@ -14545,4 +14618,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794205090').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794207815').catch(()=>{});</script></body></html>
