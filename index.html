@@ -12315,7 +12315,7 @@ function dunEnter() {
   S.spawnT = 1e9; S.hordeT = 1e9; S.landT = S.t; dunPower(false); document.body.classList.add('inDun');
   if (DUN.id === 2) { dun2Start(); try { dunTrk(); } catch (e) { } refreshHud(); saveGame(); return; }
   player.pos.set(dX(30), 0, dZ(8)); player.face = Math.PI; camPos.set(player.pos.x, camH, player.pos.z + camD);
-  banner('副本 · 圣心医院', '零号病人 · 推荐 Lv.' + DUN_LV[0] + ' 以上 · 左下角「回岛」可以随时离开（进度不保存）', 4.5);
+  banner('副本 · 圣心医院', '零号病人 · 推荐 Lv.' + DUN_LV[0] + ' 以上 · 左下角「回岛」可以随时离开（没打完的话，里面拿到的东西带不出来）', 4.5);
   if (!S.dg.seen) { S.dg.seen = 1; storyTalk(DUN_TXT.intro); } else storyTalk([DUN_TXT.intro[1]]);
   try { dunTrk(); } catch (e) { } refreshHud(); saveGame();
 }
@@ -12445,7 +12445,7 @@ function dunGuide() { if (!S.dun || !DUN.st) return; const st = DUN.st, old = $(
     '<div class="dunnow"><small>现在要做</small><b>' + DUN_GOAL[st.stage] + '</b><p>' + DUN_HOW[st.stage] + '</p></div><ol class="dunlist">' +
     DUN_GOAL.map((g, i) => '<li class="' + (i < st.stage ? 'ok' : i === st.stage ? 'on' : '') + '">' + (i < st.stage ? '✓ ' : '') + g + '</li>').join('') + '</ol>' +
     '<div class="dunsec">隐藏任务：录音 ' + rec + ' / 4' + (S.dg.safe ? ' · 保险柜已打开' : ' · 四段录音各藏一个数字，集齐后去地下二层「林医生办公室」打开保险柜') + '</div>' +
-    '<div class="dunsec">小地图：绿色「!」是现在要去的地方，黄点是保险丝，蓝点是门禁卡。中途按「回岛」离开，这一趟的进度不保存。</div></div>';
+    '<div class="dunsec">小地图：绿色「!」是现在要去的地方，黄点是保险丝，蓝点是门禁卡。中途按「回岛」离开，在里面拿到的东西都带不出来（经验保留）。</div></div>';
   document.body.appendChild(m); const close = () => m.remove(); m.addEventListener('click', e => { if (e.target === m) close(); }); m.querySelector('.dunmx').addEventListener('click', close); }
 /* ---- the dungeon page (from the pier) ---- */
 function openDunPage() { DUN.id = 1; try { audioInit(); } catch (e) { } const old = $('dunPageM'); if (old) old.remove(); const rc = recCP(2), cp = combatPower(), ok = cp >= rc * .8, rec = Object.keys(S.dg.rec).length;
@@ -12460,7 +12460,7 @@ function openDunPage() { DUN.id = 1; try { audioInit(); } catch (e) { } const ol
     '<div class="' + (S.dg.safe ? 'got' : '') + '"><small>隐藏 · 林医生的保险柜' + (S.dg.safe ? ' · 已打开' : '') + '</small>黄金配件 · 晶石 ×50 · 首领之心</div></div>' +
     '<div class="duncol"><small>收藏品 ' + COL_ORDER.filter(k => S.colx[k]).length + ' / ' + COL_ORDER.length + ' · 只在这个副本出现，非常难找，可以放进海岛的「展示柜」</small><div>' +
       COL_ORDER.map(k => '<span class="' + (S.colx[k] ? 'own' : '') + '">' + (S.colx[k] ? svgIcon('col_' + k) : '<em>?</em>') + '<b>' + (S.colx[k] ? COLX[k].n : '？？？') + '</b><i>' + COLX[k].w + '</i></span>').join('') + '</div></div>' +
-    '<p class="dunnote">经验按副本等级（Lv.' + DUN_LV[1] + '）计算，你的等级超过 Lv.' + (DUN_LV[1] + 5) + ' 之后，通关经验会越来越少。<br>单人副本 · 中途按「回岛」离开或者倒下，这一趟进度不保存（录音和保险柜拿到就算数）。</p>' +
+    '<p class="dunnote">经验按副本等级（Lv.' + DUN_LV[1] + '）计算，你的等级超过 Lv.' + (DUN_LV[1] + 5) + ' 之后，通关经验会越来越少。<br>可以组队 · 中途按「回岛」离开或者倒下：这一趟在副本里拿到的东西全部带不出来，只保留经验（录音照样算数）。打完首领领了奖励再走，东西才算你的。</p>' +
     '<button class="go dungo">进入副本</button></div>';
   document.body.appendChild(m); const close = () => m.remove(); m.addEventListener('click', e => { if (e.target === m) close(); }); m.querySelector('.dunmx').addEventListener('click', close);
   m.querySelector('.dungo').addEventListener('click', () => { close(); dunTravel('正在进入副本', '圣心医院 · 零号病人', dunEnter); }); }
@@ -12879,7 +12879,7 @@ function dun2Setup() {
 function dun2Start() {
   DUN_LV[0] = D2_LV[0]; DUN_LV[1] = D2_LV[1]; S.d2tmp = 100;
   player.pos.set(dX(22), 0, dZ(6)); player.face = Math.PI; camPos.set(player.pos.x, camH, player.pos.z + camD);
-  banner('副本 · 永冬站', '冰封者 · 推荐 Lv.' + D2_LV[0] + ' 以上 · 注意体温 · 左下角「回岛」可以随时离开（进度不保存）', 4.5);
+  banner('副本 · 永冬站', '冰封者 · 推荐 Lv.' + D2_LV[0] + ' 以上 · 注意体温 · 左下角「回岛」可以随时离开（没打完的话，里面拿到的东西带不出来）', 4.5);
   if (!S.dg2.seen) { S.dg2.seen = 1; storyTalk(D2_TXT.intro); } else storyTalk([D2_TXT.intro[1]]);
 }
 // pick the hospital or the station from the pier, then call this: it is what the pier, invites and the party button use
@@ -12958,7 +12958,7 @@ dunGuide = (o => function () { if (!S.dun || DUN.id !== 2) return o(); if (!DUN.
     '<div class="dunnow"><small>现在要做</small><b>' + D2_GOAL[st.stage] + '</b><p>' + D2_HOW[st.stage] + '</p></div><ol class="dunlist">' +
     D2_GOAL.map((g, i) => '<li class="' + (i < st.stage ? 'ok' : i === st.stage ? 'on' : '') + '">' + (i < st.stage ? '✓ ' : '') + g + '</li>').join('') + '</ol>' +
     '<div class="dunsec">体温：雪地和冰层里会越来越冷，掉到 0 开始掉血。锅炉点着之后，站里的房间都是暖的；冰层里去周博士实验室或档案室回暖。</div>' +
-    '<div class="dunsec">小地图：绿色「!」是现在要去的地方，蓝点是喷灯。中途按「回岛」离开，这一趟的进度不保存。</div></div>';
+    '<div class="dunsec">小地图：绿色「!」是现在要去的地方，蓝点是喷灯。中途按「回岛」离开，在里面拿到的东西都带不出来（经验保留）。</div></div>';
   document.body.appendChild(m); const close = () => m.remove(); m.addEventListener('click', e => { if (e.target === m) close(); }); m.querySelector('.dunmx').addEventListener('click', close); })(dunGuide);
 function openDun2Page() { DUN.id = 2; try { audioInit(); } catch (e) { } const old = $('dunPageM'); if (old) old.remove(); const rc = recCP(3), cp = combatPower(), ok = cp >= rc * .8, lock = !S.dg.first;
   const m = document.createElement('div'); m.id = 'dunPageM'; m.className = 'dunm d2m';
@@ -12968,7 +12968,7 @@ function openDun2Page() { DUN.id = 2; try { audioInit(); } catch (e) { } const o
     '<div class="dunfacts"><span>推荐等级 <b>Lv.' + D2_LV[0] + '+</b></span><span>丧尸等级 <b>Lv.' + D2_LV[0] + '-' + D2_LV[1] + '</b></span><span>建议战力 <b style="color:' + (ok ? '#8fe05a' : '#ff9b8a') + '">' + rc + '</b>（你 ' + cp + '）</span><span>通关 <b>' + (S.dg2.c | 0) + '</b> 次</span><span>特殊：<b style="color:#9fe8ff">体温</b></span></div>' +
     '<div class="dunrw"><div class="' + (S.dg2.first ? 'got' : '') + '"><small>首通奖励' + (S.dg2.first ? ' · 已领取' : '') + '</small>经验 +' + d2Xp(true) + ' · 黄金装备 · 首领之心 ×3 · 图纸残页 ×60 · 精密零件 ×40 · 余烬币 5000 · 晶石 150</div>' +
     '<div><small>每次通关</small>经验 +' + d2Xp(false) + ' · 图纸残页 ×18 · 精密零件 ×14 · 余烬币 1200 · 有机会掉史诗装备</div></div>' +
-    '<p class="dunnote">打开过圣心医院林医生的保险柜、或者收集到「小雨的布兔子」的人，在冷冻舱那里会看到不一样的剧情。<br>经验按副本等级（Lv.' + D2_LV[1] + '）计算，你超过 Lv.' + (D2_LV[1] + 5) + ' 之后会越来越少。中途「回岛」或倒下，这一趟进度不保存。</p>' +
+    '<p class="dunnote">打开过圣心医院林医生的保险柜、或者收集到「小雨的布兔子」的人，在冷冻舱那里会看到不一样的剧情。<br>经验按副本等级（Lv.' + D2_LV[1] + '）计算，你超过 Lv.' + (D2_LV[1] + 5) + ' 之后会越来越少。中途「回岛」或倒下：在里面拿到的东西全部带不出来，只保留经验。</p>' +
     (lock ? '<button class="go dungo" disabled>先通关「圣心医院」才能进入</button>' : '<button class="go dungo">进入副本</button>') + '</div>';
   document.body.appendChild(m); const close = () => m.remove(); m.addEventListener('click', e => { if (e.target === m) close(); }); m.querySelector('.dunmx').addEventListener('click', close);
   if (lock) return; m.querySelector('.dungo').addEventListener('click', () => { close(); dun2Enter(); }); dunPartyAdd(); }
@@ -13122,6 +13122,66 @@ function dunClearBuilds() { let n = 0; try { for (const b of builds.slice()) if 
 dunEnter = (o => function () { if (S.dun) return o(); try { if (typeof buildOpen !== 'undefined' && buildOpen) toggleBuild(); } catch (e) { } o(); if (S.dun) dunClearBuilds(); })(dunEnter);
 shopLoad = (o => function (d) { o(d); setTimeout(() => { if (!S.dun) dunClearBuilds(); }, 0); })(shopLoad);
 try { const st = document.createElement('style'); st.textContent = 'body.inDun #bBuild{display:none!important}'; document.head.appendChild(st); } catch (e) { }
+/* ============ 副本结算 + 开枪键不会再卡住 ============
+   进副本时记下你身上有什么。通关（打完首领、领了奖励）后离开：结算页列出这一趟带出来的东西。
+   没打完就离开（回岛、倒下、中途关掉游戏）：在里面拿到的东西全部收回，只保留经验；在里面用掉的东西也不退。
+   规则是「每样东西取进去之前和现在的较少的那个」，所以既拿不到新东西，也不会多出来。录音（副本一的故事记录）照样算数。 */
+const DSN_K = ['wood', 'metal', 'med', 'core', 'coin', 'reserve', 'gem'];
+let DSNAP = null;
+const gId = it => Array.isArray(it) ? it[0] + ':' + it[4] + ':' + it[2] : '';
+function dsnTake() { DSNAP = { id: DUN.id || 1, v: {}, inv: Object.assign({}, S.inv), g: (S.ginv || []).map(gId), av: (S.av || []).length, colx: Object.keys(S.colx || {}), safe: S.dg ? S.dg.safe | 0 : 0, xp: S.xp, lv: S.level };
+  for (const k of DSN_K) DSNAP.v[k] = S[k] | 0; }
+// what changed since going in: [{k, n}] gains (n > 0)
+function dsnDiff(sn) { const out = [];
+  for (const k of DSN_K) { const d = (S[k] | 0) - (sn.v[k] | 0); if (d > 0 && k !== 'reserve') out.push({ k: k === 'gem' ? 'gem' : k, n: d }); }
+  for (const k in S.inv) { const d = (S.inv[k] | 0) - (sn.inv[k] | 0); if (d > 0) out.push({ k, n: d }); }
+  const had = new Set(sn.g); for (const it of S.ginv || []) if (!had.has(gId(it))) out.push({ k: 'gear', it, n: 1 });
+  for (let i = sn.av; i < (S.av || []).length; i++) out.push({ k: 'att', a: S.av[i], n: 1 });
+  for (const k of Object.keys(S.colx || {})) if (!sn.colx.includes(k)) out.push({ k: 'col', id: k, n: 1 });
+  return out; }
+// not finished: everything goes back to at most what you came in with
+function dsnRevert(sn) {
+  for (const k of DSN_K) S[k] = Math.min(S[k] | 0, sn.v[k] | 0);
+  for (const k in S.inv) { const v = Math.min(S.inv[k] | 0, sn.inv[k] | 0); if (v > 0) S.inv[k] = v; else delete S.inv[k]; }
+  const had = new Set(sn.g); if (S.ginv) S.ginv = S.ginv.filter(it => had.has(gId(it)));
+  if (S.av && S.av.length > sn.av) S.av.length = sn.av;
+  if (S.colx) for (const k of Object.keys(S.colx)) if (!sn.colx.includes(k)) delete S.colx[k];
+  if (S.dg && !sn.safe) S.dg.safe = 0;
+  try { showcaseRefresh(); } catch (e) { } try { gemHud(); } catch (e) { } refreshHud(); }
+function dsnName(o) { if (o.k === 'gear') return GQ[o.it[1]].n + gName(o.it); if (o.k === 'att') { try { return ATT_K[o.a[0]][o.a[1]].n; } catch (e) { return '配件'; } } if (o.k === 'col') return COLX[o.id] ? COLX[o.id].n : '收藏品';
+  if (o.k === 'gem') return '晶石'; if (o.k === 'wood') return '木材'; if (o.k === 'metal') return '金属'; if (o.k === 'med') return '医疗包'; if (o.k === 'core') return '核心'; return _iInfo(o.k).n; }
+function dsnIcon(o) { try { if (o.k === 'gear') return icHtml('gsl:' + o.it[1] + ':' + gSlot(o.it)); if (o.k === 'col') return svgIcon('col_' + o.id); if (o.k === 'att') return svgIcon('apart'); if (o.k === 'gem') return icHtml('gem:1'); return svgIcon(o.k); } catch (e) { return ''; } }
+function dsnShow(win, list, xp, nm) { const old = $('dsnM'); if (old) old.remove(); const m = document.createElement('div'); m.id = 'dsnM'; m.className = 'dunm' + (DSNAP && DSNAP.id === 2 ? ' d2m' : '');
+  const rows = list.length ? list.slice(0, 40).map(o => '<span class="' + (win ? '' : 'lost') + '">' + dsnIcon(o) + '<b>' + dsnName(o) + '</b><small>' + (o.k === 'gear' ? 'Lv.' + o.it[2] : '×' + o.n) + '</small></span>').join('') : '<p class="dsnnone">' + (win ? '这一趟没有带出新的东西' : '这一趟在里面没有拿到东西') + '</p>';
+  m.innerHTML = '<div class="dunmb dsnb"><b class="dsnh ' + (win ? 'ok' : 'no') + '">' + (win ? '副本结算 · 通关' : '副本结算 · 未通关') + '</b><small class="dsnsub">' + nm + '</small>' +
+    '<div class="dsnxp">经验 +' + Math.max(0, xp) + (win ? '' : '（经验保留）') + '</div>' +
+    '<div class="dsnlab">' + (win ? '带出来的东西' : '没打完就离开：下面这些全部带不出来') + '</div><div class="dsng">' + rows + '</div>' +
+    (win ? '' : '<p class="dsnnote">要打完首领、领到通关奖励之后再离开，里面拿到的东西才算你的。</p>') + '<button class="go dsnok">知道了</button></div>';
+  document.body.appendChild(m); const close = () => m.remove(); m.querySelector('.dsnok').addEventListener('click', close); m.addEventListener('click', e => { if (e.target === m) close(); }); }
+// how much XP this run gave (levels included)
+function dsnXp(sn) { try { let x = 0; for (let l = sn.lv; l < S.level; l++) x += xpNeed(l); return Math.round(x + S.xp - sn.xp); } catch (e) { return 0; } }
+dunEnter = (o => function () { const was = S.dun; o(); if (!was && S.dun) { dsnTake(); saveGame(); } })(dunEnter);
+dunCleanup = (o => function () { const on = DUN.on, sn = DSNAP, done = !!(DUN.st && DUN.st.done), nm = DUN.id === 2 ? '永冬站 · 冰封者' : '圣心医院 · 零号病人';
+  o(); if (!on || !sn) return; DSNAP = null;
+  const list = dsnDiff(sn), xp = dsnXp(sn); if (!done) dsnRevert(sn);
+  saveGame(); setTimeout(() => { try { dsnShow(done, list, xp, nm); } catch (e) { console.warn(e); } }, 2300); })(dunCleanup);
+// closed the game inside a dungeon: the next start counts it as leaving early
+shopSave = (o => function () { const r = o(); try { if (DSNAP && S.dun) r.dsnap = DSNAP; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); try { const sn = d && d.sh && d.sh.dsnap; if (sn && sn.v && Array.isArray(sn.g) && Array.isArray(sn.colx)) setTimeout(() => { if (S.dun) return; const list = dsnDiff(sn); dsnRevert(sn); saveGame(); if (list.length) setTimeout(() => dsnShow(false, list, 0, '上次在副本里中途离开了游戏'), 1500); }, 0); } catch (e) { } })(shopLoad);
+try { const st = document.createElement('style'); st.textContent =
+  '.dsnb{text-align:center}.dsnh{display:block;font-size:20px;letter-spacing:.08em}.dsnh.ok{color:#ffd98a}.dsnh.no{color:#ff9b8a}.dsnsub{display:block;opacity:.7;margin:2px 0 8px}' +
+  '.dsnxp{display:inline-block;padding:4px 12px;border-radius:999px;background:rgba(143,224,90,.15);border:1px solid rgba(143,224,90,.5);color:#bff09a;font-weight:800;font-size:13px}' +
+  '.dsnlab{font-size:12.5px;opacity:.8;margin:10px 0 6px}.dsng{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:6px;max-height:42vh;overflow:auto}' +
+  '.dsng span{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 3px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,214,140,.35)}.dsng span.lost{opacity:.55;border-color:rgba(255,120,110,.4);filter:grayscale(.6)}' +
+  '.dsng .ic{width:32px;height:32px}.dsng b{font-size:11px;line-height:1.2}.dsng small{font-size:11px;opacity:.8}.dsnnone{opacity:.6;font-size:13px}.dsnnote{font-size:12px;color:#ffb0a0;margin:8px 0 0}.dsnok{width:100%;margin-top:10px}';
+  document.head.appendChild(st); } catch (e) { }
+
+/* ---- the fire button never sticks: it only fires while a finger is really on it (or Space is held) ---- */
+const FIREP = new Set();
+try { const b = $('bFire'); if (b && b.addEventListener) { b.addEventListener('pointerdown', e => FIREP.add(e.pointerId)); ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => b.addEventListener(ev, e => { FIREP.delete(e.pointerId); if (!FIREP.size && !keys.Space) input.fire = false; b.classList.remove('on'); })); } } catch (e) { }
+const fireReset = () => { FIREP.clear(); keys.Space = false; input.fire = false; try { $('bFire').classList.remove('on'); } catch (e) { } };
+try { window.addEventListener('blur', fireReset); window.addEventListener('pagehide', fireReset); document.addEventListener('visibilitychange', fireReset); } catch (e) { }
+zSpecialTick = (o => function (dt) { o(dt); if (input.fire && !FIREP.size && !keys.Space) input.fire = false; })(zSpecialTick);
 /* ============ 副本小地图：显示可以搜索的柜子（金色箱子图标；没开过的会闪，保险箱和样本柜画大一点，搜空就消失） ============ */
 function chestIcon(c, x, y, s, lit, big) {
   const w = s * (big ? 1.5 : 1.25), h = s, x0 = x - w / 2, y0 = y - h / 2;
@@ -14618,4 +14678,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794207815').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794208599').catch(()=>{});</script></body></html>
