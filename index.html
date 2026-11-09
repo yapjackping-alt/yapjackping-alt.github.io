@@ -13323,7 +13323,7 @@ openDun2Page = (o => function () { o(); try { const m = $('dunPageM'), n = m && 
 
 /* ---- collection sets: finish every keepsake of one rarity in a dungeon for a lasting bonus (counted in 战力) ---- */
 const COLSET = { 1: { 2: { hpPct: .01 }, 3: { dmg: .01 }, 4: { hpPct: .02, dmg: .01 }, 5: { dmg: .03, def: .02 } },
-                 2: { 2: { hpPct: .015 }, 3: { dmg: .015 }, 4: { hpPct: .03, dmg: .015 }, 5: { dmg: .045, def: .03 } } };
+                 2: { 2: { hpPct: .012 }, 3: { dmg: .012 }, 4: { hpPct: .024, dmg: .012 }, 5: { dmg: .036, def: .024 } } };   // each harder dungeon ×1.2
 const COLSET_N = { hpPct: '生命', dmg: '伤害', def: '减伤' };
 const colSetDone = (d, r) => { const ks = colOf(d).filter(k => COLX[k].r === r); return ks.length > 0 && ks.every(k => colN(k) > 0); };
 function colSetSt(k) { let v = 0; for (const d in COLSET) for (const r in COLSET[d]) if (COLSET[d][r][k] && colSetDone(+d, +r)) v += COLSET[d][r][k]; return v; }
@@ -14885,4 +14885,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794215606').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794215869').catch(()=>{});</script></body></html>
