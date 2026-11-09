@@ -12388,7 +12388,7 @@ function dunTick(dt) {
   if (D1 && AU && st.stage === 7 && st.bossOn) st.stage = 8;
   if (D1 && AU && st.stage === 8 && st.boss && st.boss.dead) { st.stage = 9; doorOpen('exit'); say2('win'); DUN.bx = st.boss.pos.x; DUN.bz = st.boss.pos.z; }
   if (D1 && AU && st.bossOn && st.stage >= 7 && st.stage < 9 && !(st.boss && !st.boss.mirror && !st.boss.removed) && !(boss && !boss.mirror)) { st.bossOn = false; dunBoss(); }   // the old leader left mid-fight
-  if (D1 && st.stage === 9 && !DUN.coatRolled) { DUN.coatRolled = 1; if (!S.colx.coat && Math.random() < COLX.coat.ch) { const bx = (DUN.bx != null ? DUN.bx : dX(220)) - DUN.x, bz = (DUN.bz != null ? DUN.bz : dZ(-29)) - DUN.z; dPick(bx, bz, 'col', 0xff7ad8, () => colGet('coat')); banner('首领掉落了收藏品！', COLX.coat.n, 3); } }
+  if (D1 && st.stage === 9 && !DUN.coatRolled) { DUN.coatRolled = 1; if (Math.random() < COLX.coat.ch) { const bx = (DUN.bx != null ? DUN.bx : dX(220)) - DUN.x, bz = (DUN.bz != null ? DUN.bz : dZ(-29)) - DUN.z; dPick(bx, bz, 'col', 0xff7ad8, () => colGet('coat')); banner('首领掉落了收藏品！', COLX.coat.n, 3); } }
   if (AU && typeof MP !== 'undefined' && MP.on && MP.others.size) { DUN.syncT = (DUN.syncT || 0) - dt; if (DUN.syncT <= 0) { DUN.syncT = .5; dunSync(); } }
   // tubes glow
   if (DUN.tubes) for (const g of DUN.tubes) g.material.opacity = .45 + Math.sin(S.t * 2) * .1;
@@ -12751,7 +12751,7 @@ function dun2Build() {
   /* ===== surface ===== */
   // snowfield: the snowcat, a fence, drifts
   dFloor(-20, 0, 64, 20, W.snow); d2Room('snow', '雪原', -20, 0, 64, 20, { cold: 1 });
-  wallZ(-20, 0, 20, [], W.wall2, 1.2); wallZ(64, 0, 20, [], W.wall2, 1.2); wallX(20, -20, 64, [], W.wall2, 1.2);
+  wallZ(-20, 0, 20, [], W.wall2, 1.2); wallZ(64, 0, 20, [], W.wall2, 1.2); wallX(0, -20, -14, [], W.wall2, 1.2); wallX(0, 58, 64, [], W.wall2, 1.2);   // the two corners between the fence and the station wallX(20, -20, 64, [], W.wall2, 1.2);
   { const g = new THREE.Group(); g.position.set(22, 0, 12); g.rotation.y = .25; DUN.G.add(g); box(3.2, 1.4, 5, W.orange, 0, 1.1, 0, g); box(2.8, 1.1, 2.4, W.orange, 0, 2.2, .6, g); box(2.6, .8, .06, M.glass, 0, 2.3, -.62, g);
     for (const s of [-1, 1]) box(.7, .7, 5.6, W.dark, s * 1.6, .35, 0, g); box(.5, .3, .1, M.lampW, -1, 1.4, -2.52, g); box(.5, .3, .1, M.lampW, 1, 1.4, -2.52, g); DUN.obs.push(addBox(dX(22), dZ(12), 1.9, 2.9)); }
   for (let i = 0; i < 14; i++) { const d = new THREE.Mesh(new THREE.SphereGeometry(1, 7, 5), W.snow); d.scale.set(rand(1, 2.4), rand(.25, .6), rand(1, 2)); d.position.set(rand(-18, 62), 0, rand(2, 18)); if (Math.abs(d.position.x - 22) < 5) continue; d.userData.noCast = 1; DUN.G.add(d); }
@@ -12821,7 +12821,7 @@ function dun2Build() {
   { const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(150,230,255,.9)', 'rgba(150,230,255,0)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); gl.scale.set(4, 4, 1); gl.position.set(158, 1.2, -65); DUN.G.add(gl); DUN.c07gl = gl; }
   for (const x of [146, 158, 170]) for (const z of [-60, -70]) dAnchor(x, z);
   // the drill shaft (boss) and the way out
-  dFloor(176, -82, 212, -48, W.iceF); d2Room('drill', '钻探井 #1', 176, -82, 212, -48, { cold: 1, ice: 1 }); wallX(-82, 176, 212, [], W.iceW); wallX(-48, 176, 212, [], W.iceW);
+  dFloor(176, -82, 212, -48, W.iceF); d2Room('drill', '钻探井 #1', 176, -82, 212, -48, { cold: 1, ice: 1 }); wallZ(176, -82, -80, [], W.iceW); wallZ(176, -50, -48, [], W.iceW); wallX(-82, 176, 212, [], W.iceW); wallX(-48, 176, 212, [], W.iceW);
   wallZ(212, -82, -48, [[-68, -62]], W.iceW);
   { const g = new THREE.Group(); g.position.set(200, 0, -76); DUN.G.add(g); for (const [a, b] of [[-1.6, -1.6], [1.6, -1.6], [-1.6, 1.6], [1.6, 1.6]]) box(.3, 9, .3, W.rust, a, 4.5, b, g);
     box(3.6, .3, 3.6, W.rust, 0, 9, 0, g); const bit = new THREE.Mesh(new THREE.CylinderGeometry(.5, .1, 6, 8), W.wall2); bit.position.y = 3; g.add(bit);
@@ -13133,15 +13133,17 @@ try { const st = document.createElement('style'); st.textContent = 'body.inDun #
 const DSN_K = ['wood', 'metal', 'med', 'core', 'coin', 'reserve', 'gem'];
 let DSNAP = null;
 const gId = it => Array.isArray(it) ? it[0] + ':' + it[4] + ':' + it[2] : '';
-function dsnTake() { DSNAP = { id: DUN.id || 1, v: {}, inv: Object.assign({}, S.inv), g: (S.ginv || []).map(gId), av: (S.av || []).length, colx: Object.keys(S.colx || {}), safe: S.dg ? S.dg.safe | 0 : 0, xp: S.xp, lv: S.level };
+function dsnTake() { DSNAP = { id: DUN.id || 1, v: {}, inv: Object.assign({}, S.inv), g: (S.ginv || []).map(gId), av: (S.av || []).length, colx: Object.assign({}, S.colx || {}), safe: S.dg ? S.dg.safe | 0 : 0, xp: S.xp, lv: S.level };
   for (const k of DSN_K) DSNAP.v[k] = S[k] | 0; }
+// collectibles as counts (an older snapshot was a list of names)
+const dsnCx = sn => { const c = {}; if (Array.isArray(sn.colx)) sn.colx.forEach(k => { c[k] = 1; }); else Object.assign(c, sn.colx || {}); return c; };
 // what changed since going in: [{k, n}] gains (n > 0)
 function dsnDiff(sn) { const out = [];
   for (const k of DSN_K) { const d = (S[k] | 0) - (sn.v[k] | 0); if (d > 0 && k !== 'reserve') out.push({ k: k === 'gem' ? 'gem' : k, n: d }); }
   for (const k in S.inv) { const d = (S.inv[k] | 0) - (sn.inv[k] | 0); if (d > 0) out.push({ k, n: d }); }
   const had = new Set(sn.g); for (const it of S.ginv || []) if (!had.has(gId(it))) out.push({ k: 'gear', it, n: 1 });
   for (let i = sn.av; i < (S.av || []).length; i++) out.push({ k: 'att', a: S.av[i], n: 1 });
-  for (const k of Object.keys(S.colx || {})) if (!sn.colx.includes(k)) out.push({ k: 'col', id: k, n: 1 });
+  const cx = dsnCx(sn); for (const k of Object.keys(S.colx || {})) { const d = (S.colx[k] | 0) - (cx[k] | 0); if (d > 0) out.push({ k: 'col', id: k, n: d }); }
   return out; }
 // not finished: everything goes back to at most what you came in with
 function dsnRevert(sn) {
@@ -13149,7 +13151,7 @@ function dsnRevert(sn) {
   for (const k in S.inv) { const v = Math.min(S.inv[k] | 0, sn.inv[k] | 0); if (v > 0) S.inv[k] = v; else delete S.inv[k]; }
   const had = new Set(sn.g); if (S.ginv) S.ginv = S.ginv.filter(it => had.has(gId(it)));
   if (S.av && S.av.length > sn.av) S.av.length = sn.av;
-  if (S.colx) for (const k of Object.keys(S.colx)) if (!sn.colx.includes(k)) delete S.colx[k];
+  const cx = dsnCx(sn); if (S.colx) for (const k of Object.keys(S.colx)) { const v = Math.min(S.colx[k] | 0, cx[k] | 0); if (v > 0) S.colx[k] = v; else delete S.colx[k]; }
   if (S.dg && !sn.safe) S.dg.safe = 0;
   try { showcaseRefresh(); } catch (e) { } try { gemHud(); } catch (e) { } refreshHud(); }
 function dsnName(o) { if (o.k === 'gear') return GQ[o.it[1]].n + gName(o.it); if (o.k === 'att') { try { return ATT_K[o.a[0]][o.a[1]].n; } catch (e) { return '配件'; } } if (o.k === 'col') return COLX[o.id] ? COLX[o.id].n : '收藏品';
@@ -13171,7 +13173,7 @@ dunCleanup = (o => function () { const on = DUN.on, sn = DSNAP, done = !!(DUN.st
   saveGame(); setTimeout(() => { try { dsnShow(done, list, xp, nm); } catch (e) { console.warn(e); } }, 2300); })(dunCleanup);
 // closed the game inside a dungeon: the next start counts it as leaving early
 shopSave = (o => function () { const r = o(); try { if (DSNAP && S.dun) r.dsnap = DSNAP; } catch (e) { } return r; })(shopSave);
-shopLoad = (o => function (d) { o(d); try { const sn = d && d.sh && d.sh.dsnap; if (sn && sn.v && Array.isArray(sn.g) && Array.isArray(sn.colx)) setTimeout(() => { if (S.dun) return; const list = dsnDiff(sn); dsnRevert(sn); saveGame(); if (list.length) setTimeout(() => dsnShow(false, list, 0, '上次在副本里中途离开了游戏'), 1500); }, 0); } catch (e) { } })(shopLoad);
+shopLoad = (o => function (d) { o(d); try { const sn = d && d.sh && d.sh.dsnap; if (sn && sn.v && Array.isArray(sn.g) && sn.colx && typeof sn.colx === 'object') setTimeout(() => { if (S.dun) return; const list = dsnDiff(sn); dsnRevert(sn); saveGame(); if (list.length) setTimeout(() => dsnShow(false, list, 0, '上次在副本里中途离开了游戏'), 1500); }, 0); } catch (e) { } })(shopLoad);
 try { const st = document.createElement('style'); st.textContent =
   '.dsnb{text-align:center}.dsnh{display:block;font-size:20px;letter-spacing:.08em}.dsnh.ok{color:#ffd98a}.dsnh.no{color:#ff9b8a}.dsnsub{display:block;opacity:.7;margin:2px 0 8px}' +
   '.dsnxp{display:inline-block;padding:4px 12px;border-radius:999px;background:rgba(143,224,90,.15);border:1px solid rgba(143,224,90,.5);color:#bff09a;font-weight:800;font-size:13px}' +
@@ -13186,6 +13188,141 @@ try { const b = $('bFire'); if (b && b.addEventListener) { b.addEventListener('p
 const fireReset = () => { FIREP.clear(); keys.Space = false; input.fire = false; try { $('bFire').classList.remove('on'); } catch (e) { } };
 try { window.addEventListener('blur', fireReset); window.addEventListener('pagehide', fireReset); document.addEventListener('visibilitychange', fireReset); } catch (e) { }
 zSpecialTick = (o => function (dt) { o(dt); if (input.fire && !FIREP.size && !keys.Space) input.fire = false; })(zSpecialTick);
+/* ============ 副本收藏品 2.0 + 遗物币 + 副本商人「老钱」 ============
+   收藏品分两档：神话（难出，粉色）和传说（比较常见，金色）。副本一原来的 6 件全部升为神话，另外加 6 件传说；
+   副本二有自己的 4 件神话 + 6 件传说。现在可以重复获得：多出来的拿去码头「副本」分页里的副本商人老钱那里，换成「遗物币」。
+   遗物币先存着，以后再规划能买什么。
+   出处：每件收藏品只会出现在指定副本的指定种类柜子里（另有两件是首领掉落）；一个柜子最多出一件收藏品。
+   没通关就离开，这一趟拿到的收藏品照样收回（z_dunend.js）。 */
+const RELIC_P = { 4: 15, 5: 60 };     // 卖 1 件多余的收藏品换多少遗物币：传说 15，神话 60
+S.relic = 0;
+// the hospital's six become 神话 (r 5); `src` = the kinds of cupboard it can be in, `d` = which dungeon, `ch` = chance per cupboard
+Object.assign(COLX.badge, { r: 5, d: 1, src: ['locker', 'file'], ch: .012, w: '副本一 · 储物柜、文件柜' });
+Object.assign(COLX.doll, { r: 5, d: 1, src: ['med', 'locker'], ch: .01, w: '副本一 · 医药柜、储物柜' });
+Object.assign(COLX.steth, { r: 5, d: 1, src: ['file'], ch: .015, w: '副本一 · 文件柜' });
+Object.assign(COLX.vial, { r: 5, d: 1, src: ['lab'], ch: .01, w: '副本一 · 样本柜' });
+Object.assign(COLX.card, { r: 5, d: 1, src: ['safe'], ch: .02, w: '副本一 · 小保险箱' });
+Object.assign(COLX.coat, { r: 5, d: 1, src: [], ch: .06, w: '副本一 · 零号病人掉落' });
+Object.assign(COLX, {
+  chart: { n: '9 号床的病历夹', r: 4, d: 1, src: ['file', 'med'], ch: .05, w: '副本一 · 文件柜、医药柜' },
+  pills: { n: '林医生的药瓶', r: 4, d: 1, src: ['med'], ch: .05, w: '副本一 · 医药柜' },
+  wradio: { n: '老王的收音机', r: 4, d: 1, src: ['locker', 'tool'], ch: .05, w: '副本一 · 储物柜、工具箱' },
+  photo: { n: '林家的全家福', r: 4, d: 1, src: ['file'], ch: .04, w: '副本一 · 文件柜' },
+  syringe: { n: '第七剂注射器', r: 4, d: 1, src: ['lab'], ch: .05, w: '副本一 · 样本柜' },
+  keys: { n: '医院钥匙串', r: 4, d: 1, src: ['tool', 'locker'], ch: .05, w: '副本一 · 工具箱、储物柜' },
+  glasses: { n: '周博士的冰封眼镜', r: 5, d: 2, src: [], ch: .06, w: '副本二 · 冰封者掉落' },
+  ore: { n: 'E-0 原矿', r: 5, d: 2, src: ['lab'], ch: .01, w: '副本二 · 样本柜' },
+  plate: { n: 'C-07 舱牌', r: 5, d: 2, src: ['lab', 'safe'], ch: .01, w: '副本二 · 样本柜、小保险箱' },
+  sign: { n: '「继续」批文', r: 5, d: 2, src: ['file', 'safe'], ch: .012, w: '副本二 · 文件柜、小保险箱' },
+  scarf: { n: '小雨的红围巾', r: 4, d: 2, src: ['locker', 'med'], ch: .05, w: '副本二 · 储物柜、医药柜' },
+  mug: { n: '永冬站马克杯', r: 4, d: 2, src: ['locker', 'tool'], ch: .05, w: '副本二 · 储物柜、工具箱' },
+  sradio: { n: '站里的旧对讲机', r: 4, d: 2, src: ['file', 'tool'], ch: .05, w: '副本二 · 文件柜、工具箱' },
+  torch2: { n: '老式喷灯', r: 4, d: 2, src: ['tool'], ch: .05, w: '副本二 · 工具箱' },
+  map: { n: '钻探井图纸', r: 4, d: 2, src: ['file'], ch: .05, w: '副本二 · 文件柜' },
+  card2: { n: '永冬站工牌', r: 4, d: 2, src: ['locker', 'safe'], ch: .05, w: '副本二 · 储物柜、小保险箱' } });
+COL_ORDER.length = 0; COL_ORDER.push('badge', 'doll', 'steth', 'vial', 'card', 'coat', 'chart', 'pills', 'wradio', 'photo', 'syringe', 'keys', 'glasses', 'ore', 'plate', 'sign', 'scarf', 'mug', 'sradio', 'torch2', 'map', 'card2');
+const colOf = d => COL_ORDER.filter(k => COLX[k].d === d), colN = k => S.colx[k] | 0, colRN = r => r === 5 ? '神话' : '传说', colRC = r => r === 5 ? '#ff4d8d' : '#ffc94a';
+
+/* ---- getting one: the first is new for your collection, the rest are spares for the merchant ---- */
+colGet = function (id) { if (!COLX[id]) return; const n = colN(id) + 1; S.colx[id] = n; const C = COLX[id], own = colOf(C.d).filter(k => colN(k)).length;
+  if (n === 1) banner(colRN(C.r) + '收藏品 · ' + C.n, '副本' + (C.d === 2 ? '二' : '一') + '收藏 ' + own + ' / ' + colOf(C.d).length + ' · 可以摆进海岛的「展示柜」', 4.5);
+  else banner('重复的' + colRN(C.r) + '收藏品 · ' + C.n, '已有 ' + n + ' 件 · 多的可以去码头「副本」找老钱换遗物币', 3.5);
+  try { sfx.build(); sfxTone(700, 1400, .5, .14, 'triangle', { delay: .15 }); } catch (e) { } S.shake = Math.max(S.shake, .15); showcaseRefresh(); saveGame(); };
+// cupboards: the hospital's old one-key-per-cupboard roll is replaced by a roll over everything that kind of cupboard can hold here
+cabRoll = (o => function (type, colKey) { const out = o(type, null); try { const did = DUN.id || 1, pool = COL_ORDER.filter(k => COLX[k].d === did && COLX[k].src.includes(type));
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    for (const k of pool) if (Math.random() < COLX[k].ch) { const r = COLX[k].r; out.push({ k: 'col', id: k, r, n: 1, shown: false, took: false, need: .5 + r * .35 + Math.random() * .3 }); break; } } catch (e) { console.warn('relic roll', e); } return out; })(cabRoll);
+// the loot window: the rarity colour and tag
+lootRender = (o => function () { o(); try { const C = LP.c, p = $('lootP'); if (!C || !p) return; const tiles = p.querySelectorAll('.lpg .lps');
+    C.items.forEach((x, i) => { if (x.k !== 'col' || !x.shown || x.took || !tiles[i]) return; const c = COLX[x.id]; tiles[i].style.setProperty('--rc', colRC(c.r)); const s = tiles[i].querySelector('small'); if (s) s.textContent = colRN(c.r) + '收藏品'; }); } catch (e) { } })(lootRender);
+// 冰封者 drops 周博士的冰封眼镜 now and then
+zSpecialTick = (o => function (dt) { o(dt); try { if (!S.dun || DUN.id !== 2 || !DUN.st || DUN.st.stage < 10 || DUN.glRolled) return; DUN.glRolled = 1;
+  if (Math.random() < COLX.glasses.ch) { const b = DUN.st.boss, x = b ? b.pos.x - DUN.x : 196, z = b ? b.pos.z - DUN.z : -65; dPick(x, z, 'col', 0xff4d8d, () => colGet('glasses')); banner('首领掉落了神话收藏品！', COLX.glasses.n, 3); } } catch (e) { } })(zSpecialTick);
+dunCleanup = (o => function () { o(); DUN.glRolled = 0; })(dunCleanup);
+
+/* ---- the new keepsakes' little models (also used for their icons and the 展示柜) ---- */
+colModel = (o => function (id) { if (['badge', 'doll', 'steth', 'vial', 'card', 'coat'].includes(id)) return o(id);
+  const g = new THREE.Group(), L = c => new THREE.MeshLambertMaterial({ color: c }), B = c => new THREE.MeshBasicMaterial({ color: c }), cyl = (r1, r2, h, m, x, y, z, rx) => { const c = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 10), m); c.position.set(x, y, z); if (rx) c.rotation.x = rx; g.add(c); return c; };
+  if (id === 'chart') { box(.46, .6, .04, L(0x8a6a3a), 0, 0, 0, g); box(.4, .5, .02, L(0xf4f0e2), 0, -.02, .03, g); box(.16, .06, .05, L(0xb8bcc4), 0, .29, .02, g); for (let i = 0; i < 4; i++) box(.3, .025, .01, L(0x5a6a8a), 0, .12 - i * .1, .045, g); box(.08, .08, .01, B(0xd02a2a), .12, .17, .045, g); }
+  else if (id === 'pills') { cyl(.15, .15, .4, L(0xd88a2a), 0, -.05, 0); cyl(.17, .17, .12, L(0xf2f2f2), 0, .21, 0); box(.24, .18, .01, L(0xf4f0e2), 0, -.05, .15, g); box(.12, .04, .01, B(0xd02a2a), 0, -.03, .16, g); }
+  else if (id === 'wradio') { box(.6, .36, .18, L(0x6a4a2e), 0, 0, 0, g); const sp = new THREE.Mesh(new THREE.CircleGeometry(.11, 12), L(0x2a2a2a)); sp.position.set(-.14, 0, .095); g.add(sp); box(.18, .1, .01, B(0xffd77a), .14, .06, .095, g); box(.04, .04, .04, L(0xd8d8d8), .1, -.08, .1, g); box(.04, .04, .04, L(0xd8d8d8), .2, -.08, .1, g); box(.02, .4, .02, L(0xc8c8c8), .24, .36, 0, g).rotation.z = -.3; }
+  else if (id === 'photo') { box(.56, .44, .05, L(0xc8a050), 0, 0, 0, g); box(.46, .34, .02, L(0xd8e4ec), 0, 0, .03, g); box(.1, .2, .01, L(0xe8ece8), -.1, -.04, .045, g); box(.08, .08, .01, L(0x3a2a20), -.1, .1, .045, g); box(.07, .13, .01, L(0xf2b8c8), .1, -.07, .045, g); box(.07, .07, .01, L(0x3a2a20), .1, .03, .045, g); }
+  else if (id === 'syringe') { const gl = new THREE.MeshLambertMaterial({ color: 0xdff6ff, transparent: true, opacity: .5 }); const b = cyl(.08, .08, .5, gl, 0, 0, 0); b.rotation.z = Math.PI / 2.6; const f = cyl(.06, .06, .3, B(0x5aff9a), -.03, -.02, 0); f.rotation.z = Math.PI / 2.6; const n = cyl(.012, .012, .26, L(0xd8dde4), .3, -.11, 0); n.rotation.z = Math.PI / 2.6; box(.2, .04, .04, L(0x3a3a3a), -.26, .1, 0, g).rotation.z = -.4; box(.1, .04, .01, B(0xff3a2a), -.02, .05, .085, g); }
+  else if (id === 'keys') { const ring = new THREE.Mesh(new THREE.TorusGeometry(.16, .025, 6, 16), L(0xc8c8c8)); ring.position.y = .18; g.add(ring); [[-.12, 0xc8a050], [0, 0xb8bcc4], [.12, 0xc8a050]].forEach(([x, c], i) => { const k = new THREE.Group(); k.position.set(x, .02, 0); k.rotation.z = (i - 1) * .3; g.add(k); box(.06, .3, .02, L(c), 0, -.12, 0, k); box(.12, .1, .02, L(c), 0, .04, 0, k); box(.06, .04, .02, L(c), .05, -.22, 0, k); }); box(.18, .1, .02, B(0xd02a2a), 0, .38, 0, g); }
+  else if (id === 'glasses') { const ic = new THREE.MeshLambertMaterial({ color: 0xcfefff, transparent: true, opacity: .6 }); for (const x of [-.17, .17]) { const r = new THREE.Mesh(new THREE.TorusGeometry(.12, .025, 6, 14), L(0x2a2a30)); r.position.set(x, 0, 0); g.add(r); const l = new THREE.Mesh(new THREE.CircleGeometry(.11, 14), ic); l.position.set(x, 0, .005); g.add(l); } box(.1, .025, .025, L(0x2a2a30), 0, .02, 0, g); box(.3, .025, .025, L(0x2a2a30), -.42, .04, -.1, g).rotation.y = .5; box(.3, .025, .025, L(0x2a2a30), .42, .04, -.1, g).rotation.y = -.5;
+    for (let i = 0; i < 4; i++) { const c = new THREE.Mesh(new THREE.OctahedronGeometry(.05, 0), L(0xeaf8ff)); c.position.set(-.3 + i * .2, .14 + (i % 2) * .04, .02); c.scale.y = 1.8; g.add(c); } }
+  else if (id === 'ore') { const m = new THREE.Mesh(new THREE.DodecahedronGeometry(.26, 0), L(0x3a2a2a)); g.add(m); for (let i = 0; i < 5; i++) { const c = new THREE.Mesh(new THREE.OctahedronGeometry(.08 + Math.random() * .05, 0), B(0xff6a2a)); const a = i * 1.26; c.position.set(Math.cos(a) * .2, Math.sin(a * 1.7) * .15, Math.sin(a) * .2); c.scale.y = 1.8; g.add(c); } }
+  else if (id === 'plate') { box(.62, .3, .04, L(0xb8c4cc), 0, 0, 0, g); box(.54, .22, .02, L(0x2a3a4a), 0, 0, .03, g); box(.2, .1, .01, B(0x8fe0ff), -.1, .02, .045, g); box(.1, .1, .01, B(0x8fe0ff), .14, .02, .045, g); for (const x of [-.27, .27]) box(.04, .04, .05, L(0x6a7684), x, .1, .02, g); }
+  else if (id === 'sign') { box(.46, .6, .02, L(0xf4f0e2), 0, 0, 0, g); for (let i = 0; i < 5; i++) box(.34, .02, .01, L(0x6a6a6a), 0, .2 - i * .07, .015, g); box(.24, .06, .01, B(0x1a1a8a), .04, -.17, .015, g); const st = new THREE.Mesh(new THREE.CircleGeometry(.08, 14), B(0xd02a2a)); st.position.set(.14, -.2, .02); g.add(st); }
+  else if (id === 'scarf') { const r = L(0xd0283a), w = L(0xf2f2f2); box(.7, .16, .08, r, 0, .14, 0, g); box(.16, .5, .08, r, -.2, -.1, .02, g); box(.16, .44, .08, r, .1, -.12, -.02, g).rotation.z = .15; for (let i = 0; i < 3; i++) box(.16, .03, .09, w, -.2, .06 - i * .14, .02, g); }
+  else if (id === 'mug') { cyl(.17, .15, .36, L(0x2a6a9a), 0, 0, 0); box(.06, .2, .06, L(0x2a6a9a), .2, 0, 0, g); box(.12, .04, .06, L(0x2a6a9a), .17, .09, 0, g); box(.12, .04, .06, L(0x2a6a9a), .17, -.09, 0, g); const s = new THREE.Mesh(new THREE.OctahedronGeometry(.07, 0), B(0xeaf8ff)); s.position.set(0, 0, .17); g.add(s); }
+  else if (id === 'sradio') { box(.24, .5, .14, L(0x3a3e44), 0, -.04, 0, g); box(.03, .3, .03, L(0x2a2a2a), -.07, .36, 0, g); box(.16, .12, .01, B(0x8fe08a), 0, .1, .075, g); for (let i = 0; i < 3; i++) box(.16, .02, .01, L(0x1a1a1a), 0, -.08 - i * .06, .075, g); box(.06, .06, .05, L(0xd8641e), .08, .24, 0, g); }
+  else if (id === 'torch2') { cyl(.1, .1, .4, L(0x8a2a2a), -.12, -.05, 0); box(.36, .06, .06, L(0x9a9aa0), .1, .1, 0, g).rotation.z = .3; cyl(.03, .05, .16, L(0xb87a3a), .3, .18, 0).rotation.z = -Math.PI / 2.2; const f = new THREE.Mesh(new THREE.ConeGeometry(.06, .2, 8), B(0x5aaaff)); f.position.set(.44, .22, 0); f.rotation.z = -Math.PI / 2; g.add(f); }
+  else if (id === 'map') { box(.64, .46, .02, L(0x2a4a7a), 0, 0, 0, g); for (let i = 0; i < 4; i++) box(.5, .01, .01, L(0xcfe4ff), 0, .16 - i * .1, .015, g); box(.01, .36, .01, L(0xcfe4ff), .05, 0, .015, g); const c = new THREE.Mesh(new THREE.RingGeometry(.04, .07, 14), B(0xff6a2a)); c.position.set(.16, -.08, .02); g.add(c); cyl(.04, .04, .5, L(0xe8dcc0), -.32, 0, 0); }
+  else if (id === 'card2') { box(.4, .56, .03, L(0xeaf2f8), 0, 0, 0, g); box(.4, .14, .035, L(0x2a6a9a), 0, .21, 0, g); box(.16, .18, .01, L(0xb8c4cc), -.08, .02, .02, g); for (let i = 0; i < 2; i++) box(.12, .02, .01, L(0x3a4a5a), .1, .06 - i * .06, .02, g); box(.1, .04, .01, B(0x8fe0ff), 0, -.2, .02, g); box(.06, .12, .02, L(0x9a9aa0), 0, .32, 0, g); }
+  return g; })(colModel);
+(function relicIcons() { if (typeof ICON_URL === 'undefined' || !document.createElement) return; let R;
+  try { const c = document.createElement('canvas'); R = new THREE.WebGLRenderer({ canvas: c, alpha: true, antialias: true, preserveDrawingBuffer: true }); } catch (e) { return; }
+  try { R.setPixelRatio(1); R.setClearColor && R.setClearColor(0, 0); R.setSize(128, 128, false); const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xffffff, 0x3a2a48, 1.1)); const L = new THREE.DirectionalLight(0xffffff, .9); L.position.set(-2, 3, 3); sc.add(L);
+    const cam = new THREE.PerspectiveCamera(28, 1, .1, 50); cam.position.set(0, .35, 3); cam.lookAt(0, 0, 0);
+    for (const id of COL_ORDER) { if (ICON_URL['col_' + id]) continue; const g = colModel(id); g.rotation.set(.15, -.45, 0); sc.add(g); R.render(sc, cam); ICON_URL['col_' + id] = R.domElement.toDataURL('image/png'); sc.remove(g); } } catch (e) { }
+  try { R.dispose(); R.forceContextLoss && R.forceContextLoss(); } catch (e) { } })();
+// the 展示柜 shows your six best (神话 first)
+showcaseFill = function (g) { const sh = g.userData.shelf; if (!sh) return; while (sh.children.length) sh.remove(sh.children[0]);
+  const best = COL_ORDER.filter(k => colN(k)).sort((a, b) => COLX[b].r - COLX[a].r).slice(0, 6);
+  for (let i = 0; i < 6; i++) { const x = -.5 + (i % 3) * .5, y = i < 3 ? 1.6 : .85, id = best[i]; if (id) { const m = colModel(id); m.scale.setScalar(.6); m.position.set(x, y + .18, 0); m.rotation.y = .3; sh.add(m); }
+    else box(.22, .04, .1, new THREE.MeshLambertMaterial({ color: 0x5a4a3a }), x, y, .12, sh); } };
+
+/* ---- saving: counts (the old save only knew owned / not owned) and the coins ---- */
+shopSave = (o => function () { const r = o(); try { r.colx2 = {}; for (const k of COL_ORDER) if (colN(k)) r.colx2[k] = colN(k); r.relic = S.relic | 0; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); try { const c = d && d.sh && d.sh.colx2; if (c && typeof c === 'object') for (const k in c) if (COLX[k]) S.colx[k] = clamp(c[k] | 0, 0, 9999); S.relic = Math.max(0, (d && d.sh && d.sh.relic) | 0); } catch (e) { } setTimeout(showcaseRefresh, 0); })(shopLoad);
+
+/* ---- the collection grid on the dungeon pages ---- */
+function colGrid(did) { const ks = colOf(did), own = ks.filter(k => colN(k)).length;
+  return '<small>收藏品 ' + own + ' / ' + ks.length + ' · <b style="color:#ff4d8d">神话</b>很难出 · <b style="color:#ffc94a">传说</b>比较常见 · 多出来的可以找码头的老钱换遗物币</small><div>' +
+    ks.map(k => { const C = COLX[k], n = colN(k); return '<span class="' + (n ? 'own' : '') + '" style="--rc:' + colRC(C.r) + '">' + (n ? svgIcon('col_' + k) : '<em>?</em>') + '<b>' + (n ? C.n : '？？？') + '</b><i>' + colRN(C.r) + (n > 1 ? ' · ×' + n : '') + '</i></span>'; }).join('') + '</div>'; }
+openDunPage = (o => function () { o(); try { const e = document.querySelector('#dunPageM .duncol'); if (e) e.innerHTML = colGrid(1); } catch (e) { } })(openDunPage);
+openDun2Page = (o => function () { o(); try { const m = $('dunPageM'), n = m && m.querySelector('.dunnote'); if (n) { const d = document.createElement('div'); d.className = 'duncol'; d.innerHTML = colGrid(2); n.parentNode.insertBefore(d, n); } } catch (e) { } })(openDun2Page);
+
+/* ---- 副本商人「老钱」: buys spare keepsakes for 遗物币 ---- */
+let relicTab = 1;
+const RELIC_COIN = '<i class="rlc">遗</i>';
+function relicSpare(k) { return Math.max(0, colN(k) - 1); }
+function relicSell(k, n) { n = Math.min(n, relicSpare(k)); if (n <= 0) return 0; S.colx[k] = colN(k) - n; const g = n * RELIC_P[COLX[k].r]; S.relic = (S.relic | 0) + g; return g; }
+function openRelic() { try { audioInit(); } catch (e) { } const old = $('relicM'); if (old) old.remove(); const m = document.createElement('div'); m.id = 'relicM'; m.className = 'dunm'; document.body.appendChild(m);
+  const render = () => { const ks = colOf(relicTab), spareAll = COL_ORDER.reduce((a, k) => a + relicSpare(k) * RELIC_P[COLX[k].r], 0);
+    m.innerHTML = '<div class="dunmb rlb"><button class="dunmx" aria-label="关闭">✕</button>' +
+      '<div class="rlhead"><div class="rlface" aria-hidden="true"><i></i><u></u><s></s></div><div><b>老钱 · 遗物商人</b><p>「副本里带出来的老物件，多出来的我都收。一件不留也行，可总得留一件给自己看吧？」</p></div></div>' +
+      '<div class="rlbal">' + RELIC_COIN + ' 遗物币 <b>' + (S.relic | 0) + '</b><small>传说 1 件 = ' + RELIC_P[4] + ' · 神话 1 件 = ' + RELIC_P[5] + '</small></div>' +
+      '<div class="tabs rltabs"><button class="sbtn' + (relicTab === 1 ? ' on' : '') + '" data-t="1">圣心医院</button><button class="sbtn' + (relicTab === 2 ? ' on' : '') + '" data-t="2">永冬站</button></div>' +
+      '<div class="rlg">' + ks.map(k => { const C = COLX[k], n = colN(k), sp = relicSpare(k);
+        return '<div class="rlc2' + (n ? '' : ' no') + '" style="--rc:' + colRC(C.r) + '">' + (n ? svgIcon('col_' + k) : '<em>?</em>') + '<b>' + (n ? C.n : '？？？') + '</b><small>' + colRN(C.r) + ' · ' + (n ? '拥有 ×' + n : C.w) + '</small>' +
+          (n ? '<button class="sbtn' + (sp ? '' : ' ghostb') + '" data-k="' + k + '"' + (sp ? '' : ' disabled') + '>' + (sp ? '卖 1 件 +' + RELIC_P[C.r] : '只有 1 件') + '</button>' : '') + '</div>'; }).join('') + '</div>' +
+      '<button class="go rlall"' + (spareAll ? '' : ' disabled') + '>' + (spareAll ? '多出来的全部卖掉（两个副本，每种留 1 件）+' + spareAll : '没有多出来的收藏品') + '</button>' +
+      '<p class="dunnote">每种收藏品都会帮你留 1 件，不会卖掉你的最后一件。遗物币以后可以在这里换东西。</p></div>';
+    m.querySelector('.dunmx').addEventListener('click', () => m.remove());
+    m.querySelectorAll('.rltabs button').forEach(b => b.addEventListener('click', () => { relicTab = +b.dataset.t; render(); }));
+    m.querySelectorAll('.rlg button[data-k]').forEach(b => b.addEventListener('click', () => { const g = relicSell(b.dataset.k, 1); if (g) { feed('卖给老钱 · 遗物币 +' + g, '#ffd98a'); try { sfx.pick(); } catch (e) { } showcaseRefresh(); saveGame(); } render(); }));
+    const all = m.querySelector('.rlall'); if (all) all.addEventListener('click', () => { let g = 0; for (const k of COL_ORDER) g += relicSell(k, 999); if (g) { banner('老钱收下了', '遗物币 +' + g, 2.5); try { sfx.build(); } catch (e) { } showcaseRefresh(); saveGame(); } render(); }); };
+  render(); m.addEventListener('click', e => { if (e.target === m) m.remove(); }); }
+// his row sits in the pier's 副本 tab, under the two dungeons
+dun2Row = (o => function (box, after) { o(box, after); try { const spare = COL_ORDER.reduce((a, k) => a + relicSpare(k), 0);
+  const row = shopRow('副本商人 · 老钱', '收多出来的收藏品，换「遗物币」· 你有 ' + (S.relic | 0) + ' 遗物币' + (spare ? ' · 有 ' + spare + ' 件可以卖' : ''), '#ffd98a');
+  row.classList.add('dunrow', 'rlrow'); const go = document.createElement('button'); go.className = 'sbtn'; go.textContent = '交易'; go.addEventListener('click', () => { closePanel('port'); openRelic(); }); row.appendChild(go);
+  const d2 = box.querySelector('.d2row'); box.insertBefore(row, d2 ? d2.nextSibling : null); } catch (e) { console.warn(e); } })(dun2Row);
+try { const st = document.createElement('style'); st.textContent =
+  '.duncol span{border:1px solid transparent}.duncol span.own{border-color:var(--rc)}.duncol span.own b{color:var(--rc)!important}.duncol>div{grid-template-columns:repeat(auto-fill,minmax(84px,1fr))!important}' +
+  '.rlb{border-color:#c8a050!important;background:linear-gradient(160deg,#2a1e10,#100a06)!important}.rlhead{display:flex;gap:12px;align-items:center;margin-right:30px}.rlhead b{font-size:17px;color:#ffd98a}.rlhead p{margin:4px 0 0;font-size:12.5px;line-height:1.5;opacity:.85}' +
+  '.rlface{position:relative;width:58px;height:58px;flex:none;border-radius:14px;background:linear-gradient(160deg,#5a3a20,#2a1a0e);border:1.5px solid #c8a050;overflow:hidden}' +
+  '.rlface i{position:absolute;left:14px;top:12px;width:30px;height:30px;border-radius:8px;background:#e0b088}.rlface u{position:absolute;left:10px;top:6px;width:38px;height:12px;border-radius:4px 4px 0 0;background:#3a2a1a}' +
+  '.rlface s{position:absolute;left:19px;top:24px;width:20px;height:5px;border-top:2px solid #2a1a10;border-bottom:2px solid #2a1a10}' +
+  '.rlbal{margin:10px 0;padding:8px 12px;border-radius:12px;background:rgba(255,201,74,.1);border:1px solid rgba(255,201,74,.4);display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:14px}.rlbal b{font-size:20px;color:#ffd98a}.rlbal small{flex-basis:100%;opacity:.7;font-size:11.5px}' +
+  '.rlc{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe9a8,#c8902a);color:#4a2a08;font-style:normal;font-weight:900;font-size:11px;border:1px solid #fff2c8}' +
+  '.rltabs{display:flex;gap:6px;margin-bottom:8px}.rltabs .sbtn{flex:1}.rlg{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:6px;max-height:44vh;overflow:auto}' +
+  '.rlc2{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 4px;border-radius:10px;background:rgba(0,0,0,.3);border:1.5px solid var(--rc);text-align:center}.rlc2.no{border-color:rgba(255,255,255,.12);opacity:.6}' +
+  '.rlc2 .ic{width:38px;height:38px}.rlc2 em{font-style:normal;font-size:22px;opacity:.35;height:38px;line-height:38px}.rlc2 b{font-size:11.5px;line-height:1.2;color:var(--rc)}.rlc2.no b{color:#ccc}.rlc2 small{font-size:10.5px;opacity:.75;line-height:1.3}.rlc2 .sbtn{font-size:11.5px;padding:4px 6px;width:100%}' +
+  '.rlall{width:100%;margin-top:10px}.rlrow{border-color:rgba(255,217,138,.6)!important;background:linear-gradient(90deg,rgba(120,80,20,.4),rgba(30,20,10,.2))!important}';
+  document.head.appendChild(st); } catch (e) { }
 /* ============ 副本小地图：显示可以搜索的柜子（金色箱子图标；没开过的会闪，保险箱和样本柜画大一点，搜空就消失） ============ */
 function chestIcon(c, x, y, s, lit, big) {
   const w = s * (big ? 1.5 : 1.25), h = s, x0 = x - w / 2, y0 = y - h / 2;
@@ -14682,4 +14819,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794209407').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794213507').catch(()=>{});</script></body></html>
