@@ -11442,7 +11442,7 @@ function rollTick(dt) {
   if (ROLL.cd > 0) ROLL.cd -= dt;
   const b = $('bRoll'); if (b) { b.classList.toggle('cool', ROLL.cd > 0); b.style.display = S.started && !S.boat ? '' : 'none'; }
   if (ROLL.t <= 0) return; ROLL.t -= dt; const step = ROLL.dist / ROLL.dur * dt, ox = player.pos.x, oz = player.pos.z;
-  player.pos.x += ROLL.dx * step; player.pos.z += ROLL.dz * step; try { collide(player.pos, .45); } catch (e) { }
+  { const n = Math.min(20, Math.max(1, Math.ceil(step / .12))); for (let i = 0; i < n; i++) { player.pos.x += ROLL.dx * step / n; player.pos.z += ROLL.dz * step / n; try { collide(player.pos, .45); } catch (e) { } } }
   if (!isFinite(player.pos.x)) { player.pos.x = ox; player.pos.z = oz; }
 }
 try { const H = ($('bFire') && $('bFire').parentNode) || $('hud'); if (H && H.appendChild) { const b = document.createElement('button'); b.className = 'btn ico'; b.id = 'bRoll'; b.setAttribute('aria-label', '翻滚'); b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 13.5a7.5 7.5 0 1 1-2.2-6.8" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><path d="M17.6 3.4l.2 3.7-3.7.3" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.6" cy="9.4" r="1.6" fill="none" stroke="#fff" stroke-width="1.5"/><path d="M11.4 11.2c1.6.5 2.3 1.9 1.6 3.3-.6 1.2-2.2 1.6-3.4.9M9.4 15.4l-1.6 1.9M12.9 13.8l2 .4" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'; H.appendChild(b);
@@ -14876,7 +14876,9 @@ function update(dt) {
     if (fpOn()) { const f = player.face, fw = -mz, st = mx; mx = Math.sin(f) * fw - Math.cos(f) * st; mz = Math.cos(f) * fw + Math.sin(f) * st; }
     { // water: rivers and streams slow you down (bridges don't), the open sea stops you
       const ox = player.pos.x, oz = player.pos.z, onBridge = roadDist(ox, oz) < .8, wd = S.isl || S.up || S.stB || S.fall ? -9 : waterAt(ox, oz), wk = !onBridge && wd > .15 ? (wd > 1.6 ? .4 : wd > .8 ? .5 : .7) : 1;
-      player.pos.x += mx * spd * dt * wk; player.pos.z += mz * spd * dt * wk; if (S.up || S.fall || (S.stY != null && S.stY > .6)) upMove(ox, oz); else if (!S.climbA) collide(player.pos, player.r);
+      { const step = Math.hypot(mx, mz) * spd * dt * wk, n = S.up || S.fall || (S.stY != null && S.stY > .6) || S.climbA ? 1 : Math.min(40, Math.max(1, Math.ceil(step / .12)));   // fast runners move in small steps so walls stay solid
+        for (let i = 0; i < n; i++) { player.pos.x += mx * spd * dt * wk / n; player.pos.z += mz * spd * dt * wk / n; if (n > 1 || !(S.up || S.fall || (S.stY != null && S.stY > .6) || S.climbA)) collide(player.pos, player.r); }
+        if (S.up || S.fall || (S.stY != null && S.stY > .6)) upMove(ox, oz); }
       if (!S.isl && wd <= 1.6 && deepAt(player.pos.x, player.pos.z) && !(roadDist(player.pos.x, player.pos.z) < .8)) { /* you can always swim back toward the shore */ player.pos.x = ox; player.pos.z = oz; S.seaT = (S.seaT || 0) - dt; if (S.seaT <= 0) { S.seaT = 3; feed('水太深了，过不去', '#7de0ff'); } }
       if (wk < 1 && ml > .3) { S.splT = (S.splT || 0) - dt; if (S.splT <= 0) { S.splT = .35; burst(player.pos.x, .3, player.pos.z, 0xbfe6f4, 3, 2); } } }
     if (ml > .05) player.walk += dt * 11 * Math.min(1, ml) * (S.sprint ? 1.35 : 1);
@@ -14950,4 +14952,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794217647').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794220307').catch(()=>{});</script></body></html>
