@@ -13356,7 +13356,7 @@ colGet = (o => function (id) { const C = COLX[id], before = C ? colSetDone(C.d, 
 let relicTab = 1, relicPg = 'sell';
 const RELIC_COIN = '<i class="rlc">遗</i>';
 // what he sells: [item, how many, price in 遗物币]. 'ammo' goes to your reserve
-const RELIC_SHOP = [['ammo', 60, 5], ['powder', 5, 5], ['metal', 10, 4], ['circuit', 3, 8], ['steel', 2, 15], ['serum', 1, 20], ['plate', 1, 25], ['venom', 1, 25], ['shade', 1, 25], ['magma', 1, 25], ['crystal', 1, 45], ['core', 1, 80]];
+const RELIC_SHOP = [['ammo', 60, 20], ['powder', 5, 18], ['metal', 10, 15], ['circuit', 3, 30], ['steel', 2, 55], ['serum', 1, 70], ['plate', 1, 90], ['venom', 1, 90], ['shade', 1, 90], ['magma', 1, 90], ['crystal', 1, 160], ['core', 1, 280]];   // one run's spares (about 20-25 coins) ≈ one pack of ammo
 const relicItN = k => k === 'ammo' ? '子弹' : _iInfo(k).n;
 function relicSpare(k) { return Math.max(0, colN(k) - 1); }
 function relicSell(k, n) { n = Math.min(n, relicSpare(k)); if (n <= 0) return 0; S.colx[k] = colN(k) - n; const g = n * relicPrice(k); S.relic = (S.relic | 0) + g; return g; }
@@ -14905,4 +14905,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794216178').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794216674').catch(()=>{});</script></body></html>
