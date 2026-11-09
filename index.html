@@ -1169,12 +1169,16 @@ function i18nT(s) {
   o = o.replace(/ {2,}(?=\S)/g, m => m.length > 2 ? m : ' ').replace(/ ([,.:!?)])/g, '$1');
   if (_i18nCache.size > 4000) _i18nCache.clear(); _i18nCache.set(s, o); return o;
 }
-function setLang(l) { try { localStorage.setItem('ember_lang', l); } catch (e) { } try { flushSave(); } catch (e) { } setTimeout(() => location.reload(), 120); }
+function setLang(l) { try { localStorage.setItem('ember_lang', l); } catch (e) { } try { flushSave(); } catch (e) { } setTimeout(() => { try { location.reload(); } catch (e) { } }, 300);
+  setTimeout(() => { try { banner(l === 'en' ? 'Please restart the game' : '请重新打开游戏', l === 'en' ? 'Close the game fully and open it again to switch language' : '把游戏完全关掉再打开，就会换成新的语言', 6); } catch (e) { } }, 3300); }
 if (LANG === 'en') {
   document.documentElement.lang = 'en';
   const skip = n => { const p = n.nodeType === 3 ? n.parentNode : n; return !p || (p.closest && p.closest('[data-noi18n],script,style')); };
-  const fixText = n => { if (HAS_ZH.test(n.nodeValue) && !skip(n)) { const t = i18nT(n.nodeValue); if (t !== n.nodeValue) n.nodeValue = t; } };
-  const fixAttr = el => { ['placeholder', 'title', 'aria-label'].forEach(a => { const v = el.getAttribute && el.getAttribute(a); if (v && HAS_ZH.test(v)) el.setAttribute(a, i18nT(v)); }); };
+  // each text is translated once: a translation that still has Chinese in it must not be translated again, or the observer
+  // below feeds on its own change forever and the page freezes on a white screen
+  const _done = new WeakMap(), _outs = new Set();
+  const fixText = n => { const v = n.nodeValue; if (!HAS_ZH.test(v) || _done.get(n) === v || _outs.has(v) || skip(n)) return; const t = i18nT(v); _done.set(n, t); if (_outs.size > 6000) _outs.clear(); _outs.add(t); if (t !== v) n.nodeValue = t; };
+  const fixAttr = el => { ['placeholder', 'title', 'aria-label'].forEach(a => { const v = el.getAttribute && el.getAttribute(a); if (v && HAS_ZH.test(v) && !_outs.has(v)) { const t = i18nT(v); _outs.add(t); if (t !== v) el.setAttribute(a, t); } }); };
   const walk = root => { if (root.nodeType === 3) return fixText(root); if (root.nodeType !== 1 || skip(root)) return; fixAttr(root);
     const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT); let n; while ((n = w.nextNode())) { if (n.nodeType === 3) fixText(n); else fixAttr(n); } };
   walk(document.body); document.title = i18nT(document.title);
@@ -5367,7 +5371,10 @@ function enterWorld() {
   camPos.set(player.pos.x, camH, player.pos.z + camD);
   const code = ($('roomCode').value || '').trim().toLowerCase(); lsSet('ember_room', code); mpInit(code);
 }
-async function switchChar() { try { await flushSave(); } catch (e) { } try { localStorage.removeItem('ember_live'); } catch (e) { } location.reload(); }
+// a cloud save that never answers must not hold the button forever: wait at most 2.5 s, then reload; if the page can't reload itself, say so
+async function switchChar() { try { banner('正在保存……', '马上回到选择角色', 2); } catch (e) { }
+  try { await Promise.race([flushSave(), new Promise(r => setTimeout(r, 2500))]); } catch (e) { } try { localStorage.removeItem('ember_live'); } catch (e) { }
+  try { location.reload(); } catch (e) { } setTimeout(() => { try { banner('没能自动重开', '请把游戏完全关掉，再重新打开', 6); } catch (e) { } }, 3000); }
 
 /* ============ multiplayer: shared room, other survivors and their shots ============ */
 const MP = { on: false, room: null, lobby: null, me: null, code: '', others: new Map(), tPres: 0, tShot: 0, lx: 0, lz: 0, mv: 0 };
@@ -14964,4 +14971,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794223413').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794242938').catch(()=>{});</script></body></html>
