@@ -15229,6 +15229,121 @@ try { if (document.createElement && document.body) {
 document.addEventListener('visibilitychange', () => { if (document.hidden) return; try { clock.getDelta(); } catch (e) { }
   setTimeout(() => { try { if (!S.started || !S.paused) return; const open = document.querySelector('.overlay.show') || ($('storyDlg') && $('storyDlg').classList.contains('show')) || (typeof talEl !== 'undefined' && talEl.classList.contains('show'));
     if (!open) { S.paused = false; S._stPause = false; } } catch (e) { } }, 400); });
+/* ============ 武器页改版：一页叠 12 块 → 四个标签（升级 / 技能 / 配件 / 外观）+ 固定底栏 ============
+   现在的问题：点背包里的手持 / 备用武器进到「武器库」，一页高 2700 多像素（约 3.2 屏），7 张武器卡占 324、材料清单占 525、
+   外观格占 574、配件 247，升级、换武器、配件、换外观四件事全挤在一起。
+   这个文件在 renderWeapon 渲染完之后，把 #wDetail 里已经画好的各块重新摆到四个标签里，不改任何升级 / 装备 / 换外观的逻辑，
+   按钮、点击事件都是原来的那几个（只是搬了位置）。把 WPAGE_ON 改成 false 就回到原来的样子。
+   · 顶部：武器卡缩成一排横向小格子；英雄图和属性缩小成一张紧凑卡
+   · 「升级」标签：材料一排一排竖着列，每一行都写着「获取：…」；突破要的材料单独成组、排在最前面、高亮；
+     这一步只是普通升级时，再列出「下一次突破要提前准备的材料」，让玩家先攒
+   · 「技能」「配件」「外观」标签：各放原来对应的那一块
+   · 底栏固定在屏幕下方：「装备 ▾」（点开才选设为手持 / 设为备用）+ 主按钮（升级 / 突破；材料不够时写缺几样）
+   【接入】build.sh 里加在 z_wardrobe.js 之后、x_fp.js 之前（必须在 z_att.js 之后，因为配件那一块是它加的）。不改别的文件。
+   【包起来的原函数】renderWeapon、openWeaponPage。
+   【用到的游戏里已有的东西（读过源码，已在真浏览器里跑过）】$、S、WEAP、wSel、wLv、WMAX、wNeed、wBreak（没有就按 5 的倍数）、weaponReady、matHave、
+   MAT、ITEMS、svgIcon、#weapon / #wList / #wDetail（p1_head.html）、renderWeapon 画出的 .whero .wst .wskl .wneed .btnrow .attsec .wskh .wgrid。
+   【假设】英文界面里这些新文字不会被翻译（x_i18n.js 没有对应的词条），英文版会显示中文，需要的话再让交接的 AI 补。 */
+const WPAGE_ON = true;
+let wTab = 'up';
+const WP_TABS = [['up', '升级'], ['sk', '技能'], ['at', '配件'], ['sn', '外观']];
+const WP_CSS = `
+#weapon.wnew{gap:10px}
+#weapon.wnew>*,#weapon.wnew #wDetail>*,#weapon.wnew .wpane>*{flex-shrink:0}
+#weapon.wnew .wcard img.wimg{display:block;height:34px;width:auto;max-width:100%;margin:0 auto;object-fit:contain}
+#weapon.wnew>.snote,#weapon.wnew>.btnrow{display:none}
+#weapon.wnew #wList{display:flex;gap:8px;overflow-x:auto;width:100%;padding:2px 2px 6px;scrollbar-width:none}
+#weapon.wnew #wList::-webkit-scrollbar{display:none}
+#weapon.wnew .wcard{flex:0 0 76px;padding:5px 4px 7px}
+#weapon.wnew .wcard .wimg{display:flex;height:34px;align-items:center;justify-content:center;overflow:hidden}
+#weapon.wnew .wcard .wimg>*{max-height:34px;max-width:100%}
+#weapon.wnew #wDetail{width:100%;display:flex;flex-direction:column;gap:10px;text-align:left}
+.wtop{display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:14px;border:1px solid var(--line,rgba(255,255,255,.14));background:rgba(255,255,255,.04)}
+.wnew .whero{flex-wrap:nowrap;gap:10px}
+.wnew .whero .wbig{flex:0 0 40%;width:40%;max-height:84px}
+.wnew .whero .wht b{font-size:17px}
+.wnew .wst{grid-template-columns:repeat(3,1fr);gap:5px}
+.wnew .wst div{padding:5px 7px}
+.wnew .wst b{font-size:15px}
+.wtabs{display:flex;width:100%;border-bottom:1px solid rgba(255,255,255,.14)}
+.wtabs button{flex:1;min-height:46px;background:none;border:0;border-bottom:3px solid transparent;color:#bdae9f;font:inherit;font-size:15px;position:relative;cursor:pointer}
+.wtabs button.on{color:#ffc94a;border-bottom-color:#ffc94a;font-weight:700}
+.wtabs .wdot{position:absolute;top:8px;right:14px;width:8px;height:8px;border-radius:50%;background:#ff8f80}
+.wpane{display:none;width:100%}
+.wpane.on{display:flex;flex-direction:column;gap:10px}
+.wgh{display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0 -2px}
+.wgh b{font-size:14px}
+.wgh .wtag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;color:#14100f;background:#ffc94a;white-space:nowrap}
+.wgh .wtag.n{background:#9fd8ff}
+.wgh .wtag.p{background:#c9a6ff}
+.wlist{display:flex;flex-direction:column;gap:6px}
+.wlist .nrow{align-items:flex-start}
+.wlist .nrow b{white-space:nowrap;align-self:center}
+.wlist .nrow.lack b{color:#ff8f80}
+.wlist .nrow.lack{border-color:rgba(255,143,128,.55);background:rgba(255,143,128,.07)}
+.wlist .nrow.bk{border-color:rgba(255,201,74,.5)}
+.wlist .nrow.bk.ok{border-color:rgba(143,224,90,.5)}
+.wlist .nrow .nsrc{display:block;color:#bdae9f;font-size:11px;line-height:1.4;margin-top:2px}
+.wprev{border-radius:12px;border:1px dashed rgba(255,201,74,.45);padding:8px 8px 10px;display:flex;flex-direction:column;gap:6px}
+.wprev .wps{font-size:12px;color:#bdae9f}
+.wpnote{font-size:12px;color:#bdae9f;line-height:1.5}
+.wbar{position:sticky;bottom:calc(-20px - env(safe-area-inset-bottom,0px));margin-bottom:calc(-20px - env(safe-area-inset-bottom,0px));z-index:5;width:100%;display:flex;gap:10px;padding:10px 0 calc(10px + env(safe-area-inset-bottom,0px));background:#120a14;border-top:1px solid rgba(255,255,255,.12)}
+@media (max-height:500px){.wbar .wsec,.wbar .go.wprimary{min-height:42px!important}.wbar{padding-top:6px}.wnew .whero .wbig{max-height:64px}}
+.wbar .wsec{flex:1;min-height:52px;border-radius:14px;border:1px solid rgba(255,255,255,.3);background:none;color:inherit;font:inherit;font-size:14px;cursor:pointer}
+.wbar .go.wprimary{flex:1.5;min-height:52px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;margin:0}
+.wbar .go.wprimary small{font-size:11px;opacity:.85}
+.wbar .wmenu{display:none;position:absolute;left:0;bottom:66px;min-width:60%;flex-direction:column;gap:8px;padding:10px;border-radius:14px;border:1px solid rgba(255,255,255,.2);background:#1d1320;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.wbar .wmenu.open{display:flex}
+.wbar .wmenu .go{margin:0;min-height:46px}
+`;
+function wpageCss() { if (document.getElementById('wpageCss')) return; const s = document.createElement('style'); s.id = 'wpageCss'; s.textContent = WP_CSS; (document.head || document.body).appendChild(s); }
+const wpIsBreak = L => typeof wBreak === 'function' ? !!wBreak(L) : (L % 5 === 0 || L === WMAX - 1);
+const wpDiv = (cls, html) => { const d = document.createElement('div'); d.className = cls; if (html != null) d.innerHTML = html; return d; };
+// 一行材料：图标 · 名字 · 获取方式 · 有 / 需要（沿用原来的写法和文案）
+function wpRow(key, need, bk) {
+  const have = matHave(key), ok = have >= need, m = MAT[key] || { n: key, c: '#fff' }, it = ITEMS[key];
+  return '<div class="nrow' + (ok ? ' ok' : ' lack') + (bk ? ' bk' : '') + '">' + svgIcon(key) + '<span><i style="color:' + m.c + '">' + m.n + (bk ? ' <em>突破</em>' : '') + '</i>' +
+    ((it && it.src) || key === 'coin' ? '<small class="nsrc">获取：' + (key === 'coin' ? '打丧尸、开箱子、做任务、分解装备、卖东西给商人。' : it.src) + '</small>' : '') + '</span><b>' + have + ' / ' + need + '</b></div>';
+}
+// 这一步里「突破才要」的材料 = 这一步要、而相邻的普通一步不要的
+function wpBkKeys(id, L) { const nd = wNeed(id, L), base = wNeed(id, Math.max(1, L - 1)), out = []; for (const k in nd) if (!(k in base) || /^seal/.test(k)) out.push(k); return out; }
+function wpUpPane(id, L, max, nd) {
+  const p = wpDiv('wpane' + (wTab === 'up' ? ' on' : '')); p.dataset.tab = 'up';
+  if (max) { p.appendChild(wpDiv('wpnote', '这把武器已经满级了。')); return p; }
+  const brk = L > 0 && wpIsBreak(L), bks = brk ? wpBkKeys(id, L) : [], rest = Object.keys(nd).filter(k => bks.indexOf(k) < 0);
+  p.appendChild(wpDiv('wgh', '<b>这一步</b><span class="wtag' + (brk ? '' : ' n') + '">' + (brk ? '突破' : '升级') + '</span><span>Lv.' + L + ' → Lv.' + (L + 1) + '</span>'));
+  if (bks.length) { p.appendChild(wpDiv('wgh', '<b>突破材料</b><span class="wtag">先凑齐这些</span>')); p.appendChild(wpDiv('wlist', bks.map(k => wpRow(k, nd[k], true)).join(''))); }
+  if (rest.length) { if (bks.length) p.appendChild(wpDiv('wgh', '<b>普通材料</b>')); p.appendChild(wpDiv('wlist', rest.map(k => wpRow(k, nd[k], false)).join(''))); }
+  if (!brk && L > 0) {   // 下一次突破要什么：现在就能攒
+    let nb = 0; for (let l = L + 1; l < WMAX; l++) if (wpIsBreak(l)) { nb = l; break; }
+    if (nb) { const keys = wpBkKeys(id, nb), cost = wNeed(id, nb), card = wpDiv('wprev');
+      card.innerHTML = '<div class="wgh"><b>下一次突破</b><span class="wtag p">提前准备</span><span>Lv.' + nb + '（再升 ' + (nb - L) + ' 级）</span></div><div class="wps">这些材料只有突破才要，现在就可以开始攒。</div><div class="wlist">' + keys.map(k => wpRow(k, cost[k], true)).join('') + '</div>';
+      p.appendChild(card); }
+  }
+  try { const note = (window.__wpNote = window.__wpNote || ($('weapon').querySelector('.snote') || {}).textContent); if (note) p.appendChild(wpDiv('wpnote', note)); } catch (e) { }
+  return p;
+}
+function wpageBuild() {
+  const root = $('weapon'), box = $('wDetail'); if (!root || !box || !box.querySelector || !WEAP[wSel]) return;
+  wpageCss(); root.classList.add('wnew'); [...root.querySelectorAll('.wbar')].forEach(e => e.remove());
+  const q = s => box.querySelector(s), id = wSel, L = wLv(id), max = L >= WMAX, nd = max ? {} : wNeed(id, L);
+  const hero = q('.whero'), st = q('.wst'), skl = q('.wskl'), btn = q('.btnrow'), att = q('.attsec'), skh = q('.wskh'), gr = q('.wgrid');
+  const top = wpDiv('wtop'); if (hero) top.appendChild(hero); if (st) top.appendChild(st);
+  const short = Object.keys(nd).filter(k => matHave(k) < nd[k]).length, rdy = typeof weaponReady === 'function' && weaponReady(id);
+  const tabs = wpDiv('wtabs'); WP_TABS.forEach(([k, n]) => { const b = document.createElement('button'); b.className = wTab === k ? 'on' : ''; b.innerHTML = n + (k === 'up' && rdy ? '<i class="wdot"></i>' : ''); b.addEventListener('click', () => { wTab = k; renderWeapon(); }); tabs.appendChild(b); });
+  const panes = [wpUpPane(id, L, max, nd)];
+  [['sk', [skl]], ['at', [att]], ['sn', [skh, gr]]].forEach(([k, els]) => { const p = wpDiv('wpane' + (wTab === k ? ' on' : '')); p.dataset.tab = k; els.forEach(e => { if (e) p.appendChild(e); }); if (k === 'sk' && !skl) p.appendChild(wpDiv('wpnote', '这把武器没有技能。')); panes.push(p); });
+  // 底栏：装备 ▾ + 主按钮（按钮和点击事件还是原来的，只是搬位置）
+  const bs = btn ? [...btn.querySelectorAll('button')] : [], upBtn = !max ? bs.find(b => /制作|升级|突破/.test(b.textContent)) : null, others = bs.filter(b => b !== upBtn);
+  const bar = wpDiv('wbar'), menu = wpDiv('wmenu'); others.forEach(b => menu.appendChild(b));
+  const eq = document.createElement('button'); eq.className = 'wsec'; eq.textContent = (id === S.wp ? '手持中' : S.wpPrev === id ? '备用中' : '装备') + ' ▾'; eq.addEventListener('click', e => { e.stopPropagation && e.stopPropagation(); menu.classList.toggle('open'); });
+  bar.appendChild(eq); bar.appendChild(menu);
+  if (upBtn) { const t = upBtn.textContent; upBtn.className = 'go wprimary'; upBtn.innerHTML = '<b>' + t + '</b>' + (upBtn.disabled && short ? '<small>缺 ' + short + ' 样材料</small>' : ''); bar.appendChild(upBtn); }
+  while (box.firstChild) box.removeChild(box.firstChild);
+  box.appendChild(top); box.appendChild(tabs); panes.forEach(p => box.appendChild(p)); root.appendChild(bar);
+}
+renderWeapon = (o => function () { o(); try { if (WPAGE_ON) wpageBuild(); } catch (e) { console.warn('wpage', e); } })(renderWeapon);
+openWeaponPage = (o => function (slot) { wTab = 'up'; return o(slot); })(openWeaponPage);   // 从背包点进来，总是先落在「升级」
 /* ============ balance pass (Nov 2026) ============
    1. Recommended power ignores your own gear / outfit / wings / title / pass / collection bonuses, so it only depends
       on the region (it used to rise as your gear got better, showing "power too low" to strong players).
@@ -16478,6 +16593,19 @@ compLoad = (o => function (a) { o(a);
 // (the button and the panel title say 伙伴 now)
 try { const b = $('bComp'); if (b) b.setAttribute('aria-label', T2('伙伴', 'Companions')); } catch (e) { }
 try { const st = document.createElement('style'); st.textContent = '#compList .srow{flex-wrap:wrap}'; document.head.appendChild(st); } catch (e) { }
+
+/* ---- the dog and companion buttons: two small round icons side by side instead of two wide bars (they covered the screen) ---- */
+(() => { try {
+  const pb = $('bPet'), cb = $('bComp'); if (!pb || !cb || !pb.parentNode || !document.createElement) return;
+  const row = document.createElement('div'); row.id = 'pcRow'; pb.parentNode.insertBefore(row, pb); row.appendChild(pb); row.appendChild(cb);
+  const st = document.createElement('style'); st.textContent =
+    '#pcRow{display:flex;gap:6px;margin-top:4px;pointer-events:none}' +
+    '#pcRow #bPet,#pcRow #bComp{margin:0;width:34px;height:34px;padding:0;border-radius:50%;justify-content:center;position:relative;gap:0;font-size:15px}' +
+    '#pcRow #bPet span,#pcRow #bComp span{display:none}#pcRow #bPet svg{width:20px;height:20px}' +
+    '#pcRow #bPet u{position:absolute;left:5px;right:5px;bottom:3px;width:auto;height:3px}#pcRow #bComp b{font-size:15px;line-height:1}' +
+    '#pcRow #bComp .cdot{top:-2px;right:-2px}#pcRow .kcapb{left:-4px;top:-4px}';
+  document.head.appendChild(st);
+} catch (e) { console.warn('pcRow', e); } })();
 /* ============ roofs, gable walls, and blueprints for everything else ============
    New pieces:
    - 三角屋顶 / 天窗屋顶: a pitched roof over one 3×3 cell, sitting on top of the walls (like the upper floor slab).
@@ -17811,4 +17939,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794671873').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794672607').catch(()=>{});</script></body></html>
