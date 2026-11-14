@@ -1222,8 +1222,10 @@ scene.fog = new THREE.Fog(0xa4504a, 45, 135);
 const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 600);
 let camH = 16, camD = 12;
 function resize() {
-  const w = window.innerWidth, h = window.innerHeight;
-  renderer.setSize(w, h, false);
+  const w = window.innerWidth; let h = window.innerHeight;
+  // iPhone home-screen app: the page can stop short of the bottom of the screen (a dark strip under the home bar). Paint the 3D view the whole screen height.
+  try { if (navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)) { const sh = Math.max(screen.width, screen.height), sw = Math.min(screen.width, screen.height), full = w > h ? sw : sh; if (full > h && full - h < 140) h = full; } } catch (e) { }
+  renderer.setSize(w, h, false); try { renderer.domElement.style.height = h + 'px'; renderer.domElement.style.bottom = 'auto'; } catch (e) { }
   camera.aspect = w / h;
   const portrait = h > w;
   camera.fov = portrait ? 60 : 46;
@@ -16121,8 +16123,8 @@ function coverCam(dt) {
   if (!COVER.sk && typeof SKINS !== 'undefined' && SKINS.myth) { COVER.sk = 1; COVER.prevSkin = S.skin; S.skin = 'myth'; try { redressPlayer(); } catch (e) { } }   // show off an outfit on the title screen
   if (!COVER.lh) { COVER.lh = 1; for (const l of labelSprite.all || []) { l.userData.cvis = l.visible; l.visible = false; } }
   // the camera: low, behind and to the left, drifting a little
-  camPos.set(px + 2.6 + Math.sin(T * .15) * .4, 2.6 + Math.sin(T * .22) * .12, pz + 9 + Math.cos(T * .12) * .3);
-  camera.position.copy(camPos); camera.lookAt(px - 13.7, 3.4, pz - 40);
+  camPos.set(px + 2.6 + Math.sin(T * .15) * .6, 2.1 + Math.sin(T * .22) * .15, pz + 6.2 + Math.cos(T * .12) * .4);
+  camera.position.copy(camPos); camera.lookAt(px - 12, 3.4, pz - 40);
   for (const c of COVER.cr) c.rotation.y += dt * .05; if (COVER.g2) COVER.g2.material.opacity = .75 + Math.sin(T * 1.6) * .15; 
   if (COVER.emb) try { COVER.emb.position.set(px, 0, pz); const p = COVER.emb.geometry.attributes.position; for (let i = 0; i < p.count; i++) { let y = p.getY(i) + dt * (.6 + (i % 5) * .15); if (y > 12) y = 0; p.setY(i, y); p.setX(i, p.getX(i) + Math.sin(T + i) * dt * .3); } p.needsUpdate = true; } catch (e) { }
   try { updateFx(dt); placeSky(camera); waterTick(dt); } catch (e) { }
@@ -16134,7 +16136,7 @@ zSpecialTick = (o => function (dt) { if (COVER.on && S.started) coverOff(); o(dt
    A close-up of the featured outfit (rendered from the real 3D model), a painted backdrop, the name and a few lines of story.
    To feature another outfit later, add an entry to CV_PST and point CV_PST_ON at it. */
 const CV_PST = {
-  aster: { key: 'aster', col: '#e8b4ff', tag: ['传说 · 限定直售', 'LEGENDARY · ON SALE'], ttl: '银霭紫苑', en: 'ASTER IN THE SILVER MIST', yaw: .45, cam: [-1.0, 2.0, 2.9], span: .5, tm: .35,
+  aster: { key: 'aster', col: '#e8b4ff', tag: ['传说 · 限定直售', 'LEGENDARY · ON SALE'], ttl: '银霭紫苑', en: 'ASTER IN THE SILVER MIST', yaw: .45, cam: [-1.0, 2.0, 2.9], span: 1.0,
     story: [['灰雾里开出的最后一朵紫苑。', 'The last aster to bloom in the grey mist.'], ['她记得每一个没能回来的人，', 'She remembers everyone who never came back,'], ['也记得他们的名字。', 'and every one of their names.']] }
 };
 let CV_PST_ON = 'aster';
@@ -16208,7 +16210,7 @@ function cvPoster() { const el = $('cvPoster'); if (!el || el._done) return; el.
   const PO = document.createElement('div'); PO.className = 'cvP'; PO.id = 'cvPoster'; st.appendChild(PO); setTimeout(cvPoster, 60);
   const css = document.createElement('style'); css.textContent =
     '.cvP{position:absolute;right:max(4vw,env(safe-area-inset-right));top:50%;transform:translateY(-50%);height:min(74vh,500px);aspect-ratio:600/840;box-shadow:0 14px 40px rgba(0,0,0,.55),0 0 0 1px rgba(232,180,255,.35);border-radius:4px;overflow:hidden;pointer-events:none}.cvP img{display:block;width:100%;height:100%}' +
-    '@media (orientation:portrait){.cvP{top:auto;bottom:18vh;right:50%;transform:translateX(50%);height:min(46vh,420px)}}' +
+    '@media (orientation:portrait){.cvP{top:auto;bottom:calc(24vh + env(safe-area-inset-bottom,0px));right:6vw;transform:none;height:min(30vh,280px)}}' +
     '#start.cv{align-items:stretch;justify-content:center;background:linear-gradient(90deg,rgba(12,4,6,.82) 0%,rgba(12,4,6,.45) 38%,rgba(12,4,6,0) 62%),linear-gradient(0deg,rgba(12,4,6,.55),rgba(12,4,6,0) 30%);text-align:left;padding:0 0 0 max(5vw,env(safe-area-inset-left))}' +
     '.cvL{display:flex;flex-direction:column;align-items:flex-start;gap:6px;max-width:380px}' +
     '.cvEn{font-family:var(--font-hud);letter-spacing:.62em;font-size:12px;color:#ffb070;font-weight:700}' +
@@ -17965,4 +17967,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794673385').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794673685').catch(()=>{});</script></body></html>
