@@ -16598,8 +16598,8 @@ compHud = (o => function (force) { o(force); try { const b = $('bComp'), em = b 
   ['click', 'pointerdown', 'pointerup', 'touchstart', 'mousedown'].forEach(t => row.addEventListener(t, e => e.stopPropagation()));   // don't open the character page underneath
   setTimeout(() => { try { compHud(true); } catch (e) { } }, 0);
   const st = document.createElement('style'); st.textContent =
-    '#pcRow{position:absolute;left:100%;top:8px;display:flex;flex-direction:column;gap:3px;pointer-events:none;z-index:2}' +
-    '#pcRow #bPet,#pcRow #bComp{margin:0;width:30px;height:32px;padding:0 2px 0 0;border-radius:0 16px 16px 0;border-left:0;justify-content:center;position:relative;gap:0;font-size:14px;box-shadow:2px 2px 6px rgba(0,0,0,.35)}' +
+    '#pcRow{position:absolute;left:calc(100% - 1px);top:7px;bottom:7px;display:flex;flex-direction:column;justify-content:center;gap:4px;pointer-events:none;z-index:2}' +
+    '#pcRow #bPet,#pcRow #bComp{margin:0;width:30px;height:auto;flex:1 1 0;max-height:34px;min-height:22px;background:rgba(34,26,24,.9);border:1px solid rgba(255,214,160,.28);padding:0 2px 0 0;border-radius:0 16px 16px 0;border-left:0;justify-content:center;position:relative;gap:0;font-size:14px;box-shadow:2px 2px 6px rgba(0,0,0,.35)}' +
     '#pcRow #bPet span,#pcRow #bComp span{display:none}#pcRow #bPet svg{width:18px;height:18px}#pcRow #bComp b{display:flex}#pcRow #bComp b svg{width:19px;height:19px}' +
     '#pcRow #bPet u{position:absolute;left:3px;right:7px;bottom:3px;width:auto;height:3px}' +
     '#pcRow #bComp .cdot{top:-3px;right:-3px}#pcRow .kcapb{left:auto!important;right:-8px;top:-6px}';
@@ -18099,4 +18099,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794677852').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794697051').catch(()=>{});</script></body></html>
