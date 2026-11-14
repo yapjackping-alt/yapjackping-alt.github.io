@@ -16774,6 +16774,19 @@ const hudUrl = k => 'url("data:image/svg+xml,' + encodeURIComponent(HUD_IC[k]) +
     '#bFire #fireTxt{display:none}#bFire .fireIc{width:46px;height:46px;background-image:' + hudUrl('aim') + '}#bFire.mel .fireIc{background-image:' + hudUrl('fist') + '}';
   document.head.appendChild(st);
 } catch (e) { console.warn('hud3', e); } })();
+
+/* ---- the chat button never covers the task tracker or the build panel ----
+   While building, the chat button hides. Otherwise, if the left column (health panel + task tracker) reaches down
+   over the chat button (landscape with the tracker open), the chat button moves to the right of that column. */
+(() => { try {
+  setInterval(() => { try { const c = $('bChat'), L = $('left'); if (!c || !L) return;
+    const bo = typeof buildOpen !== 'undefined' && buildOpen; c.classList.toggle('bldHide', !!bo); document.body.classList.toggle('building', !!bo); if (bo) return;
+    c.style.left = ''; const cr = c.getBoundingClientRect(); if (!cr.width) return;
+    let lb = 0, lr = 0; for (const e of L.children) { if (!e.offsetParent || getComputedStyle(e).display === 'none') continue; const r = e.getBoundingClientRect(); if (r.height && r.left < cr.right) { lb = Math.max(lb, r.bottom); lr = Math.max(lr, r.right); } }
+    if (lb > cr.top - 4) c.style.left = (lr + 10) + 'px';
+  } catch (e) { } }, 300);
+  const st = document.createElement('style'); st.textContent = '#bChat.bldHide,body.building #chatFeed{display:none!important}'; document.head.appendChild(st);
+} catch (e) { } })();
 /* ============ save backup: export / import every character on this device ============
    The home-screen (PWA) version keeps saves only on this phone: deleting the app from the home screen wipes them.
    On the character screen: 「备份存档」 copies all characters as one text (and offers it as a file), 「恢复存档」 takes that text
@@ -18086,4 +18099,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794676420').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794677852').catch(()=>{});</script></body></html>
