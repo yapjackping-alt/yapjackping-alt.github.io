@@ -13499,9 +13499,9 @@ function rwInject(m) { try { const W = rwEnsure(), pct = Math.min(100, Math.roun
         '<small>本周已卖面值 ' + W.sold + ' / ' + RW.HALF + '（前 ' + RW.FULL + ' 全额，之后只给 25%）· 周一 4 点重置</small>' +
         '<small class="rlth">本周重点：<b>' + RW_NM[th] + '</b> 的传说收藏品更好出（掉率 ×' + RW.THEME_X + '）</small>'; bal.parentNode.insertBefore(d, bal.nextSibling); }
     const shop = m.querySelector('.rlshop');
-    if (shop && !m.querySelector('.rlskin') && RELIC_SKIN.length) { const s = document.createElement('div'); s.className = 'rlskin';
+    if (shop && !m.querySelector('.rwskin') && RELIC_SKIN.length) { const s = document.createElement('div'); s.className = 'rwskin';
       s.innerHTML = '<div class="dunsec">遗物限定外观 · 用遗物币买，需要先拥有对应的收藏品</div>' + RELIC_SKIN.filter(e => SKINS[e.k]).map(e => { const i = RELIC_SKIN.indexOf(e), own = S.skins.includes(e.k), ok = rwUnlocked(e);
-        return '<div class="rlsk' + (own ? ' own' : '') + '"><span>' + (typeof icHtml === 'function' ? icHtml('skin:' + e.k) : '') + '</span><b>' + SKINS[e.k].n + '</b><small>' + (own ? '已拥有' : ok ? (e.tag || '外观') : '未解锁：' + rwNeedTxt(e)) + '</small>' +
+        return '<div class="rwsk' + (own ? ' own' : '') + '"><span>' + (typeof icHtml === 'function' ? icHtml('skin:' + e.k) : '') + '</span><b>' + SKINS[e.k].n + '</b><small>' + (own ? '已拥有' : ok ? (e.tag || '外观') : '未解锁：' + rwNeedTxt(e)) + '</small>' +
           '<button class="sbtn' + (own || !ok || (S.relic | 0) < e.price ? ' ghostb' : '') + '" data-rs="' + i + '"' + (own ? ' disabled' : '') + '>' + (own ? '已拥有' : RELIC_COIN + ' ' + e.price) + '</button></div>'; }).join('');
       shop.parentNode.insertBefore(s, shop.nextSibling);
       s.querySelectorAll('button[data-rs]').forEach(b => b.addEventListener('click', () => { if (rwBuy(+b.dataset.rs)) { const bl = m.querySelector('.rlbal b'); if (bl) bl.textContent = S.relic | 0; s.remove(); rwInject(m); } })); }
@@ -13510,7 +13510,7 @@ openRelic = (o => function () { o(); try { const m = $('relicM'); if (!m) return
 try { const st = document.createElement('style'); st.textContent =
   '.rlwk{margin:0 0 10px}.rlwkbar{position:relative;height:8px;border-radius:5px;background:rgba(255,255,255,.12);overflow:hidden}.rlwkbar i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#c8902a,#ffd98a)}.rlwkbar u{position:absolute;top:0;bottom:0;width:2px;background:#fff;opacity:.6}' +
   '.rlwk small{display:block;margin-top:4px;font-size:11px;opacity:.8}.rlth b{color:#ffd98a}' +
-  '.rlskin{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:6px}.rlskin .dunsec{grid-column:1/-1}.rlsk{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:10px;background:rgba(0,0,0,.3);border:1px solid rgba(255,214,140,.5);text-align:center}.rlsk.own{opacity:.6}.rlsk b{font-size:12px}.rlsk small{font-size:10.5px;opacity:.75}.rlsk .sbtn{width:100%}';
+  '.rwskin{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:6px}.rwskin .dunsec{grid-column:1/-1}.rwsk{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:10px;background:rgba(0,0,0,.3);border:1px solid rgba(255,214,140,.5);text-align:center}.rwsk.own{opacity:.6}.rwsk b{font-size:12px}.rwsk small{font-size:10.5px;opacity:.75}.rwsk .sbtn{width:100%}';
   document.head.appendChild(st); } catch (e) { }/* ============ 副本柜子：每一格的品质看数量 ============
    以前柜子里的余烬币一格能开出 200～400，太多了。现在每一格先抽品质，再按品质决定数量：
      品质概率：普通 52% · 稀有 28% · 史诗 13% · 传说 6% · 神话 1%
@@ -14350,7 +14350,7 @@ function relicSkinInject(m) {
   box.innerHTML = '<div class="rlskh"><b>限定皮肤</b><small>只能用遗物币兑换，抽不到</small></div>' + RELIC_SKINS.map((s, i) => { const K = WSKINS[s.key]; if (!K) return ''; const own = relicSkinOwn(s), P = s.price(), ok = (S.relic | 0) >= P;
     return '<div class="rlsk' + (own ? ' own' : '') + '"><div class="rlskpic" data-i="' + i + '">' + icHtml('wsk:' + s.key + ':' + s.wid, 'big') + '<em>点我看看</em></div><div class="rlskx"><b>' + K.n + ' · ' + WEAP[s.wid].n + '</b><em>神话 · 只属于' + WEAP[s.wid].n + '</em><span>属性：' + K.stt + '</span><small>' + K.d + '</small>' +
       '<button class="sbtn' + (own || !ok ? ' ghostb' : '') + '" data-i="' + i + '"' + (own ? ' disabled' : '') + '>' + (own ? '已拥有 · 在背包点狙击枪换上' : RELIC_COIN + ' ' + P) + '</button>' + (own || ok ? '' : '<p>还差 ' + (P - (S.relic | 0)) + ' 个遗物币</p>') + '</div></div>'; }).join('');
-  shop.parentNode.insertBefore(box, shop.nextSibling);
+  shop.parentNode.insertBefore(box, shop);   // above the goods, so it's the first thing on Old Qian's page
   const note = m.querySelector('.dunnote'); if (note) note.textContent = '兑换后，到背包里点狙击枪，就能换上皮肤。';
   box.querySelectorAll('.rlskpic').forEach(p => p.addEventListener('click', () => { const s = RELIC_SKINS[+p.dataset.i]; try { wskPreview(s.key, s.wid); } catch (e) { } }));
   box.querySelectorAll('button[data-i]').forEach(b => b.addEventListener('click', () => { if (relicSkinBuy(+b.dataset.i, b)) openRelic(); }));
@@ -14360,7 +14360,7 @@ openRelic = (o => function () {
   try { const m = $('relicM'); if (!m) return; relicSkinInject(m); new MutationObserver(() => { try { relicSkinInject(m); } catch (e) { } }).observe(m, { childList: true }); } catch (e) { console.warn('relic skin', e); }
 })(openRelic);
 try { const st = document.createElement('style'); st.textContent =
-  '.rlskin{margin-top:12px;padding-top:10px;border-top:1px dashed rgba(255,214,140,.35)}.rlskh{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}.rlskh b{color:#ff4d8d;font-size:14px}.rlskh small{opacity:.7;font-size:11.5px}' +
+  '.rlskin{margin:0 0 12px;padding-bottom:10px;border-bottom:1px dashed rgba(255,214,140,.35)}.rlskh{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}.rlskh b{color:#ff4d8d;font-size:14px}.rlskh small{opacity:.7;font-size:11.5px}' +
   '.rlsk{display:flex;gap:10px;padding:8px;border-radius:12px;background:linear-gradient(120deg,rgba(40,60,140,.35),rgba(10,14,30,.4));border:1.5px solid #ff4d8d}.rlsk.own{opacity:.85;border-color:rgba(255,77,141,.5)}' +
   '.rlskpic{position:relative;flex:none;width:118px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:radial-gradient(circle at 50% 55%,rgba(120,190,255,.28),rgba(0,0,0,.35));cursor:pointer}.rlskpic .ic,.rlskpic img{width:112px;max-height:80px;object-fit:contain}' +
   '.rlskpic em{position:absolute;bottom:2px;left:0;right:0;text-align:center;font-style:normal;font-size:10px;opacity:.7}' +
@@ -16618,4 +16618,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794650118').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794650555').catch(()=>{});</script></body></html>
