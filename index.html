@@ -16480,7 +16480,7 @@ const COMP_RACE = {
   dwarf: { n: '矮人', hp: 1.15, dmg: 1, sc: [.8, .62, .8], skins: [0xe0a888, 0xc88a6a, 0xa8705a], names: ['铁须', '石锤', '煤灯', '铜盔', '黑砧', '火钳', '岩眉', '银斧', '炉心', '锻石'] },
   elf: { n: '精灵', hp: .95, dmg: 1.12, sc: [.62, .72, .62], skins: [0xf3dcc4, 0xe8d0b8, 0xd8e8cc], names: ['月叶', '星露', '银枝', '晨歌', '风铃', '青藤', '雾羽', '溪语', '白桦', '流萤'] }
 };
-const COMP_GS = ['helm', 'armor', 'gloves'];
+const COMP_GS = GSLOT.slice();   // the same 6 slots as you
 const compRaceOf = c => COMP_RACE[c.race] || COMP_RACE.dwarf;
 function compGearT(c) { const t = {}; for (const s of COMP_GS) { const it = c.gear && c.gear[s]; if (!it) continue; try { const o = gStats(it); for (const k in o) t[k] = (t[k] || 0) + o[k]; } catch (e) { } } return t; }
 function compMax2(c) { const g = compGearT(c); return Math.round((120 + 24 * c.lv) * (c.role === '老兵' ? 1.6 : 1) * compRaceOf(c).hp + (g.hp || 0) * 1.5); }
@@ -16545,7 +16545,7 @@ renderComps = (o => function () {
       const t = row.querySelector('b, .rt, span'); if (t && !t._r) { t._r = 1; t.textContent = compRaceOf(c).n + '·' + c.role + ' ' + c.n + ' · Lv.' + c.lv; }
       const sub = document.createElement('div'); sub.className = 'cpsub'; sub.innerHTML = '<span class="cpxp"><i style="width:' + (c.lv >= S.level ? 100 : Math.min(100, (c.xp || 0) / xpNeed(c.lv) * 100)) + '%"></i></span><small>' + (c.lv >= S.level ? T2('已经和你同级，你升级后它才能继续升', 'Same level as you: levels again after you do') : T2('经验 ', 'XP ') + (c.xp | 0) + ' / ' + xpNeed(c.lv)) + ' · ' + T2('减伤 ', 'Def ') + Math.round(compDef(c) * 100) + '%</small>';
       const b1 = document.createElement('button'); b1.className = 'sbtn ghostb'; b1.textContent = T2('换职业', 'Class'); b1.addEventListener('click', () => { COMP_OPEN.id = COMP_OPEN.id === c.id && COMP_OPEN.tab === 'role' ? null : c.id; COMP_OPEN.tab = 'role'; renderComps(); });
-      const b2 = document.createElement('button'); b2.className = 'sbtn ghostb'; b2.textContent = T2('装备', 'Gear'); b2.addEventListener('click', () => { COMP_OPEN.id = COMP_OPEN.id === c.id && COMP_OPEN.tab === 'gear' ? null : c.id; COMP_OPEN.tab = 'gear'; renderComps(); });
+      const b2 = document.createElement('button'); b2.className = 'sbtn ghostb'; b2.textContent = T2('装备', 'Gear'); b2.addEventListener('click', () => compGearOpen(c));
       sub.appendChild(b1); sub.appendChild(b2); row.appendChild(sub);
       if (COMP_OPEN.id !== c.id) return;
       const pn = document.createElement('div'); pn.className = 'cppan';
@@ -16586,18 +16586,76 @@ compLoad = (o => function (a) { o(a);
 try { const b = $('bComp'); if (b) b.setAttribute('aria-label', T2('伙伴', 'Companions')); } catch (e) { }
 try { const st = document.createElement('style'); st.textContent = '#compList .srow{flex-wrap:wrap}'; document.head.appendChild(st); } catch (e) { }
 
-/* ---- the dog and companion buttons: two small round icons side by side instead of two wide bars (they covered the screen) ---- */
+/* ---- the dog and companion buttons: two small tabs stuck to the right edge of the health panel (they used to sit as wide bars over the screen) ---- */
+const COMP_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="#dfffe6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3"/><path d="M3.5 19.5c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><path d="M6.4 7.2 4.6 5M11.6 7.2 13.4 5"/><circle cx="16.8" cy="10" r="2.3"/><path d="M15.4 14.6c2.5-.3 4.5 1.3 5.1 4.4"/><path d="M15 8.6h3.6"/></svg>';
+compHud = (o => function (force) { o(force); try { const b = $('bComp'), em = b && b.querySelector('b'); if (em && !em.querySelector('svg')) em.innerHTML = COMP_IC; } catch (e) { } })(compHud);
 (() => { try {
-  const pb = $('bPet'), cb = $('bComp'); if (!pb || !cb || !pb.parentNode || !document.createElement) return;
-  const row = document.createElement('div'); row.id = 'pcRow'; pb.parentNode.insertBefore(row, pb); row.appendChild(pb); row.appendChild(cb);
+  const pb = $('bPet'), cb = $('bComp'), st0 = $('status'); if (!pb || !cb || !st0 || !document.createElement) return;
+  const row = document.createElement('div'); row.id = 'pcRow'; st0.appendChild(row); row.appendChild(pb); row.appendChild(cb);
+  ['click', 'pointerdown', 'pointerup', 'touchstart', 'mousedown'].forEach(t => row.addEventListener(t, e => e.stopPropagation()));   // don't open the character page underneath
+  setTimeout(() => { try { compHud(true); } catch (e) { } }, 0);
   const st = document.createElement('style'); st.textContent =
-    '#pcRow{display:flex;gap:6px;margin-top:4px;pointer-events:none}' +
-    '#pcRow #bPet,#pcRow #bComp{margin:0;width:34px;height:34px;padding:0;border-radius:50%;justify-content:center;position:relative;gap:0;font-size:15px}' +
-    '#pcRow #bPet span,#pcRow #bComp span{display:none}#pcRow #bPet svg{width:20px;height:20px}' +
-    '#pcRow #bPet u{position:absolute;left:5px;right:5px;bottom:3px;width:auto;height:3px}#pcRow #bComp b{font-size:15px;line-height:1}' +
-    '#pcRow #bComp .cdot{top:-2px;right:-2px}#pcRow .kcapb{left:-4px;top:-4px}';
+    '#pcRow{position:absolute;left:100%;top:8px;display:flex;flex-direction:column;gap:3px;pointer-events:none;z-index:2}' +
+    '#pcRow #bPet,#pcRow #bComp{margin:0;width:30px;height:32px;padding:0 2px 0 0;border-radius:0 16px 16px 0;border-left:0;justify-content:center;position:relative;gap:0;font-size:14px;box-shadow:2px 2px 6px rgba(0,0,0,.35)}' +
+    '#pcRow #bPet span,#pcRow #bComp span{display:none}#pcRow #bPet svg{width:18px;height:18px}#pcRow #bComp b{display:flex}#pcRow #bComp b svg{width:19px;height:19px}' +
+    '#pcRow #bPet u{position:absolute;left:3px;right:7px;bottom:3px;width:auto;height:3px}' +
+    '#pcRow #bComp .cdot{top:-3px;right:-3px}#pcRow .kcapb{left:auto!important;right:-8px;top:-6px}';
   document.head.appendChild(st);
 } catch (e) { console.warn('pcRow', e); } })();
+
+
+/* ---- a companion's equipment: the same page as yours (the figure in the middle, 3 slots each side, the piece and what's in your bag below) ---- */
+const CG = { c: null, sel: 'helm', R: null, sc: null, cam: null, h: null, key: '', raf: 0, t: 0, yaw: null, drag: null };
+function cgInit() {
+  if (CG.R !== null) return !!CG.R;
+  try { const cv = document.createElement('canvas'); cv.className = 'dollcv'; CG.R = new THREE.WebGLRenderer({ canvas: cv, alpha: true, antialias: true }); if (!CG.R.domElement) throw 0; } catch (e) { CG.R = false; return false; }
+  CG.R.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); CG.R.setSize(130, 200, false); if (CG.R.setClearColor) CG.R.setClearColor(0, 0);
+  CG.sc = new THREE.Scene(); CG.sc.add(new THREE.HemisphereLight(0xffd8c0, 0x3a2a48, 1.0)); const k = new THREE.DirectionalLight(0xffb888, 1.0); k.position.set(-2, 3, 4); CG.sc.add(k); const f = new THREE.DirectionalLight(0x9aa0e0, .5); f.position.set(3, 1, -2); CG.sc.add(f);
+  const cv = CG.R.domElement; cv.style.touchAction = 'pan-y'; cv.style.cursor = 'grab';
+  cv.addEventListener('pointerdown', e => { CG.drag = e.clientX; if (CG.yaw == null) CG.yaw = CG.h ? CG.h.g.rotation.y : 0; try { cv.setPointerCapture(e.pointerId); } catch (er) { } });
+  cv.addEventListener('pointermove', e => { if (CG.drag == null) return; CG.yaw += (e.clientX - CG.drag) * .018; CG.drag = e.clientX; });
+  const up = () => { CG.drag = null; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  CG.cam = new THREE.PerspectiveCamera(26, 130 / 200, .1, 50); CG.cam.position.set(0, 1.0, 4.9); CG.cam.lookAt(0, .82, 0); return true;
+}
+function cgBuild() { const c = CG.c, key = c.id + c.race + c.role + JSON.stringify(c.gear || {}); if (key === CG.key && CG.h) return; CG.key = key;
+  if (CG.h) CG.sc.remove(CG.h.g);
+  const h = compModel(c); scene.remove(h.g); h.g.traverse(o => { if (o.isSprite) o.visible = false; });
+  const s0 = S.skin; try { S.skin = ''; outfitOn(h, c.gear || {}); } catch (e) { } finally { S.skin = s0; }
+  h.g.position.set(0, 0, 0); CG.h = h; CG.sc.add(h.g); }
+function cgLoop() { const ov = $('compGear'); if (!ov || !ov.classList.contains('show') || !CG.h) { CG.raf = 0; return; }
+  CG.t += 1 / 60; CG.h.g.rotation.y = CG.drag == null && CG.yaw == null ? .55 + Math.sin(CG.t * .6) * .45 : CG.yaw;
+  try { CG.R.render(CG.sc, CG.cam); } catch (e) { } CG.raf = requestAnimationFrame(cgLoop); }
+function compGearOpen(c) { CG.c = c; CG.yaw = null; let ov = $('compGear');
+  if (!ov) { ov = document.createElement('div'); ov.className = 'overlay scroll'; ov.id = 'compGear'; ov.innerHTML = '<h2></h2><div id="cgBox" class="slist"></div>';
+    const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => { ov.classList.remove('show'); try { renderComps(); } catch (e) { } }); ov.appendChild(x); document.body.appendChild(ov); }
+  ov.classList.add('show'); cgRender(); }
+function cgRender() { const c = CG.c, ov = $('compGear'), box = $('cgBox'); if (!c || !box) return;
+  ov.querySelector('h2').textContent = compRaceOf(c).n + '·' + c.role + ' ' + c.n + T2(' 的装备', '\'s gear');
+  box.innerHTML = '';
+  const gs = g => { const b = document.createElement('button'), it = c.gear && c.gear[g[0]], Q = it && GQ[it[1]], nw = S.ginv.some(x => gSlot(x) === g[0] && (!it || gScore(x) > gScore(it)));
+    b.className = 'gslot' + (CG.sel === g[0] ? ' sel' : '') + (it ? ' has' : '') + (nw ? ' up' : ''); if (Q) b.style.setProperty('--qc', Q.c);
+    b.innerHTML = '<svg viewBox="0 0 24 24"><path d="' + g[2] + '" fill="' + (Q ? Q.c : '#d8c0b0') + '"/></svg>' + (it ? '<span class="glv">Lv.' + it[2] + '</span>' : g[1]);
+    b.addEventListener('click', () => { CG.sel = g[0]; cgRender(); }); return b; };
+  const db = document.createElement('div'), L = document.createElement('div'), F = document.createElement('div'), R = document.createElement('div'); db.className = 'dollbox'; L.className = R.className = 'dollcol'; F.className = 'dollfig';
+  if (cgInit()) { cgBuild(); F.appendChild(CG.R.domElement); if (!CG.raf) CG.raf = requestAnimationFrame(cgLoop); }
+  GEAR.slice(0, 3).forEach(g => L.appendChild(gs(g))); GEAR.slice(3).forEach(g => R.appendChild(gs(g)));
+  db.appendChild(L); db.appendChild(F); db.appendChild(R); box.appendChild(db);
+  const sm = document.createElement('div'); sm.className = 'snote'; sm.textContent = T2('生命 ', 'Life ') + compMax(c) + ' · ' + T2('伤害 ', 'Damage ') + Math.round(compDmg(c)) + ' · ' + T2('减伤 ', 'Def ') + Math.round(compDef(c) * 100) + '%'; box.appendChild(sm);
+  // the selected slot: what's on, and the pieces in your bag that fit
+  const slot = CG.sel, cur = c.gear[slot], stat = it => { const o = gStats(it, 'base'); return Object.keys(o).map(k => '<span class="gst">' + GSTAT_N[k][0] + ' <b>' + GSTAT_N[k][1](o[k]) + '</b></span>').join(''); };
+  const card = (it, tag) => { const Q = GQ[it[1]]; return '<div class="gcard" style="--qc:' + Q.c + '"><div class="gtop"><b style="color:' + Q.c + '">' + Q.n + ' · ' + gName(it) + '</b><span>Lv.' + it[2] + ' · ' + T2('评分 ', 'Score ') + gScore(it) + (tag || '') + '</span></div><div class="gsts">' + stat(it) + '</div></div>'; };
+  const d = document.createElement('div'); d.className = 'dtl';
+  d.insertAdjacentHTML('beforeend', '<h3 class="cgh">' + GSLOT_N[slot] + '</h3>' + (cur ? card(cur, T2(' · 穿着', ' · worn')) : '<div class="snote">' + T2('这个位置还空着', 'Nothing here yet') + '</div>'));
+  if (cur) { const u = document.createElement('button'); u.className = 'sbtn ghostb'; u.textContent = T2('脱下放回背包', 'Take off'); u.addEventListener('click', () => { if (S.ginv.length >= gcap()) { feed(T2('背包满了', 'Bag is full'), '#ff9b8a'); return; } S.ginv.push(cur); delete c.gear[slot]; c.hp = Math.min(c.hp, compMax(c)); saveGame(); cgRender(); }); d.appendChild(u); }
+  const cand = S.ginv.filter(it => gSlot(it) === slot).sort((a, b) => gScore(b) - gScore(a));
+  d.insertAdjacentHTML('beforeend', '<h3 class="cgh">' + T2('背包里能穿的', 'From your bag') + ' · ' + cand.length + '</h3>');
+  if (!cand.length) d.insertAdjacentHTML('beforeend', '<div class="snote">' + T2('背包里没有这个位置的装备', 'No pieces for this slot in your bag') + '</div>');
+  cand.slice(0, 12).forEach(it => { const w = document.createElement('div'); w.className = 'cgrow'; w.innerHTML = card(it, cur ? (gScore(it) > gScore(cur) ? ' · <i class="cgup">▲ ' + (gScore(it) - gScore(cur)) + '</i>' : ' · <i class="cgdn">▼ ' + (gScore(cur) - gScore(it)) + '</i>') : '');
+    const b = document.createElement('button'); b.className = 'sbtn'; b.textContent = T2('给 ', 'Give to ') + c.n + T2(' 穿上', '');
+    b.addEventListener('click', () => { const k = S.ginv.indexOf(it); if (k < 0) return; S.ginv.splice(k, 1); if (c.gear[slot]) S.ginv.push(c.gear[slot]); c.gear[slot] = it; c.hp = Math.min(compMax(c), (c.hp || 0) + 1); feed(c.n + T2(' 穿上了 ', ' put on ') + gName(it), GQ[it[1]].c); saveGame(); cgRender(); });
+    w.appendChild(b); d.appendChild(w); });
+  box.appendChild(d); }
+try { const st = document.createElement('style'); st.textContent = '#compGear .dtl{text-align:left;width:100%}.cgh{margin:10px 0 4px;font-size:14px;color:#ffd8a8}.cgrow{display:flex;flex-direction:column;gap:4px;margin-bottom:8px}.cgrow .sbtn{align-self:flex-end}.cgup{color:#8fe05a;font-style:normal}.cgdn{color:#ff8f80;font-style:normal}'; document.head.appendChild(st); } catch (e) { }
 /* ============ roofs, gable walls, and blueprints for everything else ============
    New pieces:
    - 三角屋顶 / 天窗屋顶: a pitched roof over one 3×3 cell, sitting on top of the walls (like the upper floor slab).
@@ -16675,7 +16733,7 @@ shopLoad = (o => function (d) { o(d); try { const old = !(d && d.sh && d.sh.bpv2
   try { const ks = []; try { const st = stStep(); if (st && st.k === 'btype') ks.push(st.t); } catch (e) { } try { const c = COMM[ST2.comm.i], s = c && S.level >= c.lv && c.steps[ST2.comm.p | 0]; if (s && s.k === 'btype') ks.push(s.t); } catch (e) { }
     for (const k of ks) if (BT[k] && BT[k].bp && !S.bp[k]) { S.bp[k] = 1; feed(T2('拿到蓝图「', 'Blueprint: ') + BT[k].name + T2('」（任务送的）', ' (task gift)'), '#7ec8ff'); try { buildCards(); } catch (e) { } } } catch (e) { } })(zSpecialTick); }
 /* ============ HUD touches ============
-   - The task tracker: a little ▲ / ▼ tab on its bottom edge folds it. Folded, it shows only the chapter and the task's
+   - The task tracker: a little ▲ / ▼ button at its top-right corner folds it. Folded, it shows only the chapter and the task's
      name (no description, reward, marker distance or commission). Remembered on this device.
    - The fire button shows a white line icon instead of the word: a crosshair for guns, a fist for melee weapons.
    - The reload button shows a white line icon (a magazine inside a turning arrow) instead of 「换弹」; the ammo count stays. */
@@ -16685,9 +16743,11 @@ stTrk = (o => function () { o(); try { const e = $('storyTrk'); if (!e) return;
   e.classList.toggle('min', TRK_MIN);
   const a = document.createElement('i'); a.className = 'trkArr'; a.setAttribute('role', 'button'); a.setAttribute('aria-label', TRK_MIN ? T2('展开任务', 'Expand') : T2('收起任务', 'Collapse'));
   a.innerHTML = '<svg viewBox="0 0 20 12"><path d="' + (TRK_MIN ? 'M3 3l7 6 7-6' : 'M3 9l7-6 7 6') + '" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  const stop = ev => { ev.stopPropagation(); if (ev.cancelable) ev.preventDefault(); };
-  ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend'].forEach(t => a.addEventListener(t, stop));
-  a.addEventListener('click', ev => { stop(ev); TRK_MIN = !TRK_MIN; try { localStorage.setItem('ember_trkmin', TRK_MIN ? '1' : '0'); } catch (x) { } stTrk(); });
+  // toggle on pointerup (works with touch on iPhone too); the click that follows is swallowed so the task book doesn't open
+  const tog = () => { if (Date.now() - (window._trkT || 0) < 350) return; window._trkT = Date.now(); TRK_MIN = !TRK_MIN; try { localStorage.setItem('ember_trkmin', TRK_MIN ? '1' : '0'); } catch (x) { } stTrk(); };
+  ['pointerdown', 'mousedown', 'touchstart'].forEach(t => a.addEventListener(t, ev => ev.stopPropagation()));
+  a.addEventListener('pointerup', ev => { ev.stopPropagation(); tog(); });
+  a.addEventListener('click', ev => { ev.stopPropagation(); ev.preventDefault(); if (typeof PointerEvent !== 'function') tog(); });   // the toggle already happened on pointerup (a slow phone can send the click much later)
   e.appendChild(a); } catch (er) { } })(stTrk);
 
 const HUD_IC = {
@@ -16702,9 +16762,10 @@ const hudUrl = k => 'url("data:image/svg+xml,' + encodeURIComponent(HUD_IC[k]) +
   const fb = $('bFire'); if (fb) { const ic = document.createElement('i'); ic.className = 'hudIc fireIc'; fb.insertBefore(ic, fb.firstChild); fb.setAttribute('aria-label', T2('攻击', 'Attack')); }
   setInterval(() => { try { if (fb) fb.classList.toggle('mel', !!isMelee()); } catch (e) { } }, 300);
   const st = document.createElement('style'); st.textContent =
-    '#storyTrk{position:relative;padding-bottom:14px}#storyTrk.min>*:not(b):not(.stmain):not(.trkArr):not(.kcapb){display:none!important}#storyTrk.min .stmain em{display:none}' +
-    '#storyTrk .trkArr{position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);width:34px;height:16px;display:flex;align-items:center;justify-content:center;border-radius:0 0 9px 9px;background:rgba(20,12,16,.9);border:1px solid rgba(255,201,74,.55);border-top:0;color:#ffc94a;cursor:pointer;pointer-events:auto}' +
-    '#storyTrk .trkArr svg{width:14px;height:9px}#storyTrk .trkArr::before{content:"";position:absolute;inset:-10px -12px}' +
+    '#storyTrk{position:relative;padding-right:34px!important}#storyTrk.min>*:not(b):not(.stmain):not(.trkArr):not(.kcapb){display:none!important}#storyTrk.min .stmain em{display:none}' +
+    '#storyTrk .trkArr{position:absolute;right:4px;top:4px;width:26px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:7px;background:rgba(255,201,74,.14);border:1px solid rgba(255,201,74,.5);color:#ffc94a;cursor:pointer;pointer-events:auto;z-index:2}' +
+    '#storyTrk .kcapb{right:auto!important;left:-6px!important;top:-6px!important}' +
+    '#storyTrk .trkArr svg{width:14px;height:9px}#storyTrk .trkArr::before{content:"";position:absolute;inset:-8px -6px -8px -10px}' +
     '.hudIc{display:block;background-repeat:no-repeat;background-position:center;background-size:contain;pointer-events:none}' +
     '#bReload .rlTxt{display:none}#bReload .rlIc{width:26px;height:26px;background-image:' + hudUrl('reload') + '}#bReload{flex-direction:column;gap:0}' +
     '#bFire #fireTxt{display:none}#bFire .fireIc{width:46px;height:46px;background-image:' + hudUrl('aim') + '}#bFire.mel .fireIc{background-image:' + hudUrl('fist') + '}';
@@ -17967,4 +18028,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794674152').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794674808').catch(()=>{});</script></body></html>
