@@ -16123,8 +16123,8 @@ function coverCam(dt) {
   if (!COVER.sk && typeof SKINS !== 'undefined' && SKINS.myth) { COVER.sk = 1; COVER.prevSkin = S.skin; S.skin = 'myth'; try { redressPlayer(); } catch (e) { } }   // show off an outfit on the title screen
   if (!COVER.lh) { COVER.lh = 1; for (const l of labelSprite.all || []) { l.userData.cvis = l.visible; l.visible = false; } }
   // the camera: low, behind and to the left, drifting a little
-  camPos.set(px + 2.6 + Math.sin(T * .15) * .6, 2.1 + Math.sin(T * .22) * .15, pz + 6.2 + Math.cos(T * .12) * .4);
-  camera.position.copy(camPos); camera.lookAt(px - 12, 3.4, pz - 40);
+  camPos.set(px - 3.4 + Math.sin(T * .15) * .6, 2.1 + Math.sin(T * .22) * .15, pz + 6.2 + Math.cos(T * .12) * .4);
+  camera.position.copy(camPos); camera.lookAt(px - 5, 3.4, pz - 40);
   for (const c of COVER.cr) c.rotation.y += dt * .05; if (COVER.g2) COVER.g2.material.opacity = .75 + Math.sin(T * 1.6) * .15; 
   if (COVER.emb) try { COVER.emb.position.set(px, 0, pz); const p = COVER.emb.geometry.attributes.position; for (let i = 0; i < p.count; i++) { let y = p.getY(i) + dt * (.6 + (i % 5) * .15); if (y > 12) y = 0; p.setY(i, y); p.setX(i, p.getX(i) + Math.sin(T + i) * dt * .3); } p.needsUpdate = true; } catch (e) { }
   try { updateFx(dt); placeSky(camera); waterTick(dt); } catch (e) { }
@@ -16207,11 +16207,11 @@ function cvPoster() { const el = $('cvPoster'); if (!el || el._done) return; el.
   st.insertBefore(L, st.firstChild);
   const B = document.createElement('div'); B.className = 'cvB'; st.appendChild(B); if (go) B.appendChild(go);
   const tip = document.createElement('small'); tip.className = 'cvTip'; tip.textContent = T2('点击开始', 'Tap to start'); B.appendChild(tip);
-  const PO = document.createElement('div'); PO.className = 'cvP'; PO.id = 'cvPoster'; st.appendChild(PO); setTimeout(cvPoster, 60);
+  const PO = document.createElement('div'); PO.className = 'cvP'; PO.id = 'cvPoster'; L.appendChild(PO); setTimeout(cvPoster, 60);
   const css = document.createElement('style'); css.textContent =
-    '.cvP{position:absolute;right:max(4vw,env(safe-area-inset-right));top:50%;transform:translateY(-50%);height:min(74vh,500px);aspect-ratio:600/840;box-shadow:0 14px 40px rgba(0,0,0,.55),0 0 0 1px rgba(232,180,255,.35);border-radius:4px;overflow:hidden;pointer-events:none}.cvP img{display:block;width:100%;height:100%}' +
-    '@media (orientation:portrait){.cvP{top:auto;bottom:calc(24vh + env(safe-area-inset-bottom,0px));right:6vw;transform:none;height:min(30vh,280px)}}' +
-    '#start.cv{align-items:stretch;justify-content:center;background:linear-gradient(90deg,rgba(12,4,6,.82) 0%,rgba(12,4,6,.45) 38%,rgba(12,4,6,0) 62%),linear-gradient(0deg,rgba(12,4,6,.55),rgba(12,4,6,0) 30%);text-align:left;padding:0 0 0 max(5vw,env(safe-area-inset-left))}' +
+    '.cvP{position:relative;margin-top:6px;height:min(calc(100vh - 210px),440px);aspect-ratio:600/840;box-shadow:0 14px 40px rgba(0,0,0,.55),0 0 0 1px rgba(232,180,255,.35);border-radius:4px;overflow:hidden;pointer-events:none}.cvP img{display:block;width:100%;height:100%}' +
+    '@media (orientation:portrait){.cvP{height:min(38vh,360px)}}' +
+    '#start.cv{align-items:stretch;justify-content:flex-start;padding-top:max(4vh,calc(env(safe-area-inset-top) + 10px))!important;background:linear-gradient(90deg,rgba(12,4,6,.82) 0%,rgba(12,4,6,.45) 38%,rgba(12,4,6,0) 62%),linear-gradient(0deg,rgba(12,4,6,.55),rgba(12,4,6,0) 30%);text-align:left;padding:0 0 0 max(5vw,env(safe-area-inset-left))}' +
     '.cvL{display:flex;flex-direction:column;align-items:flex-start;gap:6px;max-width:380px}' +
     '.cvEn{font-family:var(--font-hud);letter-spacing:.62em;font-size:12px;color:#ffb070;font-weight:700}' +
     '.cvH{margin:0!important;padding:0!important;font-size:clamp(42px,8vw,58px)!important;letter-spacing:.08em!important;background-image:linear-gradient(180deg,#fff2c8 0%,#ffb048 45%,#e8461c 80%,#8a1e0c)!important;-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 3px 0 #2a0a04) drop-shadow(0 0 16px rgba(255,110,30,.5))}' +
@@ -16220,7 +16220,7 @@ function cvPoster() { const el = $('cvPoster'); if (!el || el._done) return; el.
     '.cvNh{display:flex;align-items:center;gap:8px;margin-bottom:5px}.cvNh em{font-style:normal;font-size:10.5px;font-weight:900;color:#2a1004;padding:2px 8px;border-radius:5px;background:linear-gradient(180deg,#ffe6a0,#ffa040);letter-spacing:.1em}.cvNh b{color:#ffe0b0;font-size:15px;letter-spacing:.06em}' +
     '.cvRow{display:flex;align-items:center;gap:10px;padding:5px 2px;border-top:1px solid rgba(255,200,140,.12)}.cvRow span{display:flex;flex-direction:column}.cvRow b{color:#fff0dc;font-size:13px}.cvRow small{color:#c8a890;font-size:11px;margin-top:1px}' +
     '.cvGem{flex:none;width:22px;height:22px;transform:rotate(45deg);border:1.5px solid #ffd27a;border-radius:3px;box-shadow:0 0 10px var(--gc)}.cvGem.g{--gc:rgba(154,255,106,.6);background:linear-gradient(135deg,#d8ffb0,#5aa02a)}.cvGem.o{--gc:rgba(255,140,60,.7);background:linear-gradient(135deg,#ffd8a0,#e8501a)}.cvGem.b{--gc:rgba(140,220,255,.6);background:linear-gradient(135deg,#e0f8ff,#3a9ad8)}' +
-    '.cvB{position:absolute;left:max(5vw,env(safe-area-inset-left));bottom:max(7%,calc(env(safe-area-inset-bottom) + 14px));display:flex;flex-direction:column;align-items:center;gap:7px}' +
+    '.cvB{position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;bottom:max(7%,calc(env(safe-area-inset-bottom) + 14px));display:flex;flex-direction:column;align-items:center;gap:7px}' +
     '#start.cv #goStart{font-size:19px;letter-spacing:.32em;padding:13px 50px 13px 58px;border-radius:8px;clip-path:polygon(12px 0,100% 0,calc(100% - 12px) 100%,0 100%);box-shadow:0 0 26px rgba(255,140,40,.55)}' +
     '.cvTip{color:#e8c8a8;font-size:11px;letter-spacing:.4em;opacity:.75;animation:cvBlink 2.4s ease-in-out infinite}@keyframes cvBlink{50%{opacity:.3}}' +
     '@media (orientation:portrait){#start.cv{padding:12vh 0 0 6vw;justify-content:flex-start}.cvNews{width:min(330px,86vw)}}';
@@ -17967,4 +17967,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794673685').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794674152').catch(()=>{});</script></body></html>
