@@ -14841,7 +14841,7 @@ SKIN_P.abyss = [
 ];SKIN_BY_N[SKINS.abyss.n] = 'abyss';
 /* ============ 外观直售：不用抽，直接用晶石买外观 ============
    这里只卖直售限定的外观（现在是「星渊帝皇」）；抽奖池的外观只能抽。 */
-const SKIN_PRICE = { 5: 980, 4: 498, 3: 198 };   // 史诗 ≈ 2 个 ¥6 小包 · 传说 ≈ ¥30 包多一点 · 神话 ≈ ¥68 包再多一点 — closer to other mobile games
+const SKIN_PRICE = { 5: 1680, 4: 880, 3: 328 };   // 史诗 328 · 传说 880 · 神话 1680 (was 480 / 1280 / 3280)
 // only outfits made for direct sale go here; gacha outfits stay in the gacha. Add a key to this list to sell a new one.
 const SKIN_DIRECT = ['abyss'];
 const SKIN_SHOP = () => SKIN_DIRECT.filter(k => SKINS[k]);
@@ -14919,7 +14919,7 @@ try { const st = document.createElement('style'); st.textContent =
    【本文件用到的游戏里已有的东西（已对过交接包源码，都存在）】
    - SKINS / SKIN_BUILD / SKIN_P / SKIN_BY_N （r_shop.js、z_abyss.js 同样的用法）
    - SKIN_DIRECT （z_skinshop.js，直售列表，const 数组，用 push 登记）
-   - SKIN_PRICE[4] = 498 晶石 （传说档价格，z_skinshop.js 里已有，不用改）
+   - SKIN_PRICE[4] = 880 晶石 （传说档价格，z_skinshop.js 里已有，不用改）
    - 构建器 k 里的 bx / cone / gem / G / both / torso / sleeves / pants / cape / put （r_shop.js 的 skinKit）
    - mat(颜色) 、THREE
    - 假设：商城格子 / 衣柜 / 3D预览的小图标，是游戏自己按 SKIN_BUILD 自动生成的（abyss 没有单独写图标，所以应该是自动的）
@@ -15037,7 +15037,7 @@ SKIN_DIRECT.push('aster');/* ============ 换翅膀系统 + 新翅膀「粉蝶�
      需要交接的 AI 把 wingBuild(h) 接到 z_net.js 的远程玩家穿衣处（并同步 S.wing）。
    - 假设：存档里 shopSave() 返回的对象会原样存、shopLoad(d) 读 d.sh（读过 r_shop.js，是这样）。
 */
-const WING_PRICE = 680;     // 比神话外观（980）便宜；带属性，所以比传说外观（498）贵一档
+const WING_PRICE = 1080;    // 比神话外观（1680）便宜；带属性，所以比传说外观（880）贵一档
 const WINGS = { fairy: { n: '粉蝶幻翼', d: '一对粉蝶般的幻翼：上面一对大翅薄如蝉纱，从粉色渐变成淡紫、浅蓝，边缘描着粉色翅脉；下面一对由层层粉白羽瓣叠成。翅膀会随脚步扇动，翅尖不时闪光。穿着自带翅膀的外观时，不能更换翅膀。', st: { spd: .15, hpPct: .04, def: .02 }, stt: '移动速度 +15%、生命 +4%、减伤 +2%' } };
 S.wingOwn = []; S.wing = '';
 let WING_SVG = '<svg viewBox="0 0 100 80" style="height:100%;width:auto;max-width:100%" aria-hidden="true"><defs><linearGradient id="wgg" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#f6a9c9"/><stop offset=".6" stop-color="#e2d4ff"/><stop offset="1" stop-color="#bfe4ff"/></linearGradient></defs>' +
@@ -15489,6 +15489,10 @@ openDunPage = (o => function () { if (!ulOpen('dungeon')) { feed('🔒 ' + T2('L
    3. The story panel became a task book: Story · Commissions · Region challenges (6 optional tasks per region, with rewards).
    Wild dogs are not a task: a mother dog with puppies is rare, so it is only a hint in the book. */
 
+/* ---- XP for every task (see the hand-off doc, section 6) ---- */
+function stXp(ref, pct) { return Math.max(5, Math.round(xpNeed(Math.max(1, ref)) * pct)); }
+function stPct(st) { return !st ? .08 : st.k === 'boss' ? .25 : st.k === 'dun' ? .15 : st.k === 'lv' ? .10 : st.k === 'move' || st.k === 'reload' || st.k === 'chop' || st.k === 'quest' ? .10 : .12; }
+
 /* ---- 1. the prologue and chapter 1 ---- */
 (() => {
   const P = STORY[0], C1 = STORY[1];
@@ -15533,7 +15537,11 @@ openDunPage = (o => function () { if (!ulOpen('dungeon')) { feed('🔒 ' + T2('L
   const CR = [{ xp: 30, ammo: 20 }, { xp: 30, coin: 40 }, { xp: 30, ammo: 30 }, { xp: 40, med: 1 }, { xp: 55, coin: 80 }, { xp: 40, med: 2 }, { xp: 40, wood: 20 },
     { xp: 50, estone: 2 }, { xp: 20, coin: 100, powder: 2 }, { xp: 40, coin: 60 }, { xp: 50, stone: 15 }, { xp: 50, metal: 8 }, { xp: 60, metal: 10 }, { xp: 20, coin: 120, estone: 2 },
     { xp: 60, med: 1, ammo: 20 }, { xp: 60, powder: 3 }, { xp: 20, coin: 150, gem: 10 }, { xp: 60, coin: 80 }, { xp: 20, coin: 180, steel: 1 }, { xp: 70, wood: 25 }, { xp: 70, metal: 12 }, { xp: 120, coin: 200, gem: 20 }];
-  P.steps.forEach((s, i) => { s.rw = PR[i]; }); C1.steps.forEach((s, i) => { s.rw = CR[i]; });
+  // XP follows the rule in the tutorial hand-off doc: XP = (XP to go up one level at the step's reference level) × a share,
+  // the same whatever level you are when you do it. Teaching steps 10-12%, level-ups 10%, bosses 25%.
+  const PREF = [1, 1, 1, 1, 1, 1, 1], CREF = [1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2, 2, 2, 3, 3, 3, 4, 4, 5, 5, 8];
+  P.steps.forEach((s, i) => { s.rw = Object.assign({}, PR[i], { xp: stXp(PREF[i], stPct(s)) }); });
+  C1.steps.forEach((s, i) => { s.rw = Object.assign({}, CR[i], { xp: stXp(CREF[i], stPct(s)) }); });
 })();
 
 /* ---- step gifts: when a step that needs something starts, top up what's missing (once per step) ---- */
@@ -15611,7 +15619,7 @@ const COMM = [
 const commCur = () => COMM[ST2.comm.i], commStep = () => { const C = commCur(); return C && C.steps[ST2.comm.p | 0]; };
 const commOpen = () => { const C = commCur(); return C && S.level >= C.lv && !C.hide; };
 ST2.comm.n = 0;   // progress of the current step
-function commAdvance() { const C = commCur(); ST2.comm.p = (ST2.comm.p | 0) + 1; ST2.comm.n = 0;
+function commAdvance() { const C = commCur(); try { const st = commStep(), x = stXp(st && st.k === 'dun' ? C.lv + 2 : C.lv, stPct(st)); addXp(x); feed(T2('委托奖励：经验 +', 'Commission: XP +') + x, '#9fe8a0'); } catch (e) { } ST2.comm.p = (ST2.comm.p | 0) + 1; ST2.comm.n = 0;
   if (ST2.comm.p >= C.steps.length) { const R = C.rw;
     if (R.coin) gain('coin', R.coin); if (R.estone) gain('estone', R.estone); if (R.gem) addGem(R.gem, T2('委托奖励', 'commission reward'));
     banner(T2('委托完成 · ', 'Commission done · ') + C.t, stRwTxt(R), 4); ST2.comm.i++; ST2.comm.p = 0; ST2.comm.seen = -1; }
@@ -15650,7 +15658,8 @@ const rchGoal = (t, i) => [1, 15 + 5 * t, 4 + t, 5 * t, 10 * t, 1][i];
 const rchText = (t, i) => { const R = BIOMES[t - 1] ? BIOMES[t - 1].n : '', g = rchGoal(t, i);
   return [T2('抵达「' + R + '」', 'Reach the ' + R), T2('在「' + R + '」击败 ' + g + ' 只丧尸', 'Defeat ' + g + ' zombies in the ' + R), T2('在「' + R + '」打开 ' + g + ' 个箱子', 'Open ' + g + ' crates in the ' + R),
     T2('把任意武器升到 ' + g + ' 级', 'Get any weapon to Lv.' + g), T2('升到 Lv.' + g, 'Reach Lv.' + g), T2('击败「' + R + '」的首领', 'Defeat the ' + R + ' boss')][i]; };
-const rchRw = (t, i) => [{ coin: 30 * t }, { coin: 60 * t, ammo: 30 + 10 * t }, { coin: 50 * t, estone: 1 }, { estone: 1 + Math.ceil(t / 2) }, { gem: 10 }, { coin: 150 * t, estone: 2 + Math.floor(t / 3) }][i];
+const rchRw = (t, i) => Object.assign({ xp: stXp([10 * t - 9, 10 * t - 8, 10 * t - 7, 10 * t - 6, 10 * t, 10 * t - 2][i], [.04, .05, .04, .05, .06, .25][i]) }, rchRw0(t, i));
+const rchRw0 = (t, i) => [{ coin: 30 * t }, { coin: 60 * t, ammo: 30 + 10 * t }, { coin: 50 * t, estone: 1 }, { estone: 1 + Math.ceil(t / 2) }, { gem: 10 }, { coin: 150 * t, estone: 2 + Math.floor(t / 3) }][i];
 const rchS = t => (ST2.rch[t] = ST2.rch[t] || { n: [0, 0, 0, 0, 0, 0], c: 0 });
 const rchNow = (t, i) => i === 3 ? st2WMax() : i === 4 ? S.level : rchS(t).n[i];
 const rchOpen = t => S.level >= Math.max(1, 10 * t - 12) || rchS(t).n[0] > 0;
@@ -15660,9 +15669,9 @@ questTick = (o => function (k, n, ctx) { o(k, n, ctx);
     if (k === 'kill') R.n[1] += n || 1; else if (k === 'crate') R.n[2] += n || 1; else if (k === 'boss') R.n[5] += n || 1; } catch (e) { } })(questTick);
 setInterval(() => { try { if (!S.started || S.isl || S.dun) return; const t = tierAt(player.pos.x, player.pos.z); if (t >= 1 && t <= 10 && !rchS(t).n[0]) { rchS(t).n[0] = 1; } } catch (e) { } }, 1500);
 function rchClaim(t, i) { const R = rchS(t); if (R.c >> i & 1 || rchNow(t, i) < rchGoal(t, i)) return; R.c |= 1 << i; const W = rchRw(t, i);
-  for (const k in W) if (k === 'gem') addGem(W[k], T2('区域挑战', 'region challenge')); else gain(k, W[k]);
+  for (const k in W) if (k === 'gem') addGem(W[k], T2('区域挑战', 'region challenge')); else if (k === 'xp') addXp(W[k]); else gain(k, W[k]);
   try { sfx.build(); } catch (e) { } feed(T2('领取：', 'Claimed: ') + rchRwTxt(W), '#ffd27a'); refreshHud(); saveGame(); renderStory(); }
-const rchRwTxt = W => Object.keys(W).map(k => k === 'coin' ? W[k] + ' ' + T2('余烬币', 'coins') : k === 'gem' ? W[k] + ' ' + T2('晶石', 'gems') : k === 'ammo' ? T2('子弹 ×', 'Ammo ×') + W[k] : (ITEMS[k] ? ITEMS[k].n : k) + ' ×' + W[k]).join(' · ');
+const rchRwTxt = W => Object.keys(W).map(k => k === 'xp' ? T2('经验 +', 'XP +') + W[k] : k === 'coin' ? W[k] + ' ' + T2('余烬币', 'coins') : k === 'gem' ? W[k] + ' ' + T2('晶石', 'gems') : k === 'ammo' ? T2('子弹 ×', 'Ammo ×') + W[k] : (ITEMS[k] ? ITEMS[k].n : k) + ' ×' + W[k]).join(' · ');
 
 /* ---- 6. the task book: Story · Commissions · Region challenges ---- */
 renderStory = (o => function () {
@@ -15678,7 +15687,7 @@ renderStory = (o => function () {
       const card = document.createElement('div'); card.className = 'stcard' + (done ? ' done' : cur ? ' cur' : '') + (lock ? ' lock' : '');
       card.innerHTML = '<div class="sth"><b>' + C.t + '</b><span>' + (done ? T2('已完成', 'Done') : lock ? 'Lv.' + C.lv : cur ? T2('进行中', 'In progress') : T2('排队中', 'Queued')) + '</span></div>' +
         (done || cur ? '<div class="sts">' + C.say + '</div>' : '') + C.steps.map((s, j) => { const ok = done || (cur && j < (ST2.comm.p | 0)), now = cur && j === (ST2.comm.p | 0); return '<div class="sts' + (ok ? ' ok' : now ? ' now' : '') + '">' + (ok ? '✓' : now ? '▸' : '·') + ' ' + s.d + '</div>'; }).join('') +
-        '<div class="str">' + T2('奖励：', 'Reward: ') + stRwTxt(C.rw) + '</div>'; box.appendChild(card); });
+        '<div class="str">' + T2('奖励：', 'Reward: ') + T2('经验 +', 'XP +') + C.steps.reduce((a, st) => a + stXp(st.k === 'dun' ? C.lv + 2 : C.lv, stPct(st)), 0) + ' · ' + stRwTxt(C.rw) + '</div>'; box.appendChild(card); });
     const tip = document.createElement('div'); tip.className = 'snote'; tip.textContent = T2('小提示：大陆上偶尔能看到带着小狗的母狗，非常少见。遇到了就走过去喂小狗吃肉，可以带回家养。', 'Tip: once in a while a mother dog with puppies roams the mainland. It is rare. If you find one, feed a puppy some meat and you can take it home.'); box.appendChild(tip);
     return; }
   for (let t = 1; t <= 10; t++) { if (!rchOpen(t)) { const c = document.createElement('div'); c.className = 'stcard lock'; c.innerHTML = '<div class="sth"><b>' + (BIOMES[t - 1] ? BIOMES[t - 1].n : '') + '</b><span>Lv.' + Math.max(1, 10 * t - 12) + '</span></div>'; box.appendChild(c); continue; }
@@ -15695,7 +15704,7 @@ renderStory = (o => function () {
 const ST_RWI = [['coin', 60], ['ammo', 40], ['metal', 10], ['powder', 4], ['estone', 2], ['med', 2], ['steel', 1], ['circuit', 3], ['serum', 1], ['crystal', 1]];
 stStepRw = (o => function (c, s) { const C = STORY[c], st = C && C.steps[s]; if (!st) return o(c, s); if (st.rw) return st.rw;
   const [k, n] = ST_RWI[(c * 3 + s) % ST_RWI.length], m = k === 'crystal' || k === 'serum' || k === 'steel' ? Math.max(1, Math.floor(c / 3)) : c;
-  const R = { xp: 40 * (c + 1) + 15 * s, coin: 30 * (c + 1) }; R[k] = (R[k] || 0) + n * Math.max(1, m); return R; })(stStepRw);
+  const R = { xp: stXp(C.lv || 1, st.k === 'boss' ? .25 : st.k === 'lv' ? .10 : st.k === 'dun' ? .15 : .08), coin: 30 * (c + 1) }; R[k] = (R[k] || 0) + n * Math.max(1, m); return R; })(stStepRw);
 
 /* ---- save / load ---- */
 shopSave = (o => function () { const r = o(); try { r.st2 = { v: ST2.v, g: ST2.g, ci: ST2.comm.i, cp: ST2.comm.p | 0, cn: ST2.comm.n | 0, cs: ST2.comm.seen, rch: ST2.rch }; } catch (e) { } return r; })(shopSave);
@@ -16006,20 +16015,47 @@ function coverCam(dt) {
 function coverOff() { COVER.on = false; if (COVER.sk && S.skin === 'myth' && !(S.skins || []).includes('myth')) { S.skin = ''; try { redressPlayer(); } catch (e) { } } for (const l of labelSprite.all || []) if (l.userData.cvis !== undefined) { l.visible = l.userData.cvis; delete l.userData.cvis; } if (COVER.G) { scene.remove(COVER.G); COVER.G = null; } if (COVER.emb) { scene.remove(COVER.emb); COVER.emb = null; } }
 zSpecialTick = (o => function (dt) { if (COVER.on && S.started) coverOff(); o(dt); })(zSpecialTick);
 
+/* ---- the poster on the title screen: the outfits on direct sale (or, during a season, the season's skins) ----
+   To show a season instead: COVER_POSTER.mode = 'season' and list the skin keys in COVER_POSTER.season. */
+const COVER_POSTER = { mode: 'direct', season: [], i: 0 };
+function cvPosterList() {
+  const L = [], rn = { 5: ['神话', 'Mythic', '#ff4d8d'], 4: ['传说', 'Legendary', '#ffc94a'], 3: ['史诗', 'Epic', '#c28bff'] };
+  try {
+    if (COVER_POSTER.mode === 'season') COVER_POSTER.season.filter(k => SKINS[k]).forEach(k => L.push({ ic: 'skin:' + k, n: SKINS[k].n, r: SKINS[k].r, d: SKINS[k].stt || '', tag: T2('赛季限定', 'SEASON'), how: T2('赛季手册奖励', 'Season pass reward') }));
+    else {
+      SKIN_SHOP().forEach(k => L.push({ ic: 'skin:' + k, n: SKINS[k].n, r: SKINS[k].r, d: SKINS[k].stt || '', p: SKIN_PRICE[SKINS[k].r], tag: T2('限定直售', 'ON SALE'), how: T2('商城 · 外观直售', 'Shop · Outfits') }));
+      WSK_SHOP().forEach(([k, id]) => L.push({ ic: 'wsk:' + k + ':' + id, n: wskName(k, id), r: WSKINS[k].r, d: T2('武器外观', 'Weapon skin'), p: SKIN_PRICE[WSKINS[k].r], tag: T2('限定直售', 'ON SALE'), how: T2('商城 · 枪皮肤', 'Shop · Weapon skins') }));
+    }
+  } catch (e) { }
+  return L.map(x => Object.assign(x, { rk: rn[x.r] || rn[4] }));
+}
+function cvPoster() { const el = $('cvPoster'); if (!el) return; const L = cvPosterList(); if (!L.length) { el.style.display = 'none'; return; }
+  const x = L[COVER_POSTER.i % L.length]; el.style.setProperty('--pc', x.rk[2]);
+  el.innerHTML = '<div class="cvPt"><em>' + x.tag + '</em><small>' + x.how + '</small></div><div class="cvPf">' + icHtml(x.ic, 'fig') + '</div>' +
+    '<div class="cvPn"><b>' + x.n + '</b><i>' + T2(x.rk[0], x.rk[1]) + '</i></div><div class="cvPd">' + String(x.d).slice(0, 34) + '</div>' +
+    '<div class="cvPb">' + (x.p ? '<span>' + skPrice(x.p) + '</span>' : '<span></span>') + '<small>' + T2('进入游戏后在商城购买', 'Buy it in the shop') + '</small></div>' +
+    (L.length > 1 ? '<div class="cvPdots">' + L.map((_, i) => '<i class="' + (i === COVER_POSTER.i % L.length ? 'on' : '') + '"></i>').join('') + '</div>' : ''); }
+
 /* ---- the title card on top of the scene ---- */
 (() => { try {
   const st = $('start'); if (!st || !st.querySelector) return; const go = $('goStart'); st.classList.add('cv');
   const L = document.createElement('div'); L.className = 'cvL';
   L.innerHTML = '<div class="cvEn">EMBERFALL</div><h1 class="cvH">余烬末日</h1><i class="cvLn"></i>' +
-    '<div class="cvNews"><div class="cvNh"><em>' + T2('新版本', 'NEW') + '</em><b>' + T2('大更新已上线', 'Big update is live') + '</b></div>' +
-    '<div class="cvRow"><i class="cvGem g"></i><span><b>' + T2('外观全面降价', 'Outfits now much cheaper') + '</b><small>' + T2('传说 498 晶石 · 时装和枪皮肤分开卖', 'Legendary 498 gems · outfits and weapon skins on their own shelves') + '</small></span></div>' +
-    '<div class="cvRow"><i class="cvGem o"></i><span><b>' + T2('任务目标标在地图上', 'Task targets on the map') + '</b><small>' + T2('金色光柱带路 · 每一步都有奖励和经验', 'A gold beam shows the way · every step pays XP') + '</small></span></div>' +
-    '<div class="cvRow"><i class="cvGem b"></i><span><b>' + T2('电脑版按键重做', 'New PC key layout') + '</b><small>' + T2('Esc 关窗口 · 可隐藏屏幕按钮', 'Esc closes windows · hide on-screen buttons') + '</small></span></div></div>';
+    '<div class="cvP" id="cvPoster"></div>';
   [...st.children].forEach(c => { if (c !== go) c.style.display = 'none'; });
   st.insertBefore(L, st.firstChild);
   const B = document.createElement('div'); B.className = 'cvB'; st.appendChild(B); if (go) B.appendChild(go);
   const tip = document.createElement('small'); tip.className = 'cvTip'; tip.textContent = T2('点击开始', 'Tap to start'); B.appendChild(tip);
+  setTimeout(cvPoster, 0); setInterval(() => { if (!S.started && $('start') && $('start').classList.contains('show')) { COVER_POSTER.i++; cvPoster(); } }, 4500);
   const css = document.createElement('style'); css.textContent =
+    '.cvP{position:relative;width:280px;padding:14px 14px 12px;border-radius:6px;clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);background:radial-gradient(ellipse at 50% 38%,color-mix(in srgb,var(--pc,#ffc94a) 30%,transparent),transparent 62%),linear-gradient(170deg,rgba(36,14,22,.92),rgba(10,4,8,.94));box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--pc,#ffc94a) 70%,transparent),0 10px 34px rgba(0,0,0,.5)}' +
+    '.cvP::before,.cvP::after{content:"";position:absolute;width:22px;height:22px;border:2px solid #ffd27a}.cvP::before{left:5px;top:5px;border-right:0;border-bottom:0}.cvP::after{right:5px;bottom:5px;border-left:0;border-top:0}' +
+    '.cvPt{display:flex;align-items:center;justify-content:space-between;gap:8px}.cvPt em{font-style:normal;font-size:11px;font-weight:900;letter-spacing:.18em;color:#2a1004;padding:3px 10px;background:linear-gradient(180deg,#ffe6a0,#ffa040);clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%)}.cvPt small{font-size:10.5px;color:#d8b890;letter-spacing:.1em}' +
+    '.cvPf{height:190px;display:flex;align-items:center;justify-content:center;margin:6px 0 2px;filter:drop-shadow(0 0 18px color-mix(in srgb,var(--pc) 60%,transparent));animation:cvFloat 3.2s ease-in-out infinite}.cvPf img,.cvPf svg,.cvPf .ic{max-height:190px;max-width:220px;width:auto;height:190px}@keyframes cvFloat{50%{transform:translateY(-5px)}}' +
+    '.cvPn{display:flex;align-items:baseline;gap:8px}.cvPn b{font-size:22px;letter-spacing:.08em;background:linear-gradient(180deg,#fff4d0,var(--pc));-webkit-background-clip:text;background-clip:text;color:transparent}.cvPn i{font-style:normal;font-size:11px;font-weight:800;padding:1px 7px;border-radius:4px;color:#1a0a04;background:var(--pc)}' +
+    '.cvPd{font-size:11.5px;color:#d8c0a8;margin:3px 0 7px;min-height:15px}.cvPb{display:flex;align-items:center;justify-content:space-between}.cvPb span{display:flex;align-items:center;gap:4px;font:900 17px var(--font-hud,sans-serif);color:#bff0ff}.cvPb span .skgem img,.cvPb span .skgem svg{width:16px;height:16px}.cvPb small{font-size:10.5px;color:#c8a890}' +
+    '.cvPdots{display:flex;gap:5px;justify-content:center;margin-top:8px}.cvPdots i{width:16px;height:3px;border-radius:2px;background:rgba(255,220,160,.25)}.cvPdots i.on{background:#ffd27a}' +
+    '@media (max-height:520px){.cvPf{height:120px}.cvPf img,.cvPf svg,.cvPf .ic{height:120px}.cvP{width:250px;padding:10px 12px}}' +
     '#start.cv{align-items:stretch;justify-content:center;background:linear-gradient(90deg,rgba(12,4,6,.82) 0%,rgba(12,4,6,.45) 38%,rgba(12,4,6,0) 62%),linear-gradient(0deg,rgba(12,4,6,.55),rgba(12,4,6,0) 30%);text-align:left;padding:0 0 0 max(5vw,env(safe-area-inset-left))}' +
     '.cvL{display:flex;flex-direction:column;align-items:flex-start;gap:6px;max-width:380px}' +
     '.cvEn{font-family:var(--font-hud);letter-spacing:.62em;font-size:12px;color:#ffb070;font-weight:700}' +
@@ -16286,7 +16322,7 @@ const KEYS_OLD = [['W A S D', T2('移动', 'Move')], [T2('空格（按住）', '
   ['C', T2('角色页面（属性、天赋、设置、联机）', 'Character (stats, talents, settings, online)')], ['U', T2('武器页面', 'Weapons')], ['I', T2('背包', 'Backpack')], ['M', T2('大地图', 'Big map')], ['Enter', T2('聊天', 'Chat')], ['Esc', T2('关闭窗口', 'Close a window')]];
 let KCAP_ON = true; try { KCAP_ON = localStorage.getItem('ember_kcap') !== '0'; } catch (e) { }
 const keyBtn = ids => { for (const id of [].concat(ids)) { const b = $(id); if (b && b.offsetParent && getComputedStyle(b).display !== 'none' && !b.disabled) return b; } return null; };
-const KHELD = {};
+const KHELD = {}, KPICK = { on: false };
 function keyPress(b, down, hold) { const ev = b._evs || new Set(), P = typeof PointerEvent === 'function' ? PointerEvent : MouseEvent;
   if (!hold && ev.has('click')) { if (down) b.click(); return; }   // a tap button
   if (!hold && down && (ev.has('pointerdown') || ev.has('pointerup'))) { keyPress(b, true, 1); setTimeout(() => keyPress(b, false, 1), 60); return; }
@@ -16297,12 +16333,15 @@ if (IS_PC) {
   window.addEventListener('keydown', e => { if (e.code === 'KeyT') e.stopImmediatePropagation(); }, true);
   window.addEventListener('keydown', e => {
     if (e.repeat || !S.started || S.dead) return; if (e.target && /input|textarea|select/i.test(e.target.tagName || '')) return;
+    // Z on fruit / mushrooms / chili: pick it straight away (and keep picking while held), even if the button is hidden or not refreshed yet
+    if (e.code === 'KeyZ' && !S.paused) { const p = plantNear(); if (p) { e.preventDefault(); pickPlant(p); KPICK.on = true; return; } }
     const K = KEYB.find(k => k[0] === e.code); if (!K) return;
     if (K[0] === 'KeyE') { setTimeout(() => { if (buildOpen || S.paused || document.querySelector('.overlay.show')) return; const b = keyBtn(K[2]); if (b) keyPress(b, true); }, 0); return; }
     if (S.paused && K[2] !== 'storyTrk') return;
     const b = keyBtn(K[2]); if (!b) return; e.preventDefault(); keyPress(b, true, K[4]); if (K[4]) KHELD[e.code] = b; });
-  window.addEventListener('keyup', e => { const b = KHELD[e.code]; if (b) { delete KHELD[e.code]; keyPress(b, false, 1); } });
-  window.addEventListener('blur', () => { for (const c in KHELD) { try { keyPress(KHELD[c], false, 1); } catch (e) { } delete KHELD[c]; } });
+  setInterval(() => { try { if (KPICK.on && !S.paused && !S.dead) { const p = plantNear(); if (p && plantReady(p)) pickPlant(p); } } catch (e) { } }, 350);
+  window.addEventListener('keyup', e => { if (e.code === 'KeyZ') KPICK.on = false; const b = KHELD[e.code]; if (b) { delete KHELD[e.code]; keyPress(b, false, 1); } });
+  window.addEventListener('blur', () => { KPICK.on = false; for (const c in KHELD) { try { keyPress(KHELD[c], false, 1); } catch (e) { } delete KHELD[c]; } });
 
   // key caps on the buttons
   function kcapPaint() { const on = KCAP_ON && S.started; document.body.classList.toggle('kcapOn', on); if (!on) return;
@@ -16350,7 +16389,7 @@ if (IS_PC) window.addEventListener('keydown', e => {
 
 /* ---- on a computer: hide the on-screen buttons (the keys do everything); a strip at the bottom says what E does right now ---- */
 let PCHIDE = false; try { PCHIDE = localStorage.getItem('ember_hidebtn') === '1'; } catch (e) { }
-const PCHIDE_IDS = ['bFire', 'bReload', 'bMed', 'bSprint', 'bRoll', 'bSkill', 'bGather', 'bFish', 'bBoat', 'bRecall', 'bBuild', 'bBag', 'bQuest', 'bHub', 'bMall', 'bChat', 'bView', 'bPet', 'bComp', 'stickzone', 'stickidle', 'stickbase', 'stickknob'].concat(KE_LIST);
+const PCHIDE_IDS = ['bMore', 'bHelp', 'bTitle', 'bHave', 'foodRow', 'bChat', 'chatLog', 'bFire', 'bReload', 'bMed', 'bSprint', 'bRoll', 'bSkill', 'bGather', 'bFish', 'bBoat', 'bRecall', 'bBuild', 'bBag', 'bQuest', 'bHub', 'bMall', 'bChat', 'bView', 'bPet', 'bComp', 'stickzone', 'stickidle', 'stickbase', 'stickknob'].concat(KE_LIST);
 function pcHidePaint() {
   const on = IS_PC && PCHIDE && S.started; document.body.classList.toggle('pcHide', on);
   for (const id of PCHIDE_IDS) { const b = $(id); if (b && b.classList) b.classList.toggle('pch', on); }
@@ -16367,11 +16406,13 @@ function pcHidePaint() {
 if (IS_PC) {
   setInterval(() => { try { pcHidePaint(); } catch (e) { } }, 250);
   renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!box) return; const r = document.createElement('div'); r.className = 'setrow';
-    r.innerHTML = '<span>' + T2('隐藏屏幕上的按钮（全部用键盘）', 'Hide on-screen buttons (keyboard only)') + '</span><div class="opts"><button class="sbtn' + (PCHIDE ? ' on' : '') + '" data-v="1">' + T2('隐藏', 'Hide') + '</button><button class="sbtn' + (PCHIDE ? '' : ' on') + '" data-v="0">' + T2('显示', 'Show') + '</button></div>';
+    r.innerHTML = '<span>' + T2('只用键盘：隐藏所有按钮（只留血量和经验）', 'Keyboard only: hide every button (keep health and XP)') + '</span><div class="opts"><button class="sbtn' + (PCHIDE ? ' on' : '') + '" data-v="1">' + T2('隐藏', 'Hide') + '</button><button class="sbtn' + (PCHIDE ? '' : ' on') + '" data-v="0">' + T2('显示', 'Show') + '</button></div>';
     r.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { PCHIDE = b.dataset.v === '1'; try { localStorage.setItem('ember_hidebtn', PCHIDE ? '1' : '0'); } catch (e) { } pcHidePaint(); renderSettings(); }));
     box.appendChild(r); } catch (e) { console.warn(e); } })(renderSettings);
   try { const st = document.createElement('style'); st.textContent =
     '.pch{opacity:0!important;pointer-events:none!important}' +
+    // keyboard-only: nothing on screen but the health / XP panel (and messages); everything else is on a key
+    'body.pcHide #hud>*:not(#left):not(#banner):not(#streak):not(#evTxt):not(#houseTxt):not(#build),body.pcHide #left>*:not(#status):not(#bossbox):not(#feed),body.pcHide #keyHint,body.pcHide #dunObj,body.pcHide #storyTrk{opacity:0!important;pointer-events:none!important}' +
     '#eHint{display:none;position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 18px);transform:translateX(-50%);z-index:8;gap:10px;pointer-events:none}' +
     '#eHint span{display:flex;align-items:center;gap:6px;padding:5px 12px 5px 6px;border-radius:9px;background:rgba(10,8,14,.78);border:1px solid rgba(255,214,140,.45);color:#ffe9c8;font-size:13px;font-weight:700;white-space:nowrap}' +
     '#eHint kbd{min-width:20px;height:20px;padding:0 4px;box-sizing:border-box;border-radius:5px;background:#ffd27a;color:#2a1004;font:900 12px/20px var(--font-hud,sans-serif);text-align:center}';
@@ -17408,4 +17449,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794662540').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794663672').catch(()=>{});</script></body></html>
