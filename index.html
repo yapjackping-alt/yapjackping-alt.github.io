@@ -3316,7 +3316,7 @@ function placeSky(cam) {
   moon.position.set(cam.position.x - Math.cos(ma) * 260, 40 + Math.sin(ma) * 80, cam.position.z - 330); moon.material.opacity = Math.max(0, DN.night - .3) * 1.3; moon.visible = DN.night > .3;
 }
 function dayNightTick(dt) {
-  DN.t = ((Date.now() / 1000) % DN_CYCLE) / DN_CYCLE;
+  DN.t = !S.started && typeof COVER !== 'undefined' && COVER.on ? COVER.t : ((Date.now() / 1000) % DN_CYCLE) / DN_CYCLE;   // the title screen is always at dusk
   DN.tSky -= dt; if (DN.tSky > 0 && DN._s) { torchTick(); return; } DN.tSky = .25;
   const s = dnState(DN.t); DN._s = s; DN.night = s.night;
   paintSky(s.sky);
@@ -4910,7 +4910,7 @@ function labelSprite(text, color, k) {
   g.font = 'bold 30px "Noto Sans SC", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.lineWidth = 6; g.strokeStyle = 'rgba(0,0,0,.75)'; g.strokeText(text, 128, 34); g.fillStyle = color || '#fff'; g.fillText(text, 128, 34);
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, depthTest: false }));
-  sp.scale.set(4 * (k || 1), 1 * (k || 1), 1); sp.renderOrder = 10; return sp;
+  sp.scale.set(4 * (k || 1), 1 * (k || 1), 1); sp.renderOrder = 10; (labelSprite.all || (labelSprite.all = [])).push(sp); return sp;
 }
 function dirName(dx, dz) {
   const a = (Math.atan2(dx, -dz) + Math.PI * 2) % (Math.PI * 2);
@@ -15897,6 +15897,69 @@ boatTick = (o => function (dt) { o(dt); try { if (S.isl && S.boat) {
   if (x > X0 && x < X1 && z > Z0 && z < Z1) { const dW = x - X0, dE = X1 - x, dN = z - Z0, m = Math.min(dW, dE, dN);
     if (m === dW) player.pos.x = HOME.x + X0; else if (m === dE) player.pos.x = HOME.x + X1; else player.pos.z = HOME.z + Z0;
     BOAT.x = player.pos.x; BOAT.z = player.pos.z; BOAT.lx = player.pos.x; BOAT.lz = player.pos.z; } } } catch (e) { } })(boatTick);
+/* ============ the title screen: a real 3D scene at dusk ============
+   While the game hasn't started: the sky is held at dusk, your character stands at the foot of the pier looking out to sea,
+   the camera drifts slowly behind them, the last of the sunset glows on the horizon, your character wears a showcase outfit (only on this screen),
+   embers rise past the camera. The title card, the news card and the buttons sit on top (p1_head.html #start). */
+const COVER = { on: true, t: .668, G: null, emb: null, T: 0 };
+function coverBuild() {
+  if (COVER.G) return; const G = new THREE.Group(); COVER.G = G; scene.add(G);
+  const cx = HOME.x + 22, cz = HOME.z - 380;   // the core, far out to sea to the north
+  COVER.cr = [];
+  const glow = (s, col, op, y) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(col, 'rgba(255,90,20,0)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: op, fog: false })); sp.scale.set(s, s, 1); sp.position.set(cx, y, cz); G.add(sp); return sp; };
+  COVER.g1 = glow(300, 'rgba(255,140,60,.8)', .6, 12); COVER.g2 = glow(70, 'rgba(255,220,150,1)', .8, 10);   // the last of the sunset on the horizon
+  G.traverse(o => { if (o.material) o.material.fog = false; });
+  // embers drifting up around the camera
+  const n = 160, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = rand(-14, 14); a[i * 3 + 1] = rand(0, 12); a[i * 3 + 2] = rand(-24, 4); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(a, 3));
+  COVER.emb = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffa040, size: .16, transparent: true, opacity: .9, depthWrite: false, blending: THREE.AdditiveBlending }));
+  COVER.emb.frustumCulled = false; scene.add(COVER.emb);
+}
+function coverCam(dt) {
+  coverBuild(); COVER.T += dt; const T = COVER.T;
+  // your character at the foot of the pier, facing the sea
+  const px = HOME.x + 1.2, pz = HOME.z - ISL_R + 6; pm.g.position.set(px, 0, pz); pm.g.rotation.y = Math.PI;
+  if (!COVER.sk && typeof SKINS !== 'undefined' && SKINS.abyss) { COVER.sk = 1; COVER.prevSkin = S.skin; S.skin = 'abyss'; try { redressPlayer(); } catch (e) { } }   // show off an outfit on the title screen
+  if (!COVER.lh) { COVER.lh = 1; for (const l of labelSprite.all || []) { l.userData.cvis = l.visible; l.visible = false; } }
+  // the camera: low, behind and to the left, drifting a little
+  camPos.set(px - 3.4 + Math.sin(T * .15) * .6, 2.1 + Math.sin(T * .22) * .15, pz + 6.2 + Math.cos(T * .12) * .4);
+  camera.position.copy(camPos); camera.lookAt(px - 5, 3.4, pz - 40);
+  for (const c of COVER.cr) c.rotation.y += dt * .05; if (COVER.g2) COVER.g2.material.opacity = .75 + Math.sin(T * 1.6) * .15; 
+  if (COVER.emb) try { COVER.emb.position.set(px, 0, pz); const p = COVER.emb.geometry.attributes.position; for (let i = 0; i < p.count; i++) { let y = p.getY(i) + dt * (.6 + (i % 5) * .15); if (y > 12) y = 0; p.setY(i, y); p.setX(i, p.getX(i) + Math.sin(T + i) * dt * .3); } p.needsUpdate = true; } catch (e) { }
+  try { updateFx(dt); placeSky(camera); waterTick(dt); } catch (e) { }
+}
+function coverOff() { COVER.on = false; if (COVER.sk && S.skin === 'abyss' && !(S.skins || []).includes('abyss')) { S.skin = ''; try { redressPlayer(); } catch (e) { } } for (const l of labelSprite.all || []) if (l.userData.cvis !== undefined) { l.visible = l.userData.cvis; delete l.userData.cvis; } if (COVER.G) { scene.remove(COVER.G); COVER.G = null; } if (COVER.emb) { scene.remove(COVER.emb); COVER.emb = null; } }
+zSpecialTick = (o => function (dt) { if (COVER.on && S.started) coverOff(); o(dt); })(zSpecialTick);
+
+/* ---- the title card on top of the scene ---- */
+(() => { try {
+  const st = $('start'); if (!st || !st.querySelector) return; const go = $('goStart'); st.classList.add('cv');
+  const L = document.createElement('div'); L.className = 'cvL';
+  L.innerHTML = '<div class="cvEn">EMBERFALL</div><h1 class="cvH">余烬末日</h1><i class="cvLn"></i>' +
+    '<div class="cvNews"><div class="cvNh"><em>' + T2('新版本', 'NEW') + '</em><b>' + T2('大更新已上线', 'Big update is live') + '</b></div>' +
+    '<div class="cvRow"><i class="cvGem g"></i><span><b>' + T2('副本三「方舟站」', 'Dungeon 3: Ark Station') + '</b><small>' + T2('Lv.32 · 孢子浓度 · 典狱长韩钲', 'Lv.32 · spores · Warden Han Zheng') + '</small></span></div>' +
+    '<div class="cvRow"><i class="cvGem o"></i><span><b>' + T2('副本四「钻探井 #0」', 'Dungeon 4: Borehole #0') + '</b><small>' + T2('Lv.42 · 热脉动 · 余烬之种', 'Lv.42 · heat pulses · The Ember Seed') + '</small></span></div>' +
+    '<div class="cvRow"><i class="cvGem b"></i><span><b>' + T2('新手教程全新改版', 'A brand-new tutorial') + '</b><small>' + T2('老陈一步一步带你活下去', 'Old Chen walks you through, step by step') + '</small></span></div></div>';
+  [...st.children].forEach(c => { if (c !== go) c.style.display = 'none'; });
+  st.insertBefore(L, st.firstChild);
+  const B = document.createElement('div'); B.className = 'cvB'; st.appendChild(B); if (go) B.appendChild(go);
+  const tip = document.createElement('small'); tip.className = 'cvTip'; tip.textContent = T2('点击开始', 'Tap to start'); B.appendChild(tip);
+  const css = document.createElement('style'); css.textContent =
+    '#start.cv{align-items:stretch;justify-content:center;background:linear-gradient(90deg,rgba(12,4,6,.82) 0%,rgba(12,4,6,.45) 38%,rgba(12,4,6,0) 62%),linear-gradient(0deg,rgba(12,4,6,.55),rgba(12,4,6,0) 30%);text-align:left;padding:0 0 0 max(5vw,env(safe-area-inset-left))}' +
+    '.cvL{display:flex;flex-direction:column;align-items:flex-start;gap:6px;max-width:380px}' +
+    '.cvEn{font-family:var(--font-hud);letter-spacing:.62em;font-size:12px;color:#ffb070;font-weight:700}' +
+    '.cvH{margin:0!important;padding:0!important;font-size:clamp(42px,8vw,58px)!important;letter-spacing:.08em!important;background-image:linear-gradient(180deg,#fff2c8 0%,#ffb048 45%,#e8461c 80%,#8a1e0c)!important;-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 3px 0 #2a0a04) drop-shadow(0 0 16px rgba(255,110,30,.5))}' +
+    '.cvLn{display:block;width:230px;height:2px;margin:4px 0 8px;background:linear-gradient(90deg,#ffcc66,rgba(255,140,40,0))}' +
+    '.cvNews{position:relative;width:300px;padding:9px 12px 4px;border-radius:14px;background:linear-gradient(160deg,rgba(40,16,10,.86),rgba(16,6,8,.86)) padding-box,linear-gradient(135deg,#ffd27a,#c8641e 40%,rgba(255,180,90,.25)) border-box;border:1.5px solid transparent;box-shadow:0 8px 30px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,220,160,.15)}' +
+    '.cvNh{display:flex;align-items:center;gap:8px;margin-bottom:5px}.cvNh em{font-style:normal;font-size:10.5px;font-weight:900;color:#2a1004;padding:2px 8px;border-radius:5px;background:linear-gradient(180deg,#ffe6a0,#ffa040);letter-spacing:.1em}.cvNh b{color:#ffe0b0;font-size:15px;letter-spacing:.06em}' +
+    '.cvRow{display:flex;align-items:center;gap:10px;padding:5px 2px;border-top:1px solid rgba(255,200,140,.12)}.cvRow span{display:flex;flex-direction:column}.cvRow b{color:#fff0dc;font-size:13px}.cvRow small{color:#c8a890;font-size:11px;margin-top:1px}' +
+    '.cvGem{flex:none;width:22px;height:22px;transform:rotate(45deg);border:1.5px solid #ffd27a;border-radius:3px;box-shadow:0 0 10px var(--gc)}.cvGem.g{--gc:rgba(154,255,106,.6);background:linear-gradient(135deg,#d8ffb0,#5aa02a)}.cvGem.o{--gc:rgba(255,140,60,.7);background:linear-gradient(135deg,#ffd8a0,#e8501a)}.cvGem.b{--gc:rgba(140,220,255,.6);background:linear-gradient(135deg,#e0f8ff,#3a9ad8)}' +
+    '.cvB{position:absolute;left:58%;bottom:max(7%,calc(env(safe-area-inset-bottom) + 14px));transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:7px}' +
+    '#start.cv #goStart{font-size:19px;letter-spacing:.32em;padding:13px 50px 13px 58px;border-radius:8px;clip-path:polygon(12px 0,100% 0,calc(100% - 12px) 100%,0 100%);box-shadow:0 0 26px rgba(255,140,40,.55)}' +
+    '.cvTip{color:#e8c8a8;font-size:11px;letter-spacing:.4em;opacity:.75;animation:cvBlink 2.4s ease-in-out infinite}@keyframes cvBlink{50%{opacity:.3}}' +
+    '@media (orientation:portrait){#start.cv{padding:12vh 0 0 6vw;justify-content:flex-start}.cvNews{width:min(330px,86vw)}}';
+  document.head.appendChild(css);
+} catch (e) { console.warn('cover card', e); } })();
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -16909,7 +16972,7 @@ window.addEventListener('unhandledrejection', ev => { const r = ev.reason; if (r
 function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(.05, clock.getDelta());
-  if (S.started) { try { update(dt); } catch (e) { showErr(e); } } else { S.t += dt; camPos.set(Math.sin(S.t * .12) * 26, 10 + Math.sin(S.t * .2) * 2, HOME.z + 22 + Math.cos(S.t * .12) * 8); camera.position.copy(camPos); camera.lookAt(HOME.x, 2, HOME.z); updateFx(dt); placeSky(camera); waterTick(dt); }
+  if (S.started) { try { update(dt); } catch (e) { showErr(e); } } else if (typeof COVER !== 'undefined' && COVER.on) { S.t += dt; coverCam(dt); } else { S.t += dt; camPos.set(Math.sin(S.t * .12) * 26, 10 + Math.sin(S.t * .2) * 2, HOME.z + 22 + Math.cos(S.t * .12) * 8); camera.position.copy(camPos); camera.lookAt(HOME.x, 2, HOME.z); updateFx(dt); placeSky(camera); waterTick(dt); }
   // each of these on its own: one that breaks (audio or network after the app comes back from the background) must never stop the picture
   SF(dayNightTick, dt);
   if (S.started) { SF(remotesTick, dt); SF(mpTick, dt); SF(coopTick, dt); SF(ambTick, dt); }
@@ -16928,4 +16991,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794654107').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794655313').catch(()=>{});</script></body></html>
