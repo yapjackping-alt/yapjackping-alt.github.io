@@ -16771,6 +16771,49 @@ const hudUrl = k => 'url("data:image/svg+xml,' + encodeURIComponent(HUD_IC[k]) +
     '#bFire #fireTxt{display:none}#bFire .fireIc{width:46px;height:46px;background-image:' + hudUrl('aim') + '}#bFire.mel .fireIc{background-image:' + hudUrl('fist') + '}';
   document.head.appendChild(st);
 } catch (e) { console.warn('hud3', e); } })();
+/* ============ save backup: export / import every character on this device ============
+   The home-screen (PWA) version keeps saves only on this phone: deleting the app from the home screen wipes them.
+   On the character screen: 「备份存档」 copies all characters as one text (and offers it as a file), 「恢复存档」 takes that text
+   or file back in. Characters with the same id are replaced only by a newer copy. */
+function bkText() { const L = localChars(); return 'EMBERSAVE1:' + btoa(unescape(encodeURIComponent(JSON.stringify({ t: Date.now(), c: L })))); }
+function bkParse(t) { t = String(t || '').trim(); const i = t.indexOf('EMBERSAVE1:'); if (i < 0) throw new Error('bad');
+  const j = JSON.parse(decodeURIComponent(escape(atob(t.slice(i + 11).replace(/\s+/g, ''))))); if (!j || !Array.isArray(j.c)) throw new Error('bad'); return j.c.filter(c => c && c.id && c.d); }
+async function bkImport(t) {
+  let list; try { list = bkParse(t); } catch (e) { uiToast(T2('看不懂这段存档（要从「备份存档」复制出来的整段文字）', 'That is not a backup text')); return; }
+  const cur = localChars(); let n = 0;
+  for (const c of list) { const k = cur.findIndex(x => x.id === c.id); if (k < 0) { cur.push(c); n++; } else if ((c.savedAt || 0) > (cur[k].savedAt || 0)) { cur[k] = c; n++; } }
+  try { localStorage.setItem(LS_KEY(), JSON.stringify(cur)); } catch (e) { uiToast(T2('手机空间不够，存不进去', 'Not enough storage')); return; }
+  uiToast(n ? T2('恢复了 ' + n + ' 个角色', 'Restored ' + n + ' characters') : T2('这些角色这里已经有了（而且更新）', 'Already here (and newer)'));
+  await listChars(); renderChars();
+}
+function bkPanel() {
+  let o = $('bkPanel'); if (!o) { o = document.createElement('div'); o.className = 'overlay scroll'; o.id = 'bkPanel'; o.style.zIndex = 40; document.body.appendChild(o); }
+  const txt = bkText(), n = localChars().length;
+  o.innerHTML = '<h2>' + T2('存档备份', 'Save backup') + '</h2>' +
+    '<div class="snote">' + T2('主屏幕版的存档只存在这台手机里，<b>把 App 从主屏幕删掉，存档也会一起删掉</b>。换手机、删 App 之前，先在这里备份。', 'The home-screen app keeps saves only on this phone: deleting the app deletes them. Back up first.') + '</div>' +
+    '<h3 class="bkh">' + T2('备份（这台手机上的 ', 'Back up (') + n + T2(' 个角色）', ' characters on this phone)') + '</h3>' +
+    '<div class="bkrow"><button class="sbtn" id="bkCopy">' + T2('复制备份文字', 'Copy backup text') + '</button><button class="sbtn ghostb" id="bkFile">' + T2('存成文件', 'Save as a file') + '</button></div>' +
+    '<div class="snote">' + T2('复制后贴到「备忘录」或者发给自己（微信、WhatsApp 都行）保存好。', 'Paste it into Notes or send it to yourself.') + '</div>' +
+    '<h3 class="bkh">' + T2('恢复', 'Restore') + '</h3><textarea id="bkIn" rows="4" placeholder="' + T2('把备份文字贴在这里', 'Paste the backup text here') + '"></textarea>' +
+    '<div class="bkrow"><button class="sbtn" id="bkGo">' + T2('恢复存档', 'Restore') + '</button><label class="sbtn ghostb" id="bkPick">' + T2('从文件恢复', 'From a file') + '<input type="file" accept=".txt,.json,text/plain" hidden></label></div>';
+  const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => o.classList.remove('show')); o.appendChild(x);
+  o.querySelector('#bkCopy').addEventListener('click', async () => { try { await navigator.clipboard.writeText(txt); uiToast(T2('已复制，去备忘录贴上保存', 'Copied')); } catch (e) { const t = o.querySelector('#bkIn'); t.value = txt; t.select(); uiToast(T2('复制不了：文字放在下面的框里了，长按全选复制', 'Copy it from the box below')); } });
+  o.querySelector('#bkFile').addEventListener('click', async () => { const name = '余烬末日存档-' + new Date().toISOString().slice(0, 10) + '.txt', blob = new Blob([txt], { type: 'text/plain' });
+    try { const f = new File([blob], name, { type: 'text/plain' }); if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: name }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); });
+  o.querySelector('#bkGo').addEventListener('click', () => bkImport(o.querySelector('#bkIn').value));
+  o.querySelector('#bkPick input').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => bkImport(r.result); r.readAsText(f); });
+  o.classList.add('show');
+}
+renderChars = (o => function () { o(); try { const box = $('charList'); if (!box) return; const b = document.createElement('button'); b.className = 'sbtn ghostb bkbtn'; b.textContent = T2('💾 备份 / 恢复存档', 'Back up / restore saves'); b.addEventListener('click', bkPanel); box.appendChild(b); } catch (e) { } })(renderChars);
+// settings: the same panel, plus the screen numbers (to find the dark strip on some iPhones)
+renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!box) return;
+  const r = document.createElement('div'); r.className = 'setrow'; r.innerHTML = '<span>' + T2('存档备份', 'Save backup') + '</span>'; const b = document.createElement('button'); b.className = 'sbtn'; b.textContent = T2('备份 / 恢复', 'Back up / restore'); b.addEventListener('click', bkPanel); r.appendChild(b); box.appendChild(r);
+  const sa = k => { try { const d = document.createElement('div'); d.style.cssText = 'position:fixed;' + k + ':0;height:env(safe-area-inset-' + k + ');visibility:hidden'; document.body.appendChild(d); const h = d.offsetHeight; d.remove(); return h; } catch (e) { return '?'; } };
+  const vv = window.visualViewport, i = document.createElement('div'); i.className = 'snote';
+  i.textContent = T2('屏幕信息：', 'Screen: ') + screen.width + '×' + screen.height + ' · ' + innerWidth + '×' + innerHeight + ' · vv ' + (vv ? Math.round(vv.width) + '×' + Math.round(vv.height) : '-') + ' · doc ' + document.documentElement.clientHeight + ' · ' + T2('安全区 上', 'safe top ') + sa('top') + T2(' 下', ' bottom ') + sa('bottom') + ' · ' + (navigator.standalone ? 'app' : 'web') + ' · dpr ' + devicePixelRatio;
+  box.appendChild(i); } catch (e) { } })(renderSettings);
+try { const st = document.createElement('style'); st.textContent = '#bkPanel .snote b{color:#ffb07a}.bkh{margin:12px 0 4px;font-size:15px;color:#ffd8a8}.bkrow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:6px 0}#bkIn{width:min(560px,92vw);box-sizing:border-box;border-radius:10px;background:rgba(0,0,0,.35);color:#f3e6d6;border:1px solid rgba(255,255,255,.2);padding:8px;font-size:12px}.bkbtn{margin-top:10px;width:100%}'; document.head.appendChild(st); } catch (e) { }
 /* ============ 资源商店: buy resources with gems, as many times as you like ============
    Real money only ever buys 晶石 (the Google Play packs); everything here costs 晶石.
    Prices are checked against the island merchant (1000 余烬币 = 30 晶石 here, so 1 晶石 ≈ 33 币): about 1.5× the coin price;
@@ -18028,4 +18071,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794675054').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794675545').catch(()=>{});</script></body></html>
