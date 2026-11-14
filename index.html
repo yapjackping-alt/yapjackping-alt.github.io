@@ -954,6 +954,8 @@ body.chatOn #chatFeed{display:none}#chatFull{display:flex;align-items:center}
 #stickbase.run{border-color:#9fe08a;background:rgba(143,209,111,.16)}#stickbase.run::after{border:2px solid rgba(159,224,138,.75);box-shadow:0 0 14px rgba(143,209,111,.5)}
 #stickknob.run{background:rgba(143,209,111,.75);border-color:#e0ffd0}#stickknob.run::after{content:'跑';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;color:#fff;text-shadow:0 1px 2px #000}
 #stickbase.tired::after{border-color:rgba(255,120,90,.6)}
+/* the title screen: until the new card is built (z_cover.js) show only a dark dusk backdrop, never the old layout */
+#start:not(.cv){background:radial-gradient(ellipse at 60% 70%,#4a1a0c 0%,#1a0806 55%,#0c0406 100%)!important}#start:not(.cv)>*{visibility:hidden!important}
 </style>
 
 <canvas id="c"></canvas>
@@ -3699,7 +3701,7 @@ function killZombie(z) {
     return;
   }
   if (Math.random() < .5) zombieVoice(z, 'die');
-  if (z.buff === 'burst') { burst(z.pos.x, 1, z.pos.z, 0xff7a2a, 18, 7); sfx.boom(); if (!S.dead && Math.hypot(player.pos.x - z.pos.x, player.pos.z - z.pos.z) < 2.8 * z.sc) takeDamage(z.dmg * (z.boss ? .4 : .6)); }
+  if (z.buff === 'burst') { burst(z.pos.x, 1, z.pos.z, 0xff7a2a, 18, 7); sfx.boom(); if (!S.dead && Math.hypot(player.pos.x - z.pos.x, player.pos.z - z.pos.z) < 2.8 * z.sc) takeDamage(z.dmg * (z.boss ? .4 : .6)); try { zFF(z.pos.x, z.pos.z, 2.8 * z.sc, z.dmg * (z.boss ? .4 : .6) * 2, z); } catch (e) { } }
   if (ts('frenzy')) S.frenzyT = 4;
   try { traitKill(); } catch (e) { }
   if (ts('leech') && !S.dead) S.hp = Math.min(S.maxHp, S.hp + S.maxHp * .02 * ts('leech'));
@@ -3730,7 +3732,7 @@ function updateZombie(z, dt) {
   const sight = z.aggro * nightAggro() * dif().sight * (S.noiseT > 0 ? 1.7 : 1);
   // they only notice you in front of them (about 140°), or right next to them, or when you make noise; sneak up from behind
   const ahead = (Math.sin(z.face) * px + Math.cos(z.face) * pz) / (dist || 1), sees = z.chasing || z.horde || ahead > .34 || dist < 2.2 || (S.noiseT > 0 && dist < (S.noiseR || 99)) || (S.sprint && dist < 5);
-  if (tg.d < 1e8 && dist < sight && (sees || tg.peer)) { if (!z.chasing && !z.horde) zNotice(z); z.chasing = true; z.lost = 0; } else if (z.chasing) { z.lost = (z.lost || 0) + dt; if (z.lost > 3.5 || dist > sight * 2) z.chasing = false; }
+  if (tg.d < 1e8 && dist < sight && (sees || tg.peer) && !(z.giveT > S.t && dist > 3)) { if (!z.chasing && !z.horde) zNotice(z); z.chasing = true; z.lost = 0; } else if (z.chasing) { z.lost = (z.lost || 0) + dt; if (z.lost > 3.5 || dist > sight * 2) z.chasing = false; }
   if (z.horde) { z.hordeT = (z.hordeT || 0) + dt; if (z.hordeT > 35 && dist > 12) z.horde = false; }
   // locked in a fight with an animal: it ignores you unless you hit it
   const busy = !z.boss && z.prey && !z.prey.dead && !z.prey.removed && !((z.pHitT || 0) > S.t) && Math.hypot(z.prey.pos.x - z.pos.x, z.prey.pos.z - z.pos.z) < 10;
@@ -3753,8 +3755,15 @@ function updateZombie(z, dt) {
     const gxv = gx - z.pos.x, gzv = gz - z.pos.z, gd = Math.hypot(gxv, gzv) || 1; mx = gxv / gd; mz = gzv / gd;
     // still stuck on something after a second? slide sideways along it for a moment
     z.chkT = (z.chkT || 0) - dt;
-    if (z.chkT <= 0) { if (z.chkX != null && Math.hypot(z.pos.x - z.chkX, z.pos.z - z.chkZ) < .35 && dist > 1.6 * z.sc) { z.sideT = .9; z.side = Math.random() < .5 ? 1 : -1; } z.chkT = 1; z.chkX = z.pos.x; z.chkZ = z.pos.z; }
-    if (z.sideT > 0) { z.sideT -= dt; const c = Math.cos(1.3 * z.side), s2 = Math.sin(1.3 * z.side), nx = mx * c - mz * s2, nz = mx * s2 + mz * c; mx = nx; mz = nz; }
+    // (it keeps the same side while it's still stuck, slides longer each time, picks the side that is open, and gives up on a side after a few tries)
+    if (z.chkT <= 0) { const mv = z.chkX != null ? Math.hypot(z.pos.x - z.chkX, z.pos.z - z.chkZ) : 9;
+      if (mv < .3 && dist > 1.6 * z.sc) { z.stuckN = (z.stuckN || 0) + 1;
+        if (z.stuckN === 1 || z.stuckN % 4 === 0 || !z.side) { const fr = sd => { const a = 1.45 * sd, c = Math.cos(a), s2 = Math.sin(a), p = { x: z.pos.x + (mx * c - mz * s2) * 1.6, z: z.pos.z + (mx * s2 + mz * c) * 1.6 }; return !collide(p, z.r); };
+          const L = fr(1), R = fr(-1); z.side = L && !R ? 1 : R && !L ? -1 : z.stuckN % 4 === 0 ? -(z.side || 1) : (z.side || (Math.random() < .5 ? 1 : -1)); }
+        z.sideT = Math.min(3.2, .7 + .55 * z.stuckN); }
+      else if (mv > .9) z.stuckN = 0;
+      z.chkT = .5; z.chkX = z.pos.x; z.chkZ = z.pos.z; }
+    if (z.sideT > 0) { z.sideT -= dt; const a = (z.stuckN > 2 ? 1.57 : 1.4) * z.side, c = Math.cos(a), s2 = Math.sin(a), nx = mx * c - mz * s2, nz = mx * s2 + mz * c; mx = nx; mz = nz; }
     { const ab = zAbility(z, dt, dist, tg); if (ab === 1) { mx = mz = 0; } else if (ab === -1) { mx = -mx; mz = -mz; } }
   }
   else if (!z.boss && zPrey(z, dt)) { const pr = z.prey, ex = pr.pos.x - z.pos.x, ez = pr.pos.z - z.pos.z, e = Math.hypot(ex, ez) || 1; mx = ex / e; mz = ez / e; speed *= .85;
@@ -3768,7 +3777,9 @@ function updateZombie(z, dt) {
   if (z.hasteT > 0) { z.hasteT -= dt; speed *= 1.35; }
   if (z.hold) { z.hold = false; mx = mz = 0; }
   { const ox = z.pos.x, oz = z.pos.z; z.pos.x += mx * speed * dt * (waterAt(ox, oz) > .2 ? .6 : 1) + z.knx * dt; z.pos.z += mz * speed * dt * (waterAt(ox, oz) > .2 ? .6 : 1) + z.knz * dt;
-    if ((deepAt(z.pos.x, z.pos.z) && !deepAt(ox, oz)) || (villageNear(z.pos.x, z.pos.z, 0) && !villageNear(ox, oz, 0))) { z.pos.x = ox; z.pos.z = oz; z.wt = 0; }
+    if ((deepAt(z.pos.x, z.pos.z) && !deepAt(ox, oz)) || (villageNear(z.pos.x, z.pos.z, 0) && !villageNear(ox, oz, 0))) { z.pos.x = ox; z.pos.z = oz; z.wt = 0;
+      // can't get in (village fence / deep water): don't pile up at the edge, give up for a while and wander off
+      if (chase && !z.boss && !z.idef) { z.edgeT = (z.edgeT || 0) + dt; if (z.edgeT > 2.5) { z.edgeT = 0; z.chasing = false; z.horde = false; z.giveT = S.t + 10; z.wx = -mx; z.wz = -mz; z.wt = 4; } } }
     // up on the floors: they may walk anywhere on them (also across from one floor tile to the next), just not off the edge
     zKeepRegion(z, ox, oz);
     if (z.up && !onUpper(z.pos.x, z.pos.z, -.02)) { if (onUpper(z.pos.x, oz, -.02)) z.pos.z = oz; else if (onUpper(ox, z.pos.z, -.02)) z.pos.x = ox; else { z.pos.x = ox; z.pos.z = oz; } } }
@@ -3915,7 +3926,7 @@ function updateBoss(b, dt) {
     slamRing.material.opacity = .15 + .35 * Math.abs(Math.sin(b.st * 14)); b.h.armR.rotation.x = -3 + b.st * .5; b.h.armL.rotation.x = -2.8;
     if (b.st >= sl.t) {
       slamRing.visible = false; sfx.boom(); S.shake = .8; burst(b.pos.x, .4, b.pos.z, 0x6a4a3a, 14, 9);
-      if (dist < sl.R + .5) takeDamage(sl.dmg);
+      if (dist < sl.R + .5) takeDamage(sl.dmg); try { zFF(b.pos.x, b.pos.z, sl.R + .5, sl.dmg, b); } catch (e) { }
       b.state = 'rec'; b.st = 0; b.atkCd = sl.cd;
     }
   } else if (b.state === 'bolt') {
@@ -3923,7 +3934,7 @@ function updateBoss(b, dt) {
     boltRings.forEach((m, i) => { if (m.visible) m.material.opacity = .2 + .4 * Math.abs(Math.sin(b.st * 12 + i)); });
     if (b.st >= 1.1) {
       boltRings.forEach(m => { m.visible = false; }); sfx.boom();
-      b.bolts.forEach(p => { burst(p.x, .4, p.z, T.col, 10, 7); if (Math.hypot(player.pos.x - p.x, player.pos.z - p.z) < 2.5) takeDamage(T.boltDmg * bossDmgMul(b)); });
+      b.bolts.forEach(p => { burst(p.x, .4, p.z, T.col, 10, 7); if (Math.hypot(player.pos.x - p.x, player.pos.z - p.z) < 2.5) takeDamage(T.boltDmg * bossDmgMul(b)); try { zFF(p.x, p.z, 2.5, T.boltDmg * bossDmgMul(b), b); } catch (e) { } });
       b.state = 'rec'; b.st = 0; b.boltCd = T.boltCd; b.atkCd = Math.max(b.atkCd, 1);
     }
   } else if (b.state === 'windC') {
@@ -4060,7 +4071,7 @@ function shieldBlock(z, dmg) {
 function bomberBoom(z, k) {
   if (z.boomed) return; z.boomed = true; burst(z.pos.x, 1, z.pos.z, 0xc8e04a, 24, 9); burst(z.pos.x, 1, z.pos.z, 0xff8a2a, 14, 7); sfx.boom(); S.shake = Math.max(S.shake, .5);
   const R = 3.4; if (!S.dead && Math.hypot(player.pos.x - z.pos.x, player.pos.z - z.pos.z) < R) takeDamage(z.dmg * 1.8 * k, { buff: 'poison', dmg: z.dmg });
-  for (const o of zombies) { if (o === z || o.dead || o.boss || o.mirror) continue; if (Math.hypot(o.pos.x - z.pos.x, o.pos.z - z.pos.z) < R) { o.hp -= o.max * .35 * k; if (o.hp <= 0) { o.dead = true; o.deadT = 0; } } }
+  try { zFF(z.pos.x, z.pos.z, R, z.dmg * 1.8 * k, z, .35 * k); } catch (e) { }
   if (z.belly) z.belly.visible = false;
 }
 // acid spit: a green blob arcs to where you stand
@@ -4069,12 +4080,12 @@ const spitMat = new THREE.MeshBasicMaterial({ color: 0xa8ff4a });
 function spitAt(z, x, zz) {
   const m = new THREE.Mesh(new THREE.IcosahedronGeometry(.16, 0), spitMat); m.position.set(z.pos.x, 1.6, z.pos.z); scene.add(m);
   const d = Math.hypot(x - z.pos.x, zz - z.pos.z) || 1, T = Math.max(.35, d / 14);
-  SPITS.push({ m, x0: z.pos.x, z0: z.pos.z, x1: x, z1: zz, t: 0, T, dmg: z.dmg * .9 }); if (AC) sfxNoise(.12, .1, 1800);
+  SPITS.push({ m, x0: z.pos.x, z0: z.pos.z, x1: x, z1: zz, t: 0, T, dmg: z.dmg * .9, src: z }); if (AC) sfxNoise(.12, .1, 1800);
 }
 function zSpecialTick(dt) {
   for (let i = SPITS.length - 1; i >= 0; i--) { const s = SPITS[i]; s.t += dt; const k = Math.min(1, s.t / s.T);
     s.m.position.set(s.x0 + (s.x1 - s.x0) * k, 1.6 - .9 * k + Math.sin(k * Math.PI) * 1.6, s.z0 + (s.z1 - s.z0) * k);
-    if (k >= 1 || S.isl) { scene.remove(s.m); SPITS.splice(i, 1); if (S.isl) continue; burst(s.x1, .2, s.z1, 0xa8ff4a, 8, 3);
+    if (k >= 1 || S.isl) { scene.remove(s.m); SPITS.splice(i, 1); if (S.isl) continue; burst(s.x1, .2, s.z1, 0xa8ff4a, 8, 3); try { zFF(s.x1, s.z1, 1.5, s.dmg, s.src); } catch (e) { }
       if (!S.dead && !S.up && Math.hypot(player.pos.x - s.x1, player.pos.z - s.z1) < 1.5) takeDamage(s.dmg, { buff: 'poison', dmg: s.dmg }); } }
   for (let i = FX_RINGS.length - 1; i >= 0; i--) { const r = FX_RINGS[i]; r.t -= dt; r.m.material.opacity = Math.max(0, r.t); if (r.t <= 0) { scene.remove(r.m); FX_RINGS.splice(i, 1); } }
 }
@@ -5252,7 +5263,7 @@ async function acctInit() {
   try { const rs = JSON.parse(lsGet('ember_live') || 'null'); const c = rs && Date.now() - rs.t < 30 * 60000 && Acct.chars.find(x => x.id === rs.id);
     if (c && !worldEntered && !window.EMBER_APP) { $('start').classList.remove('show'); $('chars').classList.remove('show'); startChar(c); setTimeout(() => banner('游戏更新了', '已经自动回到刚才的位置' + (MP.code ? '，并重新加入房间 ' + MP.code : ''), 3.5), 1500); } } catch (e) { }
 }
-function markLive() { if (Acct.cur && S.started) lsSet('ember_live', JSON.stringify({ id: Acct.cur, t: Date.now() })); }
+function markLive() { if (window._swc) { try { localStorage.removeItem('ember_live'); } catch (e) { } return; } if (Acct.cur && S.started) lsSet('ember_live', JSON.stringify({ id: Acct.cur, t: Date.now() })); }
 // save right away when the page is hidden or closed (an update reload, switching apps)
 window.addEventListener('pagehide', () => { try { S.dirty = true; flushSave(); markLive(); } catch (e) { } });
 document.addEventListener('visibilitychange', () => { if (document.hidden) try { S.dirty = true; flushSave(); markLive(); } catch (e) { } });
@@ -5379,7 +5390,7 @@ function enterWorld() {
   const code = ($('roomCode').value || '').trim().toLowerCase(); lsSet('ember_room', code); mpInit(code);
 }
 // a cloud save that never answers must not hold the button forever: wait at most 2.5 s, then reload; if the page can't reload itself, say so
-async function switchChar() { try { banner('正在保存……', '马上回到选择角色', 2); } catch (e) { }
+async function switchChar() { window._swc = 1; try { banner('正在保存……', '马上回到选择角色', 2); } catch (e) { }
   try { await Promise.race([flushSave(), new Promise(r => setTimeout(r, 2500))]); } catch (e) { } try { localStorage.removeItem('ember_live'); } catch (e) { }
   try { location.reload(); } catch (e) { } setTimeout(() => { try { banner('没能自动重开', '请把游戏完全关掉，再重新打开', 6); } catch (e) { } }, 3000); }
 
@@ -8638,7 +8649,7 @@ function storyStart() {   // open the current chapter (talk once)
   if (stDone() || stLocked()) return; if (S.story.seen !== S.story.c) { S.story.seen = S.story.c; storyTalk(stCh().intro); saveGame(); } stTrk(); }
 function stAdvance() {
   const C = stCh(); S.story.s++; S.story.p = 0;
-  try { const sr = C.sr || [50 * (S.story.c + 1), 40 * (S.story.c + 1)]; gain('coin', sr[0]); addXp(sr[1]); } catch (e) { }   // chapters with many small steps set their own (smaller) per-step reward
+  try { stStepPay(stStepRw(S.story.c, S.story.s - 1)); } catch (e) { }   // every step has its own reward (z_story2.js gives each one something different)
   if (S.story.s >= C.steps.length) {
     const R = C.rw; if (R.coin) gain('coin', R.coin); if (R.estone) gain('estone', R.estone); if (R.gem) addGem(R.gem, T2('主线奖励', 'story reward')); if (R.gear) try { giveGear(R.gear); } catch (e) { }
     banner(chN(S.story.c) + T2(' 完成', ' complete'), C.t + ' · ' + stRwTxt(R), 4); storyTalk(C.end);
@@ -8647,6 +8658,15 @@ function stAdvance() {
   } else { feed(T2('主线：', 'Story: ') + stStep().d, '#ffc94a'); if (stStep().say) storyTalk([['老陈', stStep().say]]); }
   saveGame(); stTrk();
 }
+function stStepRw(c, s) { const C = STORY[c], sr = (C && C.sr) || [50 * (c + 1), 40 * (c + 1)]; return { coin: sr[0], xp: sr[1] }; }
+function stStepPay(R) { if (!R) return; const got = [];
+  if (R.xp) { addXp(R.xp); got.push(T2('经验 +', 'XP +') + R.xp); }
+  for (const k in R) { const n = R[k]; if (!n || k === 'xp') continue;
+    if (k === 'coin') gain('coin', n); else if (k === 'gem') addGem(n, T2('主线奖励', 'story reward')); else if (k === 'ammo') S.reserve += n; else gain(k, n);
+    got.push(stItN(k) + ' ×' + n); }
+  if (got.length) feed(T2('任务奖励：', 'Task reward: ') + got.join(' · '), '#9fe8a0'); refreshHud(); }
+const stItN = k => k === 'coin' ? T2('余烬币', 'coins') : k === 'gem' ? T2('晶石', 'gems') : k === 'ammo' ? T2('子弹', 'ammo') : k === 'xp' ? T2('经验', 'XP') : (typeof ITEMS !== 'undefined' && ITEMS[k] ? ITEMS[k].n : typeof MAT !== 'undefined' && MAT[k] ? MAT[k].n : k);
+const stStepRwTxt = R => !R ? '' : (R.xp ? T2('经验 +', 'XP +') + R.xp : '') + Object.keys(R).filter(k => k !== 'xp' && R[k]).map(k => ' · ' + stItN(k) + ' ×' + R[k]).join('');
 function stRwTxt(R) { return [R.coin && R.coin + ' ' + T2('余烬币', 'coins'), R.estone && T2('强化石 ×', 'Enhance Stone ×') + R.estone, R.gem && R.gem + ' ' + T2('晶石', 'gems'), R.gear && GQ[R.gear].n + T2('装备', ' gear')].filter(Boolean).join(' · '); }
 // progress from the game's events
 function storyEvent(k, n, ctx) {
@@ -8681,8 +8701,8 @@ function renderStory() {
   STORY.forEach((C, i) => { const done = i < S.story.c, cur = i === S.story.c, lock = S.level < C.lv && !done;
     const card = document.createElement('div'); card.className = 'stcard' + (done ? ' done' : cur ? ' cur' : '') + (lock ? ' lock' : '');
     let h = '<div class="sth"><b>' + chN(i) + ' · ' + C.t + '</b><span>' + (done ? T2('已完成', 'Done') : lock ? 'Lv.' + C.lv : cur ? T2('进行中', 'In progress') : '') + '</span></div>';
-    if (cur || done) h += C.steps.map((s, j) => { const ok = done || j < S.story.s, now = cur && j === S.story.s; return '<div class="sts' + (ok ? ' ok' : now ? ' now' : '') + '">' + (ok ? '✓' : now ? '▸' : '·') + ' ' + s.d + (now && s.n ? ' <em>' + S.story.p + '/' + s.n + '</em>' : '') + '</div>'; }).join('');
-    h += '<div class="str">' + T2('奖励：', 'Reward: ') + stRwTxt(C.rw) + '</div>'; card.innerHTML = h;
+    if (cur || done) h += C.steps.map((s, j) => { const ok = done || j < S.story.s, now = cur && j === S.story.s; return '<div class="sts' + (ok ? ' ok' : now ? ' now' : '') + '">' + (ok ? '✓' : now ? '▸' : '·') + ' ' + s.d + (now && s.n ? ' <em>' + S.story.p + '/' + s.n + '</em>' : '') + (!ok ? '<small class="stsr">' + stStepRwTxt(stStepRw(i, j)) + '</small>' : '') + '</div>'; }).join('');
+    h += '<div class="str">' + T2('章节完成奖励：', 'Chapter reward: ') + stRwTxt(C.rw) + '</div>'; card.innerHTML = h;
     if (done || (cur && S.story.seen === i)) { const b = document.createElement('button'); b.className = 'sbtn ghostb'; b.textContent = T2('重听对话', 'Replay talk'); b.addEventListener('click', () => { closePanel('story'); storyTalk(C.intro.concat(done ? C.end : [])); setTimeout(stShowNext, 150); }); card.appendChild(b); }
     box.appendChild(card); });
 }
@@ -9268,7 +9288,7 @@ function idefCheck() {
 setTimeout(() => { setInterval(() => { try { idefCheck(); } catch (e) { } }, 4000); }, 3000);
 
 function idefStart() {
-  ID.pend = 0; ID.tier = idefTier(); ID.lv = Math.max(1, 10 * (ID.tier - 1) + 4); ID.on = true; ID.wave = 0; ID.zs = []; ID.t = 0; S.idef = { d: ID.key || raidKey(), r: 0 };
+  ID.pend = 0; ID.tier = Math.min(idefTier(), Math.floor((Math.max(1, S.level) - 1) / 10) + 1); ID.lv = Math.max(1, Math.min(10 * (ID.tier - 1) + 4, (S.level | 0) + 1)); ID.on = true; ID.wave = 0; ID.zs = []; ID.t = 0; S.idef = { d: ID.key || raidKey(), r: 0 };
   try { document.querySelectorAll('.overlay.show').forEach(o => o.classList.remove('show')); S.paused = false; } catch (e) { }
   banner(T2('海岛防守', 'Island Defense'), T2('丧尸要上岸了！守住 3 波 · 敌人 Lv.' + ID.lv, 'Zombies are coming ashore! Hold 3 waves · enemy Lv.' + ID.lv), 3); try { sfx.growl(); } catch (e) { }
   idefNext(); saveGame(); idefHud();
@@ -9343,6 +9363,17 @@ function idefRow(box) {
     r === 2 ? '#ff9b8a' : '#ffc94a', null, null, false, '守');
   if (nb) hubRow(box, T2('修复建筑', 'Repair buildings'), T2(nb + ' 处建筑坏了 · 需要木头 ×' + nb * 2, nb + ' broken · wood ×' + nb * 2), '#ff9b8a', T2('一键修复', 'Repair all'), repairAll, matHave('wood') < nb * 2, '修');
 }
+
+/* ---- broken buildings: a repair button right on the screen (on the island), no need to dig through 活动 ---- */
+function repairPill() {
+  let b = $('repairPill'); const n = S.started && !S.dead && S.isl && !ID.on && !ID.pend ? brokenList().length : 0;
+  if (!b) { if (!n || !document.body || !document.body.appendChild) return; b = document.createElement('button'); b.id = 'repairPill'; document.body.appendChild(b); b.addEventListener('click', () => { repairAll(); repairPill(); });
+    const st = document.createElement('style'); st.textContent = '#repairPill{position:fixed;left:50%;top:calc(var(--st,0px) + 54px);transform:translateX(-50%);z-index:9;display:none;align-items:center;gap:8px;padding:8px 16px;border-radius:12px;border:1.5px solid #ffb07a;background:linear-gradient(180deg,rgba(90,30,14,.92),rgba(40,12,8,.92));color:#ffe0c8;font-weight:800;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.45);animation:rpPulse 1.6s ease-in-out infinite}#repairPill small{font-weight:600;color:#ffc8a8;font-size:11.5px}#repairPill.no small{color:#ff8a7a}@keyframes rpPulse{50%{box-shadow:0 0 18px rgba(255,140,80,.7)}}'; document.head.appendChild(st); }
+  if (!n) { b.style.display = 'none'; return; }
+  const cost = n * 2, ok = matHave('wood') >= cost, key = n + '|' + ok; b.style.display = 'flex'; b.classList.toggle('no', !ok);
+  if (b._k !== key) { b._k = key; b.innerHTML = '🔨 ' + T2('修复 ' + n + ' 处被破坏的建筑', 'Repair ' + n + ' broken buildings') + ' <small>' + T2('木头 ×' + cost + (ok ? '' : '（不够）'), 'wood ×' + cost + (ok ? '' : ' (not enough)')) + '</small>'; }
+}
+setInterval(() => { try { repairPill(); } catch (e) { } }, 1000);
 /* ============ 时装补给箱 + 礼包 ============
    A fourth box in the 商城: outfits and weapon skins, with all the weapon-upgrade materials as fillers.
    Its mythic prizes: the winged outfit 「炽天之翼」 (mythic bonus + 20% move speed), and two mythic weapon skins
@@ -10196,9 +10227,9 @@ function cvTick(dt) {
   C.far = pd > 70 ? C.far + dt : 0; if (C.far > 25) { cvEnd(false, '你离商队太远，商队被丧尸冲散了'); return; }
   // waves come in from ahead and the sides, more of them further along the road
   C.spawnT -= dt;
-  if (C.spawnT <= 0 && C.d < CV_LEN - 15) { C.wave++; C.spawnT = rand(10, 14); const p = cvAt(C.d + 22), n = 3 + Math.min(5, Math.floor(C.wave / 2));
+  if (C.spawnT <= 0 && C.d < CV_LEN - 15 && zombies.filter(z => z.cvz && !z.dead).length < 10) { C.wave++; C.spawnT = rand(10, 14); const p = cvAt(C.d + 22), n = 3 + Math.min(5, Math.floor(C.wave / 2));
     for (let i = 0; i < n; i++) { const a = p.r + rand(-1.2, 1.2), r = rand(16, 24); const types = C.wave > 3 ? ['walker', 'runner', 'brute', 'runner'] : ['walker', 'runner'];
-      try { const zb = spawnZombie(pick(types), lead.x + Math.sin(a) * r, lead.z + Math.cos(a) * r, false); if (zb) zb.aggro = 60; } catch (e) { } }
+      try { const zb = spawnZombie(pick(types), lead.x + Math.sin(a) * r, lead.z + Math.cos(a) * r, false); if (zb) { zb.aggro = 60; zb.cvz = 1; } } catch (e) { } }
     if (C.wave % 3 === 0) feed('一大波丧尸冲着商队来了！', '#ff9b8a'); }
   if (C.hp <= 0) { for (const c of C.carts) burst(c.x, 1.2, c.z, 0x8a6440, 18, 5); cvEnd(false); return; }
   if (C.d >= CV_LEN) { cvEnd(true); return; }
@@ -14810,7 +14841,7 @@ SKIN_P.abyss = [
 ];SKIN_BY_N[SKINS.abyss.n] = 'abyss';
 /* ============ 外观直售：不用抽，直接用晶石买外观 ============
    这里只卖直售限定的外观（现在是「星渊帝皇」）；抽奖池的外观只能抽。 */
-const SKIN_PRICE = { 5: 3280, 4: 1280, 3: 480 };
+const SKIN_PRICE = { 5: 980, 4: 498, 3: 198 };   // 史诗 ≈ 2 个 ¥6 小包 · 传说 ≈ ¥30 包多一点 · 神话 ≈ ¥68 包再多一点 — closer to other mobile games
 // only outfits made for direct sale go here; gacha outfits stay in the gacha. Add a key to this list to sell a new one.
 const SKIN_DIRECT = ['abyss'];
 const SKIN_SHOP = () => SKIN_DIRECT.filter(k => SKINS[k]);
@@ -14823,16 +14854,20 @@ function skinBuy(k, b) { const P = SKIN_PRICE[SKINS[k].r]; if (S.skins.includes(
   giveSkin(k); try { sfx.build(); } catch (e) { } saveGame(); const m = $('skDetM'); if (m) m.remove(); const box = $('mallList'), y = box ? box.scrollTop : 0; renderMall(); if (box) box.scrollTop = y; }
 const skPrice = P => '<span class="skgem">' + icHtml('gem:1') + '</span>' + P;
 // a grid of small boxes like the storage locker; tap one for the details and the buy button
+let skSub = 'o';   // 外观直售 has two shelves: 'o' outfits (+ wings), 'w' weapon skins
 function skinShopRender(box, el2) {
-  box.appendChild(el2('div', 'snote', '直接用晶石买，不用抽。点格子看详情；买下后在「背包 · 外观衣柜」换上。'));
+  const tb = el2('div', 'tabs sksub');
+  [['o', T2('时装', 'Outfits')], ['w', T2('枪皮肤', 'Weapon skins')]].forEach(([k, t]) => { const b = el2('button', 'sbtn' + (skSub === k ? ' on' : ''), t); b.addEventListener('click', () => { skSub = k; const bx = $('mallList'), y = bx ? bx.scrollTop : 0; renderMall(); if (bx) bx.scrollTop = y; }); tb.appendChild(b); });
+  box.appendChild(tb);
+  box.appendChild(el2('div', 'snote', skSub === 'o' ? T2('直接用晶石买，不用抽。点格子看详情；买下后在「背包 · 外观衣柜」换上。', 'Buy outright with gems. Tap for details; wear it from Bag · Wardrobe.') : T2('武器皮肤只换这把武器的样子和特效。点格子看详情；买下后在武器页面换上。', 'Weapon skins change how that weapon looks. Tap for details; equip on the Weapons page.')));
   const g = el2('div', 'skgrid');
-  SKIN_SHOP().forEach(k => { const K = SKINS[k], R = SK_RN[K.r], own = S.skins.includes(k), P = SKIN_PRICE[K.r];
+  if (skSub === 'o') SKIN_SHOP().forEach(k => { const K = SKINS[k], R = SK_RN[K.r], own = S.skins.includes(k), P = SKIN_PRICE[K.r];
     const t = el2('button', 'sktile' + (own ? ' own' : '')); t.style.setProperty('--qc', R[1]);
     t.innerHTML = '<em class="sktag">' + (own ? '已拥有' : '限定') + '</em><div class="skpic">' + icHtml('skin:' + k) + '</div><b>' + K.n + '</b><small>' + (own ? '已拥有' : skPrice(P)) + '</small>';
     t.addEventListener('click', () => skinDetail(k)); g.appendChild(t); });
-  WSK_SHOP().forEach(([k, id]) => { const K = WSKINS[k], R = SK_RN[K.r], own = S.wskOwn.includes(k + ':' + id), P = SKIN_PRICE[K.r];
+  else WSK_SHOP().forEach(([k, id]) => { const K = WSKINS[k], R = SK_RN[K.r], own = S.wskOwn.includes(k + ':' + id), P = SKIN_PRICE[K.r];
     const t = el2('button', 'sktile' + (own ? ' own' : '')); t.style.setProperty('--qc', R[1]);
-    t.innerHTML = '<em class="sktag">' + (own ? '已拥有' : '武器') + '</em><div class="skpic">' + icHtml('wsk:' + k + ':' + id) + '</div><b>' + wskName(k, id) + '</b><small>' + (own ? '已拥有' : skPrice(P)) + '</small>';
+    t.innerHTML = '<em class="sktag">' + (own ? '已拥有' : (WEAP[id] ? WEAP[id].n : '武器')) + '</em><div class="skpic">' + icHtml('wsk:' + k + ':' + id) + '</div><b>' + wskName(k, id) + '</b><small>' + (own ? '已拥有' : skPrice(P)) + '</small>';
     t.addEventListener('click', () => wskDetail(k, id)); g.appendChild(t); });
   box.appendChild(g);
 }
@@ -14858,7 +14893,7 @@ function skinDetail(k) { const old = $('skDetM'); if (old) old.remove(); const K
   m.querySelector('.sk3d').addEventListener('click', () => { m.remove(); try { skinPreview(k); } catch (e) { } });
   const b = m.querySelector('.skbuy'); b.addEventListener('click', () => skinBuy(k, b)); }
 try { const st = document.createElement('style'); st.textContent =
-  '.skgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;margin-top:8px}' +
+  '.sksub{display:flex;gap:6px;margin:2px 0 6px}.sksub .sbtn{flex:1}.skgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;margin-top:8px}' +
   '.sktile{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px 6px;border-radius:12px;border:1.5px solid var(--qc);background:radial-gradient(circle at 50% 35%,color-mix(in srgb,var(--qc) 24%,transparent),rgba(14,8,16,.92) 72%);color:#f3e6d6;font:inherit;cursor:pointer}' +
   '.sktile .skpic{height:88px;display:flex;align-items:center;justify-content:center}.sktile .skpic .ic,.sktile .skpic img{height:100%;width:auto;max-width:100%}.sktile b{font-size:12.5px}.sktile small{font-size:11.5px;font-weight:800;color:#9fe8ff;display:flex;align-items:center;gap:3px}.sktile.own{opacity:.6}' +
   '.sktag{position:absolute;left:4px;top:4px;font-style:normal;font-size:9.5px;font-weight:900;padding:1px 5px;border-radius:6px;background:var(--qc);color:#140a10}' +
@@ -14884,7 +14919,7 @@ try { const st = document.createElement('style'); st.textContent =
    【本文件用到的游戏里已有的东西（已对过交接包源码，都存在）】
    - SKINS / SKIN_BUILD / SKIN_P / SKIN_BY_N （r_shop.js、z_abyss.js 同样的用法）
    - SKIN_DIRECT （z_skinshop.js，直售列表，const 数组，用 push 登记）
-   - SKIN_PRICE[4] = 1280 晶石 （传说档价格，z_skinshop.js 里已有，不用改）
+   - SKIN_PRICE[4] = 498 晶石 （传说档价格，z_skinshop.js 里已有，不用改）
    - 构建器 k 里的 bx / cone / gem / G / both / torso / sleeves / pants / cape / put （r_shop.js 的 skinKit）
    - mat(颜色) 、THREE
    - 假设：商城格子 / 衣柜 / 3D预览的小图标，是游戏自己按 SKIN_BUILD 自动生成的（abyss 没有单独写图标，所以应该是自动的）
@@ -15002,7 +15037,7 @@ SKIN_DIRECT.push('aster');/* ============ 换翅膀系统 + 新翅膀「粉蝶�
      需要交接的 AI 把 wingBuild(h) 接到 z_net.js 的远程玩家穿衣处（并同步 S.wing）。
    - 假设：存档里 shopSave() 返回的对象会原样存、shopLoad(d) 读 d.sh（读过 r_shop.js，是这样）。
 */
-const WING_PRICE = 1980;   // 比神话外观（3280）便宜；带属性，所以比传说外观（1280）贵一档
+const WING_PRICE = 680;     // 比神话外观（980）便宜；带属性，所以比传说外观（498）贵一档
 const WINGS = { fairy: { n: '粉蝶幻翼', d: '一对粉蝶般的幻翼：上面一对大翅薄如蝉纱，从粉色渐变成淡紫、浅蓝，边缘描着粉色翅脉；下面一对由层层粉白羽瓣叠成。翅膀会随脚步扇动，翅尖不时闪光。穿着自带翅膀的外观时，不能更换翅膀。', st: { spd: .15, hpPct: .04, def: .02 }, stt: '移动速度 +15%、生命 +4%、减伤 +2%' } };
 S.wingOwn = []; S.wing = '';
 let WING_SVG = '<svg viewBox="0 0 100 80" style="height:100%;width:auto;max-width:100%" aria-hidden="true"><defs><linearGradient id="wgg" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#f6a9c9"/><stop offset=".6" stop-color="#e2d4ff"/><stop offset="1" stop-color="#bfe4ff"/></linearGradient></defs>' +
@@ -15098,7 +15133,7 @@ function wingWardrobe(box) {
 }
 
 // ---- 商城「外观直售」：外观格子下面加一格翅膀 ----
-skinShopRender = (o => function (box, el2) { o(box, el2); try { wingShop(box, el2); } catch (e) { console.warn(e); } })(skinShopRender);
+skinShopRender = (o => function (box, el2) { o(box, el2); try { if (typeof skSub === 'undefined' || skSub === 'o') wingShop(box, el2); } catch (e) { console.warn(e); } })(skinShopRender);
 function wingShop(box, el2) {
   const own = S.wingOwn.includes('fairy'), R = SK_RN[5];
   box.appendChild(el2('div', 'snote', '翅膀：单独买，单独背，带属性加成。自带翅膀的外观不能更换翅膀。'));
@@ -15493,10 +15528,16 @@ openDunPage = (o => function () { if (!ulOpen('dungeon')) { feed('🔒 ' + T2('L
     { k: 'stash', n: 1, d: T2('打开储物箱，存 1 样东西进去', 'Open the storage box and store something'), say: T2('站到储物箱旁边点「打开储物柜」，把暂时用不上的材料存进去。储物箱里的材料，升级、建造时会自动拿来用。', 'Stand by the box and tap Open Storage, then store what you don\'t need right now. Upgrades and building use what is in storage automatically.') },
     { k: 'boss', n: 1, tier: 1, d: T2('击败「荒废郊区」的首领', 'Defeat the Ruined Suburbs boss'), say: T2('最后一课：郊区有个大家伙，地图上的骷髅标记就是它。打倒它，首领会掉好东西，有时还会掉武器突破用的印记。', 'Last lesson: there is a big one in the suburbs, the skull on the map. Bring it down. Bosses drop good loot, sometimes the seal you need for a weapon breakthrough.') }];
   C1.rw = { coin: 400, estone: 5, gem: 40, gear: 2 };
+  // every step has its own reward, and every one gives XP (more for the harder ones)
+  const PR = [{ xp: 20, coin: 20 }, { xp: 20, wood: 5 }, { xp: 25, vine: 3 }, { xp: 25, coin: 30 }, { xp: 30, med: 1 }, { xp: 35, wood: 15 }, { xp: 40, ammo: 30 }];
+  const CR = [{ xp: 30, ammo: 20 }, { xp: 30, coin: 40 }, { xp: 30, ammo: 30 }, { xp: 40, med: 1 }, { xp: 55, coin: 80 }, { xp: 40, med: 2 }, { xp: 40, wood: 20 },
+    { xp: 50, estone: 2 }, { xp: 20, coin: 100, powder: 2 }, { xp: 40, coin: 60 }, { xp: 50, stone: 15 }, { xp: 50, metal: 8 }, { xp: 60, metal: 10 }, { xp: 20, coin: 120, estone: 2 },
+    { xp: 60, med: 1, ammo: 20 }, { xp: 60, powder: 3 }, { xp: 20, coin: 150, gem: 10 }, { xp: 60, coin: 80 }, { xp: 20, coin: 180, steel: 1 }, { xp: 70, wood: 25 }, { xp: 70, metal: 12 }, { xp: 120, coin: 200, gem: 20 }];
+  P.steps.forEach((s, i) => { s.rw = PR[i]; }); C1.steps.forEach((s, i) => { s.rw = CR[i]; });
 })();
 
 /* ---- step gifts: when a step that needs something starts, top up what's missing (once per step) ---- */
-const ST2 = { g: '', comm: { i: 0, p: 0, seen: -1 }, rch: {}, v: 2, book: 'story' };
+const ST2 = { g: '', comm: { i: 0, p: 0, seen: -1 }, rch: {}, v: 3, book: 'story' };
 const st2Top = (k, n) => { const h = matHave(k); if (h < n) gain(k, n - h); };
 function st2Gift(st) {
   try {
@@ -15598,6 +15639,7 @@ stTrk = (o => function () {
         (st2CommLine() || '<span class="stcm">▸ ' + T2('现在：在「' + st2Region() + '」打丧尸、开箱子升级，做每日任务', 'Now: fight and open crates in the ' + st2Region() + ', do your daily tasks') + '</span>') +
         '<span class="stxp">' + T2('下一级还差 ', 'Next level: ') + left + ' XP</span>'; return; }
     if (st && st.k === 'lv') { const sp = e.querySelector('span'); if (sp) sp.innerHTML = '▸ ' + st.d + ' <em>' + T2('还差 ', '') + Math.max(0, xpNeed(S.level) - S.xp) + ' XP</em>'; }
+    if (st) e.insertAdjacentHTML('beforeend', '<span class="stxp strw">🎁 ' + stStepRwTxt(stStepRw(S.story.c, S.story.s)) + '</span>');
     const cl = st2CommLine(); if (cl) e.insertAdjacentHTML('beforeend', cl);
   } catch (er) { }
 })(stTrk);
@@ -15649,6 +15691,12 @@ renderStory = (o => function () {
     box.appendChild(card); }
 })(renderStory);
 
+/* ---- every step its own reward (later chapters: XP grows with the chapter, plus a different item each step) ---- */
+const ST_RWI = [['coin', 60], ['ammo', 40], ['metal', 10], ['powder', 4], ['estone', 2], ['med', 2], ['steel', 1], ['circuit', 3], ['serum', 1], ['crystal', 1]];
+stStepRw = (o => function (c, s) { const C = STORY[c], st = C && C.steps[s]; if (!st) return o(c, s); if (st.rw) return st.rw;
+  const [k, n] = ST_RWI[(c * 3 + s) % ST_RWI.length], m = k === 'crystal' || k === 'serum' || k === 'steel' ? Math.max(1, Math.floor(c / 3)) : c;
+  const R = { xp: 40 * (c + 1) + 15 * s, coin: 30 * (c + 1) }; R[k] = (R[k] || 0) + n * Math.max(1, m); return R; })(stStepRw);
+
 /* ---- save / load ---- */
 shopSave = (o => function () { const r = o(); try { r.st2 = { v: ST2.v, g: ST2.g, ci: ST2.comm.i, cp: ST2.comm.p | 0, cn: ST2.comm.n | 0, cs: ST2.comm.seen, rch: ST2.rch }; } catch (e) { } return r; })(shopSave);
 shopLoad = (o => function (d) { o(d); ST2.g = ''; ST2.comm = { i: 0, p: 0, n: 0, seen: -1 }; ST2.rch = {};
@@ -15656,16 +15704,19 @@ shopLoad = (o => function (d) { o(d); ST2.g = ''; ST2.comm = { i: 0, p: 0, n: 0,
     if (g) { ST2.g = String(g.g || ''); ST2.comm = { i: Math.max(0, Math.min(COMM.length, g.ci | 0)), p: g.cp | 0, n: g.cn | 0, seen: g.cs == null ? -1 : g.cs | 0 };
       if (g.rch && typeof g.rch === 'object') for (const t in g.rch) { const x = g.rch[t]; if (x && Array.isArray(x.n)) ST2.rch[t] = { n: x.n.slice(0, 6).map(v => Math.max(0, v | 0)), c: x.c | 0 }; } }
     else st2Migrate(d);
+    if (!g || (g.v | 0) < 3) st2Fix3();
   } catch (e) { console.warn('story2 load', e); } })(shopLoad);
 // saves from before this version: the prologue and chapter 1 have new steps, so a save in the middle of them restarts that chapter
 // (no progress is lost: every step it already did finishes again at once or in seconds); old players who are past Lv.6 skip the commissions they've outgrown
+// v3: characters that are already Lv.3+ never sit in the prologue (it's for brand-new players); they go straight to chapter 1
+function st2Fix3() { setTimeout(() => { try { if (S.story.c === 0 && S.level >= 3) { S.story.c = 1; S.story.s = 0; S.story.p = 0; S.story.seen = 1; stTrk(); saveGame(); } } catch (e) { } }, 0); }
 function st2Migrate(d) { setTimeout(() => { try {
   if (S.story.c <= 1 && S.story.s > 0) { S.story.s = 0; S.story.p = 0; }
   while (ST2.comm.i < COMM.length && ((COMM[ST2.comm.i].steps[0].k === 'dun' && st2Dun(COMM[ST2.comm.i].steps[0].dn) > 0) || (S.level >= COMM[ST2.comm.i].lv + 6))) ST2.comm.i++;
   stTrk(); } catch (e) { } }, 0); }
 
 try { const st = document.createElement('style'); st.textContent =
-  '#storyTrk .stcm{display:block;color:#9fe8ff;font-size:11.5px;margin-top:2px}#storyTrk .stxp{display:block;font-size:10.5px;opacity:.7;margin-top:1px}' +
+  '#storyTrk .strw{color:#b8f0a0;opacity:.9}.sts .stsr{display:block;font-size:10.5px;opacity:.6;margin-left:14px}#storyTrk .stcm{display:block;color:#9fe8ff;font-size:11.5px;margin-top:2px}#storyTrk .stxp{display:block;font-size:10.5px;opacity:.7;margin-top:1px}' +
   '.sttabs{display:flex;gap:6px;margin:0 0 10px}.sttabs .sbtn{flex:1}' +
   '.rchrow{display:flex;align-items:center;gap:8px;justify-content:space-between}.rchrow>span{flex:1}.rchrow small{display:block;font-size:10.5px;opacity:.7}.rchrow .sbtn{flex:none;padding:5px 12px}';
   document.head.appendChild(st); } catch (e) { }
@@ -15751,8 +15802,7 @@ const qshipNear = () => S.isl && !S.dead && !S.boat && Math.hypot(player.pos.x -
 
   /* ---------- 老钱 ---------- */
   { const Q = new THREE.Group(); Q.position.set(-.5, POOP, 4.9); Q.rotation.y = Math.PI / 2; G.add(Q); QS.q = Q;
-    bx(.24, .72, .28, hairM, -.16, .36, 0, Q); bx(.24, .72, .28, hairM, .16, .36, 0, Q);                // legs
-    bx(.26, .12, .36, blk, -.16, .06, .04, Q); bx(.26, .12, .36, blk, .16, .06, .04, Q);                // boots
+    for (const s of [-1, 1]) { const l = new THREE.Group(); l.position.set(s * .16, .72, 0); Q.add(l); bx(.24, .72, .28, hairM, 0, -.36, 0, l); bx(.26, .12, .36, blk, 0, -.66, .04, l); if (s < 0) QS.legL = l; else QS.legR = l; }   // legs + boots (they walk)
     bx(.68, .84, .42, red, 0, 1.14, 0, Q); bx(.72, .3, .44, redD, 0, .8, 0, Q);                         // coat
     bx(.1, .72, .05, goldB, 0, 1.14, .23, Q);                                                           // gold buttons
     bx(.7, .1, .44, blk, 0, .88, 0, Q); bx(.14, .12, .05, goldB, 0, .88, .23, Q);                       // belt + buckle
@@ -15869,16 +15919,37 @@ const qshipNear = () => S.isl && !S.dead && !S.boat && Math.hypot(player.pos.x -
     bx(.14, 1.8, .14, wdD, 16.6, 1.2, jz + 1.4, J); bx(.3, .38, .3, lamp, 16.6, 2.3, jz + 1.4, J); bx(.36, .06, .36, wdD, 16.6, 2.54, jz + 1.4, J);
     bx(.3, .45, .3, iron, 12.2, .6, jz - 1.3, J); }
 })();
+/* ---------- 老钱 is alive: counts his coins, paces the deck, waves at you, and talks with his hands ---------- */
+const POOPY = 3.34;
+function qianAnim(t, dt) {
+  const Q = QS.q; if (!Q || !QS.armR) return; const talk = t < QS.talk, aR = QS.armR, aL = QS.armL, h = QS.head;
+  const near = (() => { try { return Math.hypot(player.pos.x - (HOME.x + QS.rx), player.pos.z - (HOME.z + QS.rz)) < 22; } catch (e) { return false; } })();
+  const c = t % 16; let walk = 0, tx = -.5, face = Math.PI / 2;
+  // 0-5 count coins · 5-7.5 walk to the back · 7.5-10 look over the cargo · 10-12.5 walk back · 12.5-16 wave (or count again if you're not around)
+  if (c >= 5 && c < 7.5) { walk = 1; tx = -.5 - (c - 5) / 2.5 * .9; face = -Math.PI / 2; }
+  else if (c >= 7.5 && c < 10) { tx = -1.4; face = -Math.PI / 2 + Math.sin(t * .9) * .6; }
+  else if (c >= 10 && c < 12.5) { walk = 1; tx = -1.4 + (c - 10) / 2.5 * .9; }
+  if (talk) { walk = 0; tx = Q.position.x; face = Math.PI / 2; }
+  Q.position.x += (tx - Q.position.x) * Math.min(1, dt * 6);
+  { let d = face - Q.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); Q.rotation.y += d * Math.min(1, dt * 5); }
+  const sw = walk ? Math.sin(t * 9) * .55 : 0; if (QS.legL) { QS.legL.rotation.x = sw; QS.legR.rotation.x = -sw; }
+  Q.position.y = POOPY + (walk ? Math.abs(Math.sin(t * 9)) * .05 : 0) + (talk ? Math.abs(Math.sin(t * 6)) * .06 : 0);
+  let rzR, rzL, rxR = 0, rxL = 0, hy, hx = 0;
+  if (talk) { rzR = -(1.9 + Math.sin(t * 9) * .35); rzL = .5 + Math.sin(t * 7) * .15; hy = Math.sin(t * 3) * .18; }
+  else if (walk) { rzR = -.08; rzL = .08; rxR = -sw * .8; rxL = sw * .8; hy = 0; }
+  else if (c < 5 || (c >= 12.5 && !near)) { rzR = -.15; rzL = .15; rxR = -1.05 + Math.abs(Math.sin(t * 5)) * -.35; rxL = -.9; hy = Math.sin(t * .8) * .12; hx = .35; }   // counting coins
+  else if (c >= 12.5) { rzR = -(2.5 + Math.sin(t * 8) * .35); rzL = .1; hy = .25; }   // waving at you
+  else { rzR = -.12 + Math.sin(t * 1.3) * .04; rzL = .1; hy = Math.sin(t * .7) * .5; }   // looking over the cargo
+  const k = Math.min(1, dt * 8); aR.rotation.z += (rzR - aR.rotation.z) * k; aL.rotation.z += (rzL - aL.rotation.z) * k; aR.rotation.x += (rxR - aR.rotation.x) * k; aL.rotation.x += (rxL - aL.rotation.x) * k;
+  if (h) { h.rotation.y += (hy - h.rotation.y) * k; h.rotation.x += (hx - h.rotation.x) * k; }
+}
 /* ---------- per frame ---------- */
 function qshipTick(dt) {
   const G = QS.g; if (!G) return; const t = S.t;
   G.position.y = -.25 + Math.sin(t * 1.25 + 1.3) * .07; G.rotation.z = Math.sin(t * .9 + .4) * .018; G.rotation.x = Math.sin(t * 1.1) * .012;
   if (QS.flag) QS.flag.rotation.y = Math.sin(t * 3.1) * .35;
   if (QS.q) QS.q.scale.y = 1.12 * (1 + Math.sin(t * 1.8) * .012);
-  const talk = t < QS.talk;
-  if (QS.armR) QS.armR.rotation.z = talk ? -(1.9 + Math.sin(t * 9) * .35) : -(.12 + Math.sin(t * 1.3) * .04);
-  if (QS.armL) QS.armL.rotation.z = talk ? (.5 + Math.sin(t * 7) * .15) : (.1 + Math.sin(t * 1.1 + 1) * .03);
-  if (QS.head) QS.head.rotation.y = Math.sin(t * .7) * (talk ? .18 : .3);
+  qianAnim(t, dt);
   for (const g of QS.glow) { g.sp.material.opacity = .42 + Math.sin(t * 2.2 + g.ph) * .14; }
   for (const s of QS.sp) { const k = (t * s.sp + s.ph) % 1; s.m.position.set(s.x + Math.sin(t * 2 + s.ph * 9) * .12, s.y + k * 2.4, s.z); const sc = Math.max(.05, Math.sin(k * Math.PI)); s.m.scale.set(sc, sc, sc); s.m.rotation.y = t * 3 + s.ph; }
 }
@@ -15923,7 +15994,7 @@ function coverCam(dt) {
   coverBuild(); COVER.T += dt; const T = COVER.T;
   // your character at the foot of the pier, facing the sea
   const px = HOME.x + 1.2, pz = HOME.z - ISL_R + 6; pm.g.position.set(px, 0, pz); pm.g.rotation.y = Math.PI;
-  if (!COVER.sk && typeof SKINS !== 'undefined' && SKINS.abyss) { COVER.sk = 1; COVER.prevSkin = S.skin; S.skin = 'abyss'; try { redressPlayer(); } catch (e) { } }   // show off an outfit on the title screen
+  if (!COVER.sk && typeof SKINS !== 'undefined' && SKINS.myth) { COVER.sk = 1; COVER.prevSkin = S.skin; S.skin = 'myth'; try { redressPlayer(); } catch (e) { } }   // show off an outfit on the title screen
   if (!COVER.lh) { COVER.lh = 1; for (const l of labelSprite.all || []) { l.userData.cvis = l.visible; l.visible = false; } }
   // the camera: low, behind and to the left, drifting a little
   camPos.set(px - 3.4 + Math.sin(T * .15) * .6, 2.1 + Math.sin(T * .22) * .15, pz + 6.2 + Math.cos(T * .12) * .4);
@@ -15932,7 +16003,7 @@ function coverCam(dt) {
   if (COVER.emb) try { COVER.emb.position.set(px, 0, pz); const p = COVER.emb.geometry.attributes.position; for (let i = 0; i < p.count; i++) { let y = p.getY(i) + dt * (.6 + (i % 5) * .15); if (y > 12) y = 0; p.setY(i, y); p.setX(i, p.getX(i) + Math.sin(T + i) * dt * .3); } p.needsUpdate = true; } catch (e) { }
   try { updateFx(dt); placeSky(camera); waterTick(dt); } catch (e) { }
 }
-function coverOff() { COVER.on = false; if (COVER.sk && S.skin === 'abyss' && !(S.skins || []).includes('abyss')) { S.skin = ''; try { redressPlayer(); } catch (e) { } } for (const l of labelSprite.all || []) if (l.userData.cvis !== undefined) { l.visible = l.userData.cvis; delete l.userData.cvis; } if (COVER.G) { scene.remove(COVER.G); COVER.G = null; } if (COVER.emb) { scene.remove(COVER.emb); COVER.emb = null; } }
+function coverOff() { COVER.on = false; if (COVER.sk && S.skin === 'myth' && !(S.skins || []).includes('myth')) { S.skin = ''; try { redressPlayer(); } catch (e) { } } for (const l of labelSprite.all || []) if (l.userData.cvis !== undefined) { l.visible = l.userData.cvis; delete l.userData.cvis; } if (COVER.G) { scene.remove(COVER.G); COVER.G = null; } if (COVER.emb) { scene.remove(COVER.emb); COVER.emb = null; } }
 zSpecialTick = (o => function (dt) { if (COVER.on && S.started) coverOff(); o(dt); })(zSpecialTick);
 
 /* ---- the title card on top of the scene ---- */
@@ -15941,9 +16012,9 @@ zSpecialTick = (o => function (dt) { if (COVER.on && S.started) coverOff(); o(dt
   const L = document.createElement('div'); L.className = 'cvL';
   L.innerHTML = '<div class="cvEn">EMBERFALL</div><h1 class="cvH">余烬末日</h1><i class="cvLn"></i>' +
     '<div class="cvNews"><div class="cvNh"><em>' + T2('新版本', 'NEW') + '</em><b>' + T2('大更新已上线', 'Big update is live') + '</b></div>' +
-    '<div class="cvRow"><i class="cvGem g"></i><span><b>' + T2('副本三「方舟站」', 'Dungeon 3: Ark Station') + '</b><small>' + T2('Lv.32 · 孢子浓度 · 典狱长韩钲', 'Lv.32 · spores · Warden Han Zheng') + '</small></span></div>' +
-    '<div class="cvRow"><i class="cvGem o"></i><span><b>' + T2('副本四「钻探井 #0」', 'Dungeon 4: Borehole #0') + '</b><small>' + T2('Lv.42 · 热脉动 · 余烬之种', 'Lv.42 · heat pulses · The Ember Seed') + '</small></span></div>' +
-    '<div class="cvRow"><i class="cvGem b"></i><span><b>' + T2('新手教程全新改版', 'A brand-new tutorial') + '</b><small>' + T2('老陈一步一步带你活下去', 'Old Chen walks you through, step by step') + '</small></span></div></div>';
+    '<div class="cvRow"><i class="cvGem g"></i><span><b>' + T2('外观全面降价', 'Outfits now much cheaper') + '</b><small>' + T2('传说 498 晶石 · 时装和枪皮肤分开卖', 'Legendary 498 gems · outfits and weapon skins on their own shelves') + '</small></span></div>' +
+    '<div class="cvRow"><i class="cvGem o"></i><span><b>' + T2('任务目标标在地图上', 'Task targets on the map') + '</b><small>' + T2('金色光柱带路 · 每一步都有奖励和经验', 'A gold beam shows the way · every step pays XP') + '</small></span></div>' +
+    '<div class="cvRow"><i class="cvGem b"></i><span><b>' + T2('电脑版按键重做', 'New PC key layout') + '</b><small>' + T2('Esc 关窗口 · 可隐藏屏幕按钮', 'Esc closes windows · hide on-screen buttons') + '</small></span></div></div>';
   [...st.children].forEach(c => { if (c !== go) c.style.display = 'none'; });
   st.insertBefore(L, st.firstChild);
   const B = document.createElement('div'); B.className = 'cvB'; st.appendChild(B); if (go) B.appendChild(go);
@@ -15964,24 +16035,156 @@ zSpecialTick = (o => function (dt) { if (COVER.on && S.started) coverOff(); o(dt
     '@media (orientation:portrait){#start.cv{padding:12vh 0 0 6vw;justify-content:flex-start}.cvNews{width:min(330px,86vw)}}';
   document.head.appendChild(css);
 } catch (e) { console.warn('cover card', e); } })();
+/* ============ friendly fire: zombie attacks hurt other zombies too ============
+   Anything a zombie or boss throws at an area — a bomber going off, acid spit, a boss slam or lightning, the region
+   bosses' circles / lines / cones, burning or poison patches — also hits every other zombie standing in it.
+   Bosses only take a little of it. Zombies killed this way still drop their loot and give XP. */
+// dmg: the attack's damage (×2.5 on zombies so it's visible); frac: or a share of their max HP, whichever is bigger
+function zFFHit(o, d, x, z) {
+  if (o.boss) d = Math.min(d, (o.max || 0) * .03);
+  o.hp -= d; o.stagger = Math.max(o.stagger || 0, .3);
+  const dx = o.pos.x - x, dz = o.pos.z - z, L = Math.hypot(dx, dz) || 1; if (!o.boss && !o.tough) { o.knx = dx / L * 4; o.knz = dz / L * 4; }
+  try { burst(o.pos.x, 1.2 * (o.sc || 1), o.pos.z, 0x8acf3a, 4, 3); } catch (e) { }
+  try { numPop(o.pos.x, 1.9 * (o.sc || 1) + .3, o.pos.z, d, 'turret'); } catch (e) { }
+  if (o.hp <= 0) { o.hitBy = null; try { killZombie(o); } catch (e) { o.dead = true; o.deadT = 0; } }
+  else if (o.boss) try { refreshBossHud(); } catch (e) { }
+}
+function zFF(x, z, r, dmg, src, frac) {
+  if (typeof zombies === 'undefined') return;
+  for (const o of zombies.slice()) {
+    if (!o || o === src || o.dead || o.removed || o.mirror || o.animal) continue;
+    if (Math.hypot(o.pos.x - x, o.pos.z - z) > r + (o.r || .4)) continue;
+    zFFHit(o, Math.max((dmg || 0) * 2.5, (o.max || 0) * (frac || .2)), x, z);
+  }
+}
+// the region bosses' telegraphed attacks (z_rz.js): circles, lines, cones. When one lands, everything inside it is hit
+try {
+  const _segD = (px, pz, x, z, ang, L) => { const ux = Math.sin(ang), uz = Math.cos(ang), t = Math.max(0, Math.min(L, (px - x) * ux + (pz - z) * uz)); return Math.hypot(px - (x + ux * t), pz - (z + uz * t)); };
+  const wrapT = T => { if (!T || T._ff) return; T._ff = 1; const f = T.fn; T.fn = function () { const r = f && f.apply(this, arguments);
+    try { for (const o of zombies.slice()) { if (o.dead || o.mirror || o.animal) continue; let inside;
+        if (T.line) inside = _segD(o.pos.x, o.pos.z, T.x, T.z, T.g.rotation.y, T.L) < T.w / 2 + (o.r || .4);
+        else if (T.cone) { const dx = o.pos.x - T.x, dz = o.pos.z - T.z, d = Math.hypot(dx, dz); let a = Math.atan2(dx, dz) - T.g.rotation.y; a = Math.atan2(Math.sin(a), Math.cos(a)); inside = d < T.R && Math.abs(a) < .8; }
+        else inside = Math.hypot(o.pos.x - T.x, o.pos.z - T.z) < T.r + (o.r || .4);
+        if (inside && !o.boss) zFFHit(o, o.max * .25, T.x, T.z); } } catch (e) { }
+    return r; }; };
+  zSpecialTick = (o => function (dt) { o(dt);
+    if (typeof TELES !== 'undefined') for (const T of TELES) wrapT(T);
+    // burning / poison patches hurt zombies standing in them (6% max HP a second)
+    if (typeof HZ !== 'undefined' && HZ.length) for (const h of HZ) for (const z of zombies) { if (z.dead || z.boss || z.mirror || z.animal) continue;
+      if (Math.hypot(z.pos.x - h.x, z.pos.z - h.z) < h.r) { z.hp -= z.max * .06 * dt; if (z.hp <= 0) { z.hitBy = null; try { killZombie(z); } catch (e) { z.dead = true; z.deadT = 0; } } } }
+  })(zSpecialTick);
+} catch (e) { console.warn('ff', e); }
+/* ============ where to go for the current task: a marker on the map and a light beam in the world ============
+   For the current story step (or Old Chen's commission) the game works out a place: the nearest tree / fruit / stove /
+   workbench / storage box on the island, the pier when the task is on the mainland and you're home (and the other way),
+   the nearest crate, zombie, stone pile or wreck, or the region boss's lair. That place gets a gold marker on the minimap and
+   the big map (an arrow on the edge when it's off the map) and a gold light beam in the world.
+   The task tracker (top left) can be dragged anywhere; tap it to open the task book as before. */
+const QM = { t: 0, tg: null, beam: null };
+const _qmNear = (list, f) => { let b = null, bd = 1e9; for (const o of list) { const d = Math.hypot(o.x - player.pos.x, o.z - player.pos.z); if (d < bd && (!f || f(o))) { bd = d; b = o; } } return b; };
+function qmObs(kinds, r) { try { return _qmNear([...queryObstacles(player.pos.x, player.pos.z, r || 70)].filter(o => o.g && kinds.includes(o.g) && !((o.gt || 0) > S.t) && (S.isl ? o.islT : !o.islT))); } catch (e) { return null; } }
+const QM_PIER = () => ({ x: PAD.x, z: PAD.z, n: T2('码头', 'Pier') });
+function qmIsland(f) { return S.isl ? f() : null; }   // things that only exist on the island: no marker while you're away (the tracker says go home)
+function qmTarget() {
+  if (S.dead || (typeof DUN !== 'undefined' && DUN.on)) return null;
+  let st = null; try { if (!stDone() && !stLocked()) st = stStep(); } catch (e) { }
+  let k = st && st.k;
+  if (!st) { try { const c = COMM[ST2.comm.i], s = c && S.level >= c.lv && c.steps[ST2.comm.p | 0]; if (s) { k = s.k; st = s; } } catch (e) { } }
+  if (!k) return null;
+  const main = (f, n) => { if (S.isl) return QM_PIER(); const o = f(); return o ? { x: o.x, z: o.z, n } : null; };
+  switch (k) {
+    case 'chop': return qmIsland(() => { const o = qmObs(['wood']); return o && { x: o.x, z: o.z, n: T2('树', 'Tree') }; }) || (S.isl ? null : { x: PAD.x, z: PAD.z, n: T2('回岛', 'Home') });
+    case 'pick': return S.isl ? (() => { const p = _qmNear(PLANTS, p => plantReady(p)); return p && { x: p.x, z: p.z, n: T2('果树', 'Fruit') }; })() : null;
+    case 'cook': return S.isl ? { x: ISL_POT.x, z: ISL_POT.z, n: T2('锅炉', 'Stove') } : null;
+    case 'craft': return S.isl ? { x: HOME.x + ISLW.bench.x, z: HOME.z + ISLW.bench.z, n: T2('工作台', 'Workbench') } : null;
+    case 'stash': return S.isl ? (() => { const b = _qmNear(builds, b => b.hp > 0 && STASH_T[b.type]); return b && { x: b.x, z: b.z, n: T2('储物箱', 'Storage') }; })() : null;
+    case 'reach': return S.isl ? QM_PIER() : null;
+    case 'dun': return S.isl ? QM_PIER() : null;
+    case 'kill': return main(() => _qmNear(zombies.map(z => ({ x: z.pos.x, z: z.pos.z, z })), o => !o.z.dead && !o.z.animal && !o.z.mirror), T2('丧尸', 'Zombie'));
+    case 'have': return main(() => _qmNear(zombies.map(z => ({ x: z.pos.x, z: z.pos.z, z })), o => !o.z.dead && !o.z.animal && !o.z.mirror), T2('丧尸', 'Zombie'));
+    case 'crate': return main(() => _qmNear([...crates.values()], c => !c.open), T2('箱子', 'Crate'));
+    case 'mine': return main(() => qmObs(['stone', 'metal'], 90), T2('石头堆 / 废车', 'Stone / wreck'));
+    case 'boss': return main(() => { const pcx = Math.floor(player.pos.x / CH), pcz = Math.floor(player.pos.z / CH), L = [];
+      for (let i = -8; i <= 8; i++) for (let j = -8; j <= 8; j++) { const l = lairAt(pcx + i, pcz + j); if (l && (!st.tier || tierAt(l.x, l.z) === st.tier)) L.push(l); } return _qmNear(L); }, T2('首领', 'Boss'));
+  }
+  return null;
+}
+// the beam in the world
+function qmBeam() {
+  if (QM.beam) return QM.beam; const g = new THREE.Group();
+  const m = new THREE.MeshBasicMaterial({ color: 0xffc94a, transparent: true, opacity: .32, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
+  const c = new THREE.Mesh(new THREE.CylinderGeometry(.35, .6, 40, 12, 1, true), m); c.position.y = 20; g.add(c);
+  const r = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.5, 32), new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: .7, depthWrite: false, side: THREE.DoubleSide, fog: false })); r.rotation.x = -Math.PI / 2; r.position.y = .12; g.add(r); g.userData.ring = r;
+  const d = new THREE.Mesh(new THREE.OctahedronGeometry(.45, 0), new THREE.MeshBasicMaterial({ color: 0xffe08a, fog: false })); d.position.y = 3.2; g.add(d); g.userData.gem = d;
+  g.visible = false; scene.add(g); QM.beam = g; return g;
+}
+zSpecialTick = (o => function (dt) { o(dt);
+  try { QM.t -= dt; if (QM.t <= 0) { QM.t = .5; QM.tg = S.started ? qmTarget() : null; }
+    const b = qmBeam(), T = QM.tg, d = T ? Math.hypot(T.x - player.pos.x, T.z - player.pos.z) : 0;
+    b.visible = !!T && d > 2.5 && d < 160;
+    if (b.visible) { b.position.set(T.x, 0, T.z); const s = 1 + Math.sin(S.t * 3) * .12; b.userData.ring.scale.set(s, s, s); b.userData.gem.rotation.y += dt * 2; b.userData.gem.position.y = 3.2 + Math.sin(S.t * 2.2) * .3; }
+  } catch (e) { if (!QM.err) { QM.err = 1; console.warn('qmark', e); } } })(zSpecialTick);
+// on the minimap and the big map
+drawMap = (o => function (ctx, W, range, big, k) { o(ctx, W, range, big, k);
+  try { const T = QM.tg; if (!T) return; k = k || 2; const c = ctx, sc = W / range, x = W / 2 + (T.x - player.pos.x) * sc, z = W / 2 + (T.z - player.pos.z) * sc, pul = 1 + Math.sin(performance.now() / 260) * .15;
+    const lim = big ? W / 2 - 16 * k : W / 2 - 9 * k, dx = x - W / 2, dz = z - W / 2, inside = big ? Math.max(Math.abs(dx), Math.abs(dz)) < lim : Math.hypot(dx, dz) < lim;
+    c.save();
+    if (inside) { c.translate(x, z); c.scale(pul, pul); const R = (big ? 7 : 5) * k;
+      c.fillStyle = 'rgba(0,0,0,.55)'; c.beginPath(); c.moveTo(0, -R - 2 * k); c.lineTo(R + 2 * k, 0); c.lineTo(0, R + 2 * k); c.lineTo(-R - 2 * k, 0); c.closePath(); c.fill();
+      c.fillStyle = '#ffc94a'; c.beginPath(); c.moveTo(0, -R); c.lineTo(R, 0); c.lineTo(0, R); c.lineTo(-R, 0); c.closePath(); c.fill();
+      c.fillStyle = '#2a1004'; c.font = '900 ' + Math.round(R * 1.3) + 'px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('!', 0, k * .5);
+      if (big) { c.scale(1 / pul, 1 / pul); c.font = '700 ' + Math.round(11 * k) + 'px sans-serif'; c.lineWidth = 3 * k; c.strokeStyle = 'rgba(0,0,0,.75)'; c.strokeText(T.n, 0, -R - 9 * k); c.fillStyle = '#ffe2a0'; c.fillText(T.n, 0, -R - 9 * k); } }
+    else { const a = Math.atan2(dz, dx), rr = big ? Math.min(lim / Math.abs(Math.cos(a) || 1e-6), lim / Math.abs(Math.sin(a) || 1e-6)) : lim;
+      c.translate(W / 2 + Math.cos(a) * rr, W / 2 + Math.sin(a) * rr); c.rotate(a); c.scale(pul, pul);
+      c.fillStyle = 'rgba(0,0,0,.6)'; c.beginPath(); c.moveTo(9 * k, 0); c.lineTo(-6 * k, 7 * k); c.lineTo(-6 * k, -7 * k); c.closePath(); c.fill();
+      c.fillStyle = '#ffc94a'; c.beginPath(); c.moveTo(7 * k, 0); c.lineTo(-4.5 * k, 5 * k); c.lineTo(-4.5 * k, -5 * k); c.closePath(); c.fill(); }
+    c.restore(); } catch (e) { } })(drawMap);
+// the tracker line says where the marker is
+stTrk = (o => function () { o(); try { const e = $('storyTrk'), T = QM.tg; if (!e || !T || stDone()) return; const d = Math.round(Math.hypot(T.x - player.pos.x, T.z - player.pos.z));
+  if (d > 3) e.insertAdjacentHTML('beforeend', '<span class="stxp qmline">◆ ' + T.n + ' · ' + d + T2(' 米（地图上的金色标记）', ' m (gold marker on the map)') + '</span>'); } catch (er) { } })(stTrk);
+setInterval(() => { try { if (S.started && !S.paused) stTrk(); } catch (e) { } }, 1500);
+
+/* ---- drag the tracker anywhere (it remembers where) ---- */
+(() => { const e = $('storyTrk'); if (!e || !e.addEventListener) return; let d = null, moved = false;
+  const put = (x, y) => { const r = e.getBoundingClientRect(); x = Math.max(4, Math.min(innerWidth - r.width - 4, x)); y = Math.max(4, Math.min(innerHeight - r.height - 4, y)); e.style.left = x + 'px'; e.style.top = y + 'px'; e.style.right = 'auto'; e.style.bottom = 'auto'; e.style.transform = 'none'; e.classList.add('qmMoved'); };
+  try { const p = JSON.parse(localStorage.getItem('ember_trkpos') || 'null'); if (p) setTimeout(() => put(p[0] * innerWidth, p[1] * innerHeight), 300); } catch (x) { }
+  e.addEventListener('pointerdown', ev => { if (ev.pointerId === 77) return; const r = e.getBoundingClientRect(); d = { x: ev.clientX, y: ev.clientY, ox: r.left, oy: r.top, id: ev.pointerId }; moved = false; }, true);
+  window.addEventListener('pointermove', ev => { if (!d || ev.pointerId !== d.id) return; const dx = ev.clientX - d.x, dy = ev.clientY - d.y; if (!moved && Math.hypot(dx, dy) < 10) return; moved = true; put(d.ox + dx, d.oy + dy); ev.preventDefault(); }, { passive: false });
+  const end = ev => { if (!d || (ev && ev.pointerId !== d.id)) return; d = null; if (moved) { const r = e.getBoundingClientRect(); try { localStorage.setItem('ember_trkpos', JSON.stringify([r.left / innerWidth, r.top / innerHeight])); } catch (x) { } setTimeout(() => { moved = false; }, 0); } };
+  window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+  // a drag isn't a tap: swallow the tap that ends it
+  e.addEventListener('click', ev => { if (moved) { ev.stopImmediatePropagation(); ev.preventDefault(); moved = false; } }, true);
+  e.addEventListener('pointerup', ev => { if (moved) { ev.stopImmediatePropagation(); } }, true);
+  try { const st = document.createElement('style'); st.textContent = '#storyTrk{touch-action:none}#storyTrk.qmMoved{position:fixed!important}#storyTrk .qmline{color:#ffd27a;opacity:.95}'; document.head.appendChild(st); } catch (x) { }
+})();
 /* ============ 资源商店: buy resources with gems, as many times as you like ============
    Real money only ever buys 晶石 (the Google Play packs); everything here costs 晶石.
-   Prices are checked against the island merchant (1000 余烬币 = 30 晶石 here, so 1 晶石 ≈ 33 币): nothing is cheaper here
-   than buying it from the merchant with coins; ammo is kept dear on purpose (it should stay scarce).
+   Prices are checked against the island merchant (1000 余烬币 = 30 晶石 here, so 1 晶石 ≈ 33 币): about 1.5× the coin price;
+   ammo is kept dear on purpose (it should stay scarce); relic coins are capped at 5 packs a week (they're the dungeon currency).
    Not sold on purpose: boss seals, collectibles, immortal gear. */
 const GSHOP = [
-  // [item, amount per pack, price in gems]
-  ['relic', 100, 120], ['coin', 1000, 30], ['wood', 100, 10], ['stone', 100, 10], ['metal', 100, 20], ['powder', 50, 35],
-  ['ammo', 100, 20], ['med', 10, 20], ['estone', 10, 60], ['steel', 5, 40], ['serum', 2, 40], ['crystal', 1, 60], ['heart', 1, 80], ['core', 1, 120]
+  // [item, amount per pack, price in gems, shelf]   priced against the island merchant: 1000 余烬币 = 30 晶石, so 1 晶石 ≈ 33 币,
+  // and every pack costs about 1.5× what the same thing costs in coins (buying with gems is the convenient way, not the cheap way)
+  ['coin', 1000, 30, 'c'], ['relic', 100, 150, 'c'],
+  ['wood', 100, 10, 'm'], ['stone', 100, 8, 'm'], ['metal', 100, 20, 'm'], ['powder', 20, 15, 'm'], ['circuit', 10, 20, 'm'],
+  ['ammo', 100, 20, 'b'], ['med', 10, 18, 'b'], ['estone', 10, 60, 'b'],
+  ['steel', 5, 40, 'r'], ['serum', 5, 50, 'r'], ['crystal', 1, 60, 'r'], ['heart', 1, 90, 'r'], ['core', 1, 105, 'r']
 ];
+const GS_SHELF = { c: [T2('货币', 'Currency'), '#ffd27a'], m: [T2('建材', 'Building materials'), '#9fd8a0'], b: [T2('战斗补给', 'Combat supplies'), '#7de0ff'], r: [T2('稀有材料', 'Rare materials'), '#d89bff'] };
+const GS_RELIC_WEEK = 5;   // relic coins are the dungeon currency: at most 5 packs (500) a week with gems
+const gsWeek = () => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return dateKey(d); };
+const gsRelicLeft = () => { const w = S.gsRw && S.gsRw.w === gsWeek() ? S.gsRw.n | 0 : 0; return Math.max(0, GS_RELIC_WEEK - w); };
+shopSave = (o => function () { const r = o(); try { if (S.gsRw) r.gsRw = S.gsRw; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.gsRw = null; try { const g = d && d.sh && d.sh.gsRw; if (g) S.gsRw = { w: String(g.w || ''), n: g.n | 0 }; } catch (e) { } })(shopLoad);
 const gsName = k => k === 'relic' ? T2('遗物币', 'Relic Coins') : k === 'coin' ? T2('余烬币', 'Ember Coins') : k === 'ammo' ? T2('子弹', 'Ammo') : k === 'med' ? T2('医疗包', 'Medkits') : (ITEMS[k] ? ITEMS[k].n : (MAT[k] ? MAT[k].n : k));
 const gsIcon = k => k === 'relic' ? '<i class="rlc">遗</i>' : svgIcon(k === 'coin' ? 'coin' : k);
 let _gsArm = '', _gsT = 0;
 function gsBuy(i, times, btn) { const [k, n, p] = GSHOP[i], cost = p * times, key = i + 'x' + times;
+  if (k === 'relic' && gsRelicLeft() < times) { feed(T2('遗物币本周只能再买 ' + gsRelicLeft() + ' 份（每周一刷新）', 'Relic coins: only ' + gsRelicLeft() + ' more packs this week'), '#ff9b8a'); return; }
   if (_gsArm !== key || Date.now() - _gsT > 3000) { _gsArm = key; _gsT = Date.now(); if (btn) { btn.classList.add('armed'); btn.textContent = T2('再点一次确认', 'Tap again to confirm'); } return; }
   _gsArm = ''; if (FREE_TEST && S.gem < cost) addGem(100000 - S.gem, T2('测试版补满', 'test top-up')); if (!payGem(cost)) return;
   const total = n * times;
-  if (k === 'relic') S.relic = (S.relic | 0) + total; else if (k === 'ammo') S.reserve += total; else gain(k, total);
+  if (k === 'relic') { S.relic = (S.relic | 0) + total; const w = gsWeek(); S.gsRw = { w, n: (S.gsRw && S.gsRw.w === w ? S.gsRw.n | 0 : 0) + times }; } else if (k === 'ammo') S.reserve += total; else gain(k, total);
   feed(T2('买到 ', 'Bought ') + gsName(k) + ' ×' + total, '#7de0ff'); try { sfx.build(); } catch (e) { } refreshHud(); saveGame();
   const box = $('mallList'), y = box ? box.scrollTop : 0; renderMall(); if (box) box.scrollTop = y; }
 renderMall = (o => function () {
@@ -15992,21 +16195,31 @@ renderMall = (o => function () {
     if (mallTab !== 'res') return;
     $('mall').classList.remove('gpage');
     while (tabs.nextSibling) { if (tabs.nextSibling.classList && tabs.nextSibling.classList.contains('testn')) { box.appendChild(tabs.nextSibling); break; } tabs.nextSibling.remove(); }
-    const note = document.createElement('div'); note.className = 'snote'; note.textContent = T2('用晶石直接买资源，每样都可以无限次购买。买之前要再点一次确认。', 'Buy resources with gems, as many times as you like. Tap twice to confirm.'); box.appendChild(note);
-    const g = document.createElement('div'); g.className = 'gsg';
-    GSHOP.forEach(([k, n, p], i) => { const c = document.createElement('div'); c.className = 'gsc';
-      c.innerHTML = '<span class="gsi">' + gsIcon(k) + '</span><b>' + gsName(k) + ' ×' + n + '</b>' +
-        '<button class="sbtn gs1">' + skPrice(p) + '</button><button class="sbtn ghostb gs10">' + T2('买 10 份 · ', '×10 · ') + (p * 10) + '</button>';
-      c.querySelector('.gs1').addEventListener('click', e => gsBuy(i, 1, e.currentTarget)); c.querySelector('.gs10').addEventListener('click', e => gsBuy(i, 10, e.currentTarget)); g.appendChild(c); });
-    box.appendChild(g);
-    const n2 = document.createElement('div'); n2.className = 'snote'; n2.textContent = T2('首领印记、收藏品、不朽装备不卖，只能自己打出来。', 'Boss seals, collectibles and immortal gear are never sold: you earn them.'); box.appendChild(n2);
+    const hd = document.createElement('div'); hd.className = 'gshead';
+    hd.innerHTML = '<div><b>' + T2('资源商店', 'Resource Shop') + '</b><small>' + T2('用晶石直接买，可以无限次购买 · 买之前再点一次确认', 'Buy with gems, no limit · tap twice to confirm') + '</small></div><span class="gsbal">' + skPrice(S.gem | 0) + '</span>';
+    box.appendChild(hd);
+    for (const sh of ['c', 'm', 'b', 'r']) { const [title, col] = GS_SHELF[sh];
+      const t = document.createElement('div'); t.className = 'gsst'; t.style.setProperty('--sc', col); t.innerHTML = '<i></i>' + title; box.appendChild(t);
+      const g = document.createElement('div'); g.className = 'gsg';
+      GSHOP.forEach(([k, n, p, s2], i) => { if (s2 !== sh) return; const c = document.createElement('div'); c.className = 'gsc'; c.style.setProperty('--sc', col);
+        const lim = k === 'relic' ? '<em class="gslim">' + T2('本周还能买 ' + gsRelicLeft() + '/' + GS_RELIC_WEEK, 'This week ' + gsRelicLeft() + '/' + GS_RELIC_WEEK) + '</em>' : '';
+        c.innerHTML = lim + '<span class="gsi">' + gsIcon(k) + '</span><b>' + gsName(k) + '</b><span class="gsn">×' + n + '</span>' +
+          '<button class="sbtn gs1">' + skPrice(p) + '</button><button class="sbtn ghostb gs10">' + T2('10 份 · ', '×10 · ') + (p * 10) + '</button>';
+        c.querySelector('.gs1').addEventListener('click', e => gsBuy(i, 1, e.currentTarget)); c.querySelector('.gs10').addEventListener('click', e => gsBuy(i, 10, e.currentTarget)); g.appendChild(c); });
+      box.appendChild(g); }
+    const n2 = document.createElement('div'); n2.className = 'snote'; n2.textContent = T2('价格按海岛商人的价钱算（1000 余烬币 = 30 晶石），用晶石买大约贵 1.5 倍，图的是方便。首领印记、收藏品、不朽装备不卖，只能自己打出来。', 'Priced against the island merchant (1000 coins = 30 gems); gems cost about 1.5× more, for convenience. Boss seals, collectibles and immortal gear are never sold.'); box.appendChild(n2);
   } catch (e) { console.warn('gem shop', e); }
 })(renderMall);
 try { const st = document.createElement('style'); st.textContent =
-  '.gsg{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:8px 0}' +
-  '.gsc{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 8px;border-radius:12px;background:linear-gradient(160deg,rgba(40,24,30,.9),rgba(16,10,14,.9));border:1px solid rgba(125,224,255,.3)}' +
-  '.gsc .gsi{width:42px;height:42px;display:flex;align-items:center;justify-content:center}.gsc .gsi .ic,.gsc .gsi svg,.gsc .gsi img{width:40px;height:40px}.gsc .gsi .rlc{width:34px;height:34px;font-size:16px}' +
-  '.gsc b{font-size:13px}.gsc .sbtn{width:100%;display:flex;align-items:center;justify-content:center;gap:4px;font-size:12.5px}.gsc .sbtn.armed{background:#ffb84a;color:#2a1004}';
+  '.gshead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:6px 0 4px;padding:12px 14px;border-radius:14px;background:radial-gradient(ellipse at 15% 0%,rgba(255,180,80,.25),rgba(0,0,0,0) 60%),linear-gradient(135deg,rgba(60,28,14,.95),rgba(20,10,16,.95));border:1px solid rgba(255,200,120,.35)}' +
+  '.gshead b{display:block;font-size:17px;letter-spacing:.12em;color:#ffe2b0}.gshead small{font-size:11px;opacity:.7}.gsbal{display:flex;align-items:center;gap:4px;padding:5px 12px;border-radius:20px;background:rgba(0,0,0,.4);border:1px solid rgba(125,224,255,.45);font-weight:800;color:#bff0ff}' +
+  '.gsst{display:flex;align-items:center;gap:8px;margin:12px 2px 2px;font-weight:800;font-size:13px;letter-spacing:.1em;color:var(--sc)}.gsst i{width:4px;height:14px;border-radius:2px;background:var(--sc);box-shadow:0 0 8px var(--sc)}' +
+  '.gsg{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px;margin:6px 0}' +
+  '.gsc{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px 9px;border-radius:14px;overflow:hidden;background:radial-gradient(circle at 50% 22%,color-mix(in srgb,var(--sc) 22%,transparent),transparent 58%),linear-gradient(170deg,rgba(38,24,32,.95),rgba(14,9,14,.95));border:1px solid color-mix(in srgb,var(--sc) 45%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}' +
+  '.gsc .gsi{width:52px;height:52px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.08),rgba(0,0,0,0) 70%);filter:drop-shadow(0 0 6px color-mix(in srgb,var(--sc) 55%,transparent))}.gsc .gsi .ic,.gsc .gsi svg,.gsc .gsi img{width:42px;height:42px}.gsc .gsi .rlc{width:36px;height:36px;font-size:17px}' +
+  '.gsc b{font-size:13px;color:#fff0dc}.gsc .gsn{font:900 18px/1 var(--font-hud,sans-serif);color:var(--sc);text-shadow:0 0 8px color-mix(in srgb,var(--sc) 50%,transparent);margin-bottom:3px}' +
+  '.gsc .sbtn{width:100%;display:flex;align-items:center;justify-content:center;gap:4px;font-size:12.5px}.gsc .gs10{font-size:11.5px;padding:4px}.gsc .sbtn.armed{background:#ffb84a;color:#2a1004}' +
+  '.gslim{position:absolute;top:6px;right:6px;font-style:normal;font-size:9.5px;padding:1px 6px;border-radius:6px;background:rgba(255,210,122,.18);color:#ffd27a}';
   document.head.appendChild(st); } catch (e) { }
 /* ============ the fishing fight as a small round badge ============
    The old wide panel covered the middle of the screen. Now it is a circle near the top: a fish leaping out of the water,
@@ -16051,7 +16264,8 @@ try { const st = document.createElement('style'); st.textContent =
    A small key cap with the letter sits on each button; Settings → 「按钮上显示按键」 hides them. The key guide lists everything.
    Already elsewhere: WASD move · Space fire · Shift run · R reload · Q swap · H medkit · B build · E place/shop · F roll ·
    C character · U weapons · M map · I bag · Enter chat. */
-const KEYB = [   // [key code, cap shown, button id (or a list: the first one showing), what it does]
+const KE_LIST = ['bDunI', 'bPort', 'bQship', 'bStash', 'bBench', 'bCook', 'bFarm', 'bTank', 'bTame', 'bRecruit', 'bClimb', 'bSwim', 'bBpm', 'bTrade'];   // only things you walk up to
+const KEYB = [   // [key code, cap shown, button id (or a list: the first one showing), what it does, hold?]
   ['KeyG', 'G', 'bSkill', T2('武器技能', 'Weapon skill')],
   ['KeyX', 'X', 'bRecall', T2('回岛', 'Go home')],
   ['KeyZ', 'Z', 'bGather', T2('采集（砍树 / 挖矿，按住一直采）', 'Gather (chop / mine, hold to keep going)'), 1],
@@ -16062,7 +16276,9 @@ const KEYB = [   // [key code, cap shown, button id (or a list: the first one sh
   ['KeyP', 'P', 'bMall', T2('商城', 'Shop')],
   ['KeyL', 'L', 'storyTrk', T2('任务书（主线 / 委托 / 区域挑战）', 'Task book')],
   ['KeyY', 'Y', 'bView', T2('第一人称 / 俯视（海岛上）', 'First person / top-down (island)')],
-  ['KeyE', 'E', ['bDunI', 'bPort', 'bQship', 'bStash', 'bBench', 'bCook', 'bFarm', 'bTank', 'bTame', 'bPet', 'bClimb', 'bSwim', 'bComp', 'bRecruit', 'bBpm', 'bTrade'], T2('互动（码头、储物柜、工作台、锅炉、副本里的机关……）', 'Interact (pier, storage, workbench, stove, dungeon switches …)')]
+  ['KeyO', 'O', 'bPet', T2('狗狗', 'Dogs')],
+  ['KeyT', 'T', 'bComp', T2('同伴', 'Companions')],
+  ['KeyE', 'E', KE_LIST, T2('互动：走到东西旁边才有（码头、储物柜、工作台、锅炉、商人、副本机关……），屏幕下方会提示 E 现在做什么', 'Interact: only next to something (pier, storage, workbench, stove, trader, dungeon switch …); the hint at the bottom says what E does now')]
 ];
 const KEY_CAP = { bFire: '␣', bReload: 'R', bMed: 'H', bBuild: 'B', bBag: 'I', bRoll: 'F', bChat: '↵' };
 const KEYS_OLD = [['W A S D', T2('移动', 'Move')], [T2('空格（按住）', 'Space (hold)'), T2('射击 / 挥砍，自动瞄准最近的敌人', 'Fire / swing, aims at the nearest enemy')], ['Shift', T2('奔跑（再按一次停下）', 'Run (press again to stop)')],
@@ -16078,6 +16294,7 @@ function keyPress(b, down, hold) { const ev = b._evs || new Set(), P = typeof Po
   if (ev.has('mousedown') || ev.has('mouseup')) { b.dispatchEvent(new MouseEvent(down ? 'mousedown' : 'mouseup', { bubbles: true, cancelable: true, button: 0 })); return; }
   if (down) b.click(); }
 if (IS_PC) {
+  window.addEventListener('keydown', e => { if (e.code === 'KeyT') e.stopImmediatePropagation(); }, true);
   window.addEventListener('keydown', e => {
     if (e.repeat || !S.started || S.dead) return; if (e.target && /input|textarea|select/i.test(e.target.tagName || '')) return;
     const K = KEYB.find(k => k[0] === e.code); if (!K) return;
@@ -16090,8 +16307,9 @@ if (IS_PC) {
   // key caps on the buttons
   function kcapPaint() { const on = KCAP_ON && S.started; document.body.classList.toggle('kcapOn', on); if (!on) return;
     const all = Object.assign({}, KEY_CAP); for (const k of KEYB) for (const id of [].concat(k[2])) all[id] = k[1];
-    for (const id in all) { const b = $(id); if (!b || b.querySelector(':scope > .kcapb')) continue; const c = document.createElement('kbd'); c.className = 'kcapb'; c.textContent = all[id]; b.appendChild(c); } }
-  setInterval(() => { try { kcapPaint(); } catch (e) { } }, 1000);
+    const eb = keyBtn(KE_LIST); for (const id of KE_LIST) { const b = $(id); if (b && b.classList) b.classList.toggle('kE', b === eb); }
+    for (const id in all) { const b = $(id); if (!b || b.querySelector(':scope > .kcapb')) continue; const c = document.createElement('kbd'); c.className = 'kcapb' + (KE_LIST.includes(id) ? ' ke' : ''); c.textContent = all[id]; b.appendChild(c); } }
+  setInterval(() => { try { kcapPaint(); } catch (e) { } }, 400);
 
   // the guide: one full list of keys
   try { if (typeof PC_KEYS !== 'undefined') { PC_KEYS.length = 0; KEYS_OLD.concat(KEYB.map(k => [k[1], k[3]])).forEach(x => PC_KEYS.push(x)); const g = GUIDE.find(x => x[0] === '电脑键盘操作'); if (g) g[1] = PC_KEYS.map(([k, d]) => ['key:' + k, k, d]); } } catch (e) { console.warn('keys guide', e); }
@@ -16108,8 +16326,55 @@ if (IS_PC) {
 
   try { const st = document.createElement('style'); st.textContent =
     '.kcapb{display:none;position:absolute;left:3px;top:3px;z-index:3;min-width:15px;height:15px;padding:0 3px;box-sizing:border-box;border-radius:4px;background:rgba(10,8,14,.82);border:1px solid rgba(255,214,140,.7);color:#ffe2a8;font:800 10px/13px var(--font-hud,sans-serif);text-align:center;pointer-events:none;box-shadow:0 1px 0 rgba(0,0,0,.6)}' +
-    'body.kcapOn .kcapb{display:block}#storyTrk .kcapb{left:auto;right:6px;top:6px}#bFire .kcapb,#bSkill .kcapb{left:50%;top:auto;bottom:4px;transform:translateX(-50%)}' +
+    'body.kcapOn .kcapb{display:block}body.kcapOn .kcapb.ke{display:none}body.kcapOn .kE>.kcapb.ke{display:block}#storyTrk .kcapb{left:auto;right:6px;top:6px}#bFire .kcapb,#bSkill .kcapb{left:50%;top:auto;bottom:4px;transform:translateX(-50%)}' +
     '#keyHint .khAll{opacity:.7;font-size:11px}#bChat .kcapb{left:auto;right:-7px;top:-7px}#bRecall .kcapb{left:2px;top:2px}';
+    document.head.appendChild(st); } catch (e) { }
+}
+
+/* ---- Esc closes whatever window is on top (any ✕), build mode, or the big map ---- */
+const CLOSE_SEL = '.ovx, .bagx, .bx, .mapx, .stx, [aria-label="关闭"], [id$="Close"], [id$="close"]';
+function escTop() {
+  const vis = el => { if (!el || !el.getBoundingClientRect) return false; const r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false; const cs = getComputedStyle(el); if (cs.visibility === 'hidden' || cs.display === 'none' || +cs.opacity === 0) return false;
+    const t = document.elementFromPoint(Math.min(innerWidth - 1, Math.max(0, r.left + r.width / 2)), Math.min(innerHeight - 1, Math.max(0, r.top + r.height / 2))); return !!t && (t === el || el.contains(t)); };
+  const cands = [...document.querySelectorAll(CLOSE_SEL)].filter(b => !b.classList.contains('ovhide') && vis(b));
+  if (cands.length) { cands[cands.length - 1].click(); return true; }
+  const ov = [...document.querySelectorAll('.overlay.show')].pop(); if (ov && ov.id && ov.id !== 'start' && ov.id !== 'chars') { if (ov.id === 'talents') closeTalents(); else closePanel(ov.id); return true; }
+  if (typeof buildOpen !== 'undefined' && buildOpen) { toggleBuild(); return true; }
+  return false;
+}
+if (IS_PC) window.addEventListener('keydown', e => {
+  if (e.code !== 'Escape' || e.repeat || !S.started) return; if (e.target && /input|textarea|select/i.test(e.target.tagName || '')) return;
+  if ($('bag') && $('bag').classList.contains('show')) return;   // the bag has its own (closes the item card first)
+  try { if (escTop()) e.preventDefault(); } catch (x) { console.warn(x); }
+});
+
+/* ---- on a computer: hide the on-screen buttons (the keys do everything); a strip at the bottom says what E does right now ---- */
+let PCHIDE = false; try { PCHIDE = localStorage.getItem('ember_hidebtn') === '1'; } catch (e) { }
+const PCHIDE_IDS = ['bFire', 'bReload', 'bMed', 'bSprint', 'bRoll', 'bSkill', 'bGather', 'bFish', 'bBoat', 'bRecall', 'bBuild', 'bBag', 'bQuest', 'bHub', 'bMall', 'bChat', 'bView', 'bPet', 'bComp', 'stickzone', 'stickidle', 'stickbase', 'stickknob'].concat(KE_LIST);
+function pcHidePaint() {
+  const on = IS_PC && PCHIDE && S.started; document.body.classList.toggle('pcHide', on);
+  for (const id of PCHIDE_IDS) { const b = $(id); if (b && b.classList) b.classList.toggle('pch', on); }
+  let h = $('eHint'); if (!on) { if (h) h.style.display = 'none'; return; }
+  if (!h && document.body.appendChild) { h = document.createElement('div'); h.id = 'eHint'; document.body.appendChild(h); }
+  const eb = keyBtn(KE_LIST), gb = keyBtn('bGather'), fb = keyBtn('bFish'), vb = keyBtn('bBoat'), parts = [];
+  const nm = b => ((b.getAttribute('aria-label') || '') + ' ' + (b.textContent || '')).replace(/\s+/g, ' ').replace(/^[A-Z↵␣]\s*|\s*[A-Z↵␣]$/g, '').trim().slice(0, 12);
+  if (eb && !S.paused) parts.push('<span><kbd>E</kbd>' + nm(eb) + '</span>');
+  if (gb && !S.paused) parts.push('<span><kbd>Z</kbd>' + T2('采集', 'Gather') + '</span>');
+  if (fb && !S.paused) parts.push('<span><kbd>J</kbd>' + T2('钓鱼', 'Fish') + '</span>');
+  if (vb && !S.paused) parts.push('<span><kbd>V</kbd>' + nm(vb) + '</span>');
+  const html = parts.join(''); if (h._h !== html) { h._h = html; h.innerHTML = html; } h.style.display = html ? 'flex' : 'none';
+}
+if (IS_PC) {
+  setInterval(() => { try { pcHidePaint(); } catch (e) { } }, 250);
+  renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!box) return; const r = document.createElement('div'); r.className = 'setrow';
+    r.innerHTML = '<span>' + T2('隐藏屏幕上的按钮（全部用键盘）', 'Hide on-screen buttons (keyboard only)') + '</span><div class="opts"><button class="sbtn' + (PCHIDE ? ' on' : '') + '" data-v="1">' + T2('隐藏', 'Hide') + '</button><button class="sbtn' + (PCHIDE ? '' : ' on') + '" data-v="0">' + T2('显示', 'Show') + '</button></div>';
+    r.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { PCHIDE = b.dataset.v === '1'; try { localStorage.setItem('ember_hidebtn', PCHIDE ? '1' : '0'); } catch (e) { } pcHidePaint(); renderSettings(); }));
+    box.appendChild(r); } catch (e) { console.warn(e); } })(renderSettings);
+  try { const st = document.createElement('style'); st.textContent =
+    '.pch{opacity:0!important;pointer-events:none!important}' +
+    '#eHint{display:none;position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 18px);transform:translateX(-50%);z-index:8;gap:10px;pointer-events:none}' +
+    '#eHint span{display:flex;align-items:center;gap:6px;padding:5px 12px 5px 6px;border-radius:9px;background:rgba(10,8,14,.78);border:1px solid rgba(255,214,140,.45);color:#ffe9c8;font-size:13px;font-weight:700;white-space:nowrap}' +
+    '#eHint kbd{min-width:20px;height:20px;padding:0 4px;box-sizing:border-box;border-radius:5px;background:#ffd27a;color:#2a1004;font:900 12px/20px var(--font-hud,sans-serif);text-align:center}';
     document.head.appendChild(st); } catch (e) { }
 }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
@@ -17013,7 +17278,7 @@ document.addEventListener('touchcancel', e => { if (!e.touches || e.touches.leng
 window.addEventListener('blur', inputReset); document.addEventListener('visibilitychange', inputReset);
 function bindBtn(id, down, up) {
   const b = $(id);
-  b.addEventListener('pointerdown', e => { e.preventDefault(); audioInit(); b.setPointerCapture(e.pointerId); b.classList.add('on'); down && down(); });
+  b.addEventListener('pointerdown', e => { e.preventDefault(); audioInit(); try { b.setPointerCapture(e.pointerId); } catch (x) { } b.classList.add('on'); down && down(); });
   const end = e => { b.classList.remove('on'); up && up(); };
   b.addEventListener('pointerup', end); b.addEventListener('pointercancel', end);
 }
@@ -17143,4 +17408,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794656518').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794662540').catch(()=>{});</script></body></html>
