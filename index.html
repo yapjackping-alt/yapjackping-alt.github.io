@@ -14304,12 +14304,15 @@ if (IMM_ON) {
 }
 /* ============ 兑换码（设置里） ============
    码不写在代码里（只存它的指纹），每个角色每个码只能用一次。
-   现在只有一个码：一整套不朽装备（6 个部位各 1 件，永不损坏）。 */
+   码：一整套不朽装备（6 个部位各 1 件，永不损坏）· 遗物币 ×10000（可重复）· 直接升到 50 级（每个角色一次）。 */
 const RDM_H = s => { let x = 5381; for (const c of s) x = ((x * 33) ^ c.charCodeAt(0)) >>> 0; return x; };
 const RDM = { 2373533752: { id: 'imm6', n: '一整套不朽装备', f() {
   if (S.ginv.length + GSLOT.length > gcap()) { feed('装备背包要空出 ' + GSLOT.length + ' 格才能领', '#ff9b8a'); return false; }
   GSLOT.forEach((s, i) => { const it = makeGear(10, 100, 5, 0); it[0] = i; it[1] = 6; it[2] = 100; it[5] = 100; it[6] = 0; it.length = 8; it[7] = 0; try { afxGen(it); } catch (e) { } pickGear(it); });
   banner('不朽装备 ×' + GSLOT.length, '头盔、护甲、手套、长裤、战靴、背包 · 在背包的「装备」里', 4.5); return true; } },
+  2396905243: { id: 'lv50', n: '直接升到 50 级', f() { if (S.level >= 50) { feed('这个角色已经 50 级或以上了', '#ff9b8a'); return false; }
+    const from = S.level; while (S.level < 50) { S.level++; S.tp += 1; } S.xp = 0; S.maxHp = maxHpNow(); S.hp = S.maxHp;
+    try { burst(player.pos.x, 1, player.pos.z, 0xffd27a, 24, 7); } catch (e) { } banner('升级！Lv.' + from + ' → Lv.50', '获得 ' + (50 - from) + ' 个天赋点 · 点右侧「天赋」学习', 4.5); return true; } },   // owner's code, once per character
   1277534002: { id: 'relic10k', rep: 1, n: '遗物币 ×10000', f() { S.relic = (S.relic | 0) + 10000; banner('遗物币 +10000', '去老钱那里花吧 · 这个码可以重复使用', 4); return true; } } };   // owner's test code, can be used again and again (not counted in the weekly cap)
 S.rdm = {};
 function redeem(code) { const R = RDM[RDM_H(String(code || '').trim().toLowerCase())]; if (!R) { feed('兑换码不对', '#ff9b8a'); return; }
@@ -16814,6 +16817,17 @@ renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!bo
   i.textContent = T2('屏幕信息：', 'Screen: ') + screen.width + '×' + screen.height + ' · ' + innerWidth + '×' + innerHeight + ' · vv ' + (vv ? Math.round(vv.width) + '×' + Math.round(vv.height) : '-') + ' · doc ' + document.documentElement.clientHeight + ' · ' + T2('安全区 上', 'safe top ') + sa('top') + T2(' 下', ' bottom ') + sa('bottom') + ' · ' + (navigator.standalone ? 'app' : 'web') + ' · dpr ' + devicePixelRatio;
   box.appendChild(i); } catch (e) { } })(renderSettings);
 try { const st = document.createElement('style'); st.textContent = '#bkPanel .snote b{color:#ffb07a}.bkh{margin:12px 0 4px;font-size:15px;color:#ffd8a8}.bkrow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:6px 0}#bkIn{width:min(560px,92vw);box-sizing:border-box;border-radius:10px;background:rgba(0,0,0,.35);color:#f3e6d6;border:1px solid rgba(255,255,255,.2);padding:8px;font-size:12px}.bkbtn{margin-top:10px;width:100%}'; document.head.appendChild(st); } catch (e) { }
+
+
+/* ---- iPhone home-screen app, portrait: iOS lays the page out 62 px short (the status bar's height) and leaves a dark strip at the bottom.
+   Try to make the layout viewport the full screen height while in portrait (viewport meta height=device-height), and put it back in landscape. */
+(() => { try {
+  const sa = navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches); if (!sa) return;
+  const m = document.querySelector('meta[name=viewport]'); if (!m) return; const base = m.content.replace(/,\s*height=[^,]*/g, '');
+  const fix = () => { const portrait = innerHeight > innerWidth || (screen.orientation && /portrait/.test(screen.orientation.type)), want = portrait ? base + ',height=device-height' : base;
+    if (m.content !== want) { m.content = want; setTimeout(() => { try { resize(); } catch (e) { } }, 150); } };
+  fix(); addEventListener('orientationchange', () => setTimeout(fix, 250)); addEventListener('resize', () => setTimeout(fix, 250));
+} catch (e) { } })();
 /* ============ 资源商店: buy resources with gems, as many times as you like ============
    Real money only ever buys 晶石 (the Google Play packs); everything here costs 晶石.
    Prices are checked against the island merchant (1000 余烬币 = 30 晶石 here, so 1 晶石 ≈ 33 币): about 1.5× the coin price;
@@ -18071,4 +18085,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794675545').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794675965').catch(()=>{});</script></body></html>
