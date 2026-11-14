@@ -14273,11 +14273,12 @@ const RDM_H = s => { let x = 5381; for (const c of s) x = ((x * 33) ^ c.charCode
 const RDM = { 2373533752: { id: 'imm6', n: '一整套不朽装备', f() {
   if (S.ginv.length + GSLOT.length > gcap()) { feed('装备背包要空出 ' + GSLOT.length + ' 格才能领', '#ff9b8a'); return false; }
   GSLOT.forEach((s, i) => { const it = makeGear(10, 100, 5, 0); it[0] = i; it[1] = 6; it[2] = 100; it[5] = 100; it[6] = 0; it.length = 8; it[7] = 0; try { afxGen(it); } catch (e) { } pickGear(it); });
-  banner('不朽装备 ×' + GSLOT.length, '头盔、护甲、手套、长裤、战靴、背包 · 在背包的「装备」里', 4.5); return true; } } };
+  banner('不朽装备 ×' + GSLOT.length, '头盔、护甲、手套、长裤、战靴、背包 · 在背包的「装备」里', 4.5); return true; } },
+  1277534002: { id: 'relic10k', rep: 1, n: '遗物币 ×10000', f() { S.relic = (S.relic | 0) + 10000; banner('遗物币 +10000', '去老钱那里花吧 · 这个码可以重复使用', 4); return true; } } };   // owner's test code, can be used again and again (not counted in the weekly cap)
 S.rdm = {};
 function redeem(code) { const R = RDM[RDM_H(String(code || '').trim().toLowerCase())]; if (!R) { feed('兑换码不对', '#ff9b8a'); return; }
-  if (S.rdm[R.id]) { feed('这个角色已经用过这个兑换码了', '#ff9b8a'); return; }
-  if (R.f() === false) return; S.rdm[R.id] = 1; try { sfx.build(); } catch (e) { } refreshHud(); saveGame(); }
+  if (!R.rep && S.rdm[R.id]) { feed('这个角色已经用过这个兑换码了', '#ff9b8a'); return; }
+  if (R.f() === false) return; if (!R.rep) S.rdm[R.id] = 1; try { sfx.build(); } catch (e) { } refreshHud(); saveGame(); }
 shopSave = (o => function () { const r = o(); try { r.rdm = Object.keys(S.rdm); } catch (e) { } return r; })(shopSave);
 shopLoad = (o => function (d) { o(d); S.rdm = {}; try { const a = d && d.sh && d.sh.rdm; if (Array.isArray(a)) a.forEach(k => { if (typeof k === 'string') S.rdm[k] = 1; }); } catch (e) { } })(shopLoad);
 renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!box) return; const r = document.createElement('div'); r.className = 'setrow';
@@ -16991,4 +16992,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794655313').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794655592').catch(()=>{});</script></body></html>
