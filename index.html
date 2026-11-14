@@ -16121,8 +16121,8 @@ function coverCam(dt) {
   if (!COVER.sk && typeof SKINS !== 'undefined' && SKINS.myth) { COVER.sk = 1; COVER.prevSkin = S.skin; S.skin = 'myth'; try { redressPlayer(); } catch (e) { } }   // show off an outfit on the title screen
   if (!COVER.lh) { COVER.lh = 1; for (const l of labelSprite.all || []) { l.userData.cvis = l.visible; l.visible = false; } }
   // the camera: low, behind and to the left, drifting a little
-  camPos.set(px + 2.6 + Math.sin(T * .15) * .6, 2.1 + Math.sin(T * .22) * .15, pz + 6.2 + Math.cos(T * .12) * .4);
-  camera.position.copy(camPos); camera.lookAt(px - 12, 3.4, pz - 40);
+  camPos.set(px + 2.6 + Math.sin(T * .15) * .4, 2.6 + Math.sin(T * .22) * .12, pz + 9 + Math.cos(T * .12) * .3);
+  camera.position.copy(camPos); camera.lookAt(px - 13.7, 3.4, pz - 40);
   for (const c of COVER.cr) c.rotation.y += dt * .05; if (COVER.g2) COVER.g2.material.opacity = .75 + Math.sin(T * 1.6) * .15; 
   if (COVER.emb) try { COVER.emb.position.set(px, 0, pz); const p = COVER.emb.geometry.attributes.position; for (let i = 0; i < p.count; i++) { let y = p.getY(i) + dt * (.6 + (i % 5) * .15); if (y > 12) y = 0; p.setY(i, y); p.setX(i, p.getX(i) + Math.sin(T + i) * dt * .3); } p.needsUpdate = true; } catch (e) { }
   try { updateFx(dt); placeSky(camera); waterTick(dt); } catch (e) { }
@@ -16134,7 +16134,7 @@ zSpecialTick = (o => function (dt) { if (COVER.on && S.started) coverOff(); o(dt
    A close-up of the featured outfit (rendered from the real 3D model), a painted backdrop, the name and a few lines of story.
    To feature another outfit later, add an entry to CV_PST and point CV_PST_ON at it. */
 const CV_PST = {
-  aster: { key: 'aster', col: '#e8b4ff', tag: ['传说 · 限定直售', 'LEGENDARY · ON SALE'], ttl: '银霭紫苑', en: 'ASTER IN THE SILVER MIST', yaw: .45, cam: [-1.0, 2.0, 2.9], span: 1.0,
+  aster: { key: 'aster', col: '#e8b4ff', tag: ['传说 · 限定直售', 'LEGENDARY · ON SALE'], ttl: '银霭紫苑', en: 'ASTER IN THE SILVER MIST', yaw: .45, cam: [-1.0, 2.0, 2.9], span: .5, tm: .35,
     story: [['灰雾里开出的最后一朵紫苑。', 'The last aster to bloom in the grey mist.'], ['她记得每一个没能回来的人，', 'She remembers everyone who never came back,'], ['也记得他们的名字。', 'and every one of their names.']] }
 };
 let CV_PST_ON = 'aster';
@@ -16268,7 +16268,7 @@ try {
    workbench / storage box on the island, the pier when the task is on the mainland and you're home (and the other way),
    the nearest crate, zombie, stone pile or wreck, or the region boss's lair. That place gets a gold marker on the minimap and
    the big map (an arrow on the edge when it's off the map) and a gold light beam in the world.
-   The task tracker (top left) can be dragged anywhere; tap it to open the task book as before. */
+   Tap the task tracker (top left) to open the task book. */
 const QM = { t: 0, tg: null, beam: null };
 const _qmNear = (list, f) => { let b = null, bd = 1e9; for (const o of list) { const d = Math.hypot(o.x - player.pos.x, o.z - player.pos.z); if (d < bd && (!f || f(o))) { bd = d; b = o; } } return b; };
 function qmObs(kinds, r) { try { return _qmNear([...queryObstacles(player.pos.x, player.pos.z, r || 70)].filter(o => o.g && kinds.includes(o.g) && !((o.gt || 0) > S.t) && (S.isl ? o.islT : !o.islT))); } catch (e) { return null; } }
@@ -16333,19 +16333,9 @@ stTrk = (o => function () { o(); try { const e = $('storyTrk'), T = QM.tg; if (!
   if (d > 3) e.insertAdjacentHTML('beforeend', '<span class="stxp qmline">◆ ' + T.n + ' · ' + d + T2(' 米（地图上的金色标记）', ' m (gold marker on the map)') + '</span>'); } catch (er) { } })(stTrk);
 setInterval(() => { try { if (S.started && !S.paused) stTrk(); } catch (e) { } }, 1500);
 
-/* ---- drag the tracker anywhere (it remembers where) ---- */
-(() => { const e = $('storyTrk'); if (!e || !e.addEventListener) return; let d = null, moved = false;
-  const put = (x, y) => { const r = e.getBoundingClientRect(); x = Math.max(4, Math.min(innerWidth - r.width - 4, x)); y = Math.max(4, Math.min(innerHeight - r.height - 4, y)); e.style.left = x + 'px'; e.style.top = y + 'px'; e.style.right = 'auto'; e.style.bottom = 'auto'; e.style.transform = 'none'; e.classList.add('qmMoved'); };
-  try { const p = JSON.parse(localStorage.getItem('ember_trkpos') || 'null'); if (p) setTimeout(() => put(p[0] * innerWidth, p[1] * innerHeight), 300); } catch (x) { }
-  e.addEventListener('pointerdown', ev => { if (ev.pointerId === 77) return; const r = e.getBoundingClientRect(); d = { x: ev.clientX, y: ev.clientY, ox: r.left, oy: r.top, id: ev.pointerId }; moved = false; }, true);
-  window.addEventListener('pointermove', ev => { if (!d || ev.pointerId !== d.id) return; const dx = ev.clientX - d.x, dy = ev.clientY - d.y; if (!moved && Math.hypot(dx, dy) < 10) return; moved = true; put(d.ox + dx, d.oy + dy); ev.preventDefault(); }, { passive: false });
-  const end = ev => { if (!d || (ev && ev.pointerId !== d.id)) return; d = null; if (moved) { const r = e.getBoundingClientRect(); try { localStorage.setItem('ember_trkpos', JSON.stringify([r.left / innerWidth, r.top / innerHeight])); } catch (x) { } setTimeout(() => { moved = false; }, 0); } };
-  window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
-  // a drag isn't a tap: swallow the tap that ends it
-  e.addEventListener('click', ev => { if (moved) { ev.stopImmediatePropagation(); ev.preventDefault(); moved = false; } }, true);
-  e.addEventListener('pointerup', ev => { if (moved) { ev.stopImmediatePropagation(); } }, true);
-  try { const st = document.createElement('style'); st.textContent = '#storyTrk{touch-action:none}#storyTrk.qmMoved{position:fixed!important}#storyTrk .qmline{color:#ffd27a;opacity:.95}'; document.head.appendChild(st); } catch (x) { }
-})();
+/* ---- the tracker stays put under the health panel (dragging it was removed: it got lost too easily) ---- */
+try { localStorage.removeItem('ember_trkpos'); } catch (x) { }
+try { const st = document.createElement('style'); st.textContent = '#storyTrk .qmline{color:#ffd27a;opacity:.95}'; document.head.appendChild(st); } catch (x) { }
 /* ============ villages 2.0: a real little countryside hamlet, not a safe camp ============
    - No fence ring, no safe zone: zombies can walk right in.
    - Every villager has their own little house (gable roof, door, window, a yard with a broken fence, a vegetable patch,
@@ -16682,6 +16672,42 @@ shopLoad = (o => function (d) { o(d); try { const old = !(d && d.sh && d.sh.bpv2
 { let _bt = 0; zSpecialTick = (o => function (dt) { o(dt); if ((_bt -= dt) > 0) return; _bt = 1.5;
   try { const ks = []; try { const st = stStep(); if (st && st.k === 'btype') ks.push(st.t); } catch (e) { } try { const c = COMM[ST2.comm.i], s = c && S.level >= c.lv && c.steps[ST2.comm.p | 0]; if (s && s.k === 'btype') ks.push(s.t); } catch (e) { }
     for (const k of ks) if (BT[k] && BT[k].bp && !S.bp[k]) { S.bp[k] = 1; feed(T2('拿到蓝图「', 'Blueprint: ') + BT[k].name + T2('」（任务送的）', ' (task gift)'), '#7ec8ff'); try { buildCards(); } catch (e) { } } } catch (e) { } })(zSpecialTick); }
+/* ============ HUD touches ============
+   - The task tracker: a little ▲ / ▼ tab on its bottom edge folds it. Folded, it shows only the chapter and the task's
+     name (no description, reward, marker distance or commission). Remembered on this device.
+   - The fire button shows a white line icon instead of the word: a crosshair for guns, a fist for melee weapons.
+   - The reload button shows a white line icon (a magazine inside a turning arrow) instead of 「换弹」; the ammo count stays. */
+let TRK_MIN = false; try { TRK_MIN = localStorage.getItem('ember_trkmin') === '1'; } catch (e) { }
+stTrk = (o => function () { o(); try { const e = $('storyTrk'); if (!e) return;
+  const sp = e.querySelector(':scope > span'); if (sp) sp.classList.add('stmain');
+  e.classList.toggle('min', TRK_MIN);
+  const a = document.createElement('i'); a.className = 'trkArr'; a.setAttribute('role', 'button'); a.setAttribute('aria-label', TRK_MIN ? T2('展开任务', 'Expand') : T2('收起任务', 'Collapse'));
+  a.innerHTML = '<svg viewBox="0 0 20 12"><path d="' + (TRK_MIN ? 'M3 3l7 6 7-6' : 'M3 9l7-6 7 6') + '" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const stop = ev => { ev.stopPropagation(); if (ev.cancelable) ev.preventDefault(); };
+  ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend'].forEach(t => a.addEventListener(t, stop));
+  a.addEventListener('click', ev => { stop(ev); TRK_MIN = !TRK_MIN; try { localStorage.setItem('ember_trkmin', TRK_MIN ? '1' : '0'); } catch (x) { } stTrk(); });
+  e.appendChild(a); } catch (er) { } })(stTrk);
+
+const HUD_IC = {
+  aim: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' fill='none' stroke='white' stroke-width='3' stroke-linecap='round'><circle cx='24' cy='24' r='13'/><path d='M24 4v9M24 35v9M4 24h9M35 24h9'/><circle cx='24' cy='24' r='2.4' fill='white' stroke='none'/></svg>",
+  fist: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'><path d='M12 21v-4a3 3 0 0 1 6 0v3'/><path d='M18 20v-5.5a3 3 0 0 1 6 0V20'/><path d='M24 20v-5.5a3 3 0 0 1 6 0V20'/><path d='M30 20.5V17a3 3 0 0 1 6 0v9'/><path d='M12 21v7c0 6 4.5 10 10.5 10h3c6 0 10.5-4 10.5-10'/><path d='M12 27h9.5a3 3 0 0 0 0-6H17'/><path d='M18 38v5M31 38v5'/></svg>",
+  reload: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' fill='none' stroke='white' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'><path d='M38 24a14 14 0 1 1-4.1-9.9'/><path d='M35 7v7.5h-7.5'/><rect x='20' y='17' width='8' height='14' rx='1.5'/><path d='M22.5 21.5h3M22.5 25.5h3'/></svg>"
+};
+const hudUrl = k => 'url("data:image/svg+xml,' + encodeURIComponent(HUD_IC[k]) + '")';
+(() => { try {
+  const rl = $('bReload'); if (rl && rl.childNodes) { for (const n of [...rl.childNodes]) if (n.nodeType === 3 && n.textContent.trim()) { const s = document.createElement('span'); s.className = 'rlTxt'; s.textContent = n.textContent; rl.replaceChild(s, n); }
+    const ic = document.createElement('i'); ic.className = 'hudIc rlIc'; rl.insertBefore(ic, rl.firstChild); rl.setAttribute('aria-label', T2('换弹', 'Reload')); }
+  const fb = $('bFire'); if (fb) { const ic = document.createElement('i'); ic.className = 'hudIc fireIc'; fb.insertBefore(ic, fb.firstChild); fb.setAttribute('aria-label', T2('攻击', 'Attack')); }
+  setInterval(() => { try { if (fb) fb.classList.toggle('mel', !!isMelee()); } catch (e) { } }, 300);
+  const st = document.createElement('style'); st.textContent =
+    '#storyTrk{position:relative;padding-bottom:14px}#storyTrk.min>*:not(b):not(.stmain):not(.trkArr):not(.kcapb){display:none!important}#storyTrk.min .stmain em{display:none}' +
+    '#storyTrk .trkArr{position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);width:34px;height:16px;display:flex;align-items:center;justify-content:center;border-radius:0 0 9px 9px;background:rgba(20,12,16,.9);border:1px solid rgba(255,201,74,.55);border-top:0;color:#ffc94a;cursor:pointer;pointer-events:auto}' +
+    '#storyTrk .trkArr svg{width:14px;height:9px}#storyTrk .trkArr::before{content:"";position:absolute;inset:-10px -12px}' +
+    '.hudIc{display:block;background-repeat:no-repeat;background-position:center;background-size:contain;pointer-events:none}' +
+    '#bReload .rlTxt{display:none}#bReload .rlIc{width:26px;height:26px;background-image:' + hudUrl('reload') + '}#bReload{flex-direction:column;gap:0}' +
+    '#bFire #fireTxt{display:none}#bFire .fireIc{width:46px;height:46px;background-image:' + hudUrl('aim') + '}#bFire.mel .fireIc{background-image:' + hudUrl('fist') + '}';
+  document.head.appendChild(st);
+} catch (e) { console.warn('hud3', e); } })();
 /* ============ 资源商店: buy resources with gems, as many times as you like ============
    Real money only ever buys 晶石 (the Google Play packs); everything here costs 晶石.
    Prices are checked against the island merchant (1000 余烬币 = 30 晶石 here, so 1 晶石 ≈ 33 币): about 1.5× the coin price;
@@ -17939,4 +17965,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794672607').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794673385').catch(()=>{});</script></body></html>
