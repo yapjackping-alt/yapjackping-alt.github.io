@@ -14175,6 +14175,97 @@ try { const st = document.createElement('style'); st.textContent =
   '.d4ban{background:linear-gradient(120deg,#4a1e0e,#140806 70%)!important;border-color:rgba(255,154,90,.45)!important}.d4ban i{background:linear-gradient(160deg,#ffe0c0,#ff7a2a)!important;box-shadow:0 0 18px rgba(255,154,90,.5)!important}.d4ban i::before,.d4ban i::after{background:#6a2a10!important}.d4ban em{color:#ff9a5a!important}' +
   '.d4row{border-color:rgba(255,154,90,.6)!important;background:linear-gradient(90deg,rgba(110,50,20,.4),rgba(16,6,4,.2))!important}';
   document.head.appendChild(st); } catch (e) { }
+/* ============ 不朽装备 2.0：换一套看得出来的颜色 + 获取难度大幅提高 ============
+   放在 z_dun4.js 之后、z_redeem.js 之前（build.sh 里加一行 z_imm.js）。不改任何别的文件，只用「包起来」的写法。
+
+   一、颜色
+     以前：不朽 = #16e0a8（青绿），和特级 #43d6c8（青）几乎一样，分不清。
+     现在：所有「不朽」的框、装备格、背包卡片、名字，都变成「左下角原来的青绿 ↔ 右上角粉色」的对角渐变，
+           中间还有 青蓝、紫 两个过渡色（衍生色），整条渐变一直朝右上方滑动，所以颜色一直在换。
+           框是满色，里面是同一条渐变的淡色，看起来就是一半粉色、一半原来的颜色。
+     原理：游戏里每个带品质的元素都有 style="--qc:#16e0a8"（副本战利品格子是 --rc）。我只用 CSS 的属性选择器
+           去认这个颜色，所以不用改 g_bag.js / z_stash.js / w_trade.js / z_dun.js 里的任何一行。
+     地上的装备箱：箱盖和光柱也在 青绿 ↔ 粉 之间来回渐变（包 gearTick）。
+     手机/系统设了「减少动态效果」时只显示静态渐变（右上粉、左下青绿），不滑动。
+
+   二、获取难度（以前三条路都太容易）
+     路线                 以前                                   现在
+     副本柜子的装备格     0.5%（神话才 0.8%，不朽几乎和神话一样多）   0.03%   ≈ 3300 格里 1 个
+     怪物 / 首领掉装备    每件神话里 1%（高区首领神话很多，会刷出来）   0.15%   ≈ 每 670 件神话里 1 件
+     z_dun.js 原柜子表    0.3%（被 z_lootq.js 盖掉，实际没用）        0.03%
+     兑换码               整套 6 件（你自己的礼包码）                  不动 ← 要不要也砍，你自己定
+   三个数都在下面的 IMM 里，改数字就行。
+   ———— 假设游戏里有（请交接的 AI 对一下名字）————
+   · l_gear.js 的 GQ、makeGear、gImmortal、afxGen、gName、gearLoot、gearTick、dropGear、banner、feed
+   · z_lootq.js 的 lqGearQ（柜子装备品质抽签），z_dun.js 的 cabRoll（输出 {k:'gear', it, r, need}）、DUN_LV
+   ================================================================================================ */
+const IMM_ON = true;
+const IMM = {
+  CAB: .0003,                      // 副本柜子：每个装备格变成不朽的概率（以前 .005）
+  MON: .0015,                      // 怪物掉装备：每件「神话」变成不朽的概率（以前 .01）
+  ORIG: '#16e0a8', PINK: '#ff5fd0', MID1: '#3fc9ea', MID2: '#b58cff',   // 青绿（原色）· 粉 · 两个过渡色
+  SEC: 6                           // 渐变滑一圈要几秒
+};
+
+if (IMM_ON) {
+  /* ---- 1. 颜色：CSS ---- */
+  (function () {
+    const O = IMM.ORIG, P = IMM.PINK, A = IMM.MID1, V = IMM.MID2;
+    // 一整圈 = 2 个单位：0 原色 → A → V → 1 粉 → V → A → 2 原色。左右各多铺一圈，滑动时才不会露底。
+    const half = [[0, O], [.34, A], [.67, V], [1, P]];
+    const stops = [];
+    for (let c = -2; c < 2; c++) { const base = c * 2;
+      half.forEach(([p, col]) => stops.push([base + p, col]));
+      half.slice().reverse().slice(1).forEach(([p, col]) => stops.push([base + 2 - p, col])); }
+    const seq = stops.filter(s => s[0] >= -2 && s[0] <= 4).map(([p, col]) => col + ' calc(var(--imm,0) * 1% + ' + (p * 100) + '%)').join(',');
+    const G = dir => 'linear-gradient(' + dir + ',' + seq + ')';
+    const sel = (base, attr, suf) => base + '[style*="' + attr + ':#16e0a8"]' + (suf || '') + ',' + base + '[style*="' + attr + ': #16e0a8"]' + (suf || '');
+    const Q = (b, suf) => sel(b, '--qc', suf), R = (b, suf) => sel(b, '--rc', suf);
+    const frame = (pad, extra) => 'border-color:transparent;background:' + pad + ' padding-box,' + G('to top right') + ' border-box;background-origin:border-box;animation:immSlide ' + IMM.SEC + 's linear infinite;' + (extra || '');
+    const txt = 'background:' + G('to right') + ';background-size:100% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:immSlide ' + IMM.SEC + 's linear infinite;';
+    const css =
+      '@property --imm{syntax:"<number>";inherits:false;initial-value:0}' +
+      '@keyframes immSlide{from{--imm:0}to{--imm:200}}' +
+      // 装备格（人物页）
+      Q('.gslot.has') + '{' + frame('radial-gradient(circle at 50% 40%,rgba(8,6,14,.5),rgba(0,0,0,.78) 80%)', 'border-style:solid;') + '}' +
+      // 背包里的装备卡片
+      Q('.gcard') + '{' + frame('linear-gradient(rgba(10,8,16,.74),rgba(10,8,16,.74))') + '}' +
+      // 储物柜 / 装备库的一行
+      Q('.strow') + '{' + frame('linear-gradient(rgba(10,8,16,.76),rgba(10,8,16,.76))', 'border-width:1.5px;') + '}' +
+      // 交易行
+      Q('.trrow.gear') + '{' + frame('linear-gradient(rgba(10,8,16,.76),rgba(10,8,16,.76))') + '}' +
+      // 副本战利品格子
+      R('.lps') + '{' + frame('linear-gradient(rgba(10,8,16,.7),rgba(10,8,16,.7))', 'box-shadow:0 0 12px rgba(255,95,208,.35);') + '}' +
+      // 名字（只认写死了青绿色的 b / span，别的元素不受影响）
+      'b[style*="color:#16e0a8"],span[style*="color:#16e0a8"],' + R('.lps', ' b') + ',' + Q('.strow', ' b') + ',' + Q('.trrow', ' b') + '{' + txt + '}' +
+      '@media (prefers-reduced-motion:reduce){[style*="#16e0a8"],[style*="#16e0a8"] b{animation:none!important}}';
+    const st = document.createElement('style'); st.id = 'z_imm_css'; st.textContent = css; try { (document.head || document.documentElement || document.body).appendChild(st); } catch (e) { console.warn('z_imm css', e); }
+  })();
+
+  /* ---- 2. 颜色：地上的装备箱，箱盖和光柱在 青绿 ↔ 粉 之间来回 ---- */
+  const immO = new THREE.Color(IMM.ORIG), immP = new THREE.Color(IMM.PINK), immC = new THREE.Color();
+  gearTick = (o => function (dt) {
+    try { const k = .5 + .5 * Math.sin((typeof S !== 'undefined' && S.t ? S.t : performance.now() / 1000) * 2.2);
+      for (const L of gearLoot) { if (!L.it || L.it[1] !== 6 || !L.g) continue;
+        immC.copy(immO).lerp(immP, k); const kids = L.g.children, lid = kids[1], beam = kids[kids.length - 1];
+        if (lid && lid.material && lid.material.color) lid.material.color.copy(immC); if (beam && beam.material && beam.material.color) beam.material.color.copy(immC); } } catch (e) { }
+    return o(dt); })(gearTick);
+
+  /* ---- 3. 难度：怪物 / 首领掉落。原来是「神话里 1% 变不朽」，现在 0.15%（照着原函数写，只改概率）---- */
+  gImmortal = function (it) {
+    if (it[1] === 5 && Math.random() < IMM.MON) {
+      it[1] = 6; it[2] = 100; it[5] = 100; it[6] = 0; it.length = 8; it[7] = it[7] | 0; afxGen(it);
+      try { banner('不朽装备！', '掉落了「' + gName(it) + '」，永不损坏', 4); } catch (e) { } }
+    return it; };
+
+  /* ---- 4. 难度：副本柜子。z_lootq.js 抽到不朽的格子，只留下 CAB/0.005 这么多，其余重抽一个「不是不朽」的品质 ---- */
+  cabRoll = (o => function (type, colKey) { const out = o(type, colKey);
+    try { const keep = IMM.CAB / .005;
+      for (const x of out) { if (x.k !== 'gear' || !x.it || x.it[1] !== 6) continue; if (Math.random() < keep) continue;
+        let q = 6, n = 0; while (q === 6 && n++ < 20) q = typeof lqGearQ === 'function' ? lqGearQ() : 4; q = Math.min(q, 5);
+        const it = makeGear(2, DUN_LV[1], q, 0); it[1] = q; x.it = it; x.r = q; x.need = .5 + Math.min(5, q) * .35 + Math.random() * .3; } } catch (e) { console.warn('z_imm cab', e); }
+    return out; })(cabRoll);
+}
 /* ============ 兑换码（设置里） ============
    码不写在代码里（只存它的指纹），每个角色每个码只能用一次。
    现在只有一个码：一整套不朽装备（6 个部位各 1 件，永不损坏）。 */
@@ -15587,6 +15678,225 @@ stAdvance = (o => function () { o(); try { stSkinPay(); } catch (e) { } })(stAdv
 stRwTxt = (o => function (R) { let t = o(R); try { const i = STORY.findIndex(C => C.rw === R), a = ST_SKIN[i]; if (a && stSkinOk(a)) t += ' · ' + stSkinName(a); } catch (e) { } return t; })(stRwTxt);
 shopSave = (o => function () { const r = o(); try { if (r.st2) r.st2.sk = ST2.sk; } catch (e) { } return r; })(shopSave);
 shopLoad = (o => function (d) { o(d); ST2.sk = 0; try { const g = d && d.sh && d.sh.st2; if (g) ST2.sk = g.sk | 0; } catch (e) { } setTimeout(() => { try { if (S.started) stSkinPay(); } catch (e) { } }, 3000); })(shopLoad);
+/* ============ 老钱的商船 ============
+   码头旁边多了一艘老钱的木帆船：甲板上堆满开着的宝箱、金币、金条、宝石。
+   栈桥东边接出一条小码头，走到小码头尽头，屏幕下方出现「老钱的船 · 交易」，点它直接打开老钱的交易窗口。
+   （码头菜单「副本」页里老钱那一行还在，两边打开的是同一个窗口。）
+   只是场景 + 一个按钮：不存档、不改任何数值。
+   船在 islandG 里，所以只在海岛上显示。 */
+const QS = { rx: 14, rz: -85.6, g: null, q: null, armR: null, armL: null, head: null, flag: null, sp: [], glow: [], near: false, greet: -999, talk: 0, err: 0 };
+const QS_JETTY_Z = -77.2;                  // the little jetty runs east from the pier along this line (relative to HOME)
+const QS_PAD = { x: 14, z: -77.4, r: 5.6 };   // stand within this circle (relative to HOME) to trade
+const qshipNear = () => S.isl && !S.dead && !S.boat && Math.hypot(player.pos.x - HOME.x - QS_PAD.x, player.pos.z - HOME.z - QS_PAD.z) < QS_PAD.r;
+
+(function qshipBuild() {
+  const R = mulberry32(90817), rr = (a, b) => a + R() * (b - a);
+  // palette
+  const wd = mat(0x7a4a2a), wdD = mat(0x4a2e18), wdM = mat(0x6a3f22), wdL = mat(0xa27a50), wdX = mat(0x8a5a34);
+  const gold = mat(0xf0c030, { emissive: 0x4a3000 }), goldD = mat(0xc08a1c, { emissive: 0x2a1a00 }), goldB = mat(0xffd860, { emissive: 0x6a4a08 });
+  const lamp = mat(0xffd27a, { emissive: 0xb98a2a }), ropeM = mat(0x3a2c1c), cloth = mat(0xe8d8a8), clothD = mat(0xd2bd86), clothP = mat(0xc9b074);
+  const iron = mat(0x3a3a42), red = mat(0x8a2a2a), redD = mat(0x6a1e1e), skin = mat(0xe0b088), skinD = mat(0xc8946a), blk = mat(0x1a1410), hairM = mat(0x3a2a1a), sack = mat(0xb89a68);
+
+  const G = new THREE.Group(); G.position.set(QS.rx, -.25, QS.rz); G.rotation.order = 'YXZ'; G.rotation.y = -Math.PI / 2; islandG.add(G); QS.g = G;
+  // ship-local axes: z is the long axis (bow at -z, stern at +z); x is across, +x faces the island (and the camera)
+  const bx = (w, h, d, m, x, y, z, p, ry, rx, rz) => { const o = box(w, h, d, m, x, y, z, p || G); if (ry) o.rotation.y = ry; if (rx) o.rotation.x = rx; if (rz) o.rotation.z = rz; return o; };
+  const line = (a, b, m, t, par) => { const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], L = Math.hypot(dx, dy, dz) || 1;
+    const o = box(t || .05, t || .05, L, m || ropeM, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, par || G); o.rotation.order = 'YXZ'; o.rotation.y = Math.atan2(dx, dz); o.rotation.x = -Math.asin(dy / L); return o; };
+  const DECK = 1.85, POOP = 3.34;
+
+  /* ---------- hull ---------- */
+  bx(1.1, .5, 12.6, wdD, 0, .1, .1);                         // keel
+  bx(3.9, .9, 11.4, wdM, 0, .6, .6);                         // lower hull
+  bx(4.8, 1.2, 10.4, wd, 0, 1.15, 1);                        // main hull  z -4.2 .. 6.2
+  bx(4.5, .1, 10.2, wdL, 0, 1.8, 1);                         // deck planks
+  bx(4.8, 1.2, .3, wd, 0, 1.15, 6.3); bx(3.9, .9, .3, wdM, 0, .6, 6.3);   // transom
+  for (const s of [-1, 1]) {
+    bx(.4, 1.5, 4.7, wd, s * 1.2, 1.15, -6.2, G, s * .54);   // the two bow boards meet in a point
+    bx(.18, .14, 4.7, wdD, s * 1.2, 2.45, -6.2, G, s * .54);
+    bx(.06, .1, 10.4, wdD, s * 2.42, .9, 1); bx(.06, .1, 10.4, wdD, s * 2.42, 1.35, 1);   // plank lines
+    bx(.1, .12, 10.4, goldD, s * 2.43, 1.68, 1);             // gold trim
+    if (s < 0) bx(.2, .16, 10.4, wdD, s * 2.35, 2.45, 1); else { bx(.2, .16, 3.3, wdD, s * 2.35, 2.45, -2.55); bx(.2, .16, 5.9, wdD, s * 2.35, 2.45, 3.25); }   // gunwale (the island side has a gap for the gangplank)
+    for (const z of [-3.8, -2.4, -1, .4, 1.8, 3.2]) bx(.14, .6, .14, wdD, s * 2.35, 2.15, z);
+  }
+  bx(2.7, 1.2, 3.6, wd, 0, 1.15, -5.9); bx(1.8, .9, 3.4, wdM, 0, .6, -6.2); bx(2.4, .1, 3.6, wdL, 0, 1.8, -5.8);   // bow fill
+  bx(2.2, .32, .08, goldD, 0, 1.25, 6.5);                    // name board
+  bx(.2, .2, 3.6, wdD, 0, 2.2, -9.2, G, 0, .25);             // bowsprit
+  for (const s of [-1, 1]) { const g = new THREE.Group(); g.rotation.y = s * .54; g.position.set(s * 1.85, 1.25, -5.5); G.add(g);
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(.5, .5, .1, 14), goldB); c.rotation.z = Math.PI / 2; c.position.x = s * .12; g.add(c);   // a big coin on each bow
+    bx(.06, .26, .26, goldD, s * .19, 0, 0, g); }
+
+  /* ---------- stern castle (the poop deck: 老钱 stands here) ---------- */
+  bx(4.5, 1.35, 3.0, wdX, 0, 2.525, 4.9); bx(4.8, .14, 3.3, wdL, 0, 3.27, 4.9);
+  bx(4.6, .08, .1, gold, 0, 3.2, 3.4);
+  bx(.95, 1.05, .08, wdD, 0, 2.4, 3.36); bx(.1, .1, .05, goldB, .3, 2.35, 3.31);    // cabin door
+  bx(.6, .45, .06, lamp, 1.55, 2.7, 3.37);                                          // lit window
+  for (const s of [-1, 1]) { bx(.8, .5, .06, lamp, s * 1.2, 2.6, 6.45); bx(.14, .55, 3.3, wdD, s * 2.35, 3.65, 4.9); }
+  bx(4.8, .5, .14, wdD, 0, 3.65, 6.55);
+  for (let i = 0; i < 3; i++) bx(1.1, .5 * (i + 1), .4, wdL, -1.6, DECK + .25 * (i + 1), 2.4 + i * .4);    // three steps up
+  for (const s of [-1, 1]) { bx(.1, 1.0, .1, wdD, s * 2.25, POOP + .6, 6.4); bx(.3, .38, .3, lamp, s * 2.25, POOP + 1.3, 6.4); bx(.36, .06, .36, wdD, s * 2.25, POOP + 1.54, 6.4); }   // stern lanterns
+
+  // the counter: gold bars, a ledger and coin stacks
+  const CO = [], GEM = [[], [], [], []];
+  const cpush = (x, y, z, s, flat) => CO.push([x, y, z, flat ? 0 : rr(-.5, .5), rr(0, 6.28), flat ? 0 : rr(-.5, .5), s || 1]);
+  const gem = (x, y, z) => GEM[(R() * 4) | 0].push([x, y, z]);
+  bx(.7, .85, 2.2, wdD, .9, POOP + .425, 4.9); bx(.78, .08, 2.3, goldD, .9, POOP + .88, 4.9);
+  const bars = (x, y, z, ry) => { for (const [dx, dy] of [[-.3, 0], [0, 0], [.3, 0], [-.15, .17], [.15, .17], [0, .34]]) { const o = bx(.28, .16, .56, goldB, 0, 0, 0); o.position.set(x + dx, y + .08 + dy, z); } };
+  bars(.9, POOP + .92, 4.2);
+  bx(.42, .05, .56, mat(0xd8c8a0), .9, POOP + .93, 5.4).rotation.y = .2;                       // ledger
+  for (const [z, n] of [[5.75, 7], [5.45, 4], [5.9, 3]]) for (let i = 0; i < n; i++) cpush(.9 + (z === 5.9 ? .2 : 0), POOP + .93 + i * .05, z + (z === 5.45 ? .02 : 0), 1, true);
+
+  /* ---------- 老钱 ---------- */
+  { const Q = new THREE.Group(); Q.position.set(-.5, POOP, 4.9); Q.rotation.y = Math.PI / 2; G.add(Q); QS.q = Q;
+    bx(.24, .72, .28, hairM, -.16, .36, 0, Q); bx(.24, .72, .28, hairM, .16, .36, 0, Q);                // legs
+    bx(.26, .12, .36, blk, -.16, .06, .04, Q); bx(.26, .12, .36, blk, .16, .06, .04, Q);                // boots
+    bx(.68, .84, .42, red, 0, 1.14, 0, Q); bx(.72, .3, .44, redD, 0, .8, 0, Q);                         // coat
+    bx(.1, .72, .05, goldB, 0, 1.14, .23, Q);                                                           // gold buttons
+    bx(.7, .1, .44, blk, 0, .88, 0, Q); bx(.14, .12, .05, goldB, 0, .88, .23, Q);                       // belt + buckle
+    bx(.46, .05, .05, gold, 0, 1.45, .22, Q);
+    { const m = new THREE.Mesh(new THREE.CylinderGeometry(.1, .1, .04, 10), goldB); m.rotation.x = Math.PI / 2; m.position.set(0, 1.3, .24); Q.add(m); }  // coin on a chain
+    for (const s of [-1, 1]) { const a = new THREE.Group(); a.position.set(s * .42, 1.5, 0); Q.add(a); bx(.17, .6, .19, red, 0, -.3, 0, a); bx(.18, .14, .2, skin, 0, -.66, 0, a); bx(.19, .08, .21, goldD, 0, -.54, 0, a); if (s > 0) QS.armR = a; else QS.armL = a; }
+    const h = new THREE.Group(); h.position.set(0, 1.8, 0); Q.add(h); QS.head = h;
+    bx(.44, .44, .42, skin, 0, 0, 0, h); bx(.08, .1, .08, skinD, 0, -.04, .25, h);
+    bx(.06, .07, .03, blk, -.1, .05, .22, h); bx(.06, .07, .03, blk, .1, .05, .22, h);
+    bx(.3, .06, .05, hairM, 0, -.12, .23, h); bx(.07, .06, .05, hairM, -.17, -.09, .23, h); bx(.07, .06, .05, hairM, .17, -.09, .23, h);   // moustache
+    bx(.46, .2, .12, hairM, 0, -.02, -.2, h);
+    bx(.82, .06, .78, hairM, 0, .26, 0, h); bx(.48, .2, .46, hairM, 0, .38, 0, h); bx(.5, .05, .48, gold, 0, .31, 0, h);   // hat
+    bx(.06, .3, .06, red, .22, .52, 0, h, 0, 0, -.5);
+    Q.scale.set(1.12, 1.12, 1.12); }
+
+  /* ---------- chests, coins, gems ---------- */
+  const coneG = new THREE.ConeGeometry(.55, .42, 9);
+  const mound = (x, y, z, r, h, m) => { const o = new THREE.Mesh(new THREE.ConeGeometry(r, h, 9), m || gold); o.position.set(x, y + h / 2, z); G.add(o); return o; };
+  const anchors = [];
+  const chest = (x, z, ry, sc, open, y0) => {
+    const y = y0 == null ? DECK : y0, c = new THREE.Group(); c.position.set(x, y, z); c.rotation.y = ry; c.scale.set(sc, sc, sc); G.add(c);
+    bx(1.1, .5, .72, wdM, 0, .25, 0, c); for (const s of [-1, 1]) bx(.14, .52, .76, goldD, s * .38, .25, 0, c);
+    bx(1.14, .07, .76, goldD, 0, .5, 0, c); bx(.16, .16, .05, goldB, 0, .38, .38, c);
+    const lid = new THREE.Group(); lid.position.set(0, .52, -.36); lid.rotation.x = open ? -1.3 : 0; c.add(lid);
+    bx(1.1, .2, .72, wdM, 0, .1, .36, lid); for (const s of [-1, 1]) bx(.14, .22, .76, goldD, s * .38, .1, .36, lid); bx(1.14, .05, .76, goldD, 0, .2, .36, lid);
+    const ca = Math.cos(ry), sa = Math.sin(ry), tf = (lx, ly, lz) => [x + sc * (lx * ca + lz * sa), y + sc * ly, z + sc * (-lx * sa + lz * ca)];
+    if (open) {
+      bx(.98, .16, .6, gold, 0, .56, 0, c); const m = new THREE.Mesh(coneG, gold); m.scale.set(1.5, 1, 1.0); m.position.set(0, .7, 0); c.add(m);
+      for (let i = 0; i < 9; i++) { const p = tf(rr(-.5, .5), .62 + rr(0, .2), rr(-.28, .28)); cpush(p[0], p[1], p[2], sc); }
+      for (let i = 0; i < 3; i++) { const p = tf(rr(-.4, .4), .9, rr(-.2, .2)); gem(p[0], p[1] * 1 + .02, p[2]); }
+      for (let i = 0; i < 3; i++) { const p = tf(rr(-.5, .5), 0.03, .5 + rr(.1, .5)); cpush(p[0], y + .03, p[2], sc, true); }    // a few spilled out the front
+      anchors.push(tf(0, 1.0, 0));
+    } else anchors.push(tf(0, .7, 0));
+    return c; };
+  const Q90 = Math.PI / 2;   // chest fronts face +x (toward the camera)
+  chest(.3, 1.0, Q90, 1.7, true);                                            // the big one, midships
+  chest(-1.55, -3.4, Q90 + .1, .95, true); chest(-1.55, -1.0, Q90 - .08, 1.0, true); chest(-1.55, 1.9, Q90 + .05, 1.0, true);
+  chest(1.55, -3.0, Q90 - .12, .9, false); chest(1.55, 1.6, Q90 + .1, .9, true);
+  chest(-.55, -5.5, Q90, .8, false); chest(.55, -5.5, Q90 + .08, .8, true); chest(0, -5.5, Q90 - .05, .8, true, DECK + .4);   // stacked in the bow
+  // gold heaps and a loose scatter of coins on the deck
+  for (const [x, z, r, h] of [[-.9, -2.4, .55, .42], [.95, -1.7, .5, .38], [1.0, -3.9, .5, .4], [-1.0, 3.0, .45, .34]]) {
+    mound(x, DECK, z, r, h); anchors.push([x, DECK + h + .1, z]);
+    for (let i = 0; i < 7; i++) { const a = rr(0, 6.28), d = rr(0, r * .85); cpush(x + Math.cos(a) * d, DECK + h * (1 - d / r) + .03, z + Math.sin(a) * d, 1); } }
+  for (let i = 0; i < 34; i++) cpush(rr(-2, 2), DECK + .03, rr(-5.2, 3.0), 1, true);
+  for (let i = 0; i < 8; i++) gem(rr(-1.8, 1.8), DECK + .06, rr(-4, 3));
+  bars(.1, DECK, 2.8); bars(-.2, DECK + .0, -4.2);
+  // barrels topped with coins, and sacks
+  for (const [x, z] of [[1.75, 2.7], [1.15, 3.0], [-1.7, -4.6]]) { const g = new THREE.Group(); g.position.set(x, DECK, z); G.add(g);
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(.36, .32, .8, 10), wdM); b.position.y = .4; g.add(b);
+    for (const yy of [.2, .6]) { const r = new THREE.Mesh(new THREE.CylinderGeometry(.375, .375, .06, 10), iron); r.position.y = yy; g.add(r); }
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(.3, .3, .05, 10), gold); t.position.y = .82; g.add(t);
+    const m = new THREE.Mesh(new THREE.ConeGeometry(.28, .22, 8), gold); m.position.y = .93; g.add(m); anchors.push([x, DECK + 1.1, z]); }
+  for (const [x, z] of [[1.9, -1.4], [1.7, -1.9], [1.95, -2.3]]) { bx(.5, .46, .46, sack, x, DECK + .23, z, G, rr(-.5, .5)); const k = new THREE.Mesh(new THREE.ConeGeometry(.13, .22, 6), sack); k.position.set(x, DECK + .55, z); G.add(k); cpush(x + .05, DECK + .64, z, 1); }
+
+  // instanced coins and gems (a couple of draw calls for hundreds of pieces)
+  try {
+    const d = new THREE.Object3D(), im = new THREE.InstancedMesh(new THREE.CylinderGeometry(.2, .2, .045, 10), gold, CO.length);
+    CO.forEach((c, i) => { d.position.set(c[0], c[1], c[2]); d.rotation.set(c[3], c[4], c[5]); d.scale.set(c[6], c[6], c[6]); d.updateMatrix(); im.setMatrixAt(i, d.matrix); });
+    im.frustumCulled = false; G.add(im);
+    const gg = new THREE.OctahedronGeometry(.12);
+    [0xe03a4a, 0x3a8ae8, 0x3ac878, 0xb04ae0].forEach((col, k) => { const L = GEM[k]; if (!L.length) return;
+      const gi = new THREE.InstancedMesh(gg, new THREE.MeshLambertMaterial({ color: col, emissive: col, emissiveIntensity: .35, flatShading: true }), L.length);
+      L.forEach((p, i) => { d.position.set(p[0], p[1], p[2]); d.rotation.set(rr(-.5, .5), rr(0, 6.28), rr(-.5, .5)); const s = rr(.8, 1.3); d.scale.set(s, s, s); d.updateMatrix(); gi.setMatrixAt(i, d.matrix); });
+      gi.frustumCulled = false; G.add(gi); });
+  } catch (e) { console.warn('qship coins', e); }
+
+  /* ---------- masts, sails, rigging ---------- */
+  const MX = 0, MZ = -1.0, FZ = -4.4;
+  bx(.32, 8.6, .32, wdD, MX, DECK + 4.3, MZ); bx(.26, 6.4, .26, wdD, 0, DECK + 3.2, FZ);
+  bx(1.5, .1, 1.5, wdD, 0, DECK + 7.2, MZ); for (const s of [-1, 1]) { bx(1.5, .5, .06, wdD, 0, DECK + 7.5, MZ + s * .72); bx(.06, .5, 1.5, wdD, s * .72, DECK + 7.5, MZ); }   // crow's nest
+  bx(5.4, .17, .17, wdD, 0, DECK + 6.7, MZ - .35); bx(4.0, .14, .14, wdD, 0, DECK + 5.4, FZ - .3);
+  for (const [i, x] of [[0, -1.75], [1, 0], [2, 1.75]]) { const zz = MZ - .35 + (i === 1 ? -.14 : .04), m = i === 1 ? cloth : clothD;
+    bx(1.78, 3.4, .07, m, x, DECK + 4.95, zz); if (i === 0) bx(.8, .9, .08, clothP, -1.9, DECK + 3.9, zz + .005); if (i === 2) bx(.7, .8, .08, clothP, 1.9, DECK + 5.6, zz + .005); }
+  bx(3.6, 2.4, .07, cloth, 0, DECK + 3.9, FZ - .3); bx(.7, .7, .08, clothP, 1.0, DECK + 3.4, FZ - .295);
+  // a big gold coin (with the square hole) on the main sail, both faces
+  for (const zz of [MZ - .35 - .14 - .05, MZ - .35 - .14 + .05]) {
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(.95, .95, .05, 20), goldB); c.rotation.x = Math.PI / 2; c.position.set(0, DECK + 4.95, zz); G.add(c);
+    bx(.42, .42, .06, cloth, 0, DECK + 4.95, zz + (zz < MZ - .5 ? -.02 : .02)); }
+  bx(3.4, 1.1, .06, clothD, 0, DECK + 7.35, MZ - .5); bx(3.6, .12, .12, wdD, 0, DECK + 7.95, MZ - .5);   // top sail
+  // pennant
+  { const f = new THREE.Group(); f.position.set(0, DECK + 8.5, MZ); G.add(f); bx(1.5, .55, .05, goldB, .75, 0, 0, f); bx(.5, .3, .06, red, .4, 0, 0, f); QS.flag = f; }
+  const top = [MX, DECK + 7.4, MZ], ftop = [0, DECK + 6.0, FZ];
+  for (const s of [-1, 1]) { line(top, [s * 2.3, 2.5, -3.6]); line(top, [s * 2.3, 2.5, 1.8]); line(ftop, [s * 1.3, 2.5, -6.3]); }
+  line(top, ftop); line(ftop, [0, 2.4, -10.5]);
+  // hanging lanterns on the gunwale
+  for (const [x, z] of [[2.35, -3.0], [-2.35, -3.0], [2.35, 1.0]]) { bx(.1, 1.0, .1, wdD, x, 2.95, z); bx(.28, .36, .28, lamp, x, 3.7, z); bx(.34, .06, .34, wdD, x, 3.92, z); }
+  // the sign above the ship
+  { const lab = labelSprite(T2('老钱的商船', "Old Qian's Ship"), '#ffd98a', 1.15); lab.position.set(0, DECK + 10.6, 1); G.add(lab); }
+
+  /* ---------- glow + sparkles ---------- */
+  try {
+    const tex = glowTex('rgba(255,222,120,.9)', 'rgba(255,190,60,.35)');
+    for (const [x, y, z, s] of [[.3, DECK + 1.3, 1.0, 7], [-1.0, DECK + 1.0, -2.6, 5], [.9, POOP + 1.4, 4.9, 3.6]]) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: .55, blending: THREE.AdditiveBlending })); sp.scale.set(s, s, 1); sp.position.set(x, y, z); sp.renderOrder = 5; G.add(sp); QS.glow.push({ sp, s, ph: rr(0, 6) }); }
+  } catch (e) { }
+  const sm = new THREE.MeshBasicMaterial({ color: 0xffeaa0 });
+  for (let i = 0; i < 18; i++) { const a = anchors[i % anchors.length], m = new THREE.Mesh(geo(.09, .09, .09), sm); m.position.set(a[0], a[1], a[2]); G.add(m);
+    QS.sp.push({ m, x: a[0] + rr(-.3, .3), y: a[1], z: a[2] + rr(-.3, .3), ph: rr(0, 1), sp: rr(.25, .5) }); }
+
+  /* ---------- the little jetty from the pier, and the gangplank to the ship ---------- */
+  { const J = new THREE.Group(); islandG.add(J);
+    const jz = QS_JETTY_Z, x0 = 1.6, x1 = 17.2, pm = (x) => mat((Math.round(x * 10) % 2) ? 0x9a7450 : 0x84603e);
+    for (let x = x0; x < x1; x += .7) bx(.6, .14, 3, pm(x), x, .3, jz, J);
+    for (let x = 11.5; x < 16.5; x += .7) { bx(.6, .14, 2.2, pm(x + .3), x, .31, jz + 2.6, J); bx(.6, .14, 2.2, pm(x), x, .31, jz - 2.6, J); }   // landing: a wider apron
+    const px = [3, 6, 9, 12, 15, 17];
+    for (const x of px) for (const s of [-1, 1]) bx(.24, 2, .24, mat(0x4a3420), x, -.4, jz + s * 1.6, J);
+    for (let i = 0; i < px.length - 1; i++) for (const s of [-1, 1]) { if (s < 0 && px[i] >= 12 && px[i] < 15) continue; bx(px[i + 1] - px[i], .1, .12, mat(0x5a3e28), (px[i] + px[i + 1]) / 2, .9, jz + s * 1.6, J); }   // (rail left open at the gangplank)
+    bx(.12, .1, 3.2, mat(0x5a3e28), 17, .9, jz, J);
+    // gangplank: from the jetty up to the ship's deck
+    const gz0 = jz - 1.7, gz1 = QS.rz + 2.5, gy0 = .38, gy1 = -.25 + DECK + .05, L = Math.hypot(gz1 - gz0, gy1 - gy0), gp = bx(1.1, .1, L, wdL, QS.rx + .3, (gy0 + gy1) / 2, (gz0 + gz1) / 2, J); gp.rotation.x = Math.asin((gy1 - gy0) / L);
+    for (let k = 1; k < 6; k++) { const t = k / 6; bx(1.1, .06, .08, wdD, QS.rx + .3, gy0 + (gy1 - gy0) * t + .06, gz0 + (gz1 - gz0) * t, J); }   // cleats
+    for (const s of [-1, 1]) { line([QS.rx + .3 + s * .6, gy0 + .7, gz0], [QS.rx + .3 + s * .6, gy1 + .7, gz1], null, .05, J); }
+    // a lantern post and a bollard at the landing
+    bx(.14, 1.8, .14, wdD, 16.6, 1.2, jz + 1.4, J); bx(.3, .38, .3, lamp, 16.6, 2.3, jz + 1.4, J); bx(.36, .06, .36, wdD, 16.6, 2.54, jz + 1.4, J);
+    bx(.3, .45, .3, iron, 12.2, .6, jz - 1.3, J); }
+})();
+/* ---------- per frame ---------- */
+function qshipTick(dt) {
+  const G = QS.g; if (!G) return; const t = S.t;
+  G.position.y = -.25 + Math.sin(t * 1.25 + 1.3) * .07; G.rotation.z = Math.sin(t * .9 + .4) * .018; G.rotation.x = Math.sin(t * 1.1) * .012;
+  if (QS.flag) QS.flag.rotation.y = Math.sin(t * 3.1) * .35;
+  if (QS.q) QS.q.scale.y = 1.12 * (1 + Math.sin(t * 1.8) * .012);
+  const talk = t < QS.talk;
+  if (QS.armR) QS.armR.rotation.z = talk ? -(1.9 + Math.sin(t * 9) * .35) : -(.12 + Math.sin(t * 1.3) * .04);
+  if (QS.armL) QS.armL.rotation.z = talk ? (.5 + Math.sin(t * 7) * .15) : (.1 + Math.sin(t * 1.1 + 1) * .03);
+  if (QS.head) QS.head.rotation.y = Math.sin(t * .7) * (talk ? .18 : .3);
+  for (const g of QS.glow) { g.sp.material.opacity = .42 + Math.sin(t * 2.2 + g.ph) * .14; }
+  for (const s of QS.sp) { const k = (t * s.sp + s.ph) % 1; s.m.position.set(s.x + Math.sin(t * 2 + s.ph * 9) * .12, s.y + k * 2.4, s.z); const sc = Math.max(.05, Math.sin(k * Math.PI)); s.m.scale.set(sc, sc, sc); s.m.rotation.y = t * 3 + s.ph; }
+}
+islandTick = (o => function (dt) { o(dt); try { qshipTick(dt); } catch (e) { if (!QS.err) { QS.err = 1; console.warn('qship tick', e); } } })(islandTick);
+
+/* ---------- the trade button ---------- */
+{ const H = $('hud'); if (H && H.appendChild) {
+  const b = document.createElement('button'); b.className = 'btn2'; b.id = 'bQship'; b.textContent = T2('💰 老钱的船 · 交易', "💰 Qian's Ship · Trade"); H.appendChild(b);
+  b.addEventListener('click', () => { if (!qshipNear()) return; try { audioInit(); } catch (e) { } QS.talk = S.t + 3;
+    try { burst(HOME.x + QS.rx - 4.9, 3.6, HOME.z + QS.rz - .5, 0xffd24a, 14, 2.4); sfx.pick(); } catch (e) { }
+    if (typeof openRelic === 'function') openRelic(); });
+  try { const st = document.createElement('style'); st.textContent = '#bQship{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--sb) + 96px);display:none;font-size:15px;border-color:#e8b830;background:linear-gradient(180deg,rgba(130,86,10,.94),rgba(62,36,6,.94));color:#ffe9a8;white-space:nowrap}'; document.head.appendChild(st); } catch (e) { } } }
+let _qsShown = false;
+portTick = (o => function () { o(); try { const n = qshipNear(); if (n !== _qsShown) { _qsShown = n; const b = $('bQship'); if (b) b.style.display = n ? 'block' : 'none';
+    if (n && S.t - QS.greet > 90) { QS.greet = S.t; QS.talk = S.t + 2.5; feed(T2('老钱：「来来来，多出来的收藏品拿来，我给你好价钱！」', 'Old Qian: "Come on over! Bring me your spare keepsakes, I pay well!"'), '#ffd98a'); } } } catch (e) { } })(portTick);
+
+/* the boat you sail around the island can't sail through his ship */
+boatTick = (o => function (dt) { o(dt); try { if (S.isl && S.boat) {
+  const x = player.pos.x - HOME.x, z = player.pos.z - HOME.z, X0 = QS.rx - 6.5 - 1.3, X1 = QS.rx + 8.3 + 1.3, Z0 = QS.rz - 2.4 - 1.3, Z1 = QS.rz + 2.4 + 1.3;
+  if (x > X0 && x < X1 && z > Z0 && z < Z1) { const dW = x - X0, dE = X1 - x, dN = z - Z0, m = Math.min(dW, dE, dN);
+    if (m === dW) player.pos.x = HOME.x + X0; else if (m === dE) player.pos.x = HOME.x + X1; else player.pos.z = HOME.z + Z0;
+    BOAT.x = player.pos.x; BOAT.z = player.pos.z; BOAT.lx = player.pos.x; BOAT.lz = player.pos.z; } } } catch (e) { } })(boatTick);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -16618,4 +16928,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794650555').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794654107').catch(()=>{});</script></body></html>
