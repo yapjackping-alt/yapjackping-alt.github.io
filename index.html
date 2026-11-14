@@ -14565,7 +14565,7 @@ function w3Extra(g) {
   for (const s of [-1, 1]) [[0x6a4ad8, .014, .02, .18], [0xb04aa8, .008, .045, .1], [0x2aa8c8, .006, -.01, .02]].forEach(([c, w, dy, sl]) => ribbon(s, c, w, dy, sl));
 
   // ---- 2. 土星：悬在枪身正中上方 ----
-  const R = Math.max(.07, Math.min(.1, sz.y * .38)), PL = new THREE.Group(); PL.position.set(ct.x, bb.max.y + R * .9, zAt(.42)); PL.rotation.z = .42; PL.rotation.x = .15; g.add(PL); o.PL = PL;
+  const R = Math.max(.07, Math.min(.1, sz.y * .38)), PL = new THREE.Group(); PL.position.set(ct.x, bb.max.y + R * .9, zAt(.42)); PL.rotation.z = .42; PL.rotation.x = .15; g.add(PL); o.PL = PL; PL.userData.fx = 1;
   const pg = new THREE.IcosahedronGeometry(R, 2), pp = pg.attributes.position, cols = new Float32Array(pp.count * 3), BAND = [0xf3e2b6, 0xd9b070, 0xb98a52, 0xe8cc98, 0xc89a5c, 0xf6e8c4], col = new THREE.Color(), LD = [-.5, .6, .62], ll = Math.hypot(...LD);
   for (let i = 0; i + 2 < pp.count; i += 3) {
     let nx = 0, ny = 0, nz = 0; for (let k = 0; k < 3; k++) { nx += pp.getX(i + k); ny += pp.getY(i + k); nz += pp.getZ(i + k); } nx /= 3 * R; ny /= 3 * R; nz /= 3 * R;
@@ -16006,8 +16006,8 @@ function coverCam(dt) {
   if (!COVER.sk && typeof SKINS !== 'undefined' && SKINS.myth) { COVER.sk = 1; COVER.prevSkin = S.skin; S.skin = 'myth'; try { redressPlayer(); } catch (e) { } }   // show off an outfit on the title screen
   if (!COVER.lh) { COVER.lh = 1; for (const l of labelSprite.all || []) { l.userData.cvis = l.visible; l.visible = false; } }
   // the camera: low, behind and to the left, drifting a little
-  camPos.set(px - 3.4 + Math.sin(T * .15) * .6, 2.1 + Math.sin(T * .22) * .15, pz + 6.2 + Math.cos(T * .12) * .4);
-  camera.position.copy(camPos); camera.lookAt(px - 5, 3.4, pz - 40);
+  camPos.set(px + 2.6 + Math.sin(T * .15) * .6, 2.1 + Math.sin(T * .22) * .15, pz + 6.2 + Math.cos(T * .12) * .4);
+  camera.position.copy(camPos); camera.lookAt(px - 12, 3.4, pz - 40);
   for (const c of COVER.cr) c.rotation.y += dt * .05; if (COVER.g2) COVER.g2.material.opacity = .75 + Math.sin(T * 1.6) * .15; 
   if (COVER.emb) try { COVER.emb.position.set(px, 0, pz); const p = COVER.emb.geometry.attributes.position; for (let i = 0; i < p.count; i++) { let y = p.getY(i) + dt * (.6 + (i % 5) * .15); if (y > 12) y = 0; p.setY(i, y); p.setX(i, p.getX(i) + Math.sin(T + i) * dt * .3); } p.needsUpdate = true; } catch (e) { }
   try { updateFx(dt); placeSky(camera); waterTick(dt); } catch (e) { }
@@ -16015,47 +16015,85 @@ function coverCam(dt) {
 function coverOff() { COVER.on = false; if (COVER.sk && S.skin === 'myth' && !(S.skins || []).includes('myth')) { S.skin = ''; try { redressPlayer(); } catch (e) { } } for (const l of labelSprite.all || []) if (l.userData.cvis !== undefined) { l.visible = l.userData.cvis; delete l.userData.cvis; } if (COVER.G) { scene.remove(COVER.G); COVER.G = null; } if (COVER.emb) { scene.remove(COVER.emb); COVER.emb = null; } }
 zSpecialTick = (o => function (dt) { if (COVER.on && S.started) coverOff(); o(dt); })(zSpecialTick);
 
-/* ---- the poster on the title screen: the outfits on direct sale (or, during a season, the season's skins) ----
-   To show a season instead: COVER_POSTER.mode = 'season' and list the skin keys in COVER_POSTER.season. */
-const COVER_POSTER = { mode: 'direct', season: [], i: 0 };
-function cvPosterList() {
-  const L = [], rn = { 5: ['神话', 'Mythic', '#ff4d8d'], 4: ['传说', 'Legendary', '#ffc94a'], 3: ['史诗', 'Epic', '#c28bff'] };
-  try {
-    if (COVER_POSTER.mode === 'season') COVER_POSTER.season.filter(k => SKINS[k]).forEach(k => L.push({ ic: 'skin:' + k, n: SKINS[k].n, r: SKINS[k].r, d: SKINS[k].stt || '', tag: T2('赛季限定', 'SEASON'), how: T2('赛季手册奖励', 'Season pass reward') }));
-    else {
-      SKIN_SHOP().forEach(k => L.push({ ic: 'skin:' + k, n: SKINS[k].n, r: SKINS[k].r, d: SKINS[k].stt || '', p: SKIN_PRICE[SKINS[k].r], tag: T2('限定直售', 'ON SALE'), how: T2('商城 · 外观直售', 'Shop · Outfits') }));
-      WSK_SHOP().forEach(([k, id]) => L.push({ ic: 'wsk:' + k + ':' + id, n: wskName(k, id), r: WSKINS[k].r, d: T2('武器外观', 'Weapon skin'), p: SKIN_PRICE[WSKINS[k].r], tag: T2('限定直售', 'ON SALE'), how: T2('商城 · 枪皮肤', 'Shop · Weapon skins') }));
-    }
-  } catch (e) { }
-  return L.map(x => Object.assign(x, { rk: rn[x.r] || rn[4] }));
+/* ---- the poster on the title screen: one still poster, drawn once ----
+   A close-up of the featured outfit (rendered from the real 3D model), a painted backdrop, the name and a few lines of story.
+   To feature another outfit later, add an entry to CV_PST and point CV_PST_ON at it. */
+const CV_PST = {
+  aster: { key: 'aster', col: '#e8b4ff', tag: ['传说 · 限定直售', 'LEGENDARY · ON SALE'], ttl: '银霭紫苑', en: 'ASTER IN THE SILVER MIST', yaw: .45, cam: [-1.0, 2.0, 2.9], span: 1.0,
+    story: [['灰雾里开出的最后一朵紫苑。', 'The last aster to bloom in the grey mist.'], ['她记得每一个没能回来的人，', 'She remembers everyone who never came back,'], ['也记得他们的名字。', 'and every one of their names.']] }
+};
+let CV_PST_ON = 'aster';
+// the 3D close-up (head and shoulders), on a transparent canvas
+function cvBust(P, W, H) {
+  const R = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true }); R.setPixelRatio(1); R.setSize(W, H, false); R.setClearColor(0, 0);
+  const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xc8c0ff, 0x2a1830, .6));
+  const l1 = new THREE.DirectionalLight(0xffd0f0, 1.5); l1.position.set(-3, 3, -4); sc.add(l1);           // pink rim from the moon side
+  const l2 = new THREE.DirectionalLight(0xb8a8ff, 1.0); l2.position.set(3.5, 2, -3); sc.add(l2);
+  const l3 = new THREE.DirectionalLight(0xfff0e8, .9); l3.position.set(1.5, 2.5, 4); sc.add(l3);
+  const h = makeHuman({ skin: 0xe0b090, shirt: 0x2d6f7a, pants: 0x2a2a33 }), s0 = S.skin;
+  try { S.skin = P.key; dressPlayer(h); outfitOn(h, {}); } catch (e) { } finally { S.skin = s0; }
+  h.g.rotation.y = P.yaw; sc.add(h.g); h.g.updateMatrixWorld(true);
+  const hb = new THREE.Box3().setFromObject(h.head), hv = new THREE.Vector3(); h.head.getWorldPosition(hv);
+  const hBot = hv.y - .25, yTop = Math.min(hb.max.y, hBot + 1.0) + (P.tm || .3), V = (yTop - (hBot - (P.span || .55))) / .64, cy = yTop - V / 2;
+  const cam = new THREE.PerspectiveCamera(30, W / H, .05, 200), dir = new THREE.Vector3(P.cam[0], 0, P.cam[2]).normalize(), dist = (V / 2) / Math.tan(15 * Math.PI / 180);
+  cam.position.set(dir.x * dist, cy - .15, dir.z * dist); cam.lookAt(0, cy, 0);
+  R.render(sc, cam); const out = document.createElement('canvas'); out.width = W; out.height = H; out.getContext('2d').drawImage(R.domElement, 0, 0);
+  try { R.dispose(); R.forceContextLoss(); } catch (e) { } return out;
 }
-function cvPoster() { const el = $('cvPoster'); if (!el) return; const L = cvPosterList(); if (!L.length) { el.style.display = 'none'; return; }
-  const x = L[COVER_POSTER.i % L.length]; el.style.setProperty('--pc', x.rk[2]);
-  el.innerHTML = '<div class="cvPt"><em>' + x.tag + '</em><small>' + x.how + '</small></div><div class="cvPf">' + icHtml(x.ic, 'fig') + '</div>' +
-    '<div class="cvPn"><b>' + x.n + '</b><i>' + T2(x.rk[0], x.rk[1]) + '</i></div><div class="cvPd">' + String(x.d).slice(0, 34) + '</div>' +
-    '<div class="cvPb">' + (x.p ? '<span>' + skPrice(x.p) + '</span>' : '<span></span>') + '<small>' + T2('进入游戏后在商城购买', 'Buy it in the shop') + '</small></div>' +
-    (L.length > 1 ? '<div class="cvPdots">' + L.map((_, i) => '<i class="' + (i === COVER_POSTER.i % L.length ? 'on' : '') + '"></i>').join('') + '</div>' : ''); }
+function cvPosterPaint(id) {
+  const P = CV_PST[id], W = 600, H = 840, c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+  let sd = 11; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  // a silver-violet night sky
+  let g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0e0a1c'); g.addColorStop(.35, '#2a2048'); g.addColorStop(.62, '#6a5488'); g.addColorStop(.8, '#b892b4'); g.addColorStop(1, '#2a1a2a'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  for (let i = 0; i < 120; i++) { x.fillStyle = 'rgba(255,245,255,' + (.2 + rnd() * .7) + ')'; x.fillRect(rnd() * W, rnd() * H * .5, rnd() < .1 ? 2 : 1, rnd() < .1 ? 2 : 1); }
+  // a huge pale moon behind her, with a halo
+  const mx = W * .64, my = H * .3, mr = 150;
+  g = x.createRadialGradient(mx, my, mr * .8, mx, my, mr * 2.6); g.addColorStop(0, 'rgba(255,230,255,.45)'); g.addColorStop(1, 'rgba(200,170,255,0)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  g = x.createRadialGradient(mx - 30, my - 30, 10, mx, my, mr); g.addColorStop(0, '#fffaff'); g.addColorStop(.7, '#f2e2f6'); g.addColorStop(1, '#d8c4e8'); x.fillStyle = g; x.beginPath(); x.arc(mx, my, mr, 0, 7); x.fill();
+  x.globalAlpha = .12; x.fillStyle = '#9a86b8'; for (let i = 0; i < 9; i++) { x.beginPath(); x.arc(mx + (rnd() - .5) * mr * 1.4, my + (rnd() - .5) * mr * 1.4, 8 + rnd() * 26, 0, 7); x.fill(); } x.globalAlpha = 1;
+  // far ruins in the mist, then layers of silver fog
+  const ridge = (y0, hgt, col, step) => { x.fillStyle = col; x.beginPath(); x.moveTo(0, H); let px = 0; while (px < W) { const bw = step * (.6 + rnd()), bh = hgt * (.3 + rnd()); x.lineTo(px, y0 - bh); if (rnd() < .25) { x.lineTo(px + bw * .4, y0 - bh - hgt * .4); x.lineTo(px + bw * .5, y0 - bh); } x.lineTo(px + bw, y0 - bh); px += bw; } x.lineTo(W, H); x.closePath(); x.fill(); };
+  ridge(H * .7, 90, 'rgba(70,56,98,.75)', 46);
+  for (let i = 0; i < 3; i++) { g = x.createLinearGradient(0, H * (.56 + i * .07), 0, H * (.72 + i * .07)); g.addColorStop(0, 'rgba(230,215,245,0)'); g.addColorStop(.5, 'rgba(230,215,245,' + (.28 - i * .05) + ')'); g.addColorStop(1, 'rgba(230,215,245,0)'); x.fillStyle = g; x.fillRect(0, 0, W, H); }
+  ridge(H * .8, 60, 'rgba(36,26,52,.92)', 34);
+  // her
+  x.drawImage(cvBust(P, W, H), 0, 0);
+  // asters in the foreground, petals drifting across
+  const flower = (fx, fy, r, col) => { x.save(); x.translate(fx, fy); for (let k = 0; k < 14; k++) { x.rotate(Math.PI * 2 / 14); x.fillStyle = col; x.beginPath(); x.ellipse(r * .55, 0, r * .55, r * .14, 0, 0, 7); x.fill(); } x.fillStyle = '#ffd86a'; x.beginPath(); x.arc(0, 0, r * .2, 0, 7); x.fill(); x.restore(); };
+  for (let i = 0; i < 16; i++) { const fx = rnd() * W, fy = H * (.86 + rnd() * .12), r = 9 + rnd() * 16; x.strokeStyle = 'rgba(40,60,40,.8)'; x.lineWidth = 2; x.beginPath(); x.moveTo(fx, fy); x.lineTo(fx + (rnd() - .5) * 10, H); x.stroke(); flower(fx, fy, r, ['#c8a0f0', '#e0b8ff', '#a888e0', '#f0c8f0'][i % 4]); }
+  for (let i = 0; i < 40; i++) { x.save(); x.translate(rnd() * W, rnd() * H * .85); x.rotate(rnd() * 6); x.globalAlpha = .4 + rnd() * .5; x.fillStyle = rnd() < .5 ? '#e8c8ff' : '#ffd0ec'; x.beginPath(); x.ellipse(0, 0, 3 + rnd() * 4, 1.3 + rnd() * 1.5, 0, 0, 7); x.fill(); x.restore(); }
+  x.globalAlpha = 1;
+  // darken the bottom for the words, a soft vignette
+  g = x.createLinearGradient(0, H * .6, 0, H); g.addColorStop(0, 'rgba(14,8,22,0)'); g.addColorStop(.5, 'rgba(14,8,22,.72)'); g.addColorStop(1, 'rgba(14,8,22,.95)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  g = x.createRadialGradient(W / 2, H * .42, W * .35, W / 2, H * .42, W); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(10,4,20,.55)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  // the words
+  const F = '"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif', ls = v => { try { x.letterSpacing = v; } catch (e) { } };
+  x.fillStyle = P.col; x.font = '800 15px ' + F; ls('4px'); x.fillText(T2(P.tag[0], P.tag[1]), 34, 52); x.fillRect(34, 62, 46, 2);
+  x.fillStyle = 'rgba(255,240,255,.55)'; x.font = '700 12px ' + F; x.fillText('EMBERFALL', W - 122, 52);
+  x.font = '900 74px ' + F; ls('6px'); g = x.createLinearGradient(0, H * .73, 0, H * .81); g.addColorStop(0, '#ffffff'); g.addColorStop(1, P.col); x.fillStyle = g; x.shadowColor = 'rgba(120,60,180,.7)'; x.shadowBlur = 18; x.fillText(T2(P.ttl, P.ttl), 34, H * .8); x.shadowBlur = 0;
+  x.font = '700 12px ' + F; ls('5px'); x.fillStyle = 'rgba(240,220,255,.75)'; x.fillText(P.en, 38, H * .8 + 26);
+  x.font = '500 18px ' + F; ls('1px'); x.fillStyle = '#efe4f6'; P.story.forEach((l, i) => x.fillText(T2(l[0], l[1]), 38, H * .8 + 62 + i * 28));
+  x.strokeStyle = P.col; x.globalAlpha = .5; x.lineWidth = 1.5; x.strokeRect(14, 14, W - 28, H - 28); x.globalAlpha = 1;
+  return c;
+}
+function cvPoster() { const el = $('cvPoster'); if (!el || el._done) return; el._done = 1;
+  try { const c = cvPosterPaint(CV_PST_ON); const im = new Image(); im.alt = CV_PST[CV_PST_ON].ttl; im.src = c.toDataURL('image/jpeg', .9); el.appendChild(im); }
+  catch (e) { console.warn('poster', e); el.style.display = 'none'; } }
 
 /* ---- the title card on top of the scene ---- */
 (() => { try {
   const st = $('start'); if (!st || !st.querySelector) return; const go = $('goStart'); st.classList.add('cv');
   const L = document.createElement('div'); L.className = 'cvL';
   L.innerHTML = '<div class="cvEn">EMBERFALL</div><h1 class="cvH">余烬末日</h1><i class="cvLn"></i>' +
-    '<div class="cvP" id="cvPoster"></div>';
+    '';
   [...st.children].forEach(c => { if (c !== go) c.style.display = 'none'; });
   st.insertBefore(L, st.firstChild);
   const B = document.createElement('div'); B.className = 'cvB'; st.appendChild(B); if (go) B.appendChild(go);
   const tip = document.createElement('small'); tip.className = 'cvTip'; tip.textContent = T2('点击开始', 'Tap to start'); B.appendChild(tip);
-  setTimeout(cvPoster, 0); setInterval(() => { if (!S.started && $('start') && $('start').classList.contains('show')) { COVER_POSTER.i++; cvPoster(); } }, 4500);
+  const PO = document.createElement('div'); PO.className = 'cvP'; PO.id = 'cvPoster'; st.appendChild(PO); setTimeout(cvPoster, 60);
   const css = document.createElement('style'); css.textContent =
-    '.cvP{position:relative;width:280px;padding:14px 14px 12px;border-radius:6px;clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);background:radial-gradient(ellipse at 50% 38%,color-mix(in srgb,var(--pc,#ffc94a) 30%,transparent),transparent 62%),linear-gradient(170deg,rgba(36,14,22,.92),rgba(10,4,8,.94));box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--pc,#ffc94a) 70%,transparent),0 10px 34px rgba(0,0,0,.5)}' +
-    '.cvP::before,.cvP::after{content:"";position:absolute;width:22px;height:22px;border:2px solid #ffd27a}.cvP::before{left:5px;top:5px;border-right:0;border-bottom:0}.cvP::after{right:5px;bottom:5px;border-left:0;border-top:0}' +
-    '.cvPt{display:flex;align-items:center;justify-content:space-between;gap:8px}.cvPt em{font-style:normal;font-size:11px;font-weight:900;letter-spacing:.18em;color:#2a1004;padding:3px 10px;background:linear-gradient(180deg,#ffe6a0,#ffa040);clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%)}.cvPt small{font-size:10.5px;color:#d8b890;letter-spacing:.1em}' +
-    '.cvPf{height:190px;display:flex;align-items:center;justify-content:center;margin:6px 0 2px;filter:drop-shadow(0 0 18px color-mix(in srgb,var(--pc) 60%,transparent));animation:cvFloat 3.2s ease-in-out infinite}.cvPf img,.cvPf svg,.cvPf .ic{max-height:190px;max-width:220px;width:auto;height:190px}@keyframes cvFloat{50%{transform:translateY(-5px)}}' +
-    '.cvPn{display:flex;align-items:baseline;gap:8px}.cvPn b{font-size:22px;letter-spacing:.08em;background:linear-gradient(180deg,#fff4d0,var(--pc));-webkit-background-clip:text;background-clip:text;color:transparent}.cvPn i{font-style:normal;font-size:11px;font-weight:800;padding:1px 7px;border-radius:4px;color:#1a0a04;background:var(--pc)}' +
-    '.cvPd{font-size:11.5px;color:#d8c0a8;margin:3px 0 7px;min-height:15px}.cvPb{display:flex;align-items:center;justify-content:space-between}.cvPb span{display:flex;align-items:center;gap:4px;font:900 17px var(--font-hud,sans-serif);color:#bff0ff}.cvPb span .skgem img,.cvPb span .skgem svg{width:16px;height:16px}.cvPb small{font-size:10.5px;color:#c8a890}' +
-    '.cvPdots{display:flex;gap:5px;justify-content:center;margin-top:8px}.cvPdots i{width:16px;height:3px;border-radius:2px;background:rgba(255,220,160,.25)}.cvPdots i.on{background:#ffd27a}' +
-    '@media (max-height:520px){.cvPf{height:120px}.cvPf img,.cvPf svg,.cvPf .ic{height:120px}.cvP{width:250px;padding:10px 12px}}' +
+    '.cvP{position:absolute;right:max(4vw,env(safe-area-inset-right));top:50%;transform:translateY(-50%);height:min(74vh,500px);aspect-ratio:600/840;box-shadow:0 14px 40px rgba(0,0,0,.55),0 0 0 1px rgba(232,180,255,.35);border-radius:4px;overflow:hidden;pointer-events:none}.cvP img{display:block;width:100%;height:100%}' +
+    '@media (orientation:portrait){.cvP{top:auto;bottom:18vh;right:50%;transform:translateX(50%);height:min(46vh,420px)}}' +
     '#start.cv{align-items:stretch;justify-content:center;background:linear-gradient(90deg,rgba(12,4,6,.82) 0%,rgba(12,4,6,.45) 38%,rgba(12,4,6,0) 62%),linear-gradient(0deg,rgba(12,4,6,.55),rgba(12,4,6,0) 30%);text-align:left;padding:0 0 0 max(5vw,env(safe-area-inset-left))}' +
     '.cvL{display:flex;flex-direction:column;align-items:flex-start;gap:6px;max-width:380px}' +
     '.cvEn{font-family:var(--font-hud);letter-spacing:.62em;font-size:12px;color:#ffb070;font-weight:700}' +
@@ -16065,7 +16103,7 @@ function cvPoster() { const el = $('cvPoster'); if (!el) return; const L = cvPos
     '.cvNh{display:flex;align-items:center;gap:8px;margin-bottom:5px}.cvNh em{font-style:normal;font-size:10.5px;font-weight:900;color:#2a1004;padding:2px 8px;border-radius:5px;background:linear-gradient(180deg,#ffe6a0,#ffa040);letter-spacing:.1em}.cvNh b{color:#ffe0b0;font-size:15px;letter-spacing:.06em}' +
     '.cvRow{display:flex;align-items:center;gap:10px;padding:5px 2px;border-top:1px solid rgba(255,200,140,.12)}.cvRow span{display:flex;flex-direction:column}.cvRow b{color:#fff0dc;font-size:13px}.cvRow small{color:#c8a890;font-size:11px;margin-top:1px}' +
     '.cvGem{flex:none;width:22px;height:22px;transform:rotate(45deg);border:1.5px solid #ffd27a;border-radius:3px;box-shadow:0 0 10px var(--gc)}.cvGem.g{--gc:rgba(154,255,106,.6);background:linear-gradient(135deg,#d8ffb0,#5aa02a)}.cvGem.o{--gc:rgba(255,140,60,.7);background:linear-gradient(135deg,#ffd8a0,#e8501a)}.cvGem.b{--gc:rgba(140,220,255,.6);background:linear-gradient(135deg,#e0f8ff,#3a9ad8)}' +
-    '.cvB{position:absolute;left:58%;bottom:max(7%,calc(env(safe-area-inset-bottom) + 14px));transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:7px}' +
+    '.cvB{position:absolute;left:max(5vw,env(safe-area-inset-left));bottom:max(7%,calc(env(safe-area-inset-bottom) + 14px));display:flex;flex-direction:column;align-items:center;gap:7px}' +
     '#start.cv #goStart{font-size:19px;letter-spacing:.32em;padding:13px 50px 13px 58px;border-radius:8px;clip-path:polygon(12px 0,100% 0,calc(100% - 12px) 100%,0 100%);box-shadow:0 0 26px rgba(255,140,40,.55)}' +
     '.cvTip{color:#e8c8a8;font-size:11px;letter-spacing:.4em;opacity:.75;animation:cvBlink 2.4s ease-in-out infinite}@keyframes cvBlink{50%{opacity:.3}}' +
     '@media (orientation:portrait){#start.cv{padding:12vh 0 0 6vw;justify-content:flex-start}.cvNews{width:min(330px,86vw)}}';
@@ -16389,7 +16427,7 @@ if (IS_PC) window.addEventListener('keydown', e => {
 
 /* ---- on a computer: hide the on-screen buttons (the keys do everything); a strip at the bottom says what E does right now ---- */
 let PCHIDE = false; try { PCHIDE = localStorage.getItem('ember_hidebtn') === '1'; } catch (e) { }
-const PCHIDE_IDS = ['bMore', 'bHelp', 'bTitle', 'bHave', 'foodRow', 'bChat', 'chatLog', 'bFire', 'bReload', 'bMed', 'bSprint', 'bRoll', 'bSkill', 'bGather', 'bFish', 'bBoat', 'bRecall', 'bBuild', 'bBag', 'bQuest', 'bHub', 'bMall', 'bChat', 'bView', 'bPet', 'bComp', 'stickzone', 'stickidle', 'stickbase', 'stickknob'].concat(KE_LIST);
+const PCHIDE_IDS = ['bFire', 'bReload', 'bMed', 'bSprint', 'bRoll', 'bSkill', 'bGather', 'bFish', 'bBoat', 'bRecall', 'bSwap', 'stickzone', 'stickidle', 'stickbase', 'stickknob'].concat(KE_LIST);   // only the action buttons (move, run, roll, fire …); map, bag, shop, tasks stay
 function pcHidePaint() {
   const on = IS_PC && PCHIDE && S.started; document.body.classList.toggle('pcHide', on);
   for (const id of PCHIDE_IDS) { const b = $(id); if (b && b.classList) b.classList.toggle('pch', on); }
@@ -16406,13 +16444,11 @@ function pcHidePaint() {
 if (IS_PC) {
   setInterval(() => { try { pcHidePaint(); } catch (e) { } }, 250);
   renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!box) return; const r = document.createElement('div'); r.className = 'setrow';
-    r.innerHTML = '<span>' + T2('只用键盘：隐藏所有按钮（只留血量和经验）', 'Keyboard only: hide every button (keep health and XP)') + '</span><div class="opts"><button class="sbtn' + (PCHIDE ? ' on' : '') + '" data-v="1">' + T2('隐藏', 'Hide') + '</button><button class="sbtn' + (PCHIDE ? '' : ' on') + '" data-v="0">' + T2('显示', 'Show') + '</button></div>';
+    r.innerHTML = '<span>' + T2('隐藏操作按钮（跑、翻滚、攻击等，用键盘操作）', 'Hide action buttons (run, roll, fire … use the keyboard)') + '</span><div class="opts"><button class="sbtn' + (PCHIDE ? ' on' : '') + '" data-v="1">' + T2('隐藏', 'Hide') + '</button><button class="sbtn' + (PCHIDE ? '' : ' on') + '" data-v="0">' + T2('显示', 'Show') + '</button></div>';
     r.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { PCHIDE = b.dataset.v === '1'; try { localStorage.setItem('ember_hidebtn', PCHIDE ? '1' : '0'); } catch (e) { } pcHidePaint(); renderSettings(); }));
     box.appendChild(r); } catch (e) { console.warn(e); } })(renderSettings);
   try { const st = document.createElement('style'); st.textContent =
     '.pch{opacity:0!important;pointer-events:none!important}' +
-    // keyboard-only: nothing on screen but the health / XP panel (and messages); everything else is on a key
-    'body.pcHide #hud>*:not(#left):not(#banner):not(#streak):not(#evTxt):not(#houseTxt):not(#build),body.pcHide #left>*:not(#status):not(#bossbox):not(#feed),body.pcHide #keyHint,body.pcHide #dunObj,body.pcHide #storyTrk{opacity:0!important;pointer-events:none!important}' +
     '#eHint{display:none;position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 18px);transform:translateX(-50%);z-index:8;gap:10px;pointer-events:none}' +
     '#eHint span{display:flex;align-items:center;gap:6px;padding:5px 12px 5px 6px;border-radius:9px;background:rgba(10,8,14,.78);border:1px solid rgba(255,214,140,.45);color:#ffe9c8;font-size:13px;font-weight:700;white-space:nowrap}' +
     '#eHint kbd{min-width:20px;height:20px;padding:0 4px;box-sizing:border-box;border-radius:5px;background:#ffd27a;color:#2a1004;font:900 12px/20px var(--font-hud,sans-serif);text-align:center}';
@@ -16432,6 +16468,9 @@ function fpvBuild() {
   const melee = isMelee(), W = buildWeapon(S.wp, wTier(Math.max(1, wLv(S.wp))));
   const hold = new THREE.Group(); g.add(hold); hold.add(W);
   W.traverse(o => { if (o.isMesh) { o.renderOrder = 5; o.frustumCulled = false; } });
+  // the skin's glow, sparkles, orbiting planets and other effects would fill the screen this close to the eye: keep only the weapon itself
+  W.traverse(o => { if (o === W) return; const m = o.material, fx = o.isPoints || o.isSprite || o.isLine || (m && !Array.isArray(m) && (m.blending === THREE.AdditiveBlending || (m.transparent && m.opacity < .85)));
+    if (fx || (o.userData && (o.userData.fx || o.userData.spin || o.userData.orbit))) o.visible = false; });
   const muzzle = W.userData.muzzle || .7;
   // size each weapon by its real length: pistols small, rifles long
   let D = 1; try { const bb = new THREE.Box3().setFromObject(W), sz = new THREE.Vector3(); bb.getSize(sz); D = Math.max(.2, sz.x, sz.y, sz.z); } catch (e) { }
@@ -17449,4 +17488,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794663672').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794669401').catch(()=>{});</script></body></html>
