@@ -16830,14 +16830,15 @@ try { const st = document.createElement('style'); st.textContent = '#bkPanel .sn
 } catch (e) { } })();
 /* ============ 资源商店: buy resources with gems, as many times as you like ============
    Real money only ever buys 晶石 (the Google Play packs); everything here costs 晶石.
-   Prices are checked against the island merchant (1000 余烬币 = 30 晶石 here, so 1 晶石 ≈ 33 币): about 1.5× the coin price;
+   Prices are checked against the island merchant (1000 余烬币 = 50 晶石 here, so 1 晶石 ≈ 20 币): about 1.5× the coin price;
    ammo is kept dear on purpose (it should stay scarce); relic coins are capped at 5 packs a week (they're the dungeon currency).
    Not sold on purpose: boss seals, collectibles, immortal gear. */
+// (no loop: nothing bought here sells to a villager — even a generous one, ×1.8 — for more coins per gem than buying coins directly)
 const GSHOP = [
-  // [item, amount per pack, price in gems, shelf]   priced against the island merchant: 1000 余烬币 = 30 晶石, so 1 晶石 ≈ 33 币,
+  // [item, amount per pack, price in gems, shelf]   priced against the island merchant: 1000 余烬币 = 50 晶石, so 1 晶石 ≈ 20 币,
   // and every pack costs about 1.5× what the same thing costs in coins (buying with gems is the convenient way, not the cheap way)
-  ['coin', 1000, 30, 'c'], ['relic', 100, 150, 'c'],
-  ['wood', 100, 10, 'm'], ['stone', 100, 8, 'm'], ['metal', 100, 20, 'm'], ['powder', 20, 15, 'm'], ['circuit', 10, 20, 'm'],
+  ['coin', 1000, 50, 'c'], ['relic', 100, 150, 'c'],
+  ['wood', 100, 10, 'm'], ['stone', 100, 8, 'm'], ['metal', 100, 30, 'm'], ['powder', 20, 16, 'm'], ['circuit', 10, 20, 'm'],
   ['ammo', 100, 20, 'b'], ['med', 10, 18, 'b'], ['estone', 10, 60, 'b'],
   ['steel', 5, 40, 'r'], ['serum', 5, 50, 'r'], ['crystal', 1, 60, 'r'], ['heart', 1, 90, 'r'], ['core', 1, 105, 'r']
 ];
@@ -16878,7 +16879,7 @@ renderMall = (o => function () {
           '<button class="sbtn gs1">' + skPrice(p) + '</button><button class="sbtn ghostb gs10">' + T2('10 份 · ', '×10 · ') + (p * 10) + '</button>';
         c.querySelector('.gs1').addEventListener('click', e => gsBuy(i, 1, e.currentTarget)); c.querySelector('.gs10').addEventListener('click', e => gsBuy(i, 10, e.currentTarget)); g.appendChild(c); });
       box.appendChild(g); }
-    const n2 = document.createElement('div'); n2.className = 'snote'; n2.textContent = T2('价格按海岛商人的价钱算（1000 余烬币 = 30 晶石），用晶石买大约贵 1.5 倍，图的是方便。首领印记、收藏品、不朽装备不卖，只能自己打出来。', 'Priced against the island merchant (1000 coins = 30 gems); gems cost about 1.5× more, for convenience. Boss seals, collectibles and immortal gear are never sold.'); box.appendChild(n2);
+    const n2 = document.createElement('div'); n2.className = 'snote'; n2.textContent = T2('价格按海岛商人的价钱算（1000 余烬币 = 50 晶石），用晶石买大约贵 1.5 倍，图的是方便。首领印记、收藏品、不朽装备不卖，只能自己打出来。', 'Priced against the island merchant (1000 coins = 50 gems); gems cost about 1.5× more, for convenience. Boss seals, collectibles and immortal gear are never sold.'); box.appendChild(n2);
   } catch (e) { console.warn('gem shop', e); }
 })(renderMall);
 try { const st = document.createElement('style'); st.textContent =
@@ -18085,4 +18086,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794675965').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794676420').catch(()=>{});</script></body></html>
