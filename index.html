@@ -16848,13 +16848,14 @@ try { const st = document.createElement('style'); st.textContent = '#bkPanel .sn
      After floors 5, 10, 15 … you may leave with the rewards or keep going (dying only pays up to the last 5th floor you passed).
    - Cards change how you fight (burning, freezing, chains, explosions, weapon-only tricks). Every card rolls a quality
      普通 / 稀有 / 史诗 / 传说 / 神话: the higher, the stronger the same card is. Some cards only show up once you hold their partners.
-   - Nothing in the run touches your save: ammo is endless, stamina is full, medkits and food are not used, the weapon comes back,
-     monsters drop nothing and give no XP. Rewards come at the end: one-time milestones, plus coins for your first 3 runs each week.
+   - Nothing in the run touches your save: ammo is endless, stamina is full, medkits and food are not used, the weapon comes back.
+     Monsters drop only 深渊币 (S.abyss.ac, kept even if you fall) and give no XP; nothing from the outside world touches them, all chase you.
+     Rewards at the end: first-clear rewards per milestone floor (XP, coins, gems, 深渊币), plus coins + XP for your first 3 runs each week.
    Save: S.abyss = { best, bestBy:{weapon:floor}, wk, runs, claimed:{} }. */
 const ABY_ID = 9, ABY_MINLV = 20, ABY_R = 21;
 const ABY = { on: false, wp: '', floor: 0, cards: {}, picks: [], rer: 2, queue: 0, state: '', spawnLeft: 0, shield: 0, revive: 0, snap: null, result: null,
   t: 0, shots: 0, swings: 0, kills: 0, p: false, fx: false, fl: {}, fires: [], booms: 0, heal: 0, healT: 0 };
-S.abyss = { best: 0, bestBy: {}, wk: '', runs: 0, claimed: {} };
+S.abyss = { best: 0, bestBy: {}, wk: '', runs: 0, claimed: {}, ac: 0 };
 const ABY_Q = [['普通', '#e6e6e6', 1], ['稀有', '#5aa9ff', 1.3], ['史诗', '#c28bff', 1.65], ['传说', '#ffc94a', 2.05], ['神话', '#ff4d8d', 2.6]];
 const ABY_QP = [.34, .27, .19, .12, .08];   // 神话 is not rare on purpose: about 1 card in 12
 const ABY_TAG = { 火: '#ff7a3a', 冰: '#7fd8ff', 电: '#ffe14a', 血: '#ff4a5a', 爆: '#ffa040', 穿: '#c0c8d8', 技: '#9a7aff' };
@@ -16937,6 +16938,78 @@ const ABY_C = [
 ];
 const ABYC = {}; ABY_C.forEach(c => { ABYC[c.id] = c; });
 const ABY_FILL = [{ id: '_heal', n: '喘口气', t: '', d: '立刻回复 40% 生命', fill: 1 }, { id: '_shield', n: '临时护盾', t: '', d: '这一层多一个 30% 最大生命的护盾', fill: 1 }];
+/* ---- one drawn icon per card (white lines on a coloured disc; never emoji) ---- */
+const ABY_IC = {
+  burn: '<path d="M24 5c7 9 13 13 13 23a13 13 0 0 1-26 0c0-6 4-10 6-15 2 5 3 8 7 9-3-6-1-12 0-17z"/><path d="M24 30c3 3 4 5 4 7a4 4 0 0 1-8 0c0-2 2-4 4-7z" fill="#fff"/>',
+  frost: '<path d="M24 5v38M7.5 14.5l33 19M7.5 33.5l33-19M19 8l5 5 5-5M19 40l5-5 5 5M7 21l7-2-2-7M41 27l-7 2 2 7M7 27l7 2-2 7M41 21l-7-2 2-7"/>',
+  leech: '<path d="M24 5c6 9 13 15 13 23a13 13 0 0 1-26 0c0-8 7-14 13-23z"/><path d="M24 22v13M17.5 28.5h13"/>',
+  aegis: '<path d="M24 5l15 6v11c0 10-7 17-15 21-8-4-15-11-15-21V11z"/><path d="M24 12v25M15 20h18"/>',
+  arc: '<path d="M27 4L11 27h11l-4 17 19-25H26z" fill="#fff" stroke="none"/>',
+  boom: '<path d="M24 4l4 10 10-5-4 11 10 4-10 4 4 11-10-5-4 10-4-10-10 5 4-11-10-4 10-4-4-11 10 5z"/><circle cx="24" cy="24" r="4" fill="#fff"/>',
+  bleed: '<path d="M16 6c4 6 7 9 7 13a7 7 0 0 1-14 0c0-4 3-7 7-13zM32 18c4 6 7 9 7 13a7 7 0 0 1-14 0c0-4 3-7 7-13zM17 30c3 4 5 7 5 9a5 5 0 0 1-10 0c0-2 2-5 5-9z"/>',
+  echo: '<path d="M10 38l12-12M14 24a10 10 0 0 1 10-10M14 33a19 19 0 0 1 19-19M14 42a28 28 0 0 1 28-28"/><circle cx="10" cy="38" r="3" fill="#fff"/>',
+  counter: '<path d="M8 24h20M20 15l9 9-9 9"/><path d="M38 8v32"/><path d="M33 12l5-4 5 4"/>',
+  burst: '<path d="M6 11h17l7 3-7 3H6zM6 21h21l7 3-7 3H6zM6 31h17l7 3-7 3H6z"/><path d="M38 12v24" stroke-dasharray="3 4"/>',
+  undying: '<ellipse cx="24" cy="14" rx="7" ry="9"/><path d="M24 23v20M15 31h18"/>',
+  gamble: '<rect x="7" y="7" width="22" height="22" rx="4"/><path d="M33 17l8 4-6 18-18-6 2-6"/><circle cx="13" cy="13" r="2" fill="#fff"/><circle cx="18" cy="18" r="2" fill="#fff"/><circle cx="23" cy="23" r="2" fill="#fff"/>',
+  luck: '<path d="M24 5l5.6 11.4 12.6 1.8-9.1 8.9 2.2 12.5L24 33.7 12.7 39.6l2.2-12.5-9.1-8.9 12.6-1.8z"/>',
+  heavy: '<path d="M17 18a7 7 0 1 1 14 0"/><path d="M11 18h26l3 23H8z"/><path d="M15 30h18"/>',
+  light: '<path d="M39 7C21 9 12 21 11 40M11 40l9-9M16 32h11M20 26h11M25 19h9M30 13h6"/>',
+  rapid: '<path d="M7 11l12 13-12 13M20 11l12 13-12 13M33 11l9 13-9 13"/>',
+  wall: '<path d="M6 10h36v28H6zM6 19.5h36M6 28.5h36M18 10v9.5M30 10v9.5M12 19.5v9M24 19.5v9M36 19.5v9M18 28.5V38M30 28.5V38"/>',
+  firesea: '<path d="M4 38c4-4 8 4 12 0s8 4 12 0 8 4 12 0 4 0 4 0"/><path d="M14 30c-3-4 0-8 2-12 1 3 3 4 3 7a5 5 0 0 1-5 5zM30 30c-3-5 1-10 3-15 1 4 4 6 4 10a6 6 0 0 1-7 5z"/>',
+  storm: '<path d="M14 26a8 8 0 0 1 1-16 11 11 0 0 1 21 3 7 7 0 0 1-1 13z"/><path d="M24 26l-6 9h7l-3 9 9-12h-7l3-6" fill="#fff"/>',
+  shatter: '<path d="M24 4l14 20-14 20-14-20z"/><path d="M24 4l-3 12 6 6-5 8 2 14M10 24l11-8M38 24l-11-2"/>',
+  rite: '<path d="M14 8h20l-3 14a7 7 0 0 1-14 0z"/><path d="M24 29v8M16 41h16M18 41l2-4h8l2 4"/><path d="M24 12c2 3 3 4 3 6a3 3 0 0 1-6 0c0-2 1-3 3-6z" fill="#fff"/>',
+  chain: '<rect x="4" y="17" width="20" height="13" rx="6.5" transform="rotate(-30 14 23.5)"/><rect x="24" y="17" width="20" height="13" rx="6.5" transform="rotate(-30 34 23.5)"/>',
+  p_bounce: '<path d="M5 38l11-22 10 16 16-22"/><path d="M34 10h8v8"/><circle cx="16" cy="16" r="2.5" fill="#fff"/><circle cx="26" cy="32" r="2.5" fill="#fff"/>',
+  p_extra: '<circle cx="20" cy="26" r="11"/><path d="M20 11v6M20 35v6M5 26h6M29 26h6"/><path d="M38 6v12M32 12h12"/>',
+  p_last: '<rect x="15" y="6" width="14" height="34" rx="2"/><path d="M19 32h6M19 36h6"/><path d="M36 10v16M36 32v2"/>',
+  p_quick: '<circle cx="24" cy="27" r="14"/><path d="M24 27l7-7M20 6h8M24 6v7"/><path d="M6 18h6M4 25h6M6 32h6"/>',
+  p_reload: '<path d="M37 21a14 14 0 1 0-1 10"/><path d="M38 9v12H26"/><path d="M24 20v8l5 3"/>',
+  p_dual: '<path d="M5 14h18v6h-8l-2 10H8l2-10H5zM25 26h18v6h-8l-2 10h-5l2-10h-5z"/>',
+  r_hold: '<path d="M7 41h34M11 35v6M18 30v11M25 23v18M32 16v25M39 8v33"/>',
+  r_ap: '<path d="M30 8l12 4v9c0 8-5 13-12 17-7-4-12-9-12-17v-9z"/><path d="M4 30L38 14M30 14h8v8"/>',
+  r_full: '<rect x="15" y="5" width="18" height="38" rx="3"/><path d="M19 11h10M19 16h10M19 21h10M19 26h10M19 31h10M19 36h10"/>',
+  r_focus: '<circle cx="24" cy="24" r="18"/><circle cx="24" cy="24" r="11"/><circle cx="24" cy="24" r="4" fill="#fff"/>',
+  r_spray: '<path d="M6 24h34M8 22L38 8M8 26l30 14"/><path d="M34 6l5 2-2 5M34 42l5-2-2-5M36 20l5 4-5 4"/>',
+  r_heat: '<path d="M20 30V9a4 4 0 0 1 8 0v21a8 8 0 1 1-8 0z"/><path d="M24 14v20"/><path d="M34 12h6M34 18h4M34 24h6"/>',
+  s_pierce: '<circle cx="14" cy="24" r="5"/><circle cx="26" cy="24" r="5"/><circle cx="38" cy="24" r="5"/><path d="M3 24h44M40 18l6 6-6 6"/>',
+  s_far: '<path d="M4 24h30"/><circle cx="40" cy="24" r="5"/><circle cx="40" cy="24" r="1.5" fill="#fff"/><path d="M8 18v12M14 20v8"/>',
+  s_still: '<path d="M14 6h20M14 42h20M16 6c0 10 16 12 16 18s-16 8-16 18M32 6c0 10-16 12-16 18s16 8 16 18"/>',
+  s_mark: '<circle cx="24" cy="28" r="12"/><path d="M24 4l6 7-6 7-6-7z" fill="#fff"/><path d="M24 24v8M20 28h8"/>',
+  s_kill: '<path d="M14 30c-4-3-6-7-6-12a16 16 0 0 1 32 0c0 5-2 9-6 12v6H14z"/><circle cx="18" cy="20" r="3.5" fill="#fff"/><circle cx="30" cy="20" r="3.5" fill="#fff"/><path d="M20 36v5M24 36v5M28 36v5"/>',
+  s_eye: '<path d="M3 24c6-10 13-15 21-15s15 5 21 15c-6 10-13 15-21 15S9 34 3 24z"/><path d="M24 15c3 3 3 15 0 18-3-3-3-15 0-18z" fill="#fff"/>',
+  g_pel: '<path d="M6 24h6"/><circle cx="22" cy="14" r="2.6" fill="#fff"/><circle cx="26" cy="24" r="2.6" fill="#fff"/><circle cx="22" cy="34" r="2.6" fill="#fff"/><circle cx="36" cy="10" r="2.6" fill="#fff"/><circle cx="40" cy="20" r="2.6" fill="#fff"/><circle cx="40" cy="30" r="2.6" fill="#fff"/><circle cx="36" cy="40" r="2.6" fill="#fff"/>',
+  g_kb: '<path d="M4 24h22M18 16l8 8-8 8"/><path d="M34 10v28M40 14l-3 4M40 34l-3-4M43 24h-4"/>',
+  g_close: '<path d="M4 24h14M12 17l7 7-7 7M44 24H30M36 17l-7 7 7 7"/><path d="M24 10v6M24 32v6"/>',
+  g_wave: '<circle cx="24" cy="24" r="4" fill="#fff"/><circle cx="24" cy="24" r="11"/><circle cx="24" cy="24" r="19" stroke-dasharray="5 4"/>',
+  g_refill: '<rect x="17" y="12" width="12" height="24" rx="2"/><path d="M17 30h12"/><path d="M38 18a15 15 0 0 1-3 19M10 30a15 15 0 0 1 3-19"/><path d="M33 33l2 4 4-1M15 15l-2-4-4 1"/>',
+  g_bomb: '<circle cx="21" cy="28" r="13"/><path d="M29 18l4-4M33 14c2-3 5-3 7-1"/><path d="M40 6v4M44 10h-4M37 7l2 2"/>',
+  b_back: '<path d="M10 38L32 16l6-8-8 6L8 36z"/><path d="M8 36l4 4M6 42l4-4"/><path d="M38 28a12 12 0 0 1-14 12M24 40l4-3M24 40l3 4"/>',
+  b_combo: '<path d="M8 36L30 8M14 40L36 12M20 44L42 16"/>',
+  b_dash: '<path d="M18 10h12l-2 16h10l-4 14H14l2-14h-2z"/><path d="M4 20h8M2 28h9M4 36h8"/>',
+  b_drink: '<path d="M8 40L32 16l6-8-8 6L6 38z"/><path d="M6 38l4 4"/><path d="M38 26c3 4 5 7 5 9a5 5 0 0 1-10 0c0-2 2-5 5-9z" fill="#fff"/>',
+  b_wave: '<path d="M10 8a26 26 0 0 1 0 32 22 22 0 0 0 0-32z" fill="#fff"/><path d="M22 14h20M24 24h20M22 34h20"/>',
+  b_clone: '<circle cx="18" cy="12" r="5"/><path d="M10 40V26a8 8 0 0 1 16 0v14"/><circle cx="31" cy="12" r="5" stroke-dasharray="3 3"/><path d="M23 40V26a8 8 0 0 1 16 0v14" stroke-dasharray="3 3"/>',
+  a_wide: '<path d="M24 8a16 16 0 1 1-15 10"/><path d="M5 12l4 6 6-3"/><path d="M24 24l8-8M30 12l6 6-4 4-6-6z"/>',
+  a_quake: '<path d="M4 34h40"/><path d="M24 34l-4-8 6-6-4-8M14 34l-2-6M34 34l3-6"/><path d="M8 40h6M20 42h8M34 40h6"/>',
+  a_rage: '<path d="M10 18c0-4 2-8 8-8M38 18c0-4-2-8-8-8M10 30c0 4 2 8 8 8M38 30c0 4-2 8-8 8"/><path d="M18 24h12"/>',
+  a_blood: '<path d="M24 41S7 30 7 18a9 9 0 0 1 17-4 9 9 0 0 1 17 4c0 12-17 23-17 23z"/><path d="M24 14l-4 9h7l-4 9"/>',
+  a_cleave: '<path d="M8 42L30 20"/><path d="M26 12c6-6 14-6 16 0-2 6-2 12 0 18-6 2-12-2-16-8z" fill="#fff"/>',
+  a_roar: '<path d="M8 18c4-6 16-6 20 0v12c-4 6-16 6-20 0z"/><path d="M12 24h12"/><path d="M34 16a10 10 0 0 1 0 16M39 11a17 17 0 0 1 0 26"/>',
+  k_boss: '<path d="M8 36l-2-22 10 8 8-12 8 12 10-8-2 22z"/><path d="M8 40h32M24 22l-2 6 3 4-2 4"/>',
+  k_crack: '<path d="M24 5l15 6v11c0 10-7 17-15 21-8-4-15-11-15-21V11z"/><path d="M24 5l-3 10 5 6-4 8 3 14"/>',
+  k_tough: '<path d="M8 28a16 16 0 0 1 32 0v4H8z"/><path d="M6 32h36M24 12v16M16 18l4 10M32 18l-4 10"/>',
+  k_heavy: '<path d="M10 10h18v12H10z"/><path d="M19 22v20"/><path d="M32 12l6-4M32 20l8 0M32 28l6 4"/>',
+  k_ore: '<path d="M24 6l14 10-5 20H15L10 16z"/><path d="M10 16h28M24 6l-5 10 5 20 5-20z"/>',
+  k_rift: '<path d="M4 30h40"/><path d="M8 30l6-6 4 6 6-10 4 10 6-8 6 8"/><path d="M14 36l4 4M28 36l2 5"/>',
+  _heal: '<path d="M24 41S7 30 7 18a9 9 0 0 1 17-4 9 9 0 0 1 17 4c0 12-17 23-17 23z"/><path d="M24 19v12M18 25h12"/>',
+  _shield: '<path d="M24 5l15 6v11c0 10-7 17-15 21-8-4-15-11-15-21V11z"/><path d="M17 23l5 5 9-10"/>'
+};
+const ABY_ICC = { 火: '#e85a1a', 冰: '#1e9ad8', 电: '#d9a400', 血: '#d42a3c', 爆: '#e07a10', 穿: '#56708c', 技: '#6a4ad8', '': '#2f7f8a' };
+function abyIcon(c, sz) { const p = ABY_IC[c.id] || ABY_IC._shield, col = c.fill ? '#2e9a54' : ABY_ICC[c.t || ''];
+  return '<i class="abyic" style="--ib:' + col + (sz ? ';--isz:' + sz + 'px' : '') + '"><svg viewBox="0 0 48 48" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg></i>'; }
 function aby3Tags(c) { const s = new Set(); for (const k in c) { const C = ABYC[k]; if (C && C.t) s.add(C.t); } return s.size >= 3; }
 const aN = id => (ABY.cards[id] || []).length;            // how many of this card
 const aP = id => (ABY.cards[id] || []).reduce((a, q) => a + ABY_Q[q][2], 0);   // strength: the qualities added up
@@ -16946,34 +17019,34 @@ const abyOn = () => ABY.on && S.dun && DUN.id === ABY_ID;
 /* ---- the arena ---- */
 function abyBuild() {
   DUN.G = new THREE.Group(); DUN.G.position.set(DUN.x, 0, DUN.z); scene.add(DUN.G);
-  const L = (c, o) => new THREE.MeshLambertMaterial(Object.assign({ color: c }, o || {})), B = new THREE.MeshBasicMaterial({ color: 0xb070ff, transparent: true, opacity: .85, fog: false });
-  const st = L(0x2a2430), st2 = L(0x1c1820), wall = L(0x241e2a), gl = new THREE.MeshBasicMaterial({ color: 0xa060ff, fog: false });
-  const under = new THREE.Mesh(new THREE.PlaneGeometry(140, 140), new THREE.MeshBasicMaterial({ color: 0x07050a })); under.rotation.x = -Math.PI / 2; under.position.y = -.03; DUN.G.add(under);
+  const L = (c, o) => new THREE.MeshLambertMaterial(Object.assign({ color: c }, o || {})), B = new THREE.MeshBasicMaterial({ color: 0xffb050, transparent: true, opacity: .9, fog: false });
+  const st = L(0x7a726a), st2 = L(0x5e5650), wall = L(0x524a46), gl = new THREE.MeshBasicMaterial({ color: 0xffa040, fog: false });
+  const under = new THREE.Mesh(new THREE.PlaneGeometry(140, 140), new THREE.MeshBasicMaterial({ color: 0x1a1614 })); under.rotation.x = -Math.PI / 2; under.position.y = -.03; DUN.G.add(under);
   const fl = new THREE.Mesh(new THREE.CircleGeometry(ABY_R + 1, 48), st); fl.rotation.x = -Math.PI / 2; fl.position.y = .01; DUN.G.add(fl);
-  for (let i = 0; i < 6; i++) { const r = new THREE.Mesh(new THREE.RingGeometry(3 + i * 3.1, 3.2 + i * 3.1, 48), i % 2 ? st2 : new THREE.MeshBasicMaterial({ color: 0x4a2a6a, transparent: true, opacity: .55 })); r.rotation.x = -Math.PI / 2; r.position.y = .02; DUN.G.add(r); }
+  for (let i = 0; i < 6; i++) { const r = new THREE.Mesh(new THREE.RingGeometry(3 + i * 3.1, 3.2 + i * 3.1, 48), i % 2 ? st2 : new THREE.MeshBasicMaterial({ color: 0xc8742a, transparent: true, opacity: .55 })); r.rotation.x = -Math.PI / 2; r.position.y = .02; DUN.G.add(r); }
   // the rune circle in the middle (it lights up between floors) and the portal ring above it
   const rc = new THREE.Mesh(new THREE.RingGeometry(2.2, 2.6, 6), B); rc.rotation.x = -Math.PI / 2; rc.position.y = .04; DUN.G.add(rc); DUN.abyRune = rc;
-  const pt = new THREE.Mesh(new THREE.TorusGeometry(2.1, .12, 6, 32), new THREE.MeshBasicMaterial({ color: 0xc890ff, transparent: true, opacity: .0, fog: false })); pt.position.y = 2.4; DUN.G.add(pt); DUN.abyPortal = pt;
+  const pt = new THREE.Mesh(new THREE.TorusGeometry(2.1, .12, 6, 32), new THREE.MeshBasicMaterial({ color: 0x5ae8d8, transparent: true, opacity: .0, fog: false })); pt.position.y = 2.4; DUN.G.add(pt); DUN.abyPortal = pt;
   // the wall: a ring of tall dark blocks, with glowing seams
   const n = 28; for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2, x = Math.cos(a) * (ABY_R + 1.4), z = Math.sin(a) * (ABY_R + 1.4), w = 2 * Math.PI * (ABY_R + 1.4) / n + .1;
     const m = box(w, 4.2 + (i % 3) * .6, 1.2, wall, x, 2.1, z, DUN.G); m.rotation.y = -a + Math.PI / 2; if (i % 2) { const s = box(.08, 3.2, .05, gl, x * .975, 1.8, z * .975, DUN.G); s.rotation.y = -a + Math.PI / 2; } }
   for (let i = 0; i < 40; i++) { const a = i / 40 * Math.PI * 2; DUN.obs.push(addCircle(dX(Math.cos(a) * (ABY_R + 1.2)), dZ(Math.sin(a) * (ABY_R + 1.2)), 1.1)); }
-  // 6 pillars with violet crystals
+  // 6 pillars, each topped with a glowing ember crystal
   for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + .5, x = Math.cos(a) * 12.5, z = Math.sin(a) * 12.5;
     box(1.4, 3.4, 1.4, st2, x, 1.7, z, DUN.G); box(1.8, .3, 1.8, wall, x, 3.5, z, DUN.G);
     const c = new THREE.Mesh(new THREE.OctahedronGeometry(.55, 0), gl); c.position.set(x, 4.3, z); c.scale.y = 1.6; DUN.G.add(c); (DUN.abyCr = DUN.abyCr || []).push(c);
     DUN.obs.push(addCircle(dX(x), dZ(z), 1.05)); dAnchor(x * .8, z * .8); }
   dRoom('arena', '', -ABY_R - 2, -ABY_R - 2, ABY_R + 2, ABY_R + 2);
-  for (let i = 0; i < 3; i++) { const Lt = new THREE.PointLight(0xb070ff, 1.3, 22, 1.3); Lt.position.set(DUN.x, 3, DUN.z); scene.add(Lt); DUN.lights.push(Lt); }
+  for (let i = 0; i < 3; i++) { const Lt = new THREE.PointLight(0xffb070, 1.4, 24, 1.3); Lt.position.set(DUN.x, 3, DUN.z); scene.add(Lt); DUN.lights.push(Lt); }
 }
 function abySetup() { DUN.st = { stage: 0, done: false }; }
 function abyStart() {
   player.pos.set(dX(0), 0, dZ(ABY_R - 5)); player.face = Math.PI; camPos.set(player.pos.x, camH, player.pos.z + camD);
-  try { for (const L of DUN.lights) L.color.setHex(0xb070ff); } catch (e) { }
+  try { for (const L of DUN.lights) L.color.setHex(0xffb070); } catch (e) { }
   banner('无尽深渊', T2('只用「', 'Only ') + wName(ABY.wp) + T2('」· 每清一层选一张卡 · 每 5 层一个首领', ' · a card each floor · a boss every 5'), 4);
   ABY.state = 'pick0'; setTimeout(() => abyPick(true), 900);
 }
-dunEnv = (o => function () { o(); if (!S.dun || DUN.id !== ABY_ID) return; scene.fog.color.setHex(0x0a0610); scene.fog.near = 20; scene.fog.far = 60; try { hemiLight.color.setHex(0xd8c8ff); hemiLight.intensity = .8; renderer.setClearColor(0x0a0610); } catch (e) { } })(dunEnv);
+dunEnv = (o => function () { o(); if (!S.dun || DUN.id !== ABY_ID) return; scene.fog.color.setHex(0x2a2420); scene.fog.near = 28; scene.fog.far = 80; try { hemiLight.color.setHex(0xfff0e0); hemiLight.intensity = 1.15; renderer.setClearColor(0x2a2420); } catch (e) { } })(dunEnv);
 
 /* ---- going in, coming out ---- */
 function abyEnter(wp) {
@@ -16981,13 +17054,13 @@ function abyEnter(wp) {
   if (S.level < ABY_MINLV) { feed(T2('无尽深渊要 Lv.' + ABY_MINLV + ' 才能进', 'Needs Lv.' + ABY_MINLV), '#ff9b8a'); return; }
   if (!WEAP[wp] || wLv(wp) <= 0) return;
   ABY.snap = { wp: S.wp, wpp: S.wpPrev, reserve: S.reserve | 0, med: S.med | 0, hp: S.hp, food: S.food, sta: S.sta, mag: S.mag | 0 };
-  ABY.wp = wp; ABY.floor = 0; ABY.cards = {}; ABY.picks = []; ABY.rer = 2; ABY.queue = 0; ABY.shield = 0; ABY.revive = 0; ABY.result = null; ABY.fires = []; ABY.fl = {}; ABY.shots = ABY.swings = ABY.kills = 0; ABY.hpMul = 1;
+  ABY.wp = wp; ABY.floor = 0; ABY.cards = {}; ABY.picks = []; ABY.rer = 2; ABY.queue = 0; ABY.shield = 0; ABY.revive = 0; ABY.result = null; ABY.fires = []; ABY.fl = {}; ABY.shots = ABY.swings = ABY.kills = 0; ABY.hpMul = 1; ABY.ac = 0; abyCoinClear(false);
   ABY.on = true; ABY.allowEq = true; try { equip(wp); } catch (e) { S.wp = wp; } ABY.allowEq = false; S.wpPrev = wp;
   DUN.id = ABY_ID; dunTravel(T2('登上深渊号', 'Boarding'), T2('无尽深渊', 'The Endless Abyss'), dunEnter);
 }
 dunEnter = (o => function () { const go = DUN.id === ABY_ID; o(); if (go && S.dun) { try { DSNAP = null; } catch (e) { } S.hp = S.maxHp; saveGame(); } })(dunEnter);   // no item snapshot: the run gives nothing out; abyEnd pays
 dunCleanup = (o => function () { const was = DUN.on && DUN.id === ABY_ID; o(); if (!was) return;
-  for (const k of ['abyRune', 'abyPortal', 'abyCr']) DUN[k] = null;
+  for (const k of ['abyRune', 'abyPortal', 'abyCr']) DUN[k] = null; abyCoinClear(true);
   const r = ABY.result || abyResult('quit'); ABY.result = null; abyRestore(); setTimeout(() => { try { abySettle(r); } catch (e) { console.warn(e); } }, 1600); })(dunCleanup);
 function abyRestore() { const s = ABY.snap; ABY.on = false; if (!s) return; ABY.snap = null;
   ABY.allowEq = true; try { if (WEAP[s.wp] && wLv(s.wp) > 0) equip(s.wp); } catch (e) { } ABY.allowEq = false; S.wpPrev = s.wpp;
@@ -16996,7 +17069,7 @@ function abyRestore() { const s = ABY.snap; ABY.on = false; if (!s) return; ABY.
 // closed the game during a run: put things back on the next start (no rewards)
 shopSave = (o => function () { const r = o(); try { r.aby = S.abyss; if (ABY.on && ABY.snap) r.abyS = ABY.snap; } catch (e) { } return r; })(shopSave);
 shopLoad = (o => function (d) { o(d); const a = d && d.sh && d.sh.aby;
-  S.abyss = { best: 0, bestBy: {}, wk: '', runs: 0, claimed: {} }; try { if (a && typeof a === 'object') { S.abyss.best = a.best | 0; S.abyss.wk = String(a.wk || ''); S.abyss.runs = a.runs | 0; for (const k in a.bestBy || {}) if (WEAP[k]) S.abyss.bestBy[k] = a.bestBy[k] | 0; for (const k in a.claimed || {}) S.abyss.claimed[k] = 1; } } catch (e) { }
+  S.abyss = { best: 0, bestBy: {}, wk: '', runs: 0, claimed: {}, ac: 0 }; try { if (a && typeof a === 'object') { S.abyss.best = a.best | 0; S.abyss.ac = Math.max(0, a.ac | 0); S.abyss.wk = String(a.wk || ''); S.abyss.runs = a.runs | 0; for (const k in a.bestBy || {}) if (WEAP[k]) S.abyss.bestBy[k] = a.bestBy[k] | 0; for (const k in a.claimed || {}) S.abyss.claimed[k] = 1; } } catch (e) { }
   try { const s = d && d.sh && d.sh.abyS; if (s && typeof s === 'object') setTimeout(() => { if (ABY.on) return; ABY.snap = { wp: s.wp, wpp: s.wpp, reserve: s.reserve | 0, med: s.med | 0, hp: +s.hp || 1, food: +s.food || 50, sta: +s.sta || 100, mag: s.mag | 0 }; ABY.on = true; abyRestore(); }, 0); } catch (e) { } })(shopLoad);
 
 /* ---- the run's rules: no weapon swapping, endless ammo and stamina, no medkits, no drops, no XP ---- */
@@ -17020,12 +17093,16 @@ function abyFloor() {
 function abySpot() { for (let k = 0; k < 20; k++) { const a = Math.random() * Math.PI * 2, r = ABY_R - 2 - Math.random() * 3, x = Math.cos(a) * r, z = Math.sin(a) * r; if (Math.hypot(dX(x) - player.pos.x, dZ(z) - player.pos.z) > 9) return [x, z]; } return [0, -ABY_R + 3]; }
 function abySpawnOne() {
   const n = ABY.floor, pool = ABY_ZT[Math.min(2, Math.floor(n / 10))], [x, z] = abySpot(), zb = dz(pick(pool), x, z, abyLv(), 1); if (!zb) return;
-  const k = 1 + .03 * n; zb.hp = zb.max = zb.max * k; zb.aby = 1;
+  const k = 1 + .03 * n; zb.hp = zb.max = zb.max * k; abyClean(zb);
   if (ABY.elite) { ABY.elite = false; zb.abyE = 1; zb.hp = zb.max = zb.max * 2.5; zb.dmg *= 1.3; try { zb.g.scale.multiplyScalar(1.2); const ring = new THREE.Mesh(new THREE.RingGeometry(.7, .95, 24), new THREE.MeshBasicMaterial({ color: 0xffc94a, transparent: true, opacity: .8, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = .06; zb.g.add(ring); } catch (e) { } feed(T2('精英出现了：打倒它多抽一次卡', 'An elite: kill it for an extra card'), '#ffc94a'); }
 }
 function abyBossSpawn() { if (!abyOn()) return; const n = ABY.floor, rb = ((n / 5 - 1) % 10) + 1;
   try { spawnBoss({ id: 'aby', x: dX(0), z: dZ(-ABY_R + 6), tp: (n / 5) | 0, rb, level: abyLv(), bn: '', buff: null }); } catch (e) { console.warn(e); }
-  if (!boss) return; ABY.boss = boss; boss.weekly = false; boss.dun = 1; boss.aby = 1; boss.hp = boss.max = Math.round(boss.max * (.6 + .06 * n)); boss.state = 'chase'; try { refreshBossHud(); } catch (e) { } }
+  if (!boss) return; ABY.boss = boss;
+  if (boss.weekly) { boss.hp = boss.max = Math.round(boss.max / 1.5); boss.dmg /= 1.25; boss.title = String(boss.title).replace('周王·', ''); try { el.bossName.textContent = boss.title + ' Lv.' + boss.lv; } catch (e) { } }   // the weekly king's buff is an outside-world thing
+  boss.weekly = false; boss.buff = null; abyClean(boss); boss.dun = 1; boss.aby = 1; boss.hp = boss.max = Math.round(boss.max * (.6 + .06 * n)); boss.state = 'chase'; try { refreshBossHud(); } catch (e) { } }
+// nothing from the outside world touches the monsters down here (region traits, the weekly king, night sight …), and every one of them comes for you
+function abyClean(z) { z.aby = 1; z.abyC = 1; z.buff = null; z.tough = false; z.aggro = 999; z.horde = true; if (z.boss && z.state === 'idle') z.state = 'chase'; }
 const abyAlive = () => zombies.filter(z => z.aby && !z.dead && !z.mirror).length + (ABY.boss && !ABY.boss.dead ? 1 : 0);
 function abyCleared() {
   ABY.state = 'clear'; const n = ABY.floor; if (DUN.abyPortal) DUN.abyPortal.material.opacity = .9; try { sfx.build(); } catch (e) { }
@@ -17041,6 +17118,10 @@ function abyNext() {   // after the cards: the checkpoint question every 5 floor
 /* ---- per frame ---- */
 let _abyHud = 0;
 zSpecialTick = (o => function (dt) { o(dt); if (!abyOn()) { if (ABY.on && !S.dun && !ABY.snap) ABY.on = false; return; }
+  for (const z of zombies) { if (z.dead || z.mirror) continue;
+    if (!z.abyC) { if (!z.boss) { try { const T = ZT[z.type], D = dif(), lv = abyLv(); z.lv = lv; z.hp = z.max = T.hp * lvHp(lv) * D.hp * (1 + .03 * ABY.floor) * .7; z.dmg = T.dmg * lvDmg(lv) * D.dmg; z.spd = T.spd * rand(.95, 1.1); } catch (e) { } } abyClean(z); }   // a boss's summons
+    z.aggro = 999; if (z.boss && z.state === 'idle') z.state = 'chase'; }
+  abyCoinTick(dt);
   ABY.t += dt; S.sta = Math.max(S.sta, 100); if (S.exhausted) S.exhausted = false; S.reserve = Math.max(S.reserve, 300); if (ABY.snap) S.food = ABY.snap.food;
   S.maxHp = Math.round(maxHpNow() * (ABY.hpMul || 1)); if (S.hp > S.maxHp) S.hp = S.maxHp;
   // spawning
@@ -17121,6 +17202,7 @@ function abyOnHit(z, D) {
 killZombie = (o => function (z) {
   if (!abyOn() || !z || z.dead || !z.aby && !z.boss) return o(z);
   const fl = ABY.fl, base = weaponDmg(), x = z.pos.x, zz = z.pos.z, frozen = z.abyFz > ABY.t, bled = (z.abyB | 0) > 0; const r = o(z); ABY.kills++;
+  abyDrop(x, zz, z.boss ? 8 + ABY.floor : z.abyE ? 5 : 1);
   if (aN('leech')) abyHeal(aV('leech'));
   if (aN('rite') && bled) abyHeal(ABYC.rite.v / 100);
   if (aN('boom') && !z.abyBoom && ABY.booms < 4) { ABY.booms++; const k = frozen && aN('shatter') ? ABYC.shatter.v : 1; burst(x, 1, zz, 0xffa040, 18, 6); try { sfx.boom && sfx.boom(); } catch (e) { }
@@ -17136,7 +17218,7 @@ killZombie = (o => function (z) {
 takeDamage = (o => function (n, src) {
   if (!abyOn() || S.dead || S.invT > 0) return o(n, src);
   const fl = ABY.fl; let k = 1 - aV('wall'); if (fl.roarDr > ABY.t) k -= aV('a_roar'); if (aN('k_tough') && ABY.t < (fl.swingAt || 0) + 1) k -= aV('k_tough'); n *= Math.max(.25, k);
-  if (ABY.shield > 0) { const a = Math.min(ABY.shield, n); ABY.shield -= a; n -= a; burst(player.pos.x, 1.4, player.pos.z, 0xb070ff, 4, 3); if (n <= 0) return; }
+  if (ABY.shield > 0) { const a = Math.min(ABY.shield, n); ABY.shield -= a; n -= a; burst(player.pos.x, 1.4, player.pos.z, 0x7ae8ff, 4, 3); if (n <= 0) return; }
   if (aN('counter')) fl.counter = ABY.t + 1; if (aN('a_rage')) { fl.rage = (fl.rage || []).filter(t => t > ABY.t); fl.rage.push(ABY.t + 4); }
   if (S.hp - n <= 0) { if (ABY.revive > 0) { ABY.revive--; S.hp = S.maxHp * aV('undying'); S.invT = 2.5; banner(T2('不死之身', 'Undying'), T2('你又站了起来', 'You rise again'), 2.2); burst(player.pos.x, 1.4, player.pos.z, 0xffd27a, 30, 7); return; }
     S.hp = 1; S.invT = 9; abyEnd('dead'); return; }
@@ -17179,6 +17261,25 @@ startReload = (o => function () { const r = o.apply(this, arguments); if (abyOn(
   if (aN('p_reload')) { const base = weaponDmg(); ABY.p = true; try { abyNearest(player.pos.x, player.pos.z, 7, 8).forEach(q => abyFx(q, base * .6, 0xffd27a, true)); } finally { ABY.p = false; } } } return r; })(startReload);
 wsCast = (o => function () { const r = o.apply(this, arguments); if (abyOn() && aN('echo')) ABY.fl.echo = ABY.t + 4; return r; })(wsCast);
 
+/* ---- 深渊币: the only thing monsters drop down here. Coins pop out, then fly to you. Kept even if you fall (they're picked up).
+   Spent later at a shop (the owner will design it, like 老钱's). ---- */
+const ABY_COIN_SVG = '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="#e0aa3a"/><circle cx="24" cy="24" r="17" fill="#1f8f9a"/><path d="M24 11c7 0 12 5 12 12 0 5-4 9-9 9-4 0-7-3-7-6.5 0-3 2.5-5.5 5.5-5.5 2.5 0 4 1.5 4 3.5" fill="none" stroke="#ffe7a0" stroke-width="3.2" stroke-linecap="round"/><circle cx="24" cy="24" r="21" fill="none" stroke="#fff3c8" stroke-width="1.5"/></svg>';
+const abyCoinIc = (sz) => '<i class="abycn" style="width:' + (sz || 16) + 'px;height:' + (sz || 16) + 'px">' + ABY_COIN_SVG + '</i>';
+let ABY_CG = null;
+function abyCoinGeo() { if (ABY_CG) return ABY_CG; ABY_CG = { face: new THREE.CylinderGeometry(.26, .26, .07, 14), rim: new THREE.TorusGeometry(.26, .05, 5, 14),
+  fm: new THREE.MeshLambertMaterial({ color: 0x1f9aa6, emissive: 0x0a3a40 }), rm: new THREE.MeshLambertMaterial({ color: 0xf0c040, emissive: 0x4a3000 }) }; return ABY_CG; }
+ABY.drops = [];
+function abyDrop(x, z, n) { if (!n) return; const G = abyCoinGeo(), k = Math.min(6, n);
+  for (let i = 0; i < k; i++) { const g = new THREE.Group(), f = new THREE.Mesh(G.face, G.fm), r = new THREE.Mesh(G.rim, G.rm); f.rotation.x = Math.PI / 2; g.add(f); g.add(r); g.position.set(x, 1, z); scene.add(g);
+    const a = Math.random() * 6.28, sp = 2 + Math.random() * 2; ABY.drops.push({ g, v: Math.floor(n / k) + (i < n % k ? 1 : 0), vx: Math.cos(a) * sp, vz: Math.sin(a) * sp, vy: 5 + Math.random() * 2, t: 0 }); } }
+function abyCoinGet(v) { if (!v) return; ABY.ac = (ABY.ac | 0) + v; S.abyss.ac = (S.abyss.ac | 0) + v; }
+function abyCoinTick(dt) { const px = player.pos.x, pz = player.pos.z;
+  for (let i = ABY.drops.length - 1; i >= 0; i--) { const D = ABY.drops[i], p = D.g.position; D.t += dt; D.g.rotation.y += dt * 6;
+    if (D.t < .55) { D.vy -= 18 * dt; p.x += D.vx * dt; p.z += D.vz * dt; p.y = Math.max(.35, p.y + D.vy * dt); }
+    else { const dx = px - p.x, dz2 = pz - p.z, d = Math.hypot(dx, dz2), sp = Math.min(d, (8 + D.t * 14) * dt); p.x += dx / (d || 1) * sp; p.z += dz2 / (d || 1) * sp; p.y += (1.1 - p.y) * Math.min(1, dt * 6);
+      if (d < .6) { scene.remove(D.g); ABY.drops.splice(i, 1); abyCoinGet(D.v); try { sfx.pick(); } catch (e) { } } } } }
+function abyCoinClear(bank) { for (const D of ABY.drops) { try { scene.remove(D.g); } catch (e) { } if (bank) abyCoinGet(D.v); } ABY.drops = []; }
+
 /* ---- the cards: pick 1 of 3 ---- */
 function abyRollQ() { const luck = aN('luck') ? aV('luck') : 0, P = ABY_QP.slice(); P[0] = Math.max(.05, P[0] - luck * 2); P[2] += luck * .6; P[3] += luck * .8; P[4] += luck * .6;
   let s = P.reduce((a, b) => a + b, 0), r = Math.random() * s; for (let i = 0; i < P.length; i++) { r -= P[i]; if (r <= 0) return i; } return 0; }
@@ -17210,7 +17311,7 @@ function abyPick(first) {
   hand.forEach(({ c, q }) => { const Q = ABY_Q[q], b = document.createElement('button'); b.className = 'abyc' + (c.req ? ' syn' : '') + (c.w ? ' own' : ''); b.style.setProperty('--qc', c.fill ? '#9fd8a0' : Q[1]);
     const have = aN(c.id);
     b.innerHTML = '<em class="abyq">' + (c.fill ? T2('补给', 'Supply') : Q[0]) + '</em>' + (c.req ? '<em class="abysyn">' + T2('联动', 'Combo') + '</em>' : c.w ? '<em class="abyown">' + T2('专属', 'Weapon') + '</em>' : '') +
-      '<b>' + c.n + '</b><div class="abytg">' + tagChip(c.t) + '</div><p>' + abyDesc(c, q) + '</p>' + (c.max ? '<small>' + T2('已有 ', 'Have ') + have + ' / ' + c.max + '</small>' : '');
+      abyIcon(c) + '<b>' + c.n + '</b><div class="abytg">' + tagChip(c.t) + '</div><p>' + abyDesc(c, q) + '</p>' + (c.max ? '<small>' + T2('已有 ', 'Have ') + have + ' / ' + c.max + '</small>' : '');
     b.addEventListener('click', () => { m.remove(); S.paused = false; abyTake(c, q); try { sfx.pick(); } catch (e) { } feed(T2('拿到：', 'Got: ') + (c.fill ? '' : ABY_Q[q][0] + '·') + c.n, c.fill ? '#9fd8a0' : ABY_Q[q][1]);
       if (first) setTimeout(() => abyFloor(), 500); else abyNext(); });
     cs.appendChild(b); });
@@ -17228,14 +17329,17 @@ function abyGate() { S.paused = true; let m = $('abyGateM'); if (m) m.remove(); 
   document.body.appendChild(m); }
 
 /* ---- the end of a run, rewards ---- */
-const ABY_MS = [[5, { coin: 500 }], [10, { coin: 1500, bpf: 20 }], [20, { gem: 50 }], [30, { gem: 100, heart: 2 }], [50, { gem: 200 }]];
+// first-clear rewards (once per character). xp is a share of a level at your current level; ac = 深渊币
+const ABY_MS = [[5, { xp: .3, coin: 500, ac: 30 }], [10, { xp: .5, coin: 1500, bpf: 20, ac: 60 }], [15, { xp: .6, coin: 2000, ac: 80 }], [20, { xp: .8, gem: 50, ac: 100 }],
+  [25, { xp: .9, heart: 1, ac: 120 }], [30, { xp: 1, gem: 100, heart: 2, ac: 150 }], [40, { xp: 1.2, gem: 150, ac: 200 }], [50, { xp: 1.5, gem: 200, ac: 300 }]];
+const abyMsTxt = rw => Object.keys(rw).map(k => k === 'xp' ? T2('经验 ', 'XP ') + stXp(S.level, rw[k]) : k === 'ac' ? T2('深渊币 ×', 'Abyss coins ×') + rw[k] : stItN(k) + ' ×' + rw[k]).join('、');
 function abyResult(why) { const f = ABY.floor, cleared = ABY.state === 'clear' || ABY.state === '' ? f : f - 1, paid = why === 'leave' ? cleared : Math.floor(Math.max(0, cleared) / 5) * 5;
-  return { why, floor: f, cleared: Math.max(0, cleared), paid, wp: ABY.wp, picks: ABY.picks.slice() }; }
+  return { why, floor: f, cleared: Math.max(0, cleared), paid, wp: ABY.wp, picks: ABY.picks.slice(), ac: ABY.ac | 0 }; }
 function abyReward(paid, preview) {
   const wk = abyWeek(); if (S.abyss.wk !== wk) { S.abyss.wk = wk; S.abyss.runs = 0; }
   const full = S.abyss.runs < 3, coin = Math.round(Math.min(3000, 80 * paid) * (full ? 1 : .1)), xp = paid > 0 && full ? stXp(S.level, Math.min(.5, paid * .015)) : 0, ms = ABY_MS.filter(([f]) => paid >= f && !S.abyss.claimed[f]);
   const parts = []; if (coin) parts.push(T2('余烬币 ', 'coins ') + coin); if (xp) parts.push(T2('经验 ', 'XP ') + xp);
-  ms.forEach(([f, rw]) => parts.push(T2('第 ' + f + ' 层首次奖励：', 'First floor ' + f + ': ') + Object.keys(rw).map(k => stItN(k) + ' ×' + rw[k]).join('、')));
+  ms.forEach(([f, rw]) => parts.push(T2('第 ' + f + ' 层首通奖励：', 'First clear of floor ' + f + ': ') + abyMsTxt(rw)));
   return { coin, xp, ms, full, txt: parts.join(' · ') || T2('没有奖励', 'nothing') };
 }
 function abyEnd(why) { if (!abyOn() || ABY.result) return; ABY.result = abyResult(why); ABY.state = 'end';
@@ -17244,23 +17348,23 @@ function abyEnd(why) { if (!abyOn() || ABY.result) return; ABY.result = abyResul
 function abySettle(r) {
   const R = abyReward(r.paid); S.abyss.runs++;
   if (R.coin) gain('coin', R.coin); if (R.xp) addXp(R.xp);
-  R.ms.forEach(([f, rw]) => { S.abyss.claimed[f] = 1; for (const k in rw) { if (k === 'gem') addGem(rw[k], T2('无尽深渊', 'Abyss')); else gain(k, rw[k]); } });
+  R.ms.forEach(([f, rw]) => { S.abyss.claimed[f] = 1; for (const k in rw) { if (k === 'gem') addGem(rw[k], T2('无尽深渊', 'Abyss')); else if (k === 'xp') addXp(stXp(S.level, rw[k])); else if (k === 'ac') abyCoinGet(rw[k]); else gain(k, rw[k]); } });
   saveGame(); refreshHud();
   let m = $('abyEndM'); if (m) m.remove(); m = document.createElement('div'); m.id = 'abyEndM'; m.className = 'abym';
-  const cards = r.picks.map(([id, q]) => '<span style="--qc:' + ABY_Q[q][1] + '">' + ABYC[id].n + '</span>').join('');
+  const cards = r.picks.map(([id, q]) => '<span style="--qc:' + ABY_Q[q][1] + '">' + abyIcon(ABYC[id], 18) + ABYC[id].n + '</span>').join('');
   m.innerHTML = '<div class="abyh">' + (r.why === 'dead' ? T2('倒在了第 ' + r.floor + ' 层', 'Fell on floor ' + r.floor) : r.why === 'leave' ? T2('带着奖励离开', 'Left with the rewards') : T2('中途离开', 'Left early')) + '</div>' +
     '<div class="abyend"><div class="abybig"><b>' + r.cleared + '</b><small>' + T2('通过的层数', 'floors cleared') + '</small></div><div class="abybig"><b>' + r.paid + '</b><small>' + T2('结算层数', 'floors paid') + '</small></div><div class="abybig"><b>' + (S.abyss.bestBy[r.wp] | 0) + '</b><small>' + wName(r.wp) + T2(' 最高', ' best') + '</small></div></div>' +
-    '<p class="abyrw">' + R.txt + (R.full ? '' : T2('（本周前 3 局之后，余烬币只给一成）', ' (after 3 runs this week coins are 10%)')) + '</p>' +
+    '<p class="abyac">' + abyCoinIc(22) + T2(' 这一局拿到深渊币 ', ' Abyss coins this run: ') + '<b>' + (r.ac | 0) + '</b>' + T2('（共 ', ' (total ') + (S.abyss.ac | 0) + T2('）', ')') + '</p><p class="abyrw">' + R.txt + (R.full ? '' : T2('（本周前 3 局之后，余烬币只给一成）', ' (after 3 runs this week coins are 10%)')) + '</p>' +
     '<div class="abydeck">' + (cards || '<i>' + T2('没有卡', 'no cards') + '</i>') + '</div><button class="go abyok">' + T2('知道了', 'OK') + '</button>';
   m.querySelector('.abyok').addEventListener('click', () => m.remove()); document.body.appendChild(m);
 }
 
 /* ---- the tracker while inside, and the card list ---- */
 dunTrk = (o => function () { if (!(S.dun && DUN.id === ABY_ID)) return o(); const e = $('dunObj'); if (!e) return; e.style.display = '';
-  const n = Object.keys(ABY.cards).length, h = '<b>' + T2('无尽深渊 · 第 ', 'Abyss · floor ') + ABY.floor + T2(' 层', '') + '</b><span>▸ ' + (ABY.state === 'fight' ? T2('还剩 ', 'Left: ') + (ABY.spawnLeft + abyAlive()) + (ABY.floor % 5 === 0 ? T2(' · 首领层', ' · boss') : '') : T2('选卡', 'Pick a card')) + '</span><small class="dunsub">' + wName(ABY.wp) + ' · ' + T2('卡 ', 'cards ') + ABY.picks.length + (ABY.shield > 0 ? T2(' · 护盾 ', ' · shield ') + ABY.shield : '') + (ABY.revive ? T2(' · 可复活', ' · revive') : '') + T2(' · 点我看卡组', ' · tap for deck') + '</small>';
+  const n = Object.keys(ABY.cards).length, h = '<b>' + T2('无尽深渊 · 第 ', 'Abyss · floor ') + ABY.floor + T2(' 层', '') + '</b><span>▸ ' + (ABY.state === 'fight' ? T2('还剩 ', 'Left: ') + (ABY.spawnLeft + abyAlive()) + (ABY.floor % 5 === 0 ? T2(' · 首领层', ' · boss') : '') : T2('选卡', 'Pick a card')) + '</span><small class="dunsub">' + wName(ABY.wp) + ' · ' + abyCoinIc(13) + ' ' + (ABY.ac | 0) + ' · ' + T2('卡 ', 'cards ') + ABY.picks.length + (ABY.shield > 0 ? T2(' · 护盾 ', ' · shield ') + ABY.shield : '') + (ABY.revive ? T2(' · 可复活', ' · revive') : '') + T2(' · 点我看卡组', ' · tap for deck') + '</small>';
   if (e.innerHTML !== h) e.innerHTML = h; })(dunTrk);
 dunGuide = (o => function () { if (!(S.dun && DUN.id === ABY_ID)) return o(); let m = $('abyDeckM'); if (m) { m.remove(); return; } m = document.createElement('div'); m.id = 'abyDeckM'; m.className = 'abym';
-  const rows = Object.keys(ABY.cards).map(id => { const c = ABYC[id], qs = ABY.cards[id]; return '<div class="abyrow" style="--qc:' + ABY_Q[Math.max(...qs)][1] + '"><b>' + c.n + ' ×' + qs.length + '</b>' + (c.t ? '<i class="abyt" style="--tc:' + ABY_TAG[c.t] + '">' + c.t + '</i>' : '') + '<small>' + abyDesc(c, Math.max(...qs)) + '</small></div>'; }).join('');
+  const rows = Object.keys(ABY.cards).map(id => { const c = ABYC[id], qs = ABY.cards[id]; return '<div class="abyrow" style="--qc:' + ABY_Q[Math.max(...qs)][1] + '">' + abyIcon(c, 30) + '<b>' + c.n + ' ×' + qs.length + '</b>' + (c.t ? '<i class="abyt" style="--tc:' + ABY_TAG[c.t] + '">' + c.t + '</i>' : '') + '<small>' + abyDesc(c, Math.max(...qs)) + '</small></div>'; }).join('');
   m.innerHTML = '<div class="abyh">' + T2('卡组', 'Your deck') + '</div><div class="abyrows">' + (rows || '<p>' + T2('还没有卡', 'No cards yet') + '</p>') + '</div><button class="go abyok">' + T2('关闭', 'Close') + '</button>';
   m.querySelector('.abyok').addEventListener('click', () => m.remove()); document.body.appendChild(m); })(dunGuide);
 
@@ -17277,8 +17381,8 @@ function abyPage() {
   const draw = () => {
     m.innerHTML = '<div class="abyh">' + T2('无尽深渊', 'The Endless Abyss') + '</div><p class="abysub">' + T2('只能带一把武器下去，一层一层往下打，每层选一张卡。死了就结束，卡不带出来。', 'One weapon, floor after floor, a card each floor. Die and it ends; cards stay down there.') + '</p>' +
       '<div class="abyws">' + W_ORDER.map(id => { const own = wLv(id) > 0; return '<button class="abyw' + (id === sel ? ' on' : '') + (own ? '' : ' off') + '" data-w="' + id + '">' + (own ? wImg(id, wLv(id), 'x') : '') + '<b>' + wName(id) + '</b><small>' + (own ? 'Lv.' + wLv(id) + ' · ' + T2('最高 ', 'best ') + (S.abyss.bestBy[id] | 0) + T2(' 层', '') : T2('还没有 · 在工作台制作', 'Not owned · craft it')) + '</small></button>'; }).join('') + '</div>' +
-      '<div class="abyinfo"><span>' + T2('历史最高 ', 'Best ') + '<b>' + (S.abyss.best | 0) + '</b>' + T2(' 层', '') + '</span><span>' + T2('本周领奖局数 ', 'Paid runs left ') + '<b>' + Math.max(0, 3 - S.abyss.runs) + ' / 3</b></span></div>' +
-      '<p class="abynote">' + T2('奖励：每周前 3 局按结算层数给余烬币（每层 80，最多 3000）和经验；第 5 / 10 / 20 / 30 / 50 层各有一次性首通奖励。深渊里怪不掉东西、不给经验，弹药和体力无限，不用医疗包，出来后一切恢复原样。', 'Rewards: your first 3 runs each week pay coins (80 a floor, max 3000) and XP; first clears of floors 5/10/20/30/50 pay once. Nothing inside drops or gives XP; ammo and stamina are endless; everything is put back when you leave.') + '</p>' +
+      '<div class="abyinfo"><span>' + abyCoinIc(16) + T2(' 深渊币 ', ' Abyss coins ') + '<b>' + (S.abyss.ac | 0) + '</b></span><span>' + T2('历史最高 ', 'Best ') + '<b>' + (S.abyss.best | 0) + '</b>' + T2(' 层', '') + '</span><span>' + T2('本周领奖局数 ', 'Paid runs left ') + '<b>' + Math.max(0, 3 - S.abyss.runs) + ' / 3</b></span></div>' +
+      '<p class="abynote">' + T2('深渊里的怪只掉「深渊币」（死了也不会丢），不掉别的、不给经验；外面的东西（地区特性、周王加成）影响不到它们，全部会冲你来。奖励：每周前 3 局按结算层数给余烬币（每层 80，最多 3000）和经验；第 5 / 10 / 15 / 20 / 25 / 30 / 40 / 50 层第一次通过有首通奖励（经验、余烬币、宝石、深渊币……）。弹药和体力无限，不用医疗包，出来后一切恢复原样。', 'Monsters here drop only Abyss coins (kept even if you fall), nothing else and no XP; nothing from outside (region traits, the weekly king) touches them, and all of them come for you. Rewards: first 3 runs a week pay coins (80 a floor, max 3000) and XP; first clears of floors 5/10/15/20/25/30/40/50 pay once (XP, coins, gems, Abyss coins …). Ammo and stamina are endless; everything is put back when you leave.') + '</p>' +
       '<div class="abygb"><button class="sbtn ghostb abyx">' + T2('返回', 'Back') + '</button><button class="go abygo"' + (lock || !sel ? ' disabled' : '') + '>' + (lock || T2('下潜', 'Dive')) + '</button></div>';
     m.querySelectorAll('.abyw').forEach(b => b.addEventListener('click', () => { if (b.classList.contains('off')) return; sel = b.dataset.w; draw(); }));
     m.querySelector('.abyx').addEventListener('click', () => m.remove());
@@ -17286,210 +17390,155 @@ function abyPage() {
   draw(); document.body.appendChild(m);
 }
 
-/* ---- the 深渊号: a black ghost galleon moored along the west side of the pier, bow out to sea ----
-   Built the same way as 老钱的商船: a layered hull with a pointed bow, a stern castle, two masts with torn violet sails,
-   rigging, deck cargo (faceted violet crystals with gold edges, chains, an altar), a hooded ferryman 摆渡人 with a lantern
-   staff on the stern deck, a whirlpool rift in the sea ahead of the bow, and a gangplank from the pier. */
-const ABS = { rx: -6.4, rz: -85, g: null, t: 0, fm: null, lan: null, rift: [], motes: [], glow: [], cry: [], sails: [], eyes: [], wins: [] };
+/* ---- the 深渊号: a riveted deep-sea submarine, moored at the end of its own little jetty west of the pier ----
+   Teal iron hull with a red-orange belly and brass bands, round lit portholes, a conning tower with a searchlight and a periscope,
+   dive planes, a spinning propeller, a deep-sea diver in a brass helmet standing by the hatch (he turns to look at you and waves),
+   a red-and-white dive buoy out at sea, and bubbles rising round the hull. Bright colours on purpose: it reads in sunlight.
+   The jetty runs west from the pier north of the fishing boat's mooring, so the fishing boat stays in the open. */
+const ABS = { rx: -20, rz: -88, jz: -78.6, jx0: -1.6, jx1: -17, g: null, t: 0, dv: null, prop: null, light: null, bub: [], buoy: null, wins: [] };
 function abyShipBuild() { if (ABS.g || typeof islandG === 'undefined') return;
-  const R = mulberry32(41177), rr = (a, b) => a + R() * (b - a);
-  // palette: tarred black wood, bone, tarnished gold, violet glow
-  const wd = mat(0x2c2430), wdD = mat(0x18131c), wdM = mat(0x221b26), wdL = mat(0x3e3440), wdX = mat(0x342a38);
-  const gold = mat(0xb8913a, { emissive: 0x2a1a00 }), goldB = mat(0xe0b450, { emissive: 0x4a3008 });
-  const vio = new THREE.MeshBasicMaterial({ color: 0xb87aff }), vioD = new THREE.MeshBasicMaterial({ color: 0x7a3ad0 }), win = new THREE.MeshBasicMaterial({ color: 0xc89aff });
-  const bone = mat(0xe4dccb), boneD = mat(0xb8ae98), iron = mat(0x3a3640), ropeM = mat(0x241c22);
-  const sailM = mat(0x3a1a58, { emissive: 0x1c0830 }), sailD = mat(0x2a1044, { emissive: 0x120420 }), sailP = mat(0x4a2a6a, { emissive: 0x200c38 });
-  const robe = mat(0x16121c), robeD = mat(0x0c0a10);
-  const G = new THREE.Group(); G.position.set(ABS.rx, -.25, ABS.rz); G.rotation.order = 'YXZ'; islandG.add(G); ABS.g = G;
-  // ship-local axes: z is the long axis (bow at -z, out to sea; stern at +z, toward the island); +x faces the pier
+  const R = mulberry32(51123), rr = (a, b) => a + R() * (b - a);
+  const teal = mat(0x2f8a96), tealD = mat(0x1f6670), tealL = mat(0x4fb0b8), red = mat(0xc8502a), redD = mat(0x983a1e), brass = mat(0xe0aa3a, { emissive: 0x3a2400 }), brassD = mat(0xb07e22, { emissive: 0x201400 });
+  const steel = mat(0x5a6670), steelD = mat(0x3a444c), white = mat(0xf2efe6), lit = new THREE.MeshBasicMaterial({ color: 0xffe08a }), glass = new THREE.MeshBasicMaterial({ color: 0xbff4ff });
+  const canvas = mat(0xd8d2c0), canvasD = mat(0xb8b09a), boot = mat(0x2a2a30), wood = mat(0x9a7450), woodD = mat(0x6a4a30), rope = mat(0x8a6a40);
+  const G = new THREE.Group(); G.position.set(ABS.rx, -.25, ABS.rz); islandG.add(G); ABS.g = G;
+  // sub-local axes: z is the long axis (bow at -z, out to sea); +x faces the jetty (east)
   const bx = (w, h, d, m, x, y, z, p, ry, rx, rz) => { const o = box(w, h, d, m, x, y, z, p || G); if (ry) o.rotation.y = ry; if (rx) o.rotation.x = rx; if (rz) o.rotation.z = rz; return o; };
+  const cyl = (rt, rb, h, m, x, y, z, p, seg, rx, rz) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg || 12), m); o.position.set(x, y, z); if (rx) o.rotation.x = rx; if (rz) o.rotation.z = rz; (p || G).add(o); return o; };
   const line = (a, b, m, t, par) => { const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], L = Math.hypot(dx, dy, dz) || 1;
-    const o = box(t || .05, t || .05, L, m || ropeM, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, par || G); o.rotation.order = 'YXZ'; o.rotation.y = Math.atan2(dx, dz); o.rotation.x = -Math.asin(dy / L); return o; };
-  const DECK = 1.85, POOP = 3.34;
-
-  /* hull */
-  bx(1.1, .5, 12.6, wdD, 0, .1, .1);
-  bx(3.9, .9, 11.4, wdM, 0, .6, .6);
-  bx(4.8, 1.2, 10.4, wd, 0, 1.15, 1);
-  bx(4.5, .1, 10.2, wdL, 0, 1.8, 1);
-  for (let z = -3.8; z < 6; z += .6) bx(4.5, .02, .04, wdD, 0, 1.86, z);            // deck plank seams
-  bx(4.8, 1.2, .3, wd, 0, 1.15, 6.3); bx(3.9, .9, .3, wdM, 0, .6, 6.3);
-  for (const s of [-1, 1]) {
-    bx(.4, 1.5, 4.7, wd, s * 1.2, 1.15, -6.2, G, s * .54);
-    bx(.18, .14, 4.7, gold, s * 1.2, 2.45, -6.2, G, s * .54);
-    bx(.06, .1, 10.4, wdD, s * 2.42, .9, 1); bx(.06, .1, 10.4, wdD, s * 2.42, 1.35, 1);
-    bx(.05, .07, 10.4, vio, s * 2.44, 1.05, 1);                                        // a violet seam glows along the waterline
-    bx(.1, .12, 10.4, gold, s * 2.43, 1.68, 1);
-    if (s < 0) bx(.2, .16, 10.4, wdD, s * 2.35, 2.45, 1); else { bx(.2, .16, 3.0, wdD, s * 2.35, 2.45, -2.7); bx(.2, .16, 5.6, wdD, s * 2.35, 2.45, 3.4); }   // gunwale (gap at the gangplank)
-    for (const z of [-3.8, -2.4, -1, .6, 2, 3.4]) { bx(.14, .6, .14, wdD, s * 2.35, 2.15, z); bx(.18, .1, .18, gold, s * 2.35, 2.5, z); }
-    // round gun ports with a violet glow inside
-    for (const z of [-2.6, -.6, 1.4, 3.4]) { bx(.06, .44, .44, gold, s * 2.43, 1.2, z); bx(.07, .3, .3, vioD, s * 2.44, 1.2, z); }
-    // carved bone ribs on the hull, like a skeleton showing through
-    for (const z of [-3.4, -1.6, .2, 2.0, 3.8, 5.4]) bx(.08, .9, .16, boneD, s * 2.44, 1.1, z, G, 0, 0, s * .12);
-  }
-  bx(2.7, 1.2, 3.6, wd, 0, 1.15, -5.9); bx(1.8, .9, 3.4, wdM, 0, .6, -6.2); bx(2.4, .1, 3.6, wdL, 0, 1.8, -5.8);
-  bx(2.2, .32, .08, gold, 0, 1.25, 6.5); bx(1.6, .1, .09, vio, 0, 1.25, 6.52);           // name board
-  bx(.2, .2, 3.6, wdD, 0, 2.2, -9.2, G, 0, .25);                                          // bowsprit
-  // figurehead: a bone angel leaning out over the water, wings swept back, eyes lit
-  { const F = new THREE.Group(); F.position.set(0, 1.9, -8.25); F.rotation.x = -.5; G.add(F);
-    bx(.36, .9, .32, bone, 0, 0, 0, F); bx(.44, .3, .36, boneD, 0, -.5, .05, F);
-    bx(.32, .3, .3, bone, 0, .6, -.06, F); bx(.36, .12, .34, boneD, 0, .78, -.02, F);
-    for (const s of [-1, 1]) { bx(.07, .06, .03, vio, s * .08, .62, -.22, F); ABS.eyes.push(F.children[F.children.length - 1]);
-      const W = new THREE.Group(); W.position.set(s * .18, .25, .1); W.rotation.y = s * .5; F.add(W);
-      for (let k = 0; k < 4; k++) bx(.05, .16, .9 - k * .16, k % 2 ? boneD : bone, s * (.04 + k * .02), .3 - k * .2, .45 - k * .03, W); } }
-  // the anchor and its chain
-  { bx(.08, .9, .08, iron, -1.9, .9, -6.9, G, 0, 0, .2); bx(.6, .08, .08, iron, -2.0, .48, -6.9); bx(.08, .25, .08, iron, -2.28, .58, -6.9, G, 0, 0, .5); bx(.08, .25, .08, iron, -1.72, .58, -6.9, G, 0, 0, -.5);
-    for (let k = 0; k < 6; k++) bx(.1, .16, .06, iron, -1.75, 1.4 + k * .16, -6.8 + (k % 2) * .03, G, k % 2 ? Math.PI / 2 : 0); }
-
-  /* stern castle */
-  bx(4.5, 1.35, 3.0, wdX, 0, 2.525, 4.9); bx(4.8, .14, 3.3, wdL, 0, 3.27, 4.9);
-  bx(4.6, .08, .1, gold, 0, 3.2, 3.4);
-  bx(.95, 1.05, .08, wdD, 0, 2.4, 3.36); bx(.75, .85, .02, vioD, 0, 2.35, 3.33); bx(.1, .1, .05, goldB, .3, 2.35, 3.31);
-  for (const x of [-1.5, 1.5]) { bx(.6, .5, .06, gold, x, 2.7, 3.37); ABS.wins.push(bx(.48, .38, .06, win, x, 2.7, 3.35)); bx(.04, .38, .07, wdD, x, 2.7, 3.34); }
-  for (const s of [-1, 1]) { bx(.9, .6, .06, gold, s * 1.2, 2.6, 6.46); ABS.wins.push(bx(.78, .48, .06, win, s * 1.2, 2.6, 6.48)); bx(.04, .48, .07, wdD, s * 1.2, 2.6, 6.5); bx(.14, .55, 3.3, wdD, s * 2.35, 3.65, 4.9); }
-  bx(4.8, .5, .14, wdD, 0, 3.65, 6.55);
-  for (let i = 0; i < 3; i++) bx(1.1, .5 * (i + 1), .4, wdL, -1.6, DECK + .25 * (i + 1), 2.4 + i * .4);
-  for (const s of [-1, 1]) { bx(.1, 1.0, .1, wdD, s * 2.25, POOP + .6, 6.4); const L = bx(.3, .38, .3, vio, s * 2.25, POOP + 1.3, 6.4); ABS.wins.push(L); bx(.36, .06, .36, gold, s * 2.25, POOP + 1.54, 6.4); bx(.36, .06, .36, gold, s * 2.25, POOP + 1.1, 6.4); }
-  // the ship's wheel
-  { const w = new THREE.Mesh(new THREE.TorusGeometry(.42, .05, 6, 16), gold); w.position.set(0, POOP + 1.1, 5.9); G.add(w); bx(.12, .9, .12, wdD, 0, POOP + .45, 6.0);
-    for (let k = 0; k < 4; k++) bx(.04, 1.0, .04, wdD, 0, POOP + 1.1, 5.9, G, 0, 0, k * Math.PI / 4); }
-
-  /* the ferryman 摆渡人: a tall hooded figure on the stern deck, holding a staff with a hanging violet lantern */
-  { const Q = new THREE.Group(); Q.position.set(.9, POOP, 4.7); Q.rotation.y = Math.PI / 2; G.add(Q); ABS.fm = Q;
-    bx(.7, 1.3, .55, robe, 0, .65, 0, Q); bx(.86, .5, .66, robeD, 0, .22, 0, Q);           // robe, wider at the hem
-    for (let k = 0; k < 4; k++) bx(.18, .2 + (k % 2) * .12, .05, robeD, -.3 + k * .2, .05, .32, Q);   // ragged hem
-    bx(.74, .08, .58, gold, 0, .95, 0, Q); bx(.14, .14, .06, goldB, 0, .95, .3, Q);         // sash and clasp
-    bx(.8, .34, .6, robeD, 0, 1.34, 0, Q);                                                   // shoulders / mantle
-    const h = new THREE.Group(); h.position.set(0, 1.72, 0); Q.add(h); ABS.fmH = h;
-    bx(.52, .52, .52, robe, 0, 0, -.02, h); bx(.44, .2, .2, robe, 0, .3, -.12, h); bx(.3, .2, .2, robe, 0, .42, -.22, h);   // hood with a point at the back
-    bx(.38, .36, .06, mat(0x050407), 0, -.04, .25, h);                                       // the dark inside of the hood
-    for (const s of [-1, 1]) { const e = bx(.08, .05, .03, vio, s * .09, .0, .28, h); ABS.eyes.push(e); }
-    const aR = new THREE.Group(); aR.position.set(.42, 1.4, 0); Q.add(aR); bx(.2, .6, .22, robe, 0, -.3, 0, aR); bx(.16, .14, .18, bone, 0, -.64, .02, aR); aR.rotation.x = -.5; ABS.fmA = aR;
-    const aL = new THREE.Group(); aL.position.set(-.42, 1.4, 0); Q.add(aL); bx(.2, .6, .22, robe, 0, -.3, 0, aL); bx(.16, .14, .18, bone, 0, -.64, .02, aL); aL.rotation.z = .12;
-    // the staff (in the right hand) with a crook and a lantern on a chain
-    const st = new THREE.Group(); st.position.set(0, -.66, .08); aR.add(st); st.rotation.x = .5;
-    bx(.07, 2.6, .07, wdD, 0, .6, 0, st); bx(.08, .08, .5, gold, 0, 1.9, .2, st); bx(.07, .4, .07, gold, 0, 1.75, .44, st);
-    const lan = new THREE.Group(); lan.position.set(0, 1.55, .44); st.add(lan); ABS.lan = lan;
-    bx(.03, .25, .03, iron, 0, -.12, 0, lan); bx(.26, .06, .26, gold, 0, -.27, 0, lan); const core = bx(.2, .3, .2, vio, 0, -.45, 0, lan); bx(.26, .05, .26, gold, 0, -.62, 0, lan);
-    for (const [x, z] of [[-.11, -.11], [.11, -.11], [-.11, .11], [.11, .11]]) bx(.03, .34, .03, gold, x, -.45, z, lan);
-    ABS.lanCore = core; Q.scale.set(1.15, 1.15, 1.15); }
-
-  /* deck cargo: crystals with gold edges, chained coffers, an altar with a hovering rune ring */
-  const cryM = new THREE.MeshLambertMaterial({ color: 0x9a5aff, emissive: 0x5a1ab0, emissiveIntensity: .7, flatShading: true, transparent: true, opacity: .92 });
-  const edgeM = new THREE.LineBasicMaterial({ color: 0xe8c060 });
-  const crystal = (x, y, z, h, w, ry, tilt) => { const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.set(tilt || 0, ry || 0, (tilt || 0) * .6); G.add(g);
-    const geo = new THREE.OctahedronGeometry(1, 0); const m = new THREE.Mesh(geo, cryM); m.scale.set(w, h, w); m.position.y = h * .7; g.add(m);
-    const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeM); e.scale.copy(m.scale); e.position.copy(m.position); g.add(e); ABS.cry.push(m); return g; };
-  const cluster = (x, z, k) => { crystal(x, DECK, z, .7 * k, .22 * k, rr(0, 6), 0); crystal(x + .25 * k, DECK, z + .15 * k, .45 * k, .16 * k, rr(0, 6), .4); crystal(x - .22 * k, DECK, z - .1 * k, .4 * k, .14 * k, rr(0, 6), -.45);
-    crystal(x + .05, DECK, z - .28 * k, .3 * k, .12 * k, rr(0, 6), -.3); };
-  cluster(-1.4, -3.4, 1.2); cluster(1.5, -1.8, 1.0); cluster(-1.5, 2.2, .9); cluster(.4, -5.6, .9);
-  // chained coffers
-  const coffer = (x, z, ry, sc) => { const c = new THREE.Group(); c.position.set(x, DECK, z); c.rotation.y = ry; c.scale.set(sc, sc, sc); G.add(c);
-    bx(1.1, .6, .72, wdD, 0, .3, 0, c); bx(1.14, .22, .76, wdM, 0, .7, 0, c); for (const s of [-1, 1]) bx(.12, .84, .78, gold, s * .38, .42, 0, c);
-    bx(1.16, .06, .06, iron, 0, .45, .39, c); bx(.06, .84, .06, iron, 0, .42, .39, c); bx(.2, .22, .06, goldB, 0, .45, .41, c); bx(.5, .05, .5, vioD, 0, .82, 0, c); };
-  coffer(1.6, .8, Math.PI / 2, .9); coffer(-1.6, -1.0, Math.PI / 2 + .1, .85); coffer(1.5, 2.8, Math.PI / 2 - .1, .75);
-  // coiled chains
-  for (const [x, z] of [[1.7, -3.6], [-.9, 3.0]]) for (let k = 0; k < 3; k++) { const t = new THREE.Mesh(new THREE.TorusGeometry(.32 - k * .07, .045, 5, 12), iron); t.rotation.x = Math.PI / 2; t.position.set(x, DECK + .05 + k * .08, z); G.add(t); }
-  // the altar midships (behind the main mast) with a rune ring floating over it
-  { bx(1.3, .3, 1.3, wdD, 0, DECK + .15, 1.2); bx(1.0, .6, 1.0, wdX, 0, DECK + .6, 1.2); bx(1.2, .1, 1.2, gold, 0, DECK + .95, 1.2);
-    const r = new THREE.Mesh(new THREE.TorusGeometry(.55, .04, 6, 28), vio); r.position.set(0, DECK + 1.9, 1.2); G.add(r); ABS.rune = r;
-    const r2 = new THREE.Mesh(new THREE.TorusGeometry(.38, .03, 6, 6), goldB); r2.position.copy(r.position); G.add(r2); ABS.rune2 = r2;
-    ABS.orb = crystal(0, DECK + 1.6, 1.2, .3, .18, 0, 0); }
-
-  /* masts, torn sails, rigging */
-  const MX = 0, MZ = -1.0, FZ = -4.4;
-  bx(.32, 8.6, .32, wdD, MX, DECK + 4.3, MZ); bx(.26, 6.4, .26, wdD, 0, DECK + 3.2, FZ);
-  for (const y of [DECK + 1.2, DECK + 3.4]) bx(.38, .12, .38, gold, MX, y, MZ);
-  bx(1.5, .1, 1.5, wdD, 0, DECK + 7.2, MZ); for (const s of [-1, 1]) { bx(1.5, .5, .06, wdD, 0, DECK + 7.5, MZ + s * .72); bx(.06, .5, 1.5, wdD, s * .72, DECK + 7.5, MZ); bx(1.52, .05, .08, gold, 0, DECK + 7.78, MZ + s * .72); }
-  bx(5.4, .17, .17, wdD, 0, DECK + 6.7, MZ - .35); bx(4.0, .14, .14, wdD, 0, DECK + 5.4, FZ - .3); bx(4.6, .14, .14, wdD, 0, DECK + 3.25, MZ - .35);
-  // main sail: three panels hanging from the yard, each with ragged bottom edges and a few holes
-  const sailPanel = (x, w, top, hgt, z, m, cut) => { const g = new THREE.Group(); g.position.set(x, top, z); G.add(g); ABS.sails.push(g);
-    const n = 4, cw = w / n; for (let i = 0; i < n; i++) { const hh = hgt - (cut ? ((i * 37) % 5) * .14 : 0); bx(cw + .01, hh, .07, m, -w / 2 + cw * (i + .5), -hh / 2, 0, g); }
-    return g; };
-  sailPanel(-1.75, 1.78, DECK + 6.62, 3.3, MZ - .31, sailD, 1); const mid = sailPanel(0, 1.78, DECK + 6.62, 3.5, MZ - .45, sailM, 1); sailPanel(1.75, 1.78, DECK + 6.62, 3.2, MZ - .31, sailD, 1);
-  bx(.5, .4, .08, mat(0x0a0610), -1.4, DECK + 5.0, MZ - .27); bx(.3, .5, .08, mat(0x0a0610), 1.9, DECK + 4.4, MZ - .27);   // holes (dark patches)
-  bx(.7, .6, .08, sailP, -2.0, DECK + 4.1, MZ - .265);                                    // a patch
-  // the abyss eye on the main sail, both faces: a gold ring, a violet iris, a slit pupil
-  for (const f of [-1, 1]) { const zz = MZ - .45 + f * .06;
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(.78, .07, 6, 24), goldB); ring.position.set(0, DECK + 4.85, zz); G.add(ring);
-    const iris = new THREE.Mesh(new THREE.CircleGeometry(.62, 24), vio); iris.position.set(0, DECK + 4.85, zz + f * .01); if (f < 0) iris.rotation.y = Math.PI; G.add(iris);
-    bx(.16, .9, .03, mat(0x0a0610), 0, DECK + 4.85, zz + f * .02); for (const s of [-1, 1]) bx(.06, .3, .03, gold, s * .98, DECK + 4.85, zz + f * .015, G, 0, 0, s * .0); }
-  sailPanel(0, 3.4, DECK + 5.32, 2.4, FZ - .3, sailM, 1); bx(.6, .5, .08, sailP, -1.0, DECK + 3.6, FZ - .295);
-  bx(3.4, 1.1, .06, sailD, 0, DECK + 7.35, MZ - .5); bx(3.6, .12, .12, wdD, 0, DECK + 7.95, MZ - .5);
-  // long tattered pennant
-  { const f = new THREE.Group(); f.position.set(0, DECK + 8.5, MZ); G.add(f); for (let k = 0; k < 5; k++) bx(.5, .45 - k * .06, .05, k % 2 ? vioD : sailM, .25 + k * .48, 0, 0, f); ABS.flag = f; }
-  const top = [MX, DECK + 7.4, MZ], ftop = [0, DECK + 6.0, FZ];
-  for (const s of [-1, 1]) { line(top, [s * 2.3, 2.5, -3.6]); line(top, [s * 2.3, 2.5, 1.8]); line(top, [s * 2.3, 2.5, 3.6]); line(ftop, [s * 1.3, 2.5, -6.3]);
-    for (let k = 1; k < 5; k++) { const t = k / 5; line([s * 2.3 * (1 - t * .9), 2.5 + (DECK + 7.4 - 2.5) * t, 1.8 + (MZ - 1.8) * t], [s * 2.3 * (1 - t * .9), 2.5 + (DECK + 7.4 - 2.5) * t, -3.6 + (MZ + 3.6) * t], null, .035); } }   // ratlines
-  line(top, ftop); line(ftop, [0, 2.4, -10.5]);
-  // violet lanterns on the gunwale
-  for (const [x, z] of [[2.35, -3.0], [-2.35, -3.0], [2.35, 3.0], [-2.35, 1.0]]) { bx(.1, 1.0, .1, wdD, x, 2.95, z); bx(.34, .06, .34, gold, x, 3.48, z); ABS.wins.push(bx(.26, .34, .26, vio, x, 3.68, z)); bx(.34, .06, .34, gold, x, 3.88, z); }
-  { const lab = labelSprite(T2('深渊号 · 无尽深渊', 'The Abyss Ship'), '#d8b0ff', 1.15); lab.position.set(0, DECK + 10.6, 0); G.add(lab); }
-
-  /* glow, rising motes, the rift in the sea ahead of the bow */
-  try {
-    const tex = glowTex('rgba(200,140,255,.9)', 'rgba(140,60,255,.3)');
-    for (const [x, y, z, s] of [[0, DECK + 1.9, 1.2, 4.2], [.9, POOP + 2.4, 4.7, 2.6], [-1.4, DECK + .8, -3.4, 3.4], [0, 2.2, -9.4, 3.2]]) {
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: .5, blending: THREE.AdditiveBlending })); sp.scale.set(s, s, 1); sp.position.set(x, y, z); sp.renderOrder = 5; G.add(sp); ABS.glow.push({ sp, s, ph: rr(0, 6) }); }
-  } catch (e) { }
-  const mm = new THREE.MeshBasicMaterial({ color: 0xd8b0ff, transparent: true, opacity: .8 });
-  for (let i = 0; i < 22; i++) { const m = new THREE.Mesh(geo(.08, .08, .08), mm); G.add(m); ABS.motes.push({ m, x: rr(-2, 2), z: rr(-5.5, 6), ph: rr(0, 1), sp: rr(.15, .35) }); }
-  { const RG = new THREE.Group(); RG.position.set(ABS.rx, .02 - .25 + .25, ABS.rz - 13.5); islandG.add(RG); ABS.riftG = RG;
-    const cols = [0x1a0630, 0x3a1070, 0x6a2ab0, 0xa060ff];
-    cols.forEach((c, i) => { const r0 = .4 + i * .9, m = new THREE.Mesh(new THREE.RingGeometry(r0, r0 + .7, 32, 1, 0, Math.PI * 1.55), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: .75 - i * .12, side: THREE.DoubleSide, depthWrite: false }));
-      m.rotation.x = -Math.PI / 2; m.position.y = -.22 + i * .005; m.renderOrder = 4; RG.add(m); ABS.rift.push({ m, sp: (i % 2 ? -1 : 1) * (1.4 - i * .25) }); });
-    const c = new THREE.Mesh(new THREE.CircleGeometry(.5, 20), new THREE.MeshBasicMaterial({ color: 0x050208 })); c.rotation.x = -Math.PI / 2; c.position.y = -.2; RG.add(c); }
-
-  /* the gangplank from the pier up to the deck (pier edge at x=-1.5 relative to HOME) */
-  { const J = new THREE.Group(); islandG.add(J); const gz = ABS.rz + 1.5, gx0 = -1.5, gx1 = ABS.rx + 2.35, gy0 = .38, gy1 = -.25 + DECK + .05, L = Math.hypot(gx1 - gx0, gy1 - gy0);
-    const gp = bx(L, .1, 1.1, wdL, (gx0 + gx1) / 2, (gy0 + gy1) / 2, gz, J); gp.rotation.z = -Math.atan2(gy1 - gy0, gx0 - gx1);
-    for (let k = 1; k < 5; k++) { const t = k / 5; bx(.08, .06, 1.1, wdD, gx0 + (gx1 - gx0) * t, gy0 + (gy1 - gy0) * t + .06, gz, J); }
-    for (const s of [-1, 1]) { line([gx0, gy0 + .7, gz + s * .55], [gx1, gy1 + .7, gz + s * .55], null, .05, J); bx(.1, .8, .1, wdD, gx0, gy0 + .35, gz + s * .55, J); }
-    bx(.14, 1.8, .14, wdD, -1.7, 1.2, gz - 1.6, J); bx(.34, .06, .34, gold, -1.7, 2.1, gz - 1.6, J); ABS.wins.push(bx(.26, .34, .26, vio, -1.7, 2.3, gz - 1.6, J)); bx(.34, .06, .34, gold, -1.7, 2.5, gz - 1.6, J); }
-  for (const dz of [-6, -3, 0, 3, 6]) addCircle(HOME.x + ABS.rx, HOME.z + ABS.rz + dz, 2.3);   // you can't wade through the hull
+    const o = box(t || .05, t || .05, L, m || rope, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, par || G); o.rotation.order = 'YXZ'; o.rotation.y = Math.atan2(dx, dz); o.rotation.x = -Math.asin(dy / L); return o; };
+  const HY = .9, HR = 1.75, X = Math.PI / 2;   // hull axis height and radius
+  /* hull: a 12-sided tube, a tapered bow, a tapered tail; red belly below the waterline stripe */
+  cyl(HR, HR, 8.4, teal, 0, HY, .4, G, 12, X);
+  cyl(HR * .98, HR * .98, 8.3, red, 0, HY - .55, .4, G, 12, X).scale.set(1, 1, .62);
+  cyl(HR * .32, HR, 3.2, teal, 0, HY, -5.4, G, 12, -X);                       // bow cone
+  cyl(.55, HR * .32, .5, tealD, 0, HY, -7.2, G, 12, -X);
+  cyl(HR * .42, HR, 3.0, teal, 0, HY, 6.1, G, 12, X);                        // tail cone
+  cyl(.3, .3, .9, steelD, 0, HY, 7.9, G, 8, X);                               // shaft
+  // brass bands and rivet rows
+  for (const z of [-3.6, -1.2, 1.2, 3.6]) { cyl(HR + .04, HR + .04, .16, brass, 0, HY, z, G, 12, X); for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; bx(.07, .07, .07, brassD, Math.cos(a) * (HR + .07), HY + Math.sin(a) * (HR + .07), z + .16); } }
+  bx(.06, .2, 8.4, white, HR + .02, HY + .1, .4); bx(.06, .2, 8.4, white, -HR - .02, HY + .1, .4);   // white stripe at the waterline
+  // round portholes along both sides, lit warm
+  for (const s of [-1, 1]) for (const z of [-2.4, 0, 2.4, 4.6]) { const r = cyl(.32, .32, .1, brass, s * (HR - .02), HY + .45, z, G, 14, 0, X); const w = cyl(.22, .22, .12, lit, s * (HR + .01), HY + .45, z, G, 14, 0, X); ABS.wins.push(w); }
+  // deck: a flat walkway on top with a rail
+  bx(1.5, .12, 9.6, wood, 0, HY + HR + .02, .2); for (let z = -4.4; z < 4.9; z += .5) bx(1.5, .02, .03, woodD, 0, HY + HR + .09, z);
+  for (const s of [-1, 1]) { bx(.05, .05, 9.0, brass, s * .72, HY + HR + .6, .2); for (let z = -4.2; z <= 4.6; z += 1.1) bx(.05, .6, .05, steel, s * .72, HY + HR + .32, z); }
+  /* conning tower */
+  const TY = HY + HR + .1;
+  bx(2.0, 1.9, 3.0, tealL, 0, TY + .95, -.6); bx(2.1, .14, 3.1, brass, 0, TY + 1.95, -.6); bx(1.8, .5, 2.6, tealL, 0, TY + 2.2, -.7);
+  cyl(1.0, 1.0, 2.0, tealL, 0, TY + .95, -2.1, G, 12); cyl(1.05, 1.05, .14, brass, 0, TY + 1.95, -2.1, G, 12);   // rounded front
+  bx(.5, .3, .06, white, .62, TY + 1.4, .9); bx(.42, .22, .07, red, .62, TY + 1.4, .9);                         // a small plate
+  for (const [x, z] of [[1.02, -.9], [1.02, .2], [-1.02, -.9], [-1.02, .2]]) { cyl(.24, .24, .08, brass, x, TY + 1.2, z, G, 12, 0, X); ABS.wins.push(cyl(.16, .16, .1, lit, x + Math.sign(x) * .02, TY + 1.2, z, G, 12, 0, X)); }
+  for (const a of [-.6, 0, .6]) { const x = Math.sin(a) * 1.02, z = -2.1 - Math.cos(a) * 1.02; const w = cyl(.2, .2, .08, glass, x, TY + 1.35, z, G, 12, X); w.rotation.set(X, 0, 0); w.rotation.y = a; }
+  // the name on the tower: a brass plate with a big red 深 mark drawn as blocks
+  { const P = new THREE.Group(); P.position.set(1.01, TY + .55, -.6); P.rotation.y = X; G.add(P); bx(1.6, .5, .05, brass, 0, 0, 0, P); bx(1.44, .36, .06, white, 0, 0, .01, P);
+    for (const [x, y, w, h] of [[-.48, .06, .06, .2], [-.4, 0, .14, .04], [-.2, .1, .3, .04], [-.2, 0, .06, .22], [.1, .1, .3, .04], [.1, -.06, .3, .04], [.1, .02, .04, .2], [.42, 0, .2, .2]]) bx(w, h, .07, red, x, y, .02, P); }
+  // hatch, searchlight, periscope, antenna, a flag in the island's colours
+  cyl(.42, .42, .16, brass, .2, TY + 2.52, -.1, G, 14); bx(.06, .5, .06, steel, .55, TY + 2.7, -.1); bx(.4, .06, .06, steel, .4, TY + 2.95, -.1);
+  { const L = new THREE.Group(); L.position.set(0, TY + 2.7, -1.6); G.add(L); ABS.light = L; cyl(.28, .22, .5, steelD, 0, 0, 0, L, 12, X); const f = cyl(.26, .26, .06, new THREE.MeshBasicMaterial({ color: 0xfff6c8 }), 0, 0, -.27, L, 14, X); bx(.08, .4, .08, steel, 0, -.3, .1, L);
+    try { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,246,200,1)', 'rgba(255,220,120,0)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); sp.scale.set(2.2, 2.2, 1); sp.position.set(0, 0, -.4); L.add(sp); ABS.beam = sp; } catch (e) { } }
+  { const P = new THREE.Group(); P.position.set(-.45, TY + 2.45, -.4); G.add(P); ABS.peri = P; bx(.14, 1.6, .14, steelD, 0, .8, 0, P); bx(.16, .16, .45, steelD, 0, 1.6, -.15, P); bx(.12, .1, .04, glass, 0, 1.6, -.39, P); }
+  bx(.04, 2.0, .04, steel, -.6, TY + 3.4, .4); bx(.5, .04, .04, steel, -.6, TY + 4.1, .4);
+  { const F = new THREE.Group(); F.position.set(-.6, TY + 4.2, .4); G.add(F); ABS.flag = F; bx(.7, .42, .03, mat(0xff8a2a), .35, 0, 0, F); bx(.28, .14, .04, white, .3, 0, 0, F); }
+  /* dive planes, rudder, propeller */
+  for (const s of [-1, 1]) { bx(1.4, .1, .8, steelD, s * (HR + .55), HY + .1, -3.9, G, 0, 0, s * .05); bx(1.2, .1, .7, steelD, s * (HR * .6 + .5), HY, 6.3); bx(.06, .14, .8, brass, s * (HR + 1.22), HY + .1, -3.9); }
+  bx(.1, 1.6, .9, steelD, 0, HY + .5, 6.7); 
+  { const P = new THREE.Group(); P.position.set(0, HY, 8.35); G.add(P); ABS.prop = P; cyl(.2, .2, .3, brass, 0, 0, 0, P, 10, X);
+    for (let k = 0; k < 4; k++) { const b = bx(.2, .9, .05, brass, 0, .45, 0, new THREE.Group()); const g = b.parent; g.rotation.z = k * X; P.add(g); b.rotation.y = .5; } }
+  /* the diver: canvas suit, brass helmet with a round faceplate, lead boots, an air hose to the hatch */
+  { const D = new THREE.Group(); D.position.set(.45, HY + HR + .1, 1.6); D.rotation.y = X; G.add(D); ABS.dv = D;
+    for (const s of [-1, 1]) { bx(.28, .62, .3, canvas, s * .17, .45, 0, D); bx(.32, .2, .4, boot, s * .17, .1, .05, D); bx(.34, .06, .42, brassD, s * .17, .22, .05, D); }
+    bx(.7, .76, .46, canvas, 0, 1.12, 0, D); bx(.74, .1, .5, boot, 0, .8, 0, D); bx(.62, .3, .5, canvasD, 0, 1.38, 0, D);
+    bx(.82, .14, .58, brass, 0, 1.55, 0, D); for (const x of [-.32, .32]) for (const z of [-.22, .22]) bx(.06, .06, .06, brassD, x, 1.63, z, D);   // breastplate with bolts
+    const aR = new THREE.Group(); aR.position.set(.46, 1.45, 0); D.add(aR); bx(.24, .62, .26, canvas, 0, -.3, 0, aR); bx(.26, .2, .28, boot, 0, -.66, 0, aR); ABS.dvR = aR;
+    const aL = new THREE.Group(); aL.position.set(-.46, 1.45, 0); D.add(aL); bx(.24, .62, .26, canvas, 0, -.3, 0, aL); bx(.26, .2, .28, boot, 0, -.66, 0, aL); aL.rotation.z = .15;
+    const H = new THREE.Group(); H.position.set(0, 1.95, 0); D.add(H); ABS.dvH = H;
+    const hm = new THREE.Mesh(new THREE.IcosahedronGeometry(.42, 1), new THREE.MeshLambertMaterial({ color: 0xe8b040, emissive: 0x3a2400, flatShading: true })); H.add(hm);
+    cyl(.22, .22, .08, brassD, 0, 0, .4, H, 14, X); cyl(.17, .17, .1, glass, 0, 0, .43, H, 14, X); for (const a of [0, X]) bx(.36, .04, .04, brassD, 0, 0, .46, H, 0, 0, a);   // faceplate with a cross grille
+    for (const s of [-1, 1]) { cyl(.11, .11, .08, brassD, s * .4, .02, 0, H, 12, 0, X); cyl(.08, .08, .1, glass, s * .43, .02, 0, H, 12, 0, X); }
+    cyl(.1, .1, .14, brassD, 0, .43, -.05, H, 8);
+    D.scale.set(1.1, 1.1, 1.1); }
+  line([.45, HY + HR + 2.2, 1.95], [.2, TY + 2.5, -.1], mat(0x2a2a30), .07);   // air hose
+  /* crates and a coil of rope on the deck */
+  bx(.6, .5, .6, wood, -.3, HY + HR + .33, 3.4); bx(.62, .06, .62, woodD, -.3, HY + HR + .5, 3.4); bx(.45, .4, .45, wood, -.35, HY + HR + .78, 3.35, G, .4);
+  for (let k = 0; k < 3; k++) { const t = new THREE.Mesh(new THREE.TorusGeometry(.32 - k * .08, .06, 5, 12), rope); t.rotation.x = X; t.position.set(.3, HY + HR + .15 + k * .09, 4.3); G.add(t); }
+  /* the sign above */
+  { const lab = labelSprite(T2('深渊号 · 无尽深渊', 'The Abyss Diver'), '#ffd98a', 1.15); lab.position.set(0, TY + 5.4, -.4); G.add(lab); }
+  /* bubbles round the hull */
+  const bm = new THREE.MeshBasicMaterial({ color: 0xe8fbff, transparent: true, opacity: .85 });
+  for (let i = 0; i < 18; i++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(rr(.06, .14), 0), bm); G.add(m); const a = rr(0, 6.28); ABS.bub.push({ m, x: Math.cos(a) * rr(1.9, 2.6), z: rr(-6, 7), ph: rr(0, 1), sp: rr(.3, .6) }); }
+  /* a red-and-white dive buoy out at sea, ahead of the bow */
+  { const B = new THREE.Group(); B.position.set(ABS.rx + 1, -.2, ABS.rz - 12); islandG.add(B); ABS.buoy = B;
+    cyl(.7, .9, .7, red, 0, .2, 0, B, 10); cyl(.72, .72, .2, white, 0, .45, 0, B, 10); cyl(.45, .7, .5, red, 0, .8, 0, B, 10); bx(.1, 1.0, .1, steel, 0, 1.5, 0, B); ABS.wins.push(cyl(.16, .16, .26, lit, 0, 2.05, 0, B, 10)); bx(.4, .04, .4, steel, 0, 2.2, 0, B); }
+  /* the jetty: west from the pier along z = jz, then a long gangplank down to the sub's deck; lamp posts and a bollard */
+  { const J = new THREE.Group(); islandG.add(J); const jz = ABS.jz, pm = x => mat((Math.round(x * 10) % 2) ? 0x9a7450 : 0x84603e);
+    for (let x = ABS.jx0; x > ABS.jx1; x -= .7) bx(.6, .14, 2.6, pm(x), x, .3, jz, J);
+    for (let x = ABS.jx1 + 2.8; x > ABS.jx1 - .2; x -= .7) bx(.6, .14, 1.8, pm(x + .3), x, .31, jz - 2.1, J);    // a wider landing at the end
+    const px = [-3, -6, -9, -12, -15, -17]; for (const x of px) for (const s of [-1, 1]) if (s > 0 || x > ABS.jx1 + 3.1) bx(.22, 2, .22, mat(0x4a3420), x, -.4, jz + s * 1.4, J);
+    for (let i = 0; i < px.length - 1; i++) bx(px[i] - px[i + 1], .1, .12, mat(0x5a3e28), (px[i] + px[i + 1]) / 2, .9, jz + 1.4, J);
+    { const r0 = -3, r1 = ABS.jx1 + 3.1; bx(r0 - r1, .1, .12, mat(0x5a3e28), (r0 + r1) / 2, .9, jz - 1.4, J); }
+    const A = [ABS.jx1 + .9, .38, jz - 2.6], B = [ABS.rx + .55, -.25 + HY + HR + .1, ABS.rz + 4.4], dx = B[0] - A[0], dy = B[1] - A[1], dz = B[2] - A[2], L = Math.hypot(dx, dy, dz);
+    const gp = box(1.0, .1, L, wood, (A[0] + B[0]) / 2, (A[1] + B[1]) / 2, (A[2] + B[2]) / 2, J); gp.rotation.order = 'YXZ'; gp.rotation.y = Math.atan2(dx, dz); gp.rotation.x = -Math.asin(dy / L);
+    for (let k = 1; k < 6; k++) { const t = k / 6, c = box(1.0, .06, .08, woodD, A[0] + dx * t, A[1] + dy * t + .06, A[2] + dz * t, J); c.rotation.y = Math.atan2(dx, dz); }
+    const nx = Math.cos(Math.atan2(dx, dz)) * .5, nz = -Math.sin(Math.atan2(dx, dz)) * .5;
+    for (const s of [-1, 1]) line([A[0] + s * nx, A[1] + .7, A[2] + s * nz], [B[0] + s * nx, B[1] + .7, B[2] + s * nz], null, .05, J);
+    for (const [x, z] of [[-2.2, jz - 1.3], [ABS.jx1 + .3, jz + 1.2]]) { bx(.14, 1.9, .14, mat(0x3a3a40), x, 1.2, z, J); bx(.36, .06, .36, brass, x, 2.15, z, J); ABS.wins.push(bx(.26, .32, .26, lit, x, 2.35, z, J)); bx(.36, .06, .36, brass, x, 2.55, z, J); }
+    cyl(.18, .22, .5, steelD, ABS.jx1 + 2.4, .6, jz - 2.6, J, 8); line([ABS.jx1 + 2.4, .8, jz - 2.6], [ABS.rx + 1.5, -.25 + HY + .9, ABS.rz + 6], rope, .05, J);
+    ABS.jetty = J; }
+  for (const dz of [-5.5, -2.8, 0, 2.8, 5.5]) addCircle(HOME.x + ABS.rx, HOME.z + ABS.rz + dz, 2.0);   // you can't wade through the hull
 }
-const abyShipNear = () => { try { return S.isl && !S.dun && !S.boat && Math.abs(player.pos.x - (HOME.x + ABS.rx)) < 7.5 && Math.abs(player.pos.z - (HOME.z + ABS.rz + 1)) < 6.5; } catch (e) { return false; } };
+// stand on the jetty (its outer half) to see the button
+const abyShipNear = () => { try { if (!S.isl || S.dun || S.boat) return false; const x = player.pos.x - HOME.x, z = player.pos.z - HOME.z;
+  return (x < -8 && x > ABS.jx1 - 1 && z < ABS.jz + 2.2 && z > ABS.jz - 3.6); } catch (e) { return false; } };
+// the jetty reaches past the shallows, so you can walk it like the pier (and can't step off its far end into the sea)
+const abyOnJetty = (x, z) => (x < ABS.jx0 + .4 && x > ABS.jx1 - .3 && Math.abs(z - ABS.jz) < 1.3) || (x < ABS.jx1 + 3.1 && x > ABS.jx1 - .3 && z < ABS.jz && z > ABS.jz - 3.0);
+try { islandTick = (o => function (dt) { let x = player.pos.x - HOME.x, z = player.pos.z - HOME.z; const R2 = ISL_R + 9;
+  if (!S.boat && !S.dun && S.isl && !abyOnJetty(x, z) && Math.hypot(x, z) > R2 && ABS.lastJ) {   // stepped off the outer part: back onto the boards
+    const cx = Math.max(ABS.jx1 - .3, Math.min(ABS.jx0 + .4, x)), cz = Math.max(ABS.jz - 3.0, Math.min(ABS.jz + 1.29, z)); if (Math.hypot(cx - x, cz - z) < 1.6) { x = cx; z = cz; player.pos.x = HOME.x + x; player.pos.z = HOME.z + z; } }
+  const on = !S.boat && !S.dun && S.isl && abyOnJetty(x, z); ABS.lastJ = on; const px = player.pos.x, pz = player.pos.z; o(dt); if (on) { player.pos.x = px; player.pos.z = pz; } })(islandTick); } catch (e) { }
 zSpecialTick = (o => function (dt) { o(dt);
   if (!ABS.g) try { abyShipBuild(); } catch (e) { console.warn('aby ship', e); ABS.g = 1; }
   if (ABS.g && ABS.g.position && S.isl) { const t = (ABS.t += dt), G = ABS.g;
-    G.position.y = -.25 + Math.sin(t * .8) * .07; G.rotation.z = Math.sin(t * .55) * .018; G.rotation.x = Math.sin(t * .4) * .008;
-    ABS.sails.forEach((g, i) => { g.rotation.x = .06 + Math.sin(t * 1.1 + i) * .05; });
-    if (ABS.flag) ABS.flag.children.forEach((c, k) => { c.position.z = Math.sin(t * 3 - k * .8) * .12 * k; c.rotation.y = Math.sin(t * 3 - k * .8) * .3; });
-    if (ABS.rune) { ABS.rune.rotation.y += dt * .9; ABS.rune.rotation.x = Math.sin(t * .7) * .4; ABS.rune2.rotation.y -= dt * 1.3; ABS.rune2.rotation.z = Math.sin(t) * .3; ABS.orb.rotation.y += dt * 1.5; ABS.orb.position.y = DECK_ABY + 1.6 + Math.sin(t * 1.6) * .1; }
-    ABS.rift.forEach(r => { r.m.rotation.z += dt * r.sp; });
-    const pulse = .75 + Math.sin(t * 2.2) * .25; ABS.wins.forEach((w, i) => { w.material.color.setRGB(.55 + .25 * pulse * (1 + Math.sin(t * 3 + i) * .1), .38 + .15 * pulse, 1); });
-    ABS.cry.forEach((c, i) => { c.material.emissiveIntensity = .5 + Math.sin(t * 1.5 + i * .7) * .25; });
-    ABS.glow.forEach(g => { const k = 1 + Math.sin(t * 1.4 + g.ph) * .1; g.sp.scale.set(g.s * k, g.s * k, 1); });
-    ABS.motes.forEach(M => { const p = (M.ph + t * M.sp) % 1; M.m.position.set(M.x + Math.sin(t + M.ph * 9) * .3, 2 + p * 6, M.z); M.m.material.opacity = .8; M.m.scale.setScalar(1 - p * .7); });
-    // the ferryman sways, his lantern swings, and he turns his head to watch you when you come close
-    if (ABS.fm) { const near = abyShipNear(); ABS.fm.position.y = 3.34 + Math.sin(t * 1.2) * .04; if (ABS.lan) { ABS.lan.rotation.x = Math.sin(t * 1.7) * .25; ABS.lan.rotation.z = Math.sin(t * 1.3) * .15; }
-      if (ABS.lanCore) ABS.lanCore.material.color.setRGB(.7 + Math.sin(t * 5) * .1, .45, 1);
-      if (ABS.fmH) { let want = Math.sin(t * .5) * .5; if (near) { const lx = player.pos.x - (HOME.x + ABS.rx + .9), lz = player.pos.z - (HOME.z + ABS.rz + 4.7); want = Math.max(-1, Math.min(1, Math.atan2(lx, lz) - Math.PI / 2)); }
-        ABS.fmH.rotation.y += (want - ABS.fmH.rotation.y) * Math.min(1, dt * 3); }
-      if (ABS.fmA) ABS.fmA.rotation.x = -.5 + Math.sin(t * 1.2) * .05; } }
+    G.position.y = -.25 + Math.sin(t * .8) * .06; G.rotation.z = Math.sin(t * .55) * .012; G.rotation.x = Math.sin(t * .4) * .006;
+    if (ABS.prop) ABS.prop.rotation.z += dt * 2.2;
+    if (ABS.light) { ABS.light.rotation.y = Math.sin(t * .5) * .7; if (ABS.beam) ABS.beam.material.opacity = .75 + Math.sin(t * 3) * .15; }
+    if (ABS.peri) ABS.peri.rotation.y = Math.sin(t * .3) * 1.2;
+    if (ABS.flag) ABS.flag.rotation.y = Math.sin(t * 2.6) * .35;
+    if (ABS.buoy) { ABS.buoy.position.y = -.2 + Math.sin(t * 1.3) * .1; ABS.buoy.rotation.z = Math.sin(t * 1.1) * .08; }
+    const k = .8 + Math.sin(t * 2.4) * .2; ABS.wins.forEach((w, i) => { w.material.color.setRGB(1, .82 + .1 * k, .45 + .15 * k * (1 + Math.sin(t * 3 + i) * .2)); });
+    ABS.bub.forEach(B => { const p = (B.ph + t * B.sp) % 1; B.m.position.set(B.x + Math.sin(t * 2 + B.ph * 9) * .08, .1 + p * .9, B.z); B.m.scale.setScalar(.6 + p * .6); B.m.visible = p < .92; });
+    // the diver looks round, turns to watch you when you come close, and waves
+    if (ABS.dv) { const near = abyShipNear(); let want = Math.sin(t * .45) * .7, wave = 0;
+      if (near) { const lx = player.pos.x - (HOME.x + ABS.rx + .45), lz = player.pos.z - (HOME.z + ABS.rz + 1.6); want = Math.max(-1.2, Math.min(1.2, Math.atan2(lx, lz) - Math.PI / 2)); wave = 1; }
+      if (ABS.dvH) ABS.dvH.rotation.y += (want - ABS.dvH.rotation.y) * Math.min(1, dt * 3);
+      if (ABS.dvR) { const tz = wave ? -(2.5 + Math.sin(t * 7) * .35) : -.1; ABS.dvR.rotation.z += (tz - ABS.dvR.rotation.z) * Math.min(1, dt * 6); }
+      ABS.dv.position.y = HY_ABY + 1.85 + Math.abs(Math.sin(t * 1.2)) * .02; } }
   const b = $('bAbyss'), on = S.started && !S.dead && abyShipNear(); if (b && (b.style.display === 'block') !== on) b.style.display = on ? 'block' : 'none';
 })(zSpecialTick);
-const DECK_ABY = 1.85;
+const HY_ABY = .9;
 (() => { try { const H = $('hud'); if (!H) return; const b = document.createElement('button'); b.className = 'btn2'; b.id = 'bAbyss'; b.textContent = T2('深渊号 · 无尽深渊', 'Abyss Ship · Endless Abyss'); H.appendChild(b);
   b.addEventListener('click', () => { if (!S.started || S.dead || S.paused) return; abyPage(); });
   setTimeout(() => { try { if (typeof KE_LIST !== 'undefined' && !KE_LIST.includes('bAbyss')) KE_LIST.push('bAbyss'); } catch (e) { } }, 0);
   const st = document.createElement('style'); st.textContent =
-    '#bAbyss{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--sb) + 142px);display:none;font-size:15px;border-color:#b070ff;background:linear-gradient(180deg,rgba(70,30,110,.92),rgba(30,12,50,.92));color:#ead8ff;box-shadow:0 0 16px rgba(176,112,255,.45)}' +
-    '.abym{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));background:radial-gradient(ellipse at 50% 40%,rgba(60,20,100,.82),rgba(6,3,12,.94));color:#f0e6ff;overflow:auto}' +
-    '.abyh{font-size:20px;font-weight:900;letter-spacing:.12em;color:#e0c8ff;text-shadow:0 0 14px rgba(176,112,255,.6);text-align:center}.abysub,.abynote{max-width:620px;text-align:center;font-size:12.5px;opacity:.8;margin:0}' +
-    '.abycs{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;max-width:760px}' +
-    '.abyc{position:relative;width:min(220px,30vw);min-width:150px;min-height:170px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 10px 10px;border-radius:14px;border:2px solid var(--qc);background:linear-gradient(170deg,color-mix(in srgb,var(--qc) 18%,#1a1024),#0c0812);color:#f3eaff;box-shadow:0 0 18px color-mix(in srgb,var(--qc) 35%,transparent);cursor:pointer;text-align:center}' +
-    '.abyc b{font-size:17px;color:var(--qc)}.abyc p{margin:0;font-size:12.5px;line-height:1.45;opacity:.92}.abyc small{font-size:11px;opacity:.6;margin-top:auto}' +
-    '.abyq{position:absolute;top:6px;left:8px;font-style:normal;font-size:11px;font-weight:900;color:#140a18;background:var(--qc);padding:1px 8px;border-radius:6px}.abysyn,.abyown{position:absolute;top:6px;right:8px;font-style:normal;font-size:11px;font-weight:800;padding:1px 7px;border-radius:6px;background:#ffd27a;color:#2a1004}.abyown{background:#9fd8ff}' +
-    '.abytg{display:flex;gap:4px;min-height:18px}.abyt{font-style:normal;font-size:11px;font-weight:900;padding:1px 7px;border-radius:999px;color:#120a14;background:var(--tc)}' +
-    '.abyfoot,.abygb{display:flex;gap:10px;justify-content:center}.abygate{max-width:520px;text-align:center}.abywarn{color:#ffb0a0;font-size:12.5px}' +
-    '.abyws{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;width:min(720px,94vw)}.abyw{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 6px;border-radius:12px;border:1.5px solid rgba(200,160,255,.3);background:rgba(30,16,46,.8);color:#f0e6ff}' +
-    '.abyw.on{border-color:#c890ff;box-shadow:0 0 14px rgba(200,144,255,.55);background:rgba(70,30,110,.8)}.abyw.off{opacity:.42}.abyw img{height:34px;max-width:100%;object-fit:contain}.abyw small{font-size:10.5px;opacity:.75}' +
-    '.abyinfo{display:flex;gap:16px;font-size:13px}.abyinfo b{color:#ffd27a}' +
-    '.abyend{display:flex;gap:18px}.abybig{display:flex;flex-direction:column;align-items:center}.abybig b{font:900 30px var(--font-hud,sans-serif);color:#ffd27a}.abybig small{font-size:11px;opacity:.7}.abyrw{max-width:560px;text-align:center;font-size:13px}' +
-    '.abydeck{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;max-width:640px}.abydeck span{font-size:11.5px;padding:2px 8px;border-radius:8px;border:1px solid var(--qc);color:var(--qc)}' +
-    '.abyrows{display:flex;flex-direction:column;gap:6px;width:min(560px,94vw);max-height:60vh;overflow:auto}.abyrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:7px 10px;border-radius:10px;border-left:3px solid var(--qc);background:rgba(30,16,46,.8)}.abyrow b{color:var(--qc)}.abyrow small{flex-basis:100%;font-size:11.5px;opacity:.8}' +
-    '@media (max-height:460px){.abyc{min-height:140px;padding-top:14px}.abyc p{font-size:11.5px}}';
+    '#bAbyss{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--sb) + 142px);display:none;font-size:15px;border:2px solid #ffd27a;background:linear-gradient(180deg,#1f7f8c,#13525c);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6);box-shadow:0 3px 12px rgba(0,0,0,.45)}' +
+    '.abym{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));background:rgba(8,12,16,.93);color:#fff;overflow:auto}' +
+    '.abyh{font-size:21px;font-weight:900;letter-spacing:.1em;color:#ffd27a;text-shadow:0 2px 0 rgba(0,0,0,.7);text-align:center}.abysub,.abynote{max-width:620px;text-align:center;font-size:13px;color:#e8eef2;margin:0;line-height:1.5}' +
+    '.abycs{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;max-width:780px}' +
+    '.abyc{position:relative;width:min(230px,31vw);min-width:150px;min-height:200px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:28px 10px 10px;border-radius:14px;border:3px solid var(--qc);background:#1c252c;color:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.6),0 6px 18px rgba(0,0,0,.5);cursor:pointer;text-align:center;overflow:hidden}' +
+    '.abyc::before{content:"";position:absolute;left:0;right:0;top:0;height:24px;background:var(--qc)}' +
+    '.abyc b{font-size:18px;color:#fff;font-weight:900}.abyc p{margin:0;font-size:13.5px;line-height:1.45;color:#f2f5f7}.abyc small{font-size:12px;color:#c8d2da;margin-top:auto}' +
+    '.abyq{position:absolute;top:3px;left:8px;font-style:normal;font-size:13px;font-weight:900;color:#111;z-index:1}.abysyn,.abyown{position:absolute;top:3px;right:6px;font-style:normal;font-size:11.5px;font-weight:900;padding:1px 7px;border-radius:6px;background:#111;color:#ffd27a;z-index:1}.abyown{color:#8fe0ff}' +
+    '.abyic{--isz:52px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;width:var(--isz);height:var(--isz);border-radius:50%;background:var(--ib);border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.5);font-style:normal}.abyic svg{width:66%;height:66%}' +
+    '.abytg{display:flex;gap:4px;min-height:18px}.abyt{font-style:normal;font-size:12px;font-weight:900;padding:1px 8px;border-radius:999px;color:#111;background:var(--tc)}' +
+    '.abyfoot,.abygb{display:flex;gap:10px;justify-content:center}.abygate{max-width:520px;text-align:center;font-size:14px}.abywarn{color:#ffb4a0;font-size:13px}' +
+    '.abyws{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;width:min(720px,94vw)}.abyw{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 6px;border-radius:12px;border:2px solid #44535e;background:#1c252c;color:#fff}' +
+    '.abyw.on{border-color:#ffd27a;background:#2a3a44;box-shadow:0 0 0 2px rgba(255,210,122,.35)}.abyw.off{opacity:.45}.abyw img{height:34px;max-width:100%;object-fit:contain}.abyw small{font-size:11px;color:#c8d2da}' +
+    '.abycn{display:inline-block;vertical-align:-3px;font-style:normal}.abycn svg{width:100%;height:100%;display:block}.abyac{font-size:15px;margin:0;display:flex;align-items:center;gap:4px}.abyac b{color:#5ae8d8;font-size:18px}' +
+    '.abyinfo{display:flex;gap:16px;font-size:14px;flex-wrap:wrap;justify-content:center;align-items:center}.abyinfo b{color:#ffd27a}' +
+    '.abyend{display:flex;gap:18px}.abybig{display:flex;flex-direction:column;align-items:center}.abybig b{font:900 30px var(--font-hud,sans-serif);color:#ffd27a}.abybig small{font-size:12px;color:#c8d2da}.abyrw{max-width:560px;text-align:center;font-size:14px}' +
+    '.abydeck{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;max-width:660px}.abydeck span{display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 8px 2px 3px;border-radius:999px;border:2px solid var(--qc);background:#1c252c;color:#fff}.abydeck .abyic{border-width:1px}' +
+    '.abyrows{display:flex;flex-direction:column;gap:6px;width:min(560px,94vw);max-height:60vh;overflow:auto}.abyrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:7px 10px;border-radius:10px;border-left:5px solid var(--qc);background:#1c252c}.abyrow b{color:#fff}.abyrow small{flex-basis:100%;font-size:12.5px;color:#e0e6ea}' +
+    '@media (max-height:460px){.abyc{min-height:170px;padding-top:27px;gap:4px}.abyc .abyic{--isz:40px}.abyc p{font-size:12.5px}.abyc b{font-size:16px}}';
   document.head.appendChild(st);
 } catch (e) { console.warn('aby ui', e); } })();
 /* ============ 资源商店: buy resources with gems, as many times as you like ============
@@ -18750,4 +18799,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794704863').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794706205').catch(()=>{});</script></body></html>
