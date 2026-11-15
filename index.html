@@ -17085,10 +17085,10 @@ function gvOnPiece(cx, cy) { try {
 function gvAim(e) { const p = groundAt(e.clientX, e.clientY); if (p) buildAnchor = { x: p.x, z: p.z }; buildTap = { x: e.clientX, y: e.clientY }; }
 window.addEventListener('pointerdown', e => {
   if (!GV.on || e.target !== canvas) return; e.stopPropagation(); e.preventDefault(); try { canvas.setPointerCapture(e.pointerId); } catch (er) { }
-  if (e.pointerType === 'mouse') { if (e.button === 0) { if (TER.on) { GV.drag = { x: e.clientX, y: e.clientY, moved: 0, paint: true }; TER.down = true; } else GV.drag = { x: e.clientX, y: e.clientY, moved: 0, place: true, pan: true }; gvAim(e); } else GV.drag = { x: e.clientX, y: e.clientY, moved: 0, pan: true }; return; }
+  if (e.pointerType === 'mouse') { if (e.button === 0) { if (TER.on && TER.tool !== 'pan') { GV.drag = { x: e.clientX, y: e.clientY, moved: 0, paint: true }; TER.down = true; } else GV.drag = { x: e.clientX, y: e.clientY, moved: 0, place: !TER.on, pan: true }; gvAim(e); } else GV.drag = { x: e.clientX, y: e.clientY, moved: 0, pan: true }; return; }
   GV.ptr.set(e.pointerId, { x: e.clientX, y: e.clientY });
   // one finger: drag = move the view, a tap (no drag) = put the piece there; two fingers: pinch + move
-  if (GV.ptr.size === 1) { GV.t1 = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: 0, ev: { clientX: e.clientX, clientY: e.clientY }, grab: !TER.on && gvOnPiece(e.clientX, e.clientY), paint: TER.on }; if (GV.t1.grab || GV.t1.paint) gvAim(e); TER.down = GV.t1.paint; } else if (GV.ptr.size === 2) { GV.g0 = gvTouchMid(); GV.t1 = null; TER.down = false; }
+  if (GV.ptr.size === 1) { GV.t1 = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: 0, ev: { clientX: e.clientX, clientY: e.clientY }, grab: !TER.on && gvOnPiece(e.clientX, e.clientY), paint: TER.on && TER.tool !== 'pan' }; if (GV.t1.grab || GV.t1.paint) gvAim(e); TER.down = GV.t1.paint; } else if (GV.ptr.size === 2) { GV.g0 = gvTouchMid(); GV.t1 = null; TER.down = false; }
 }, true);
 window.addEventListener('pointermove', e => {
   if (!GV.on || (e.target !== canvas && !GV.ptr.has(e.pointerId) && !GV.drag)) return;
@@ -17784,7 +17784,7 @@ function terTick(dt) {
   if (TER.dirty) { TER.nT -= dt; if (TER.nT <= 0 || !paint) { TER.nT = .12; terMeshDone(true); terProps(); if (!paint) { TER.dirty = 0; S.dirty = true; try { saveGame(); } catch (e) { } } } }
   // the brush ring
   if (!TER.ring) { const r = new THREE.Mesh(new THREE.RingGeometry(.92, 1, 48), new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: .85, depthTest: false, side: THREE.DoubleSide })); r.rotation.x = -Math.PI / 2; r.renderOrder = 9; r.visible = false; scene.add(r); TER.ring = r; }
-  const showR = TER.on && typeof GV !== 'undefined' && GV.on && buildAnchor; TER.ring.visible = !!showR;
+  const showR = TER.on && TER.tool !== 'pan' && typeof GV !== 'undefined' && GV.on && buildAnchor; TER.ring.visible = !!showR;
   if (showR) { const R = TER_SIZES[TER.size] || 4.2; TER.ring.scale.set(R, R, 1); TER.ring.position.set(buildAnchor.x, terH(buildAnchor.x, buildAnchor.z) + .08, buildAnchor.z);
     TER.ring.material.color.setHex({ up: 0x8fe05a, down: 0xff8a6a, flat: 0xffe08a, smooth: 0x9fe8ff, reset: 0xffffff }[TER.tool] || 0xffe08a); }
 }
@@ -17853,8 +17853,8 @@ applySave = (o => function (d) {
 
 /* ---- the 「地形」 tab in the build menu ---- */
 B5_TABS.push(['ter', T2('地形', 'Terrain'), []]);
-const TER_TOOLS = [['up', T2('抬高', 'Raise')], ['down', T2('降低', 'Lower')], ['flat', T2('铲平', 'Flatten')], ['smooth', T2('平滑', 'Smooth')], ['reset', T2('还原', 'Reset')]];
-const TER_IC = { up: '<path d="M4 18h16M7 14l5-8 5 8" />', down: '<path d="M4 6h16M7 10l5 8 5-8" />', flat: '<path d="M3 16h18M6 12h12" />', smooth: '<path d="M3 15c3-5 6-5 9 0s6 5 9 0" />', reset: '<path d="M5 12a7 7 0 1 0 2-5M5 4v4h4" />' };
+const TER_TOOLS = [['pan', T2('移动画面', 'Move view')], ['up', T2('抬高', 'Raise')], ['down', T2('降低', 'Lower')], ['flat', T2('铲平', 'Flatten')], ['smooth', T2('平滑', 'Smooth')], ['reset', T2('还原', 'Reset')]];
+const TER_IC = { pan: '<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3" />', up: '<path d="M4 18h16M7 14l5-8 5 8" />', down: '<path d="M4 6h16M7 10l5 8 5-8" />', flat: '<path d="M3 16h18M6 12h12" />', smooth: '<path d="M3 15c3-5 6-5 9 0s6 5 9 0" />', reset: '<path d="M5 12a7 7 0 1 0 2-5M5 4v4h4" />' };
 function terSave() { try { localStorage.setItem('ember_ter', JSON.stringify({ tool: TER.tool, size: TER.size })); } catch (e) { } }
 buildCards = (o => function () {
   const r = o.apply(this, arguments);
@@ -17871,7 +17871,7 @@ buildCards = (o => function () {
         [T2('小', 'S'), T2('中', 'M'), T2('大', 'L')].forEach((n, i) => { const c = document.createElement('button'); c.className = 'card b5t tert tsz' + (TER.size === i ? ' sel' : '');
           c.innerHTML = '<i class="b5img ok tic"><svg viewBox="0 0 24 24" width="34" height="34"><circle cx="12" cy="12" r="' + (4 + i * 3.5) + '" fill="none" stroke="#ffe08a" stroke-width="2"/></svg></i><b>' + T2('笔刷', 'Brush ') + n + '</b>';
           c.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); TER.size = i; terSave(); buildCards(); }); row.appendChild(c); }); }
-      const el = $('b5Sel'); if (el) { el._k = ''; el.innerHTML = '<b>' + T2('地形', 'Terrain') + '</b><span>' + T2('一个手指在地上涂，两个手指移动和缩放。房子下面的地不能改', 'One finger paints, two fingers move/zoom. Not under buildings') + '</span>'; }
+      const el = $('b5Sel'); if (el) { el._k = ''; el.innerHTML = '<b>' + T2('地形', 'Terrain') + '</b><span>' + T2('一个手指在地上涂，两个手指移动和缩放；选「移动画面」时一个手指拖动画面。房子下面的地不能改', 'One finger paints, two fingers move/zoom. Not under buildings') + '</span>'; }
     } else if (TER.ring) TER.ring.visible = false;
   } catch (e) { console.warn('ter tab', e); }
   return r;
@@ -18000,13 +18000,13 @@ petsTick = (o => function (dt) { const r = o(dt); _wfT -= dt; if (_wfT <= 0) { _
    ripples spreading out from its hull. Your fishing boat while it moves leaves a white wake behind it (two lines spreading
    apart) and a splash at the bow; the faster, the more. */
 const WAKE = { pool: [], t: 0, last: null, sp: 0, ringT: 0, foamT: 0, hulls: null };
-const _wkGeoR = new THREE.RingGeometry(.86, 1, 40), _wkGeoC = new THREE.CircleGeometry(1, 12);
+const _wkGeoR = new THREE.RingGeometry(.93, 1, 48), _wkGeoC = new THREE.CircleGeometry(1, 12);
 function wkGet(geo) {
   let w = WAKE.pool.find(q => !q.on && q.geo === geo);
   if (!w) { if (WAKE.pool.length > 90) return null; const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xf2fbff, transparent: true, opacity: 0, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.renderOrder = 5; m.userData.noCast = 1; m.visible = false; scene.add(m); w = { m, geo, on: false }; WAKE.pool.push(w); }
   return w;
 }
-function wkSpawn(geo, x, z, rx, rz, grow, life, op, vx, vz) { const w = wkGet(geo); if (!w) return; Object.assign(w, { on: true, x, z, rx, rz, grow, life, t: 0, op, vx: vx || 0, vz: vz || 0 }); w.m.visible = true; }
+function wkSpawn(geo, x, z, rx, rz, grow, life, op, vx, vz, rot) { const w = wkGet(geo); if (!w) return; Object.assign(w, { on: true, x, z, rx, rz, grow, life, t: 0, op, vx: vx || 0, vz: vz || 0, rot: rot || 0 }); w.m.visible = true; }
 // the hulls sitting on the water (their size from their shape)
 function wkHulls() {
   const out = [], add = (g, k) => { if (!g || !g.visible) return; const b = new THREE.Box3().setFromObject(g), c = new THREE.Vector3(), s = new THREE.Vector3(); b.getCenter(c); b.getSize(s); out.push({ g, k, x: c.x, z: c.z, rx: Math.max(1.2, s.x * .55), rz: Math.max(1.2, s.z * .55) }); };
@@ -18017,7 +18017,7 @@ function wakeTick(dt) {
   WAKE.t += dt; const onIsl = S.isl && !S.dun;
   // ripples round the moored ships
   if (onIsl) { if (!WAKE.hulls || WAKE.t - (WAKE.hT || 0) > 6) { WAKE.hT = WAKE.t; WAKE.hulls = wkHulls(); }
-    WAKE.ringT -= dt; if (WAKE.ringT <= 0) { WAKE.ringT = 1.4; for (const h of WAKE.hulls) if (Math.hypot(h.x - player.pos.x, h.z - player.pos.z) < 70) wkSpawn(_wkGeoR, h.x, h.z, h.rx, h.rz, .7, 3.2, .45); } }
+    WAKE.ringT -= dt; if (WAKE.ringT <= 0) { WAKE.ringT = 1.4; for (const h of WAKE.hulls) if (Math.hypot(h.x - player.pos.x, h.z - player.pos.z) < 70) wkSpawn(_wkGeoR, h.x, h.z, h.rx, h.rz, .5, 3.2, .22); } }
   // your fishing boat
   try { const g = BOAT.g; if (g && g.visible) { const p = g.position, l = WAKE.last; if (l) { const sp = Math.hypot(p.x - l.x, p.z - l.z) / Math.max(dt, 1e-3); WAKE.sp += (sp - WAKE.sp) * Math.min(1, dt * 4); } WAKE.last = { x: p.x, z: p.z };
       const yaw = g.rotation.y, fx = Math.sin(yaw), fz = Math.cos(yaw), moving = WAKE.sp > 1.2;
@@ -18028,12 +18028,12 @@ function wakeTick(dt) {
           for (const sd of [-1, 1]) wkSpawn(_wkGeoC, p.x - dx * 2.2 + sx * sd * .7, p.z - dz * 2.2 + sz * sd * .7, .35, .35, 1.3 + k, 1.6, .55 + .25 * k, sx * sd * (1 + k * 2), sz * sd * (1 + k * 2));
           wkSpawn(_wkGeoC, p.x - dx * 2.6, p.z - dz * 2.6, .5, .5, 1.6, 1.2, .5, 0, 0);
           if (Math.random() < .5 + .5 * k) wkSpawn(_wkGeoC, p.x + dx * 2.1 + (Math.random() - .5) * .6, p.z + dz * 2.1 + (Math.random() - .5) * .6, .3, .3, 1.2, .5, .6, sx * (Math.random() - .5) * 3, sz * (Math.random() - .5) * 3); } }
-      else { WAKE.ringT2 = (WAKE.ringT2 || 0) - dt; if (WAKE.ringT2 <= 0) { WAKE.ringT2 = 1.8; wkSpawn(_wkGeoR, p.x, p.z, 1.6, 2.6, .6, 3, .4); } }   // idle: gentle rings
+      else { WAKE.ringT2 = (WAKE.ringT2 || 0) - dt; if (WAKE.ringT2 <= 0) { WAKE.ringT2 = 2.2; wkSpawn(_wkGeoR, p.x, p.z, 1.3, 2.3, .45, 2.6, .18, 0, 0, yaw); } }   // idle: faint rings, lined up with the boat
     } else WAKE.last = null; } catch (e) { }
   // move / grow / fade everything that is out
   for (const w of WAKE.pool) { if (!w.on) continue; w.t += dt; const u = w.t / w.life; if (u >= 1) { w.on = false; w.m.visible = false; continue; }
     w.x += w.vx * dt; w.z += w.vz * dt; w.vx *= Math.pow(.3, dt); w.vz *= Math.pow(.3, dt); const s = 1 + w.grow * u;
-    w.m.position.set(w.x, -.27, w.z); w.m.scale.set(w.rx * s, w.rz * s, 1); w.m.material.opacity = w.op * (u < .15 ? u / .15 : 1 - (u - .15) / .85); }
+    w.m.position.set(w.x, -.27, w.z); w.m.rotation.z = w.rot || 0; w.m.scale.set(w.rx * s, w.rz * s, 1); w.m.material.opacity = w.op * (u < .15 ? u / .15 : 1 - (u - .15) / .85); }
 }
 petsTick = (o => function (dt) { const r = o(dt); try { wakeTick(dt); } catch (e) { } return r; })(petsTick);
 /* ============ defences cost more the more you have ============
@@ -20803,4 +20803,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794752285').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794752900').catch(()=>{});</script></body></html>
