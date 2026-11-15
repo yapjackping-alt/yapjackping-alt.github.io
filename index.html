@@ -17131,7 +17131,7 @@ zSpecialTick = (o => function (dt) { o(dt); if (!abyOn()) { if (ABY.on && !S.dun
   for (const z of zombies) { if (z.dead || z.mirror) continue;
     if (!z.abyC) { if (!z.boss) { try { const T = ZT[z.type], D = dif(), lv = abyLv(); z.lv = lv; z.hp = z.max = T.hp * lvHp(lv) * D.hp * abyHpK() * .7; z.dmg = T.dmg * lvDmg(lv) * D.dmg * abyDmgK(); z.spd = T.spd * rand(.95, 1.1); } catch (e) { } } abyClean(z); }   // a boss's summons
     z.aggro = 999; if (z.boss && z.state === 'idle') z.state = 'chase'; }
-  abyCoinTick(dt);
+  abyCoinTick(dt); abyHpBar();
   { const cx = dX(0), cz = dZ(0), lim = ABY_R - .9; let dx = player.pos.x - cx, dz2 = player.pos.z - cz, d = Math.hypot(dx, dz2);
     if (d > lim) { player.pos.x = cx + dx / d * lim; player.pos.z = cz + dz2 / d * lim; }
     for (const z of zombies) { if (z.dead || z.mirror) continue; dx = z.pos.x - cx; dz2 = z.pos.z - cz; d = Math.hypot(dx, dz2); if (d > lim + .4) { z.pos.x = cx + dx / d * (lim + .4); z.pos.z = cz + dz2 / d * (lim + .4); } } }
@@ -17316,6 +17316,15 @@ try { gearDropFor = (o => function (z) { if (abyOn()) return; return o(z); })(ge
 // companions stay home: they don't come down into the abyss
 try { compsTick = (o => function (dt) { if (abyOn() || (ABY.on && S.dun)) { try { for (const [id] of COMPS) compDespawn(id); } catch (e) { } return; } return o(dt); })(compsTick); } catch (e) { }
 
+function abyHpBar() { try { const box = $('hpBox'); if (!box) return; let sh = $('abyShBar'); const on = abyOn();
+    if (!sh) { ABY.shBar = 1; sh = document.createElement('i'); sh.id = 'abyShBar'; box.insertBefore(sh, box.querySelector('#hpTicks')); }
+    if (!on) { if (sh.style.display !== 'none') sh.style.display = 'none'; return; }
+    S.maxHp = Math.round(maxHpNow() * (ABY.hpMul || 1)); if (S.hp > S.maxHp) S.hp = S.maxHp;
+    const shv = Math.max(0, ABY.shield | 0), tot = Math.max(S.maxHp, S.hp + shv), hpw = Math.max(0, S.hp) / tot * 100, shw = shv / tot * 100;
+    el.hp.style.width = hpw + '%'; sh.style.display = shv > 0 ? 'block' : 'none'; sh.style.left = hpw + '%'; sh.style.width = shw + '%';
+    const t = Math.ceil(Math.max(0, S.hp)) + ' / ' + S.maxHp + (shv > 0 ? '  +' + shv : ''); if (el.hpT.textContent !== t) el.hpT.textContent = t; } catch (e) { } }
+refreshHud = (o => function () { const r = o.apply(this, arguments); if (ABY.on || ABY.shBar) abyHpBar(); return r; })(refreshHud);
+
 /* ---- the cards: pick 1 of 3 ---- */
 function abyRollQ() { const luck = aN('luck') ? aV('luck') : 0, P = ABY_QP.slice(); P[0] = Math.max(.05, P[0] - luck * 2); P[2] += luck * .6; P[3] += luck * .8; P[4] += luck * .6;
   let s = P.reduce((a, b) => a + b, 0), r = Math.random() * s; for (let i = 0; i < P.length; i++) { r -= P[i]; if (r <= 0) return i; } return 0; }
@@ -17366,14 +17375,14 @@ function abyGate() { S.paused = true; let m = $('abyGateM'); if (m) m.remove(); 
 
 /* ---- the end of a run, rewards ---- */
 // first-clear rewards (once per character). xp is a share of a level at your current level; ac = 深渊币
-const ABY_MS = [[5, { xp: .3, coin: 500, ac: 30 }], [10, { xp: .5, coin: 1500, bpf: 20, ac: 60 }], [15, { xp: .6, coin: 2000, ac: 80 }], [20, { xp: .8, gem: 50, ac: 100 }],
-  [25, { xp: .9, heart: 1, ac: 120 }], [30, { xp: 1, gem: 100, heart: 2, ac: 150 }], [40, { xp: 1.2, gem: 150, ac: 200 }], [50, { xp: 1.5, gem: 200, ac: 300 }]];
+const ABY_MS = [[5, { xp: .05, coin: 500, ac: 30 }], [10, { xp: .08, coin: 1500, bpf: 20, ac: 60 }], [15, { xp: .1, coin: 2000, ac: 80 }], [20, { xp: .12, gem: 50, ac: 100 }],
+  [25, { xp: .12, heart: 1, ac: 120 }], [30, { xp: .15, gem: 100, heart: 2, ac: 150 }], [40, { xp: .18, gem: 150, ac: 200 }], [50, { xp: .2, gem: 200, ac: 300 }]];   // all XP together ≈ 1 level
 const abyMsTxt = rw => Object.keys(rw).map(k => k === 'xp' ? T2('经验 ', 'XP ') + stXp(S.level, rw[k]) : k === 'ac' ? T2('深渊币 ×', 'Abyss coins ×') + rw[k] : stItN(k) + ' ×' + rw[k]).join('、');
 function abyResult(why) { const f = ABY.floor, cleared = ABY.state === 'clear' || ABY.state === '' ? f : f - 1, paid = why === 'leave' ? cleared : Math.floor(Math.max(0, cleared) / 5) * 5;
   return { why, floor: f, cleared: Math.max(0, cleared), paid, wp: ABY.wp, picks: ABY.picks.slice(), ac: ABY.ac | 0, acOk: ABY.acOk }; }
 function abyReward(paid, preview) {
   const wk = abyWeek(); if (S.abyss.wk !== wk) { S.abyss.wk = wk; S.abyss.runs = 0; }
-  const full = S.abyss.runs < 3, coin = Math.round(Math.min(3000, 80 * paid) * (full ? 1 : .1)), xp = paid > 0 && full ? stXp(S.level, Math.min(.5, paid * .015)) : 0, ms = ABY_MS.filter(([f]) => paid >= f && !S.abyss.claimed[f]);
+  const full = S.abyss.runs < 3, coin = Math.round(Math.min(3000, 80 * paid) * (full ? 1 : .1)), xp = paid > 0 && full ? stXp(S.level, Math.min(.25, paid * .005)) : 0, ms = ABY_MS.filter(([f]) => paid >= f && !S.abyss.claimed[f]);
   const parts = []; if (coin) parts.push(T2('余烬币 ', 'coins ') + coin); if (xp) parts.push(T2('经验 ', 'XP ') + xp);
   ms.forEach(([f, rw]) => parts.push(T2('第 ' + f + ' 层首通奖励：', 'First clear of floor ' + f + ': ') + abyMsTxt(rw)));
   const sum = {}; ms.forEach(([, rw]) => { for (const k in rw) sum[k] = (sum[k] || 0) + (k === 'xp' ? stXp(S.level, rw[k]) : rw[k]); });
@@ -17396,8 +17405,8 @@ function abyEnd(why) { if (!abyOn() || ABY.result) return; ABY.result = abyResul
   dunTravel(why === 'dead' ? T2('你倒下了', 'You fell') : T2('离开深渊', 'Leaving'), T2('深渊号回航', 'Back to the island'), () => goIsland(false)); }
 function abySettle(r) {
   const R = abyReward(r.paid); S.abyss.runs++;
-  if (R.coin) gain('coin', R.coin); if (R.xp) addXp(R.xp);
-  R.ms.forEach(([f, rw]) => { S.abyss.claimed[f] = 1; for (const k in rw) { if (k === 'gem') addGem(rw[k], T2('无尽深渊', 'Abyss')); else if (k === 'xp') addXp(stXp(S.level, rw[k])); else if (k === 'ac') abyCoinGet(rw[k]); else gain(k, rw[k]); } });
+  if (R.coin) gain('coin', R.coin);
+  const L0 = S.level; if (R.xp) addXp(R.xp); R.ms.forEach(([f, rw]) => { S.abyss.claimed[f] = 1; for (const k in rw) { if (k === 'gem') addGem(rw[k], T2('无尽深渊', 'Abyss')); else if (k === 'xp') addXp(stXp(L0, rw[k])); else if (k === 'ac') abyCoinGet(rw[k]); else gain(k, rw[k]); } });
   saveGame(); refreshHud();
   let m = $('abyEndM'); if (m) m.remove(); m = document.createElement('div'); m.id = 'abyEndM'; m.className = 'abym';
   const cards = r.picks.map(([id, q]) => '<span style="--qc:' + ABY_Q[q][1] + '">' + abyIcon(ABYC[id], 18) + ABYC[id].n + '</span>').join('');
@@ -17586,6 +17595,7 @@ const HY_ABY = .9;
     '.abycn{display:inline-block;vertical-align:-3px;font-style:normal}.abycn svg{width:100%;height:100%;display:block}.abyac{font-size:15px;margin:0;display:flex;align-items:center;gap:4px}.abyac b{color:#5ae8d8;font-size:18px}' +
     '.abytiles{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}.abyrwr{display:flex;flex-direction:column;align-items:center;gap:5px;margin:4px 0}.abyrwr>small{font-size:12.5px;color:#ffd27a;font-weight:800}' +
     '.abytile{display:flex;flex-direction:column;align-items:center;width:74px;padding:6px 4px 5px;border-radius:12px;background:#1c252c;border:2px solid #44535e}.abytile i{display:block;width:40px;height:40px;font-style:normal}.abytile i svg,.abytile i img{width:100%;height:100%;display:block;object-fit:contain}.abytile b{font-size:14px;color:#fff;margin-top:2px}.abytile small{font-size:10.5px;color:#c8d2da;white-space:nowrap}' +
+    '#abyShBar{position:absolute;top:0;bottom:0;display:none;background:linear-gradient(180deg,#d8dde2,#9aa4ad);box-shadow:inset 0 0 0 1px rgba(255,255,255,.35);pointer-events:none}' +
     '.abyinfo{display:flex;gap:16px;font-size:14px;flex-wrap:wrap;justify-content:center;align-items:center}.abyinfo b{color:#ffd27a}' +
     '.abyend{display:flex;gap:18px}.abybig{display:flex;flex-direction:column;align-items:center}.abybig b{font:900 30px var(--font-hud,sans-serif);color:#ffd27a}.abybig small{font-size:12px;color:#c8d2da}.abyrw{max-width:560px;text-align:center;font-size:14px}' +
     '.abydeck{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;max-width:660px}.abydeck span{display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 8px 2px 3px;border-radius:999px;border:2px solid var(--qc);background:#1c252c;color:#fff}.abydeck .abyic{border-width:1px}' +
@@ -18851,4 +18861,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794709553').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794709842').catch(()=>{});</script></body></html>
