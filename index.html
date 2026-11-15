@@ -17174,13 +17174,43 @@ const WSK_SND = {
     hit() { WSKT(1320, 1980, .25, .04, 'sine', { vib: 9, vibD: 25 }); WSKN(.15, .05, 5000, { type: 'highpass' }); } }
 };
 const WSKS = { shotAt: 0, hitAt: 0 };
-const wskNow = () => { try { const k = S.wsk && S.wsk[S.wp]; return k && WSK_SND[k]; } catch (e) { return null; } };
+let wskNow = () => { try { const k = S.wsk && S.wsk[S.wp]; return k && WSK_SND[k]; } catch (e) { return null; } };
 sfx.shot = (o => function () { o.apply(this, arguments); const P = wskNow(); if (P) { try { P.fire(); } catch (e) { } } WSKS.shotAt = Date.now(); })(sfx.shot);
 sfx.swing = (o => function () { o.apply(this, arguments); const P = wskNow(); if (P && isMelee()) { try { P.fire(); } catch (e) { } } })(sfx.swing);
 sfx.hit = (o => function () { o.apply(this, arguments); const P = wskNow(); if (P) { try { P.hit(); } catch (e) { } WSKS.hitAt = Date.now(); } })(sfx.hit);
 hurtZombie = (o => function (z, d, dx, dz) { const r = o.apply(this, arguments);
   try { const now = Date.now(); if (!isMelee() && now - WSKS.shotAt < 400 && now - WSKS.hitAt > 70) { const P = wskNow(); if (P) { WSKS.hitAt = now; P.hit(); } } } catch (e) { }
   return r; })(hurtZombie);
+
+/* ---- real gunshots (the owner: guns should sound like shooting) ----
+   Each shot: a sharp crack, the bang (noise falling in pitch), a low thump, and a short echo tail; the shotgun racks after.
+   On guns the skin only adds a quiet accent inside the shot (a growl in the tail, a hiss, a ring …), never a chime or a laser
+   instead of the bang. Melee weapons keep the skin sounds above. */
+function gunShot(v, crack, body, bodyLen, bodyF, thump, thumpF, tail, tailLen) {
+  sfxNoise(.025, v * crack, 3800, { type: 'highpass' });
+  sfxNoise(bodyLen, v * body, bodyF, { f1: Math.max(200, bodyF * .25) });
+  sfxTone(thumpF, 34, .16, v * thump, 'sine');
+  sfxNoise(tailLen, v * tail, 900, { delay: .035, f1: 220 }); }
+WSFX.pistol.fire = () => gunShot(1, .34, .3, .09, 2600, .16, 170, .07, .3);
+WSFX.rifle.fire = () => gunShot(1, .36, .36, .11, 2100, .22, 135, .09, .4);
+WSFX.sniper.fire = () => { gunShot(1, .5, .52, .26, 1500, .36, 110, .15, 1.0); sfxNoise(.5, .05, 600, { delay: .32, f1: 200 }); };
+WSFX.shotgun.fire = () => { gunShot(1, .4, .62, .22, 1150, .4, 92, .13, .65);
+  sfxNoise(.03, .14, 2600, { type: 'bandpass', q: 2, delay: .34 }); sfxNoise(.04, .16, 1700, { type: 'bandpass', q: 2, delay: .45 }); };   // rack: chk-chk
+const WSK_GUN = {
+  dragon: { fire() { WSKT(95, 55, .3, .045, 'sawtooth', { vib: 22, vibD: 18, lp: 600, delay: .03 }); }, hit() { WSKN(.06, .05, 2400, { type: 'bandpass', q: 3 }); } },
+  neon: { fire() { WSKT(1300, 300, .06, .025, 'square', { lp: 3000, delay: .01 }); }, hit() { WSKT(1250, 1250, .03, .03, 'square'); } },
+  lava: { fire() { WSKN(.3, .05, 5000, { type: 'highpass', delay: .05 }); }, hit() { WSKN(.18, .04, 5000, { type: 'highpass' }); } },
+  celest: { fire() { WSKT(2640, 2640, .28, .02, 'sine', { delay: .04 }); }, hit() { WSKT(2093, 2093, .2, .025, 'sine'); } },
+  gold: { fire() { WSKT(1400, 1300, .22, .03, 'triangle', { delay: .02 }); }, hit() { WSKT(2093, 2093, .15, .03, 'sine'); } },
+  ice: { fire() { WSKN(.07, .06, 6000, { type: 'bandpass', q: 2.5, delay: .02 }); }, hit() { for (let i = 0; i < 2; i++) WSKT(3200 + Math.random() * 1500, 2600, .07, .025, 'sine', { delay: i * .03 }); } },
+  sakura: { fire() { WSKN(.18, .03, 2500, { type: 'bandpass', q: .7, delay: .04 }); }, hit() { WSKN(.1, .03, 3000, { type: 'bandpass', q: .7 }); } },
+  phoenix: { fire() { WSKN(.28, .07, 700, { type: 'bandpass', f1: 2000, q: 1, delay: .03 }); }, hit() { WSKN(.12, .07, 1100, { type: 'bandpass', f1: 400, q: 1 }); } },
+  moondragon: { fire() { WSKT(70, 34, .45, .08, 'sine', { delay: .02 }); WSKT(2400, 1900, .25, .015, 'sine', { delay: .08 }); }, hit() { WSKT(2800, 2200, .08, .025, 'sine'); WSKT(100, 50, .12, .06, 'sine'); } },
+  starorbit: { fire() { WSKT(900, 1800, .07, .025, 'sine', { delay: .02 }); }, hit() { WSKT(2637, 2637, .08, .025, 'sine'); } },
+  cosmos: { fire() { WSKN(.25, .045, 700, { type: 'bandpass', q: 2, delay: .28 }); WSKN(.25, .022, 600, { type: 'bandpass', q: 2, delay: .56 }); }, hit() { WSKT(1320, 1760, .18, .02, 'sine'); } }
+};
+// guns use the quiet accent; melee keeps the full skin sound
+wskNow = (() => { try { const k = S.wsk && S.wsk[S.wp]; if (!k) return null; return isMelee() ? WSK_SND[k] : (WSK_GUN[k] || null); } catch (e) { return null; } });
 /* ============ HUD touches ============
    - The task tracker: a little ▲ / ▼ button at its top-right corner folds it. Folded, it shows only the chapter and the task's
      name (no description, reward, marker distance or commission). Remembered on this device.
@@ -19555,4 +19585,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794722519').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794723513').catch(()=>{});</script></body></html>
