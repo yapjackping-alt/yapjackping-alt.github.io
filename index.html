@@ -18124,10 +18124,10 @@ renderStash = function () {
    list jumped back to the top: you could never scroll down (worst in the 地形 tab). Now a tile is picked only on a TAP
    (finger lifted without moving), and the list keeps its scroll position when it is rebuilt. */
 const B5SC = { t: null, pass: false, top: {} };
-buildEl.addEventListener('pointerdown', e => {
+try { buildEl.addEventListener('pointerdown', e => {
   if (B5SC.pass) return; const row = e.target.closest && e.target.closest('.b5row'); if (!row) return;
   e.stopPropagation(); B5SC.t = { x: e.clientX, y: e.clientY, el: e.target, row, st: row.scrollTop, id: e.pointerId };
-}, true);
+}, true); } catch (e) { }
 window.addEventListener('pointerup', e => {
   const t = B5SC.t; if (!t || t.id !== e.pointerId) return; B5SC.t = null;
   if (Math.hypot(e.clientX - t.x, e.clientY - t.y) > 10 || Math.abs(t.row.scrollTop - t.st) > 4 || !t.el.isConnected) return;
@@ -18135,7 +18135,7 @@ window.addEventListener('pointerup', e => {
 }, true);
 window.addEventListener('pointercancel', e => { if (B5SC.t && B5SC.t.id === e.pointerId) B5SC.t = null; }, true);
 buildCards = (o => function () {
-  const r0 = buildEl.querySelector('.b5row'), k0 = typeof B5 !== 'undefined' ? B5.tab : ''; if (r0) B5SC.top[k0] = r0.scrollTop;
+  try { const r0 = buildEl.querySelector('.b5row'), k0 = typeof B5 !== 'undefined' ? B5.tab : ''; if (r0) B5SC.top[k0] = r0.scrollTop; } catch (e) { }
   const r = o.apply(this, arguments);
   try { const r1 = buildEl.querySelector('.b5row'), k1 = typeof B5 !== 'undefined' ? B5.tab : ''; const v = B5SC.top[k1]; if (r1 && v) { const put = () => { if (r1.isConnected && Math.abs(r1.scrollTop - v) > 2 && !B5SC.t) r1.scrollTop = v; }; put(); requestAnimationFrame(put); setTimeout(put, 60); setTimeout(put, 200); } } catch (e) { }
   return r;
@@ -20830,4 +20830,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794753320').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794753620').catch(()=>{});</script></body></html>
