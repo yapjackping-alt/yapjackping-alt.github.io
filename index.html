@@ -5285,7 +5285,7 @@ function serialize() {
   return { v: 2, wv: 5, level: S.level, xp: S.xp, tv: 4, tal: S.tal, daily: S.daily, weekly: S.weekly, login: S.login, bs: S.bestStreak || 0, st: S.st, ach: S.ach, title: S.title || '', ws: S.ws, wp: S.wp, wpp: S.wpPrev, isl: S.isl ? 1 : 0, gx: S.gx, gz: S.gz, px: +player.pos.x.toFixed(1), pz: +player.pos.z.toFixed(1),
     wood: S.wood, metal: S.metal, reserve: S.reserve, med: S.med, core: S.core, coin: S.coin, inv: S.inv, bossKills: S.bossKills, kills: S.kills, lcd: S.lairCd, cro: Object.keys(S.crOpen).slice(-300),
     gear: S.gear, ginv: S.ginv, pcap: S.pcap, diff: S.diff || 'normal', fd: foodSave(), dl: dailySave(), fm: farmSave(), sh: shopSave(), fx: fixSave(),
-    builds: builds.filter(b => b.hp > 0 && !b.home).map(b => b.broken ? [b.type, b.x, b.z, b.rot, b.lv | 0, 1] : b.lv > 0 ? [b.type, b.x, b.z, b.rot, b.lv] : [b.type, b.x, b.z, b.rot]) };
+    builds: builds.filter(b => b.hp > 0 && !b.home).map(b => b.dy ? [b.type, b.x, b.z, b.rot, b.lv | 0, b.broken ? 1 : 0, b.dy | 0] : b.broken ? [b.type, b.x, b.z, b.rot, b.lv | 0, 1] : b.lv > 0 ? [b.type, b.x, b.z, b.rot, b.lv] : [b.type, b.x, b.z, b.rot]) };
 }
 function applySave(d) {
   // saves read back from the cloud arrive as frozen (read-only) objects: work on a private copy, otherwise every
@@ -5322,7 +5322,7 @@ function applySave(d) {
     builds.slice().forEach(b => { if (!b.home) dropBuild(b); });
     const mv = d.wv >= 4 ? [0, 0] : [HOME.x - 0, HOME.z - 8];
     d.builds.forEach(b => { if (!Array.isArray(b) || !BT[b[0]] || !Number.isFinite(+b[1]) || !Number.isFinite(+b[2])) return; const x = +b[1] + mv[0], z = +b[2] + mv[1];
-      const onIsl = Math.hypot(x - HOME.x, z - HOME.z) < ISL_R + 20; if ((onIsl && (Math.hypot(x - HOME.x, z - HOME.z) > ISL_R + 8 || Math.hypot(x - PAD.x, z - PAD.z) < 5.5)) || (!onIsl && !(d.wv >= 4)) || (!(b[4] > 0) && overlapsAny(x, z, .3, .3, 0))) return; const nb = addBuild(b[0], x, z, +b[3] || 0, false, +b[4] > 0 ? +b[4] : 0); if (b[5] === 1 && nb) try { buildBreak(nb); } catch (e) { } });
+      const onIsl = Math.hypot(x - HOME.x, z - HOME.z) < ISL_R + 20; if ((onIsl && (Math.hypot(x - HOME.x, z - HOME.z) > ISL_R + 8 || Math.hypot(x - PAD.x, z - PAD.z) < 5.5)) || (!onIsl && !(d.wv >= 4)) || (!(b[4] > 0) && overlapsAny(x, z, .3, .3, 0))) return; const nb = addBuild(b[0], x, z, +b[3] || 0, false, +b[4] > 0 ? +b[4] : 0); if (nb && +b[6] && typeof setBuildDy === 'function') setBuildDy(nb, +b[6]); if (b[5] === 1 && nb) try { buildBreak(nb); } catch (e) { } });
   }
   try { foodLoad(d); } catch (e) { console.warn('food load', e); }
   try { dailyLoad(d); } catch (e) { console.warn('daily load', e); }
@@ -16885,7 +16885,7 @@ function gl2Refresh(b) { if (!b || !b.g || !b.g.userData.glass2) return; const c
   const nb = k => { const o = gl2At(b.type, b.x + k * 3 * c, b.z - k * 3 * s, lv); return o && Math.abs(Math.sin(o.rot - b.rot)) < .1; };
   gl2Fill(b.g.userData.glass2, GL2_H[b.type], nb(-1), nb(1)); }
 function gl2Around(b) { gl2Refresh(b); const c = Math.round(Math.cos(b.rot)), s = Math.round(Math.sin(b.rot)); for (const k of [-1, 1]) gl2Refresh(gl2At(b.type, b.x + k * 3 * c, b.z - k * 3 * s, b.lv | 0)); }
-addBuild = (orig => function (type, x, z, rot, free, lv) { const b = orig(type, x, z, rot, free, lv); if (GL2_H[type] && b) gl2Around(b); if (PLAT_H[type]) PLT.dirty = true; else if (b && BT[type] && BT[type].k === 'free' && !(b.lv | 0)) { try { liftOne(b); } catch (e) { } } return b; })(addBuild);
+addBuild = (orig => function (type, x, z, rot, free, lv) { const b = orig(type, x, z, rot, free, lv); if (GL2_H[type] && b) gl2Around(b); if (b && RH.placing && ROOFS.includes(type) && RH.k) setBuildDy(b, RH.k); if (PLAT_H[type]) PLT.dirty = true; else if (b && BT[type] && BT[type].k === 'free' && !(b.lv | 0)) { try { liftOne(b); } catch (e) { } } return b; })(addBuild);
 dropBuild = (orig => function (b) { const t = b && b.type, r = orig(b); if (GL2_H[t]) { const c = Math.round(Math.cos(b.rot)), s = Math.round(Math.sin(b.rot)); for (const k of [-1, 1]) gl2Refresh(gl2At(t, b.x + k * 3 * c, b.z - k * 3 * s, b.lv | 0)); } if (PLAT_H[t]) PLT.dirty = true; return r; })(dropBuild);
 
 /* ---- standing on the raised floors ---- */
@@ -16907,9 +16907,9 @@ collide = (o => function (pos, r) {
   try { return o(pos, r); } finally { PLT.pass.forEach((q, i) => { q.open = was[i]; }); }
 })(collide);
 function platTick(dt) {
-  PLT.t -= dt; if (PLT.dirty || PLT.t <= 0) { PLT.t = .5; PLT.dirty = false; PLT.has = builds.some(b => (PLAT_H[b.type] || STAIR_H[b.type]) && b.hp > 0); PLT.pass = PLT.has ? platPassList() : []; try { platRelift(); } catch (e) { } }
+  PLT.t -= dt; if (PLT.dirty || PLT.t <= 0) { PLT.t = .5; PLT.dirty = false; PLT.has = builds.some(b => (PLAT_H[b.type] || STAIR_H[b.type] || (typeof RAMP !== 'undefined' && RAMP[b.type])) && b.hp > 0); PLT.pass = PLT.has ? platPassList() : []; try { platRelift(); } catch (e) { } }
   if (!PLT.has && PLT.y <= 0) return;
-  const p = player.pos; PLT.near = PLT.has && builds.some(b => (PLAT_H[b.type] || STAIR_H[b.type]) && b.hp > 0 && Math.abs(p.x - b.x) < 3.2 && Math.abs(p.z - b.z) < 3.2);
+  const p = player.pos; PLT.near = PLT.has && builds.some(b => (PLAT_H[b.type] || STAIR_H[b.type] || (typeof RAMP !== 'undefined' && RAMP[b.type])) && b.hp > 0 && Math.abs(p.x - b.x) < 3.2 && Math.abs(p.z - b.z) < 3.2);
   if (!_platOn() || (typeof GV !== 'undefined' && GV.on)) { PLT.y = 0; PLT.v = 0; return; }
   const want = PLT.has ? platAt(p.x, p.z) : 0;
   if (want >= PLT.y) { PLT.y += (want - PLT.y) * Math.min(1, dt * 12); PLT.v = 0; }
@@ -16930,8 +16930,8 @@ ghostTransform = (o => function () {
    They snap to the side of a raised floor of the same height, top step against its edge (转向 picks the side).
    Walking on them lifts you step by step. */
 const STAIR_H = { qstair: WALL_H / 4, hstair: WALL_H / 2 }, STAIR_L = { qstair: 1.2, hstair: 2.1 }, STAIR_N = { qstair: 3, hstair: 6 };
-BT.qstair = { name: '矮楼梯', cat: 'st', k: 'free', cost: { wood: 3 }, hp: 200, hw: 1.5, hd: .6, ob: [], desc: '和墙一样宽的三级台阶，走上矮墙高楼板' };
-BT.hstair = { name: '半矮楼梯', cat: 'st', k: 'free', cost: { wood: 5 }, hp: 280, hw: 1.5, hd: 1.05, ob: [], desc: '和墙一样宽的六级台阶，走上半墙高楼板' };
+BT.qstair = { name: '矮楼梯', cat: 'st', k: 'free', cost: { wood: 3 }, hp: 200, hw: 1.5, hd: .6, ob: [], desc: '和墙一样宽的三级台阶，哪里都能放' };
+BT.hstair = { name: '半矮楼梯', cat: 'st', k: 'free', cost: { wood: 5 }, hp: 280, hw: 1.5, hd: 1.05, ob: [], desc: '和墙一样宽的六级台阶，哪里都能放' };
 for (const k of ['qstair', 'hstair']) { const tier = 2; if (BPX[k]) continue; BPX[k] = [tier, BT[k].name]; BT[k].bp = 1; if (!BP[k]) BP[k] = { n: BT[k].name, d: '', cv: 0 }; (BPPOOL[tier] = BPPOOL[tier] || []).push(bpPrize(k)); }
 buildMesh = (orig => function (type) {
   if (!STAIR_H[type]) return orig(type);
@@ -16948,26 +16948,39 @@ function stairAtH(b, x, z) { const H = STAIR_H[b.type], L = STAIR_L[b.type], c =
 // the height under you: raised floors and short stairs
 function platAt(x, z) { let h = platCellAt(x, z); for (const b of builds) { if (!STAIR_H[b.type] || b.hp <= 0 || (b.lv | 0)) continue; const y = stairAtH(b, x, z); if (y > h) h = y; } return h; }
 // furniture (beds, tables, anything) put on a raised floor sits on top of it; take the floor away and it goes back to the ground
-function liftOne(b) { const T = BT[b.type]; if (!T || T.k !== 'free' || STAIR_H[b.type] || (b.lv | 0) || !b.g) return; const h = platCellAt(b.x, b.z); if (Math.abs((b.py || 0) - h) > .005) { b.py = h; b.g.position.y = h; } }
+function liftOne(b) { const T = BT[b.type]; if (!T || T.k !== 'free' || STAIR_H[b.type] || (typeof RAMP !== 'undefined' && RAMP[b.type]) || (b.lv | 0) || !b.g) return; const h = platCellAt(b.x, b.z); if (Math.abs((b.py || 0) - h) > .005) { b._top = null; b.py = h; b.g.position.y = h; } }
 function platRelift() { for (const b of builds) liftOne(b); }
+// roof height: 0 = normal (on the walls of its storey), each step = a quarter wall up or down
+const RH = { k: 0, placing: false }, RH_STEP = WALL_H / 4, RH_MIN = -3, RH_MAX = 8;
+function setBuildDy(b, k) { if (!b || !b.g) return; b.dy = k | 0; b.g.position.y = (b.lv | 0) * UPY + b.dy * RH_STEP; }
+function rhLabel(k) { if (!k) return T2('标准', 'Normal'); const a = Math.abs(k), w = Math.floor(a / 4), r = ['', '¼', '½', '¾'][a % 4]; return (k > 0 ? '+' : '−') + (w ? w : '') + r + T2('墙', ' wall'); }
 ghostTransform = (o => function () {
   const T = BT[buildSel];
   if (T && STAIR_H[buildSel]) {
     const aim = aimPoint(), H = STAIR_H[buildSel], L = STAIR_L[buildSel], F = S.fl | 0;
-    if (F > 0) return { x: aim.x, z: aim.z, rot: 0, y: F * UPY, lv: F, ok: false, why: T2('只能放在地面层，接地面上的楼板', 'Ground storey only') };
-    let pl = null, pd = 4.6; for (const b of builds) { if (!PLAT_H[b.type] || b.hp <= 0 || (b.lv | 0)) continue; const d = Math.max(Math.abs(aim.x - b.x), Math.abs(aim.z - b.z)); if (d < pd) { pd = d; pl = b; } }
-    if (!pl) { const x = Math.round(aim.x * 2) / 2, z = Math.round(aim.z * 2) / 2, rot = (buildRot || 0) * Math.PI / 2; return { x, z, rot, ok: false, why: T2(BT[buildSel].name + '要靠着' + (H > 1 ? '半墙高楼板' : '矮墙高楼板') + '放', 'Put it against a raised floor') }; }
-    const dx = aim.x - pl.x, dz = aim.z - pl.z, alongX = Math.abs(dx) >= Math.abs(dz), sg = (alongX ? dx : dz) >= 0 ? 1 : -1;
-    const i0 = SIDES.findIndex(([a, b]) => alongX ? a === sg : b === sg), [sx, sz] = SIDES[(i0 + (buildRot | 0)) % 4], off = 1.5 + L / 2;
-    const x = sx ? pl.x + sx * off : pl.x, z = sz ? pl.z + sz * off : pl.z, rot = Math.atan2(-sx, -sz);
-    const match = Math.abs(PLAT_H[pl.type] - H) < .01, f = footprint(T, rot);
-    const busy = builds.some(b => b.hp > 0 && STAIR_H[b.type] && Math.hypot(b.x - x, b.z - z) < 1.2) || blockedBy(x, z, f.hw - .15, f.hd - .15, q => q.ref && (PASS_W[q.ref.type] || BT[q.ref.type].k === 'cell')) || !areaOk(x, z, f.hw, f.hd);
-    return { x, z, rot, ok: match && !busy, snapped: true, why: !match ? T2('高度不对：' + BT[buildSel].name + '要接' + (H > 1 ? '半墙高楼板' : '矮墙高楼板'), 'Wrong height for this floor') : T2('这里放不下，换一边（转向）', 'No room here, turn it') };
+    if (F > 0) return { x: aim.x, z: aim.z, rot: 0, y: F * UPY, lv: F, ok: false, why: T2('只能放在地面层', 'Ground storey only') };
+    // free: anywhere, 转向 turns it. Close to the side of a raised floor of the same height it snaps against it.
+    let x = Math.round(aim.x * 2) / 2, z = Math.round(aim.z * 2) / 2, rot = (buildRot || 0) * Math.PI / 2, snapped = false;
+    { let best = null, bd = 1.8; for (const b of builds) { if (!PLAT_H[b.type] || b.hp <= 0 || (b.lv | 0) || Math.abs(PLAT_H[b.type] - H) > .01) continue;
+        for (const [sx, sz] of SIDES) { const off = 1.5 + L / 2, cx = b.x + sx * off, cz = b.z + sz * off, d = Math.hypot(cx - aim.x, cz - aim.z); if (d < bd && !platCellAt(cx, cz)) { bd = d; best = { x: cx, z: cz, rot: Math.atan2(-sx, -sz) }; } } }
+      if (best) { x = best.x; z = best.z; rot = best.rot; snapped = true; } }
+    const f = footprint(T, rot);
+    const busy = builds.some(b => b.hp > 0 && STAIR_H[b.type] && Math.hypot(b.x - x, b.z - z) < 1.2) || blockedBy(x, z, f.hw - .15, f.hd - .15, q => q.ref && (PASS_W[q.ref.type] || BT[q.ref.type].k === 'cell')) || !areaOk(x, z, f.hw, f.hd) || zombies.some(zb => !zb.dead && Math.hypot(zb.pos.x - x, zb.pos.z - z) < 1.6);
+    return { x, z, rot, ok: !busy, snapped, why: T2('这里放不下，挪一挪或者转向', 'No room here') };
+  }
+  // 木楼梯: near a 二楼楼板 it still snaps against it; anywhere else it stands free (转向 turns it)
+  if (buildSel === 'stair' && !((S.fl | 0) > 0)) {
+    const t = o(), aim = aimPoint(); if (t && t.ok && Math.hypot(t.x - aim.x, t.z - aim.z) < 3.2) return t;
+    const x = Math.round(aim.x * 2) / 2, z = Math.round(aim.z * 2) / 2, rot = (buildRot || 0) * Math.PI / 2, f = footprint(T, rot);
+    const busy = builds.some(b => b.hp > 0 && b.type === 'stair' && !((b.lv | 0) > 0) && Math.hypot(b.x - x, b.z - z) < 1.6) || blockedBy(x, z, f.hw - .15, f.hd - .15, q => q.ref && (PASS_W[q.ref.type] || BT[q.ref.type].k === 'cell')) || !areaOk(x, z, f.hw, f.hd) || zombies.some(zb => !zb.dead && Math.hypot(zb.pos.x - x, zb.pos.z - z) < 1.8);
+    return { x, z, rot, y: 0, lv: 0, ok: !busy, why: T2('这里放不下，挪一挪或者转向', 'No room here') };
   }
   const t = o();
   // a roof on the ground storey can go on a cell that already has a 二楼楼板: it sits on the walls and covers the floor
-  if (t && T && ROOFS.includes(buildSel) && !((t.lv | 0) > 0) && !((S.fl | 0) > 0)) { const taken = builds.some(b => b.hp > 0 && ROOFS.includes(b.type) && !((b.lv | 0) > 0) && _sameCell(b, t.x, t.z));
-    t.ok = !taken && areaOk(t.x, t.z, 1.5, 1.5); t.why = taken ? T2('这一格已经有屋顶了', 'This cell already has a roof') : ''; return t; }
+  // and any roof can be raised or lowered in quarter-wall steps (RH), so it can sit on half walls, low walls, 2.5 storeys …
+  if (t && T && ROOFS.includes(buildSel)) { const L = t.lv | 0, taken = builds.some(b => b.hp > 0 && ROOFS.includes(b.type) && (b.lv | 0) === L && (b.dy | 0) === RH.k && _sameCell(b, t.x, t.z));
+    t.ok = !taken && (L > 0 ? onUpper(t.x, t.z, 1.2, L) : areaOk(t.x, t.z, 1.5, 1.5)); t.why = taken ? T2('这一格这个高度已经有屋顶了', 'This cell already has a roof at this height') : T2('屋顶要在楼板范围里', 'Must be over a floor');
+    t.y = L * UPY + RH.k * RH_STEP; return t; }
   if (!t || !T || T.k !== 'free' || (t.lv | 0) > 0) return t;
   // furniture on a raised floor: on top of it, all of it on the floor
   const h = platCellAt(t.x, t.z); if (h <= 0) return t;
@@ -17029,7 +17042,7 @@ aimPoint = (o => function () { if (!GV.on) return o(); return buildAnchor || { x
 // build on the chosen storey: the build code reads the storey you stand on, so lend it the picked one while it works
 const gvAs = fn => function () { if (!GV.on) return fn.apply(this, arguments); const f = S.fl, u = S.up; S.fl = GV.fl; S.up = GV.fl > 0; try { return fn.apply(this, arguments); } finally { S.fl = f; S.up = u; } };
 ghostTransform = gvAs(ghostTransform);
-placeBuild = (o => gvAs(function () { const n = builds.length, k = buildSel; const r = o(); if (builds.length > n && k && BT[k]) brecPush(k); return r; }))(placeBuild);
+placeBuild = (o => gvAs(function () { const n = builds.length, k = buildSel; RH.placing = true; let r; try { r = o(); } finally { RH.placing = false; } if (builds.length > n && k && BT[k]) brecPush(k); return r; }))(placeBuild);
 // picking a piece under your finger: only the ones you can see
 pickBuild = (o => function (ok) {
   if (!GV.on) return o(ok);
@@ -17157,7 +17170,11 @@ function b5Pick(k) { if (BT[k]) buildCat = BT[k].cat; selectBuild(k); b5Info(); 
 function b5Info() {
   const el = $('b5Sel'); if (!el) return; const k = buildSel;
   if (!k || k === 'move' || k === 'remove' || !BT[k]) { el.innerHTML = '<b>' + (k === 'move' ? T2('移动', 'Move') : k === 'remove' ? T2('拆除', 'Remove') : '') + '</b>'; return; }
-  const T = BT[k]; el.innerHTML = '<b>' + T.name + '</b><span>' + (bpLocked(k) ? T2('需要蓝图 · ', 'Needs blueprint · ') + bpSrc(k) : (T.desc || '')) + '</span>';
+  const T = BT[k];
+  if (ROOFS.includes(k) && !bpLocked(k)) { const key = 'rh' + k + RH.k; if (el._k === key) return; el._k = key;
+    el.innerHTML = '<b>' + T.name + '</b><span class="rhw"><button class="rhb" data-d="-1"' + (RH.k <= RH_MIN ? ' disabled' : '') + '>' + T2('降低', 'Lower') + '</button><em>' + T2('高度 ', 'Height ') + rhLabel(RH.k) + '</em><button class="rhb" data-d="1"' + (RH.k >= RH_MAX ? ' disabled' : '') + '>' + T2('升高', 'Raise') + '</button></span>';
+    el.querySelectorAll('.rhb').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); RH.k = clamp(RH.k + (+b.dataset.d), RH_MIN, RH_MAX); try { sfx.pick(); } catch (er) { } b5Info(); })); return; }
+  el._k = ''; el.innerHTML = '<b>' + T.name + '</b><span>' + (bpLocked(k) ? T2('需要蓝图 · ', 'Needs blueprint · ') + bpSrc(k) : (T.desc || '')) + '</span>';
 }
 buildCards = (o => function () {
   if (typeof buildEl === 'undefined' || !buildEl) return o();
@@ -17190,6 +17207,7 @@ setTimeout(() => { try { const st = document.createElement('style'); const hide 
   '#build .b5t b{font-size:11.5px;line-height:1.15;max-width:72px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#build .b5t span{display:none}' +
   '#build .b5t .cost{gap:4px;justify-content:center;font-size:11px;flex-wrap:nowrap}#build .b5t .cost em.free{color:#8fd16f}' +
   '#build .b5t.bplock .b5img{opacity:.45}#build .b5t.bplock::before{content:"";position:absolute;right:4px;top:4px;width:17px;height:17px;border-radius:50%;background:#16303a url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Crect x=%275%27 y=%2711%27 width=%2714%27 height=%2710%27 rx=%272%27 fill=%27%239fe8ff%27/%3E%3Cpath d=%27M8 11V8a4 4 0 0 1 8 0v3%27 fill=%27none%27 stroke=%27%239fe8ff%27 stroke-width=%272.4%27/%3E%3C/svg%3E") center/11px no-repeat;border:1px solid #9fe8ff}' +
+  '#build .b5sel:has(.rhw){overflow:visible}#build .b5sel:has(.rhw)~.bhave{display:none}#build .b5sel .rhw{display:flex;align-items:center;gap:6px;overflow:visible}#build .rhw em{font-style:normal;font-weight:800;color:#e8eef2;font-size:12px;text-align:center;white-space:nowrap}#build .rhb{height:26px;padding:0 8px;flex:0 0 auto;border-radius:8px;border:1px solid #7de0ff;background:rgba(40,110,150,.45);color:#fff;font-size:12.5px;font-weight:800}#build .rhb:disabled{opacity:.35}' +
   '#build .b5tip{margin:6px 4px;font-size:13px;color:#e8eef2;white-space:normal}' +
   // god view: the panel sits at the bottom, two rows of tiles in portrait; the place / turn / close buttons ride on top of it
   'body.gvOn #build{left:calc(var(--sl) + 6px)!important;right:calc(var(--sr) + 6px)!important;bottom:calc(var(--sb) + 6px)!important;max-width:none!important;margin:0!important}' +
@@ -17207,6 +17225,132 @@ setTimeout(() => { try { const st = document.createElement('style'); const hide 
   document.head.appendChild(st); } catch (e) { console.warn('b5 css', e); } }, 0);
 // the panel height, so the buttons above it never cover it
 setInterval(() => { try { if (GV.on && buildEl.offsetHeight) document.body.style.setProperty('--bph', buildEl.offsetHeight + 'px'); } catch (e) { } }, 300);
+/* ============ building 3.1: more shapes ============
+   斜坡地板 / 半斜坡地板 / 矮斜坡地板 and 拱形地板 / 半拱形地板 / 矮拱形地板: a whole 3×3 floor cell that rises from the ground
+     (straight, or curved like the 弧形墙), up to one storey / a half wall / a low wall. Walk up them; the full one takes you onto a
+     二楼楼板 at its top. 转向 turns which way it rises.
+   圆弧墙 / 半圆弧墙 / 矮圆弧墙: a wall bent round a quarter circle, to round off the corner of a room (转向 picks the corner).
+   半宽 / 窄 walls (half and a quarter of a wall's width) in wood, stone and glass: they slide along a wall line in steps. */
+
+/* ---- ramps ---- */
+const RAMP = { rmp1: [UPY, 0], rmp2: [WALL_H / 2, 0], rmp3: [WALL_H / 4, 0], rarc1: [UPY, 1], rarc2: [WALL_H / 2, 1], rarc3: [WALL_H / 4, 1] };
+BT.rmp1 = { name: '斜坡地板', cat: 'st', k: 'free', cost: { wood: 10 }, hp: 360, hw: 1.5, hd: 1.5, ob: [], desc: '一整格斜着升上去，到二楼楼板的高度，能走上二楼' };
+BT.rmp2 = { name: '半斜坡地板', cat: 'st', k: 'free', cost: { wood: 8 }, hp: 300, hw: 1.5, hd: 1.5, ob: [], desc: '斜着升到半墙的高度' };
+BT.rmp3 = { name: '矮斜坡地板', cat: 'st', k: 'free', cost: { wood: 6 }, hp: 240, hw: 1.5, hd: 1.5, ob: [], desc: '斜着升到矮墙的高度' };
+BT.rarc1 = { name: '拱形地板', cat: 'st', k: 'free', cost: { wood: 12 }, hp: 360, hw: 1.5, hd: 1.5, ob: [], desc: '弧形升上去，到二楼楼板的高度，能走上二楼' };
+BT.rarc2 = { name: '半拱形地板', cat: 'st', k: 'free', cost: { wood: 9 }, hp: 300, hw: 1.5, hd: 1.5, ob: [], desc: '弧形升到半墙的高度' };
+BT.rarc3 = { name: '矮拱形地板', cat: 'st', k: 'free', cost: { wood: 7 }, hp: 240, hw: 1.5, hd: 1.5, ob: [], desc: '弧形升到矮墙的高度' };
+// height along the ramp: u = 0 at the low end, 1 at the high end (local +z)
+const rampH = (t, u) => { const [H, arc] = RAMP[t]; u = clamp(u, 0, 1); return arc ? H * Math.sqrt(Math.max(0, 1 - (1 - u) * (1 - u))) : H * u; };
+function rampMesh(g, t) {
+  const N = RAMP[t][1] ? 12 : 6, d = 3 / N;
+  for (let i = 0; i < N; i++) { const z0 = -1.5 + d * i, z1 = z0 + d, y0 = rampH(t, i / N), y1 = rampH(t, (i + 1) / N), L = Math.hypot(d, y1 - y0) + .02, a = Math.atan2(y1 - y0, d);
+    const p = box(3, .1, L, i % 2 ? plank : plank2, 0, (y0 + y1) / 2 - .05, (z0 + z1) / 2, g); p.rotation.x = -a;
+    for (const x of [-1.45, 1.45]) { const h = Math.max(.04, (y0 + y1) / 2 - .02); box(.1, h, d + .01, beam, x, h / 2, (z0 + z1) / 2, g); } }   // the side skirts follow the slope down to the ground
+  { const H = RAMP[t][0]; box(3, Math.max(.04, H - .02), .1, beam, 0, H / 2 - .01, 1.45, g); }   // the high end closed
+}
+const rampHere = (b, x, z) => { const c = Math.cos(b.rot), s = Math.sin(b.rot), dx = x - b.x, dz = z - b.z, lx = dx * c - dz * s, lz = dx * s + dz * c;
+  if (Math.abs(lx) > 1.52 || Math.abs(lz) > 1.52) return -1; return rampH(b.type, (lz + 1.5) / 3); };
+platAt = (o => function (x, z) { let h = o(x, z); for (const b of builds) { if (!RAMP[b.type] || b.hp <= 0 || (b.lv | 0)) continue; const y = rampHere(b, x, z); if (y > h) h = y; } return h; })(platAt);
+// the platform code only wakes up near raised floors and stairs: ramps count too
+platTick = (o => function (dt) {
+  const p = player.pos;
+  // top of a full ramp: step onto the 二楼楼板 there
+  const h = PLT.has ? platAt(p.x, p.z) : 0, was = PLT.lastH || 0; PLT.lastH = h;
+  if (!(S.fl | 0) && !S.stB && !S.fall && !S.climbA && was > UPY - .45 && h < UPY - .45 && onUpper(p.x, p.z, 0, 1)) { setFl(1); PLT.y = 0; PLT.v = 0; PLT.lastH = 0; pm.g.position.y = UPY; return; }
+  return o(dt);
+})(platTick);
+// walking off a 二楼楼板 onto the top of a full ramp: down onto the ramp, not a fall
+stairTick = (o => function (dt) {
+  const p = player.pos; if ((S.fl | 0) === 1 && !S.stB && !S.fall && !S.climbA && !onUpper(p.x, p.z, 0, 1)) { const h = platAt(p.x, p.z); if (h > UPY - .6) { setFl(0); PLT.y = h; PLT.v = 0; PLT.lastH = h; pm.g.position.y = h; return; } }
+  return o(dt);
+})(stairTick);
+
+// up on a raised floor / ramp / stair you walk over anything built that is lower than your feet (walls under the edge, a low fence …)
+const _topOf = b => { if (b._top == null) { try { b._top = new THREE.Box3().setFromObject(b.g).max.y; } catch (e) { b._top = 99; } } return b._top; };
+collide = (o => function (pos, r) {
+  if (pos !== player.pos || !(PLT.y > .3) || !_platOn()) return o(pos, r);
+  const opened = []; for (const q of queryObstacles(pos.x, pos.z, r + 2)) { if (!q.ref || q.open || !q.ref.g) continue; if (_topOf(q.ref) <= PLT.y + .12) { q.open = true; opened.push(q); } }
+  try { return o(pos, r); } finally { for (const q of opened) q.open = false; }
+})(collide);
+
+/* ---- walls bent round a quarter circle ---- */
+const CWALL = { cwall1: WALL_H, cwall2: WALL_H / 2, cwall3: WALL_H / 4 };
+const CW_PTS = (() => { const a = []; for (let i = 0; i <= 8; i++) { const th = i / 8 * Math.PI / 2; a.push([-1.5 + 3 * Math.cos(th), -1.5 + 3 * Math.sin(th)]); } return a; })();
+const CW_OB = CW_PTS.slice(0, 8).map((p, i) => { const q = CW_PTS[i + 1]; return [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, .3, .3]; });
+BT.cwall1 = { name: '圆弧墙', cat: 'st', k: 'free', cost: { wood: 7 }, hp: 340, hw: 1.5, hd: 1.5, ob: CW_OB, desc: '弯成四分之一圆的墙，把房间的角做成圆的。「转向」换一个角' };
+BT.cwall2 = { name: '半圆弧墙', cat: 'st', k: 'free', cost: { wood: 4 }, hp: 240, hw: 1.5, hd: 1.5, ob: CW_OB, desc: '半墙高的圆弧墙' };
+BT.cwall3 = { name: '矮圆弧墙', cat: 'st', k: 'free', cost: { wood: 3 }, hp: 170, hw: 1.5, hd: 1.5, ob: CW_OB, desc: '矮墙高的圆弧墙' };
+function cwallMesh(g, H) {
+  for (let i = 0; i < 8; i++) { const p = CW_PTS[i], q = CW_PTS[i + 1], mx = (p[0] + q[0]) / 2, mz = (p[1] + q[1]) / 2, L = Math.hypot(q[0] - p[0], q[1] - p[1]) + .06, ry = -Math.atan2(q[1] - p[1], q[0] - p[0]);
+    const w = box(L, H - .14, .2, i % 2 ? plank : plank2, mx, (H - .14) / 2 + .02, mz, g); w.rotation.y = ry;
+    const cap = box(L + .02, .12, .3, beam, mx, H - .06, mz, g); cap.rotation.y = ry; }
+  for (const p of [CW_PTS[0], CW_PTS[8]]) box(.22, H, .22, beam, p[0], H / 2, p[1], g);
+}
+
+/* ---- narrow straight walls: half and a quarter of a wall's width; wood, stone, glass ---- */
+const SWALL = { hww: [1.5, 'w'], qww: [.75, 'w'], hsw: [1.5, 's'], qsw: [.75, 's'], hgw: [1.5, 'g'], qgw: [.75, 'g'] };
+const SW_NM = { w: ['木墙', { wood: 3 }, { wood: 2 }, 200, 120], s: ['石墙', { wood: 1, metal: 4 }, { wood: 1, metal: 2 }, 480, 260], g: ['玻璃墙', { wood: 1, metal: 3 }, { metal: 2 }, 150, 90] };
+for (const k in SWALL) { const [W, m] = SWALL[k], N = SW_NM[m], half = W > 1;
+  BT[k] = { name: (half ? '半宽' : '窄') + N[0], cat: 'st', k: 'edge', cost: half ? N[1] : N[2], hp: half ? N[3] : N[4], hw: W / 2, hd: m === 'g' ? .1 : .2, ob: [[0, 0, W / 2, m === 'g' ? .1 : .2]],
+    desc: (half ? '只有墙一半宽' : '只有墙四分之一宽') + '的' + N[0] + '，可以沿着墙线一格一格挪' }; }
+function swallMesh(g, t) {
+  const [W, m] = SWALL[t], H = WALL_H, x0 = -W / 2, x1 = W / 2;
+  if (m === 'w') { box(.16, H, .3, beam, x0 + .08, H / 2, 0, g); box(.16, H, .3, beam, x1 - .08, H / 2, 0, g); box(W, .16, .32, beam, 0, H - .08, 0, g);
+    const n = Math.max(1, Math.round((W - .32) / .44)), w = (W - .32) / n; for (let i = 0; i < n; i++) box(w - .03, H - .21, .2, i % 2 ? plank : plank2, x0 + .16 + w * (i + .5), (H - .16) / 2 + .025, 0, g); }
+  else if (m === 's') { stoneCourse(g, x0, x1, 0, H, .38, 31 + Math.round(W * 10)); box(W + .04, .14, .44, stone2, 0, H - .07, 0, g); box(W + .04, .16, .44, stone2, 0, .08, 0, g); }
+  else { const e = .045, bar = (w, h, d, x, y) => { const q = box(w, h, d, GW.edge, x, y, 0, g); q.castShadow = false; q.userData.noCast = 1; };
+    bar(W, e, e, 0, e / 2); bar(W, e, e, 0, H - e / 2); bar(e, H, e, x0, H / 2); bar(e, H, e, x1, H / 2);
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(W, H), GW.pane); p.position.y = H / 2; p.renderOrder = 4; g.add(p); }
+}
+
+buildMesh = (orig => function (type) {
+  if (RAMP[type]) { const g = new THREE.Group(); rampMesh(g, type); return g; }
+  if (CWALL[type]) { const g = new THREE.Group(); cwallMesh(g, CWALL[type]); return g; }
+  if (SWALL[type]) { const g = new THREE.Group(); swallMesh(g, type); return g; }
+  return orig(type);
+})(buildMesh);
+
+/* ---- where they go ---- */
+const edgeLen = t => SWALL[t] ? SWALL[t][0] : 3;
+ghostTransform = (o => function () {
+  const T = BT[buildSel]; if (!T || !(RAMP[buildSel] || CWALL[buildSel] || SWALL[buildSel])) return o();
+  const aim = aimPoint(), F = typeof GV !== 'undefined' && GV.on ? GV.fl : (S.fl | 0);
+  const notZ = (x, z) => !zombies.some(zb => !zb.dead && Math.hypot(zb.pos.x - x, zb.pos.z - z) < 1.6);
+  if (RAMP[buildSel] || CWALL[buildSel]) {
+    const x = (Math.floor(aim.x / BG) + .5) * BG, z = (Math.floor(aim.z / BG) + .5) * BG, rot = (buildRot || 0) * Math.PI / 2;
+    if (F > 0) return { x, z, rot, y: F * UPY, lv: F, ok: false, why: T2('只能放在地面层', 'Ground storey only') };
+    const same = RAMP[buildSel] ? builds.some(b => b.hp > 0 && (RAMP[b.type] || PLAT_H[b.type]) && !(b.lv | 0) && Math.abs(b.x - x) < .1 && Math.abs(b.z - z) < .1)
+      : builds.some(b => b.hp > 0 && CWALL[b.type] && !(b.lv | 0) && Math.abs(b.x - x) < .1 && Math.abs(b.z - z) < .1 && Math.abs(Math.sin(b.rot - rot)) < .1 && Math.cos(b.rot - rot) > 0);
+    const ok = !same && areaOk(x, z, 1.5, 1.5) && !blockedBy(x, z, 1.4, 1.4, q => !!q.ref) && notZ(x, z);
+    return { x, z, rot, y: 0, lv: 0, ok, why: same ? T2('这一格已经有了', 'Already one here') : T2('这里放不下', 'No room here') };
+  }
+  // narrow walls: the nearest wall line, then slide along it in steps of half their width
+  const W = SWALL[buildSel][0], e = nearestEdge(aim.x, aim.z), alongX = Math.abs(Math.sin(e.rot)) < .5, step = W / 2, lim = 1.5 - W / 2;
+  const off = clamp(Math.round(((alongX ? aim.x - e.x : aim.z - e.z)) / step) * step, -lim, lim), x = alongX ? e.x + off : e.x, z = alongX ? e.z : e.z + off;
+  const clash = builds.some(b => { if (b.hp <= 0 || (b.lv | 0) !== F || BT[b.type].k !== 'edge') return false; const bx = Math.abs(Math.sin(b.rot)) < .5; if (bx !== alongX) return false;
+    if (alongX ? Math.abs(b.z - z) > .1 : Math.abs(b.x - x) > .1) return false; if (GABLES[b.type] && (b.lv | 0) === F) { /* a gable sits on top of a wall: not in the way */ }
+    return Math.abs(alongX ? b.x - x : b.z - z) < (edgeLen(b.type) + W) / 2 - .02; });
+  let ok = !clash && notZ(x, z);
+  if (F > 0) ok = ok && builds.some(b => b.type === 'upfl' && b.hp > 0 && (b.lv | 0) + 1 === F && Math.abs(b.x - x) < 1.6 && Math.abs(b.z - z) < 1.6);
+  else ok = ok && areaOk(x, z, W / 2, .2) && !blockedBy(x, z, W / 2 - .05, .15, q => q.ref && BT[q.ref.type].k !== 'free');
+  return { x, z, rot: e.rot, y: F * UPY, lv: F, ok, why: clash ? T2('这里已经有墙了', 'A wall is already here') : F > 0 ? T2('楼上的墙要沿着楼板的边建', 'Upstairs walls go on a floor edge') : T2('这里放不下', 'No room here') };
+})(ghostTransform);
+
+/* ---- blueprints, menu ---- */
+for (const k of [...Object.keys(RAMP), ...Object.keys(CWALL), ...Object.keys(SWALL)]) { const tier = 2; if (BPX[k]) continue; BPX[k] = [tier, BT[k].name]; BT[k].bp = 1; if (!BP[k]) BP[k] = { n: BT[k].name, d: '', cv: 0 }; (BPPOOL[tier] = BPPOOL[tier] || []).push(bpPrize(k)); }
+{ const tab = id => B5_TABS.find(t => t[0] === id)[2];
+  const f = tab('fnd'), i = f.indexOf('qstair'); f.splice(i < 0 ? f.length : i, 0, ...Object.keys(RAMP));
+  const w = tab('wall'); w.push(...Object.keys(CWALL), 'hww', 'qww', 'hsw', 'qsw', 'hgw', 'qgw'); }
+
+/* ---- the build menu: every tab and every tile visible, no half-cut ones: tabs wrap, tiles fill the width and scroll down ---- */
+setTimeout(() => { try { const st = document.createElement('style'); st.textContent =
+  '#build .b5tabs{flex-wrap:wrap!important;overflow:visible!important}#build .b5tab{flex:1 1 auto!important;padding:0 8px!important}' +
+  '#build .b5row{grid-auto-flow:row!important;grid-template-rows:none!important;grid-auto-columns:auto!important;grid-template-columns:repeat(auto-fill,minmax(70px,1fr))!important;overflow-x:hidden!important;overflow-y:auto!important;max-height:var(--b5mh,98px);-webkit-overflow-scrolling:touch}' +
+  '#build .b5t{width:auto!important}' +
+  '@media (orientation:portrait){body.gvOn #build .b5row{--b5mh:196px}}' +
+  '@media (orientation:landscape){#build .b5row{grid-template-columns:repeat(auto-fill,minmax(62px,1fr))!important;--b5mh:84px}}';
+  document.head.appendChild(st); } catch (e) { } }, 0);
 /* ============ the storage box screen 2.0 ============
    Both sides (your bag and the storage) are grids of cells, one cell per stack (99 per cell, as before), the count in the corner.
    Tap a cell: a card shows the item's name, what it is and what it's for, and how many you have there. Pick how many to move —
@@ -17684,8 +17828,14 @@ try { const st = document.createElement('style'); st.textContent = '#bkPanel .sn
   fix(); addEventListener('orientationchange', () => setTimeout(fix, 250)); addEventListener('resize', () => setTimeout(fix, 250));
   // self-check (after an update iOS sometimes lays the page out short again): in portrait, if the page is still shorter than the
   // screen, take the height out and put it back so iOS measures again; a few tries per orientation, then leave it alone
-  let tries = 0, lastO = ''; const heal = () => { try { const portrait = innerHeight > innerWidth, o = portrait ? 'p' : 'l'; if (o !== lastO) { lastO = o; tries = 0; } if (!portrait || tries >= 6) return;
-    const H = Math.max(screen.height, screen.width); if (H - innerHeight <= 8) return; tries++; m.content = base; setTimeout(() => { m.content = base + ',height=device-height'; setTimeout(() => { try { resize(); } catch (e) { } }, 120); }, 80); } catch (e) { } };
+  let tries = 0, lastO = ''; const heal = () => { try { const portrait = innerHeight > innerWidth, o = portrait ? 'p' : 'l'; if (o !== lastO) { lastO = o; tries = 0; } if (!portrait || tries >= 9) return;
+    const H = Math.max(screen.height, screen.width); if (H - innerHeight <= 8) return; const n = tries++ % 3;
+    // three different ways to make iOS measure again, in turn: the height taken out and put back; the height as a number;
+    // viewport-fit taken out and put back
+    const fin = c => setTimeout(() => { m.content = c; setTimeout(() => { try { resize(); } catch (e) { } }, 120); }, 80);
+    if (n === 0) { m.content = base; fin(base + ',height=device-height'); }
+    else if (n === 1) { m.content = base + ',height=' + H; fin(base + ',height=device-height'); }
+    else { m.content = base.replace(/,\s*viewport-fit=cover/, '') + ',height=device-height'; fin(base + ',height=device-height'); } } catch (e) { } };
   setInterval(heal, 1500); addEventListener('pageshow', () => { tries = 0; setTimeout(heal, 300); }); document.addEventListener('visibilitychange', () => { if (!document.hidden) { tries = 0; setTimeout(heal, 300); } });
 } catch (e) { } })();
 /* ============ 无尽深渊: a roguelike run, floor after floor (DUNS[9]) ============
@@ -19951,4 +20101,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794727183').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794728166').catch(()=>{});</script></body></html>
