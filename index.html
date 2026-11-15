@@ -4373,7 +4373,7 @@ function buildMesh(type) {
   }
   return g;
 }
-const costOf = t => { const c = BT[t].cost, k = 1 - Math.min(.6, ts('bcost')); return { wood: Math.ceil((c.wood || 0) * k), metal: Math.ceil((c.metal || 0) * k) }; };
+const costOf = t => { const c = BT[t].cost, k = (1 - Math.min(.6, ts('bcost'))) * bldCostMul(t); return { wood: Math.ceil((c.wood || 0) * k), metal: Math.ceil((c.metal || 0) * k) }; };   // bldCostMul: defences cost more for each one you have (z_defcost.js)
 // wood/metal you can build with: bag + storage (falls back to the bag during start-up, before the storage code exists)
 function bmHave(k) { try { return matHave(k); } catch (e) { return k === 'wood' ? S.wood : S.metal; } }
 function canAfford(t) { const c = costOf(t); return c.wood <= bmHave('wood') && c.metal <= bmHave('metal'); }
@@ -16169,7 +16169,9 @@ const CV_PST = {
 let CV_PST_ON = 'aster';
 // the 3D close-up (head and shoulders), on a transparent canvas
 function cvBust(P, W, H) {
-  const R = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true }); R.setPixelRatio(1); R.setSize(W, H, false); R.setClearColor(0, 0);
+  // drawn with the game's own renderer into an off-screen target: a new WebGL context for this can fail on iPhone
+  // (too many contexts / memory), and then the poster came out with no figure on it
+  const R = renderer, RT = new THREE.WebGLRenderTarget(W, H), cc0 = new THREE.Color(), ca0 = R.getClearAlpha ? R.getClearAlpha() : 1; if (R.getClearColor) R.getClearColor(cc0);
   const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xc8c0ff, 0x2a1830, .6));
   const l1 = new THREE.DirectionalLight(0xffd0f0, 1.5); l1.position.set(-3, 3, -4); sc.add(l1);           // pink rim from the moon side
   const l2 = new THREE.DirectionalLight(0xb8a8ff, 1.0); l2.position.set(3.5, 2, -3); sc.add(l2);
@@ -16181,8 +16183,13 @@ function cvBust(P, W, H) {
   const hBot = hv.y - .25, yTop = Math.min(hb.max.y, hBot + 1.0) + (P.tm || .3), V = (yTop - (hBot - (P.span || .55))) / .64, cy = yTop - V / 2;
   const cam = new THREE.PerspectiveCamera(30, W / H, .05, 200), dir = new THREE.Vector3(P.cam[0], 0, P.cam[2]).normalize(), dist = (V / 2) / Math.tan(15 * Math.PI / 180);
   cam.position.set(dir.x * dist, cy - .15, dir.z * dist); cam.lookAt(0, cy, 0);
-  R.render(sc, cam); const out = document.createElement('canvas'); out.width = W; out.height = H; out.getContext('2d').drawImage(R.domElement, 0, 0);
-  try { R.dispose(); R.forceContextLoss(); } catch (e) { } return out;
+  const out = document.createElement('canvas'); out.width = W; out.height = H;
+  try { R.setRenderTarget(RT); R.setClearColor(0x000000, 0); R.clear(true, true, true); R.render(sc, cam);
+    const px = new Uint8Array(W * H * 4); R.readRenderTargetPixels(RT, 0, 0, W, H, px);
+    const ctx = out.getContext('2d'), im = ctx.createImageData(W, H); for (let y = 0; y < H; y++) im.data.set(px.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);   // rows come bottom-up
+    ctx.putImageData(im, 0, 0);
+  } finally { R.setRenderTarget(null); R.setClearColor(cc0, ca0); try { RT.dispose(); } catch (e) { } }
+  return out;
 }
 function cvPosterPaint(id) {
   const P = CV_PST[id], W = 600, H = 840, c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
@@ -17592,6 +17599,74 @@ ghostTransform = (o => function () {
 for (const k in GDN) { const tier = 2; if (BPX[k]) continue; BPX[k] = [tier, BT[k].name]; BT[k].bp = 1; if (!BP[k]) BP[k] = { n: BT[k].name, d: '', cv: 0 }; (BPPOOL[tier] = BPPOOL[tier] || []).push(bpPrize(k)); }
 { const t = B5_TABS.find(q => q[0] === 'fu'); if (t) for (const k in GDN) { const i = t[2].indexOf(k); if (i >= 0) t[2].splice(i, 1); } }
 B5_TABS.push(['gdn', T2('花园', 'Garden'), Object.keys(GDN)]);
+
+/* ---- more garden: rainforest plants, a willow, water ponds and waterfalls ----
+   草皮 / 花草皮 / 石板路 are now painted with the round brush in the 地形 tab (z_terpaint.js); the old tiles stay valid for old saves
+   but are no longer in the menu. */
+const GDN2 = {
+  fern: { name: '蕨类', cost: { wood: 1 }, hp: 30, hw: .6, hd: .6, ob: [], desc: '雨林里的大蕨类，一片片垂下来' },
+  banana: { name: '芭蕉树', cost: { wood: 3 }, hp: 120, hw: .4, hd: .4, ob: [[0, 0, .25, .25]], desc: '大片叶子的芭蕉（雨林）' },
+  monst: { name: '龟背竹', cost: { wood: 2 }, hp: 60, hw: .6, hd: .6, ob: [], desc: '裂开的大圆叶，雨林植物' },
+  willow: { name: '柳树', cost: { wood: 6 }, hp: 300, hw: .45, hd: .45, ob: [[0, 0, .4, .4]], desc: '长长的柳条垂下来' },
+  pond: { name: '水池', cost: { wood: 2, metal: 3 }, hp: 200, hw: 1.5, hd: 1.5, ob: [], desc: '一格水池，石头围边，水会动' },
+  pond2: { name: '小水池', cost: { wood: 1, metal: 2 }, hp: 120, hw: .75, hd: .75, ob: [], desc: '半格的小水池' },
+  wfall: { name: '瀑布', cost: { wood: 3, metal: 6 }, hp: 400, hw: 1.5, hd: 1.2, ob: [[0, -.7, 1.5, .5]], desc: '石崖上流下来的瀑布，下面有水潭。「转向」转方向' },
+  wfall2: { name: '小瀑布', cost: { wood: 2, metal: 3 }, hp: 250, hw: 1, hd: .9, ob: [[0, -.5, 1, .35]], desc: '矮一点的小瀑布' },
+};
+for (const k in GDN2) { BT[k] = Object.assign({ cat: 'fu', k: 'free' }, GDN2[k]); GDN[k] = GDN2[k]; }
+// moving water: one shared ripple material, one shared falling-water material (their textures slide every frame)
+const WTR = { pool: null, fall: null, foam: null };
+function wtrMats() {
+  if (WTR.pool) return WTR;
+  const tex = (draw, w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; };
+  const rip = tex((x, w, h) => { x.fillStyle = '#3aa0c4'; x.fillRect(0, 0, w, h); x.strokeStyle = 'rgba(255,255,255,.35)'; x.lineWidth = 2; for (let i = 0; i < 14; i++) { x.beginPath(); const y = (i * 37) % h, o = (i * 53) % w; x.moveTo(o, y); x.bezierCurveTo(o + 20, y - 6, o + 40, y + 6, o + 60, y); x.stroke(); } }, 128, 128);
+  const fall = tex((x, w, h) => { x.fillStyle = '#7fd0ee'; x.fillRect(0, 0, w, h); for (let i = 0; i < 40; i++) { x.fillStyle = 'rgba(255,255,255,' + (.25 + (i % 5) * .1) + ')'; x.fillRect((i * 29) % w, (i * 71) % h, 2 + (i % 3), 18 + (i % 4) * 10); } }, 64, 128);
+  WTR.pool = new THREE.MeshLambertMaterial({ color: 0xffffff, map: rip, transparent: true, opacity: .85 });
+  WTR.fall = new THREE.MeshLambertMaterial({ color: 0xffffff, map: fall, transparent: true, opacity: .82, side: THREE.DoubleSide });
+  WTR.foam = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .6 });
+  return WTR;
+}
+function rimStones(g, hw, hd, R) { const st = [gmat(0x9a958c), gmat(0x7f7a72), gmat(0xa8a296)], n = Math.round((hw + hd) * 3);
+  for (let i = 0; i < n * 2; i++) { const t = i / (n * 2), per = 2 * (hw + hd); let d = t * per * 2, x, z;
+    if (d < 2 * hw) { x = -hw + d; z = -hd; } else if ((d -= 2 * hw) < 2 * hd) { x = hw; z = -hd + d; } else if ((d -= 2 * hd) < 2 * hw) { x = hw - d; z = hd; } else { d -= 2 * hw; x = -hw; z = hd - d; }
+    gblob(g, new THREE.DodecahedronGeometry(1, 0), st[(R() * 3) | 0], x, .1, z, .26 + R() * .12, .14 + R() * .08, .26 + R() * .1, R() * 3); } }
+buildMesh = (orig => function (type) {
+  if (!GDN2[type]) return orig(type);
+  const g = new THREE.Group(), R = mulberry32(type.length * 131 + 7);
+  const leaf = (len, wid, col, x, y, z, ry, tilt) => { const p = new THREE.Group(); p.position.set(x, y, z); p.rotation.y = ry; g.add(p); const m = box(wid, .03, len, col, 0, 0, len / 2, p); m.castShadow = false; p.rotation.x = tilt; return p; };
+  if (type === 'fern') { const c = [gmat(0x3d8a3a), gmat(0x4a9c40)]; for (let i = 0; i < 9; i++) { const a = i / 9 * 6.283 + R() * .3; const p = leaf(.9 + R() * .3, .22, c[i % 2], 0, .1, 0, a, -.5 - R() * .3);
+      for (let s = 1; s < 5; s++) box(.32 - s * .05, .02, .07, c[(i + 1) % 2], 0, .01, s * .19, p); } }
+  else if (type === 'banana') { gblob(g, new THREE.CylinderGeometry(.12, .18, 1.8, 6), gmat(0x7a8a4a), 0, .9, 0, 1);
+    const c = [gmat(0x5aa83e), gmat(0x6cbb48)]; for (let i = 0; i < 6; i++) leaf(1.5, .55, c[i % 2], 0, 1.8, 0, i / 6 * 6.283 + R() * .4, -.25 - R() * .35); }
+  else if (type === 'monst') { const c = [gmat(0x2f7a3a), gmat(0x3a8c42)], st = gmat(0x4a7a3a);
+    for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283 + R() * .4, d = .25 + R() * .15, h = .5 + R() * .4; const s = box(.04, h, .04, st, Math.cos(a) * d * .5, h / 2, Math.sin(a) * d * .5, g); s.rotation.z = Math.cos(a) * .3; s.rotation.x = -Math.sin(a) * .3;
+      const L = gblob(g, new THREE.CircleGeometry(.36, 7), c[i % 2], Math.cos(a) * d, h + .05, Math.sin(a) * d, 1); L.rotation.set(-1.1, a, 0); L.material = c[i % 2]; L.material.side = THREE.DoubleSide; } }
+  else if (type === 'willow') { const bark = gmat(0x5e4a36); gblob(g, new THREE.CylinderGeometry(.2, .34, 2.6, 7), bark, 0, 1.3, 0, 1);
+    const lv = [gmat(0x8cc25a), gmat(0x7ab24c), gmat(0x9ccf66)]; gblob(g, new THREE.IcosahedronGeometry(1.4, 0), lv[0], 0, 3.1, 0, 1, .6, 1);
+    for (let i = 0; i < 26; i++) { const a = i / 26 * 6.283 + R() * .2, d = .9 + R() * .6, len = 1.6 + R() * 1.1; const s = box(.08, len, .05, lv[i % 3], Math.cos(a) * d, 3.1 - len / 2, Math.sin(a) * d, g); s.rotation.y = -a; s.castShadow = false; } }
+  else if (type === 'pond' || type === 'pond2') { const W = wtrMats(), hw = type === 'pond' ? 1.4 : .65;
+    box(hw * 2, .04, hw * 2, gmat(0x3a5a58), 0, .02, 0, g); const w = new THREE.Mesh(new THREE.PlaneGeometry(hw * 2, hw * 2), W.pool); w.rotation.x = -Math.PI / 2; w.position.y = .12; w.userData.noCast = 1; g.add(w); rimStones(g, hw, hw, R); }
+  else if (type === 'wfall' || type === 'wfall2') { const W = wtrMats(), big = type === 'wfall', w = big ? 2.4 : 1.4, h = big ? 3.4 : 1.9, rk = [gmat(0x7c766c), gmat(0x6a645c), gmat(0x8a847a)];
+    // the cliff behind (faceted rocks), the water sheet over its lip, the pool at the bottom with foam
+    for (let i = 0; i < (big ? 9 : 6); i++) gblob(g, new THREE.DodecahedronGeometry(1, 0), rk[i % 3], (R() - .5) * w * 1.1, R() * h * .9 + .3, -.75 - R() * .35, .55 + R() * .45, .6 + R() * .5, .45 + R() * .2, R() * 3);
+    gblob(g, new THREE.BoxGeometry(w + .6, .3, .9), rk[0], 0, h, -.6, 1, 1, 1, 0);
+    const sheet = new THREE.Mesh(new THREE.PlaneGeometry(w * .7, h), W.fall); sheet.position.set(0, h / 2 + .05, -.15); sheet.userData.noCast = 1; g.add(sheet);
+    const pool = new THREE.Mesh(new THREE.PlaneGeometry(w, 1.4), W.pool); pool.rotation.x = -Math.PI / 2; pool.position.set(0, .12, .45); pool.userData.noCast = 1; g.add(pool); rimStones(g, w / 2, .7, R); g.children[g.children.length - 1].position.z += 0;
+    for (let i = 0; i < 5; i++) { const f = gblob(g, new THREE.IcosahedronGeometry(1, 0), W.foam, (R() - .5) * w * .6, .15, .05 + R() * .2, .18 + R() * .12, .1, .18 + R() * .1); f.userData.noCast = 1; } }
+  return g;
+})(buildMesh);
+// ponds snap to the grid like floors (half cells for the small one)
+ghostTransform = (o => function () {
+  if (buildSel !== 'pond' && buildSel !== 'pond2') return o();
+  const aim = aimPoint(), F = typeof GV !== 'undefined' && GV.on ? GV.fl : (S.fl | 0), st = buildSel === 'pond2' ? 1.5 : 3;
+  const x = Math.round((aim.x - st / 2) / st) * st + st / 2, z = Math.round((aim.z - st / 2) / st) * st + st / 2;
+  const taken = builds.some(b => b.hp > 0 && (b.type === 'pond' || b.type === 'pond2') && (b.lv | 0) === F && Math.abs(b.x - x) < st / 2 && Math.abs(b.z - z) < st / 2);
+  const ok = !taken && (F > 0 ? onUpper(x, z, st === 3 ? 1.2 : .6, F) : areaOk(x, z, st / 2, st / 2));
+  return { x, z, rot: 0, y: F * UPY, lv: F, ok, why: taken ? T2('这里已经有水池了', 'Already a pond') : T2('这里放不下', 'No room here') };
+})(ghostTransform);
+petsTick = (o => function (dt) { const r = o(dt); try { if (WTR.pool) { WTR.pool.map.offset.x += dt * .03; WTR.pool.map.offset.y += dt * .02; WTR.fall.map.offset.y += dt * 1.4; WTR.foam.opacity = .45 + Math.sin(S.t * 6) * .15; } } catch (e) { } return r; })(petsTick);
+for (const k in GDN2) { const tier = 2; if (BPX[k]) continue; BPX[k] = [tier, BT[k].name]; BT[k].bp = 1; if (!BP[k]) BP[k] = { n: BT[k].name, d: '', cv: 0 }; (BPPOOL[tier] = BPPOOL[tier] || []).push(bpPrize(k)); }
+{ const t = B5_TABS.find(q => q[0] === 'gdn'); if (t) t[2] = ['gtuft', 'gflow', 'fern', 'monst', 'banana', 'toak', 'tpine', 'tsak', 'willow', 'pond', 'pond2', 'wfall', 'wfall2', 'slamp', 'glamp']; }
 /* ============ island terrain you can shape (地形) ============
    The island's grass top is a height map (1.5 m grid). In build mode on the island, the 「地形」 tab gives brushes:
    抬高 / 降低 / 铲平 (to the height where you started) / 平滑 / 还原 (back to flat), three sizes. One finger paints, two fingers
@@ -17639,7 +17714,7 @@ function bY(b) { return (b.gy || 0) + (b.lv | 0) * UPY + (b.dy | 0) * RH_STEP + 
 const terKey = b => b.type + '|' + (+b.x).toFixed(2) + '|' + (+b.z).toFixed(2) + '|' + (b.lv | 0);
 
 /* ---- the mesh ---- */
-const TER_SAND = new THREE.Color(0xd8c08a), TER_WET = new THREE.Color(0xa89a70), TER_GRASS = new THREE.Color(0x5c8c46), TER_GRASS2 = new THREE.Color(0x6a9a4e), TER_DIRT = new THREE.Color(0x8a6a48), TER_ROCK = new THREE.Color(0x8a8278);
+const TER_SEA = new THREE.Color(0x2f5a66), TER_SAND = new THREE.Color(0xbfa070), TER_WET = new THREE.Color(0xa89a70), TER_GRASS = new THREE.Color(0x5c8c46), TER_GRASS2 = new THREE.Color(0x6a9a4e), TER_DIRT = new THREE.Color(0x8a6a48), TER_ROCK = new THREE.Color(0x8a8278);
 function terInit() {
   if (TER.mesh) return; const N = TER_N, pos = new Float32Array(N * N * 3), col = new Float32Array(N * N * 3), idx = [];
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const k = j * N + i; pos[k * 3] = i * TER_S - TER_O; pos[k * 3 + 2] = j * TER_S - TER_O; }
@@ -17647,7 +17722,7 @@ function terInit() {
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setIndex(idx);
   const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })); m.receiveShadow = true; m.userData.ter = 1; islandG.add(m); TER.mesh = m;
   // the old flat grass top goes a little lower so the two never flicker against each other
-  for (const c of islandG.children) { const p = c.geometry && c.geometry.parameters; if (c !== m && p && (p.radiusTop === ISL_R || p.radiusTop === ISL_R + 9)) c.position.y -= .06; }
+  for (const c of islandG.children) { const p = c.geometry && c.geometry.parameters; if (c !== m && p && (p.radiusTop === ISL_R || p.radiusTop === ISL_R + 9)) c.position.y -= .06; if (c !== m && p && p.radiusTop === ISL_R + 16 && c.material) { c.material = c.material.clone(); c.material.color.setHex(0x40666c); } }   // the sea floor round the island darker, so the water reads as water
   terMeshAll();
   // things standing on the island ground (palms, rocks, decorations): they follow the ground
   for (const c of islandG.children) { if (c === m) continue; const p = c.geometry && c.geometry.parameters; if (p && (p.radiusTop >= ISL_R || p.width >= 200)) continue; if (c.userData && c.userData.noCast && c.position.y < -.2) continue;
@@ -17657,9 +17732,9 @@ function terInit() {
 }
 function terVert(i, j) {
   const N = TER_N, k = j * N + i, x = i * TER_S - TER_O, z = j * TER_S - TER_O, r = Math.hypot(x, z), P = TER.mesh.geometry.attributes.position.array, C = TER.mesh.geometry.attributes.color.array, H = TER.h;
-  const y = r > ISL_R + 16 ? -1.4 : terBase(r) + H[k]; P[k * 3 + 1] = y;
+  const y = r > ISL_R + 16.5 ? -6 : terBase(r) + H[k]; P[k * 3 + 1] = y;   // past the beach the mesh drops away, the old sea floor shows (deep water stays dark)
   const nb = (a, b) => (a < 0 || b < 0 || a >= N || b >= N) ? y : H[b * N + a], sl = Math.max(Math.abs(nb(i + 1, j) - nb(i - 1, j)), Math.abs(nb(i, j + 1) - nb(i, j - 1))) / (2 * TER_S);
-  const c = (r > ISL_R + 9 ? TER_WET : r > ISL_R - .3 ? TER_SAND : ((i * 7 + j * 13) % 5) < 2 ? TER_GRASS2 : TER_GRASS).clone(); if (r <= ISL_R - .3) { if (sl > .75) c.lerp(TER_DIRT, Math.min(1, (sl - .75) * 1.6)); if (y < -.15) c.lerp(TER_DIRT, Math.min(1, -y)); if (y > 4.5) c.lerp(TER_ROCK, Math.min(1, (y - 4.5) / 2)); }
+  const c = (r > ISL_R + 9 ? TER_WET : r > ISL_R - .3 ? TER_SAND : ((i * 7 + j * 13) % 5) < 2 ? TER_GRASS2 : TER_GRASS).clone(); if (r <= ISL_R - .3) { if (sl > .75) c.lerp(TER_DIRT, Math.min(1, (sl - .75) * 1.6)); if (y < -.15) c.lerp(TER_DIRT, Math.min(1, -y)); if (y > 4.5) c.lerp(TER_ROCK, Math.min(1, (y - 4.5) / 2)); } if (y < -.26) c.lerp(TER_SEA, Math.min(.9, .35 + (-.26 - y) * 1.6));   // under the water: darker and bluer, so you can see it is sea
   C[k * 3] = c.r; C[k * 3 + 1] = c.g; C[k * 3 + 2] = c.b;
 }
 function terMeshAll() { for (let j = 0; j < TER_N; j++) for (let i = 0; i < TER_N; i++) terVert(i, j); terMeshDone(true); }
@@ -17821,6 +17896,91 @@ function shoreWaveTick(dt) {
     const s = ((ISL_R + 13.5) + ((ISL_R + 9.3) - (ISL_R + 13.5)) * e) / R0; m.scale.set(s, s, 1); m.position.y = -.27 + .13 * e; m.material.opacity = Math.sin(ph * Math.PI) * (ph > .8 ? (1 - ph) * 5 * .6 : .6); });
 }
 petsTick = (o => function (dt) { const r = o(dt); try { shoreWaveTick(dt); } catch (e) { } return r; })(petsTick);
+/* ============ painting the ground: 草皮 / 花草皮 / 石板路 with the same round brush as the terrain ============
+   In the 地形 tab: 草皮 (lush grass with blades), 花草皮 (grass with little flowers), 石板路 (flat stones), 擦掉 (back to plain
+   ground). The colour goes into the terrain mesh, the blades / flowers / stones are drawn as instanced meshes (cheap), each
+   standing on the ground. It can go anywhere the brush can (even next to buildings; nothing grows through a floor). */
+const TPAINT = { p: new Uint8Array(TER_N * TER_N), dirty: false, t: 0, meshes: null };
+TER_TOOLS.push(['p_turf', T2('草皮', 'Turf')], ['p_flow', T2('花草皮', 'Flowers')], ['p_stone', T2('石板路', 'Stone path')], ['p_erase', T2('擦掉', 'Erase')]);
+Object.assign(TER_IC, {
+  p_turf: '<path d="M4 19l2-7 2 7M9 19l2-9 2 9M14 19l2-6 2 6" />',
+  p_flow: '<path d="M6 20v-6M12 20v-8M18 20v-5" /><circle cx="6" cy="12" r="2" /><circle cx="12" cy="9" r="2" /><circle cx="18" cy="13" r="2" />',
+  p_stone: '<path d="M3 15l4-3 5 1 2 4-5 2zM13 9l4-3 4 2-1 4-5-1z" />',
+  p_erase: '<path d="M5 15l7-8 7 7-5 5H9zM9 19h11" />'
+});
+const TP_TYPE = { p_turf: 1, p_flow: 2, p_stone: 3, p_erase: 0 };
+const TP_COL = [null, new THREE.Color(0x4caa3c), new THREE.Color(0x58aa44), new THREE.Color(0x8c887e)], TP_COL2 = new THREE.Color(0x77736a);
+terBrush = (o => function (dt) {
+  if (!(TER.tool in TP_TYPE)) return o(dt);
+  const a = buildAnchor; if (!a) return; const R = TER_SIZES[TER.size] || 4.2, N = TER_N, v = TP_TYPE[TER.tool]; TER.near = [];
+  const i0 = Math.max(1, Math.floor((a.x - HOME.x + TER_O - R) / TER_S)), i1 = Math.min(N - 2, Math.ceil((a.x - HOME.x + TER_O + R) / TER_S)), j0 = Math.max(1, Math.floor((a.z - HOME.z + TER_O - R) / TER_S)), j1 = Math.min(N - 2, Math.ceil((a.z - HOME.z + TER_O + R) / TER_S));
+  let ch = false;
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const x = HOME.x + i * TER_S - TER_O, z = HOME.z + j * TER_S - TER_O; if (Math.hypot(x - a.x, z - a.z) > R * .85 || terLockW(x, z) <= 0) continue;
+    const k = j * N + i; if (TPAINT.p[k] !== v) { TPAINT.p[k] = v; ch = true; terVert(i, j); } }
+  if (!ch) return; terMeshDone(false); TPAINT.dirty = true; TER.dirty = 1;
+})(terBrush);
+// the colour of a painted spot
+terVert = (o => function (i, j) { o(i, j); const k = j * TER_N + i, v = TPAINT.p[k]; if (!v || !TER.mesh) return;
+  const C = TER.mesh.geometry.attributes.color.array, c = v === 3 && ((i + j) % 2) ? TP_COL2 : TP_COL[v]; C[k * 3] = c.r; C[k * 3 + 1] = c.g; C[k * 3 + 2] = c.b; })(terVert);
+// the blades, flowers and stones on top
+function tpHash(k, s) { let h = (k * 374761393 + s * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+function tpMeshes() {
+  if (TPAINT.meshes) return TPAINT.meshes; const M = {};
+  const blade = new THREE.BoxGeometry(.05, .34, .1); blade.translate(0, .17, 0);
+  M.blade = new THREE.InstancedMesh(blade, new THREE.MeshLambertMaterial({ color: 0xffffff }), 9000);
+  M.flower = new THREE.InstancedMesh(new THREE.OctahedronGeometry(.08, 0), new THREE.MeshLambertMaterial({ color: 0xffffff }), 3000);
+  const st = new THREE.DodecahedronGeometry(1, 0); M.stone = new THREE.InstancedMesh(st, new THREE.MeshLambertMaterial({ color: 0xffffff }), 3000);
+  for (const k in M) { M[k].setColorAt(0, new THREE.Color(0xffffff)); M[k].count = 0; M[k].frustumCulled = false;   // the colour buffer must exist before the first draw, or the shader is built without it (black grass)
+    M[k].userData.noCast = 1; M[k].castShadow = false; M[k].receiveShadow = true; scene.add(M[k]); }
+  return (TPAINT.meshes = M);
+}
+const _tpM = new THREE.Matrix4(), _tpQ = new THREE.Quaternion(), _tpE = new THREE.Euler(), _tpP = new THREE.Vector3(), _tpS = new THREE.Vector3(), _tpC = new THREE.Color();
+function tpRebuild() {
+  const M = tpMeshes(), N = TER_N, cnt = { blade: 0, flower: 0, stone: 0 };
+  const greens = [0x5fae4a, 0x4e9a3e, 0x78c25a], fls = [0xff7aa8, 0xffe066, 0xffffff, 0x9a8cff, 0xff9a4a], grays = [0x9a958c, 0x8a857c, 0xa8a296];
+  const floors = builds.filter(b => b.hp > 0 && !(b.lv | 0) && BT[b.type] && (BT[b.type].k === 'cell' || PLAT_H[b.type] || RAMP[b.type] || TRI[b.type]));
+  const put = (m, x, y, z, sx, sy, sz, ry, rz, col) => { const n = cnt[m]; if (n >= M[m].instanceMatrix.count) return; _tpE.set(0, ry, rz || 0); _tpQ.setFromEuler(_tpE); _tpP.set(x, y, z); _tpS.set(sx, sy, sz); _tpM.compose(_tpP, _tpQ, _tpS); M[m].setMatrixAt(n, _tpM); _tpC.setHex(col); M[m].setColorAt(n, _tpC); cnt[m] = n + 1; };
+  for (let k = 0; k < TPAINT.p.length; k++) { const v = TPAINT.p[k]; if (!v) continue; const i = k % N, j = (k / N) | 0, x0 = HOME.x + i * TER_S - TER_O, z0 = HOME.z + j * TER_S - TER_O;
+    if (floors.some(b => Math.abs(b.x - x0) < 1.6 && Math.abs(b.z - z0) < 1.6)) continue;   // nothing grows through a floor
+    if (v === 3) { const x = x0 + (tpHash(k, 1) - .5) * .3, z = z0 + (tpHash(k, 2) - .5) * .3, s = .42 + tpHash(k, 3) * .1; put('stone', x, terH(x, z) + .015, z, s, .05, s * (.8 + tpHash(k, 4) * .3), tpHash(k, 5) * 6, 0, grays[(tpHash(k, 6) * 3) | 0]); continue; }
+    const nb = v === 1 ? 6 : 4; for (let s = 0; s < nb; s++) { const x = x0 + (tpHash(k, s * 7 + 1) - .5) * 1.5, z = z0 + (tpHash(k, s * 7 + 2) - .5) * 1.5, h = .7 + tpHash(k, s * 7 + 3) * .8;
+      put('blade', x, terH(x, z), z, 1, h, 1, tpHash(k, s * 7 + 4) * 3, (tpHash(k, s * 7 + 5) - .5) * .5, greens[(tpHash(k, s * 7 + 6) * 3) | 0]); }
+    if (v === 2) for (let s = 0; s < 3; s++) { const x = x0 + (tpHash(k, s * 5 + 40) - .5) * 1.4, z = z0 + (tpHash(k, s * 5 + 41) - .5) * 1.4; put('flower', x, terH(x, z) + .32 + tpHash(k, s * 5 + 42) * .15, z, 1, 1, 1, tpHash(k, s) * 3, 0, fls[(tpHash(k, s * 5 + 43) * fls.length) | 0]); }
+  }
+  for (const m in M) { M[m].count = cnt[m]; M[m].instanceMatrix.needsUpdate = true; if (M[m].instanceColor) M[m].instanceColor.needsUpdate = true; M[m].visible = S.isl && !S.dun; }
+}
+petsTick = (o => function (dt) { const r = o(dt); try {
+  TPAINT.t -= dt; if (TPAINT.dirty && TPAINT.t <= 0) { TPAINT.t = .35; TPAINT.dirty = false; tpRebuild(); }
+  if (TPAINT.meshes) { const on = S.isl && !S.dun; for (const m in TPAINT.meshes) TPAINT.meshes[m].visible = on; }
+} catch (e) { console.warn('tpaint', e); } return r; })(petsTick);
+// build or move something on painted ground: the grass under a new floor goes away
+addBuild = (o => function () { const b = o.apply(this, arguments); if (TPAINT.p.some(v => v)) TPAINT.dirty = true; return b; })(addBuild);
+dropBuild = (o => function () { const r = o.apply(this, arguments); if (TPAINT.p.some(v => v)) TPAINT.dirty = true; return r; })(dropBuild);
+// save / load
+serialize = (o => function () { const d = o(); try { const p = []; for (let k = 0; k < TPAINT.p.length; k++) if (TPAINT.p[k]) p.push(k, TPAINT.p[k]); if (p.length) { d.ter = d.ter || { v: 2, h: [], gy: {} }; d.ter.p = p; } } catch (e) { } return d; })(serialize);
+applySave = (o => function (d) {
+  TPAINT.p.fill(0); try { const p = d && d.ter && d.ter.p; if (Array.isArray(p)) for (let i = 0; i + 1 < p.length; i += 2) { const k = p[i] | 0; if (k >= 0 && k < TPAINT.p.length) TPAINT.p[k] = p[i + 1] & 3; } } catch (e) { }
+  const r = o(d); TPAINT.dirty = true; TPAINT.t = 0; return r; })(applySave);
+/* ============ defences cost more the more you have ============
+   Owner: don't forbid anything, but make walls of turrets expensive. Every attacking defence (all five turret grades, 重机枪塔,
+   电网塔, 尖刺陷阱) costs twice its old price, and each one more of the SAME kind doubles again: the 1st ×2, the 2nd ×4, the 3rd ×8 …
+   Fences (木栅栏 / 铁栅栏 / 矮栅栏) only cost twice as much, with no doubling, because a wall needs many of them.
+   Pulling one down gives back 60% of what the last one cost (not of the next price, or building and pulling down would print wood). */
+const DEF_DBL = { turret: 1, turret_b: 1, turret_s: 1, turret_g: 1, turret_m: 1, hmg: 1, tesla: 1, spike: 1 }, DEF_X2 = { wall: 1, gate: 1, lfence: 1, lrail: 1 };
+const DEFC = { minus: 0 };
+const defCount = t => { let n = 0; for (const b of builds) if (b.type === t && b.hp > 0 && !b.home) n++; return n; };
+// (costOf can be asked before this file has run, at start-up: then the old price)
+function bldCostMul(t) { try { return bldCostMul0(t); } catch (e) { return 1; } }
+function bldCostMul0(t) {
+  if (DEF_X2[t]) return 2;
+  if (!DEF_DBL[t]) return 1;
+  const n = Math.max(0, defCount(t) - DEFC.minus); return 2 * Math.pow(2, Math.min(n, 24));
+}
+placeBuild = (o => function () { const rem = buildSel === 'remove'; if (rem) DEFC.minus = 1; try { return o.apply(this, arguments); } finally { DEFC.minus = 0; } })(placeBuild);
+// the menu line says which one you are building and how much more it costs now
+b5Info = (o => function () { const r = o.apply(this, arguments); try { const k = buildSel, el = $('b5Sel'); if (el && k && DEF_DBL[k] && BT[k] && !el.querySelector('.dcx')) { const n = defCount(k);
+  (el.querySelector('b') || el).insertAdjacentHTML('afterend', '<span class="dcx">' + T2('第 ', 'No. ') + (n + 1) + T2(' 个 · 价格 ×', ' · price ×') + Math.pow(2, Math.min(n, 24) + 1).toLocaleString() + '</span>'); } } catch (e) { } return r; })(b5Info);
+setTimeout(() => { try { const st = document.createElement('style'); st.textContent = '#build .b5sel .dcx{flex:0 0 auto;color:#ffb27a!important;font-weight:800}'; document.head.appendChild(st); } catch (e) { } }, 0);
 /* ============ the storage box screen 2.0 ============
    Both sides (your bag and the storage) are grids of cells, one cell per stack (99 per cell, as before), the count in the corner.
    Tap a cell: a card shows the item's name, what it is and what it's for, and how many you have there. Pick how many to move —
@@ -20568,4 +20728,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794749643').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794751382').catch(()=>{});</script></body></html>
