@@ -17722,7 +17722,7 @@ function terInit() {
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setIndex(idx);
   const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })); m.receiveShadow = true; m.userData.ter = 1; islandG.add(m); TER.mesh = m;
   // the old flat grass top goes a little lower so the two never flicker against each other
-  for (const c of islandG.children.slice()) { const p = c.geometry && c.geometry.parameters; if (c !== m && p && (p.radiusTop === ISL_R || p.radiusTop === ISL_R + 9)) c.position.y -= 2.5;   // the old flat grass / sand discs go well below the deepest dig (they covered holes)
+  for (const c of islandG.children.slice()) { const p = c.geometry && c.geometry.parameters; if (c !== m && p && (p.radiusTop === ISL_R || p.radiusTop === ISL_R + 9)) { c.position.y -= 40; c.visible = false; }   // the old flat grass / sand discs go well below the deepest dig (they covered holes)
     if (c !== m && p && p.radiusTop === ISL_R + 16 && c.material) { c.visible = false; const mt = c.material.clone(); mt.color.setHex(0x40666c);   // the sea floor: only as a ring now (the disc covered dug holes too), darker so the water reads as water
       const ring = new THREE.Mesh(new THREE.RingGeometry(ISL_R + 15.5, ISL_R + 34, 64, 1), mt); ring.rotation.x = -Math.PI / 2; ring.position.y = -.9; ring.receiveShadow = true; islandG.add(ring); } }   // the sea floor round the island darker, so the water reads as water
   terMeshAll();
@@ -17987,11 +17987,17 @@ petsTick = (o => function (dt) { const r = o(dt); if (!TER.down) TPAINT.L = null
 function wfExt(b) {
   const g = b.g; if (!g) return; const big = b.type === 'wfall', w = big ? 2.4 : 1.4, c = Math.cos(b.rot), s = Math.sin(b.rot), fz = 1.25;
   const fx = b.x + fz * s, fzw = b.z + fz * c, base = g.position.y, ground = terH(fx, fzw), drop = base + .12 - ground;
-  if (Math.abs((g.userData.drop || 0) - drop) < .05) return; g.userData.drop = drop;
-  if (g.userData.ext) { g.remove(g.userData.ext); g.userData.ext = null; } if (drop < .5) return;
-  const W = wtrMats(), e = new THREE.Group(), sh = new THREE.Mesh(new THREE.PlaneGeometry(w * .6, drop), W.fall); sh.position.set(0, .12 - drop / 2, fz); sh.userData.noCast = 1; e.add(sh);
+  // lowest ground under the rock + pool: on a slope the piece would hang in the air, so a rock base fills down to the ground
+  const T = BT[b.type] || {}, hw = T.hw || 1.2, hd = T.hd || 1; let gmin = 1e9;
+  for (const lx of [-hw, 0, hw]) for (const lz of [-hd, 0, hd]) gmin = Math.min(gmin, terH(b.x + lx * c + lz * s, b.z - lx * s + lz * c));
+  const skirt = base - gmin, key = drop * 1000 + skirt;
+  if (Math.abs((g.userData.drop || 0) - key) < .05) return; g.userData.drop = key;
+  if (g.userData.ext) { g.remove(g.userData.ext); g.userData.ext = null; } if (drop < .5 && skirt < .25) return;
+  const W = wtrMats(), e = new THREE.Group();
+  if (skirt >= .25) { const rk = new THREE.Mesh(facet(new THREE.CylinderGeometry(1, 1.12, 1, 7, 1)), gmat(0x6a645c)); rk.scale.set(hw * 1.05, skirt + .3, hd * 1.15); rk.position.set(0, -(skirt + .3) / 2 + .02, 0); rk.castShadow = rk.receiveShadow = true; e.add(rk); }
+  g.add(e); g.userData.ext = e; if (drop < .5) return;
+  const sh = new THREE.Mesh(new THREE.PlaneGeometry(w * .6, drop), W.fall); sh.position.set(0, .12 - drop / 2, fz); sh.userData.noCast = 1; e.add(sh);
   const R = mulberry32(7); for (let i = 0; i < 6; i++) { const f = gblob(e, new THREE.IcosahedronGeometry(1, 0), W.foam, (R() - .5) * w * .7, .12 - drop + .1, fz + (R() - .3) * .5, .2 + R() * .15, .12, .2 + R() * .12); f.userData.noCast = 1; }
-  g.add(e); g.userData.ext = e;
 }
 let _wfT = 0;
 petsTick = (o => function (dt) { const r = o(dt); _wfT -= dt; if (_wfT <= 0) { _wfT = .5; try { for (const b of builds) if ((b.type === 'wfall' || b.type === 'wfall2') && b.hp > 0) wfExt(b); } catch (e) { } } return r; })(petsTick);
@@ -18113,6 +18119,27 @@ renderStash = function () {
   '.stq{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.stq span{font-weight:800}.stq input[type=number]{width:84px;font-size:18px;font-weight:900;text-align:center;padding:6px;border-radius:10px;border:2px solid #44535e;background:#0f161b;color:#fff}' +
   '.stq input[type=range]{flex:1;min-width:140px;accent-color:#ffc94a;height:28px}.stqb{display:flex;gap:6px}.stqb button{flex:1}.stfull{color:#ffb4a0!important;font-weight:800}';
   document.head.appendChild(st); } catch (e) { } })();
+/* ============ build menu: swipe to scroll ============
+   The tiles picked themselves on pointerdown, so a swipe that started on a tile picked it, the menu was rebuilt and the
+   list jumped back to the top: you could never scroll down (worst in the 地形 tab). Now a tile is picked only on a TAP
+   (finger lifted without moving), and the list keeps its scroll position when it is rebuilt. */
+const B5SC = { t: null, pass: false, top: {} };
+buildEl.addEventListener('pointerdown', e => {
+  if (B5SC.pass) return; const row = e.target.closest && e.target.closest('.b5row'); if (!row) return;
+  e.stopPropagation(); B5SC.t = { x: e.clientX, y: e.clientY, el: e.target, row, st: row.scrollTop, id: e.pointerId };
+}, true);
+window.addEventListener('pointerup', e => {
+  const t = B5SC.t; if (!t || t.id !== e.pointerId) return; B5SC.t = null;
+  if (Math.hypot(e.clientX - t.x, e.clientY - t.y) > 10 || Math.abs(t.row.scrollTop - t.st) > 4 || !t.el.isConnected) return;
+  B5SC.pass = true; try { t.el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY, pointerType: e.pointerType })); } catch (er) { } B5SC.pass = false;
+}, true);
+window.addEventListener('pointercancel', e => { if (B5SC.t && B5SC.t.id === e.pointerId) B5SC.t = null; }, true);
+buildCards = (o => function () {
+  const r0 = buildEl.querySelector('.b5row'), k0 = typeof B5 !== 'undefined' ? B5.tab : ''; if (r0) B5SC.top[k0] = r0.scrollTop;
+  const r = o.apply(this, arguments);
+  try { const r1 = buildEl.querySelector('.b5row'), k1 = typeof B5 !== 'undefined' ? B5.tab : ''; const v = B5SC.top[k1]; if (r1 && v) { const put = () => { if (r1.isConnected && Math.abs(r1.scrollTop - v) > 2 && !B5SC.t) r1.scrollTop = v; }; put(); requestAnimationFrame(put); setTimeout(put, 60); setTimeout(put, 200); } } catch (e) { }
+  return r;
+})(buildCards);
 /* ============ sea, the fishing boat, and background music ============
    - 海浪: on the island near the shore, on the boat and on board the two ships you hear waves: a slow swell, then the wash
      (louder the closer you are to the water). It goes through the 环境音 volume.
@@ -20803,4 +20830,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794752900').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794753320').catch(()=>{});</script></body></html>
