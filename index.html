@@ -16874,6 +16874,7 @@ const ABY_C = [
   { id: 'burst', n: '射击连发', t: '', max: 4, v: 0, gun: 1, d: '开一枪变成连发：拿 1 张是 3 连发，每多拿一张再 +1 发', fixed: 1 },
   { id: 'undying', n: '不死之身', t: '', max: 1, v: 100, sp: 1, d: '这一局死一次会以 {v}% 生命复活' },
   { id: 'gamble', n: '赌徒', t: '', max: 1, v: 3, sp: 1, d: '立刻随机拿 {n3} 张卡，但最大生命 −20%（这一局）', fixed: 1 },
+  { id: 'infammo', n: '无限子弹', t: '', max: 1, v: 0, gun: 1, sp: 1, fixed: 1, d: '这一局弹匣永远打不空，也不用换弹' },
   { id: 'luck', n: '幸运星', t: '', max: 3, v: 5, sp: 1, d: '之后抽到的卡，品质更高的机会 +{v}%' },
   // ---- trade-offs ----
   { id: 'heavy', n: '重装', t: '', max: 3, v: 25, d: '伤害 +{v}%，但移动速度 −10%' },
@@ -16952,6 +16953,7 @@ const ABY_IC = {
   burst: '<path d="M6 11h17l7 3-7 3H6zM6 21h21l7 3-7 3H6zM6 31h17l7 3-7 3H6z"/><path d="M38 12v24" stroke-dasharray="3 4"/>',
   undying: '<ellipse cx="24" cy="14" rx="7" ry="9"/><path d="M24 23v20M15 31h18"/>',
   gamble: '<rect x="7" y="7" width="22" height="22" rx="4"/><path d="M33 17l8 4-6 18-18-6 2-6"/><circle cx="13" cy="13" r="2" fill="#fff"/><circle cx="18" cy="18" r="2" fill="#fff"/><circle cx="23" cy="23" r="2" fill="#fff"/>',
+  infammo: '<path d="M24 24c-4-6-8-9-12-9a9 9 0 0 0 0 18c4 0 8-3 12-9zm0 0c4 6 8 9 12 9a9 9 0 0 0 0-18c-4 0-8 3-12 9z"/>',
   luck: '<path d="M24 5l5.6 11.4 12.6 1.8-9.1 8.9 2.2 12.5L24 33.7 12.7 39.6l2.2-12.5-9.1-8.9 12.6-1.8z"/>',
   heavy: '<path d="M17 18a7 7 0 1 1 14 0"/><path d="M11 18h26l3 23H8z"/><path d="M15 30h18"/>',
   light: '<path d="M39 7C21 9 12 21 11 40M11 40l9-9M16 32h11M20 26h11M25 19h9M30 13h6"/>',
@@ -17056,6 +17058,7 @@ function abyEnter(wp) {
   ABY.snap = { wp: S.wp, wpp: S.wpPrev, reserve: S.reserve | 0, med: S.med | 0, hp: S.hp, food: S.food, sta: S.sta, mag: S.mag | 0 };
   ABY.wp = wp; ABY.floor = 0; ABY.cards = {}; ABY.picks = []; ABY.rer = 2; ABY.queue = 0; ABY.shield = 0; ABY.revive = 0; ABY.result = null; ABY.fires = []; ABY.fl = {}; ABY.shots = ABY.swings = ABY.kills = 0; ABY.hpMul = 1; ABY.ac = 0; abyCoinClear(false);
   ABY.on = true; ABY.allowEq = true; try { equip(wp); } catch (e) { S.wp = wp; } ABY.allowEq = false; S.wpPrev = wp;
+  if (WEAP[wp].cls !== 'melee') { S.mag = magSizeNow(wp); S.reserve = magSizeNow(wp) * 3; S.reload = 0; }
   DUN.id = ABY_ID; dunTravel(T2('登上深渊号', 'Boarding'), T2('无尽深渊', 'The Endless Abyss'), dunEnter);
 }
 dunEnter = (o => function () { const go = DUN.id === ABY_ID; o(); if (go && S.dun) { try { DSNAP = null; } catch (e) { } S.hp = S.maxHp; saveGame(); } })(dunEnter);   // no item snapshot: the run gives nothing out; abyEnd pays
@@ -17097,10 +17100,10 @@ function abySpawnOne() {
   if (ABY.elite) { ABY.elite = false; zb.abyE = 1; zb.hp = zb.max = zb.max * 2.5; zb.dmg *= 1.3; try { zb.g.scale.multiplyScalar(1.2); const ring = new THREE.Mesh(new THREE.RingGeometry(.7, .95, 24), new THREE.MeshBasicMaterial({ color: 0xffc94a, transparent: true, opacity: .8, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = .06; zb.g.add(ring); } catch (e) { } feed(T2('精英出现了：打倒它多抽一次卡', 'An elite: kill it for an extra card'), '#ffc94a'); }
 }
 function abyBossSpawn() { if (!abyOn()) return; const n = ABY.floor, rb = ((n / 5 - 1) % 10) + 1;
-  try { spawnBoss({ id: 'aby', x: dX(0), z: dZ(-ABY_R + 6), tp: (n / 5) | 0, rb, level: abyLv(), bn: '', buff: null }); } catch (e) { console.warn(e); }
+  const ob = banner; banner = function () { }; try { spawnBoss({ id: 'aby', x: dX(0), z: dZ(-ABY_R + 6), tp: (n / 5) | 0, rb, level: abyLv(), bn: '', buff: null }); } catch (e) { console.warn(e); } finally { banner = ob; }
   if (!boss) return; ABY.boss = boss;
   if (boss.weekly) { boss.hp = boss.max = Math.round(boss.max / 1.5); boss.dmg /= 1.25; boss.title = String(boss.title).replace('周王·', ''); try { el.bossName.textContent = boss.title + ' Lv.' + boss.lv; } catch (e) { } }   // the weekly king's buff is an outside-world thing
-  boss.weekly = false; boss.buff = null; abyClean(boss); boss.dun = 1; boss.aby = 1; boss.hp = boss.max = Math.round(boss.max * (.6 + .06 * n)); boss.state = 'chase'; try { refreshBossHud(); } catch (e) { } }
+  boss.weekly = false; boss.buff = null; abyClean(boss); banner(T2('第 ' + n + ' 层首领', 'Floor ' + n + ' boss'), boss.title, 2.6); boss.dun = 1; boss.aby = 1; boss.hp = boss.max = Math.round(boss.max * (.6 + .06 * n)); boss.state = 'chase'; try { refreshBossHud(); } catch (e) { } }
 // nothing from the outside world touches the monsters down here (region traits, the weekly king, night sight …), and every one of them comes for you
 function abyClean(z) { z.aby = 1; z.abyC = 1; z.buff = null; z.tough = false; z.aggro = 999; z.horde = true; if (z.boss && z.state === 'idle') z.state = 'chase'; }
 const abyAlive = () => zombies.filter(z => z.aby && !z.dead && !z.mirror).length + (ABY.boss && !ABY.boss.dead ? 1 : 0);
@@ -17122,7 +17125,12 @@ zSpecialTick = (o => function (dt) { o(dt); if (!abyOn()) { if (ABY.on && !S.dun
     if (!z.abyC) { if (!z.boss) { try { const T = ZT[z.type], D = dif(), lv = abyLv(); z.lv = lv; z.hp = z.max = T.hp * lvHp(lv) * D.hp * (1 + .03 * ABY.floor) * .7; z.dmg = T.dmg * lvDmg(lv) * D.dmg; z.spd = T.spd * rand(.95, 1.1); } catch (e) { } } abyClean(z); }   // a boss's summons
     z.aggro = 999; if (z.boss && z.state === 'idle') z.state = 'chase'; }
   abyCoinTick(dt);
-  ABY.t += dt; S.sta = Math.max(S.sta, 100); if (S.exhausted) S.exhausted = false; S.reserve = Math.max(S.reserve, 300); if (ABY.snap) S.food = ABY.snap.food;
+  { const cx = dX(0), cz = dZ(0), lim = ABY_R - .9; let dx = player.pos.x - cx, dz2 = player.pos.z - cz, d = Math.hypot(dx, dz2);
+    if (d > lim) { player.pos.x = cx + dx / d * lim; player.pos.z = cz + dz2 / d * lim; }
+    for (const z of zombies) { if (z.dead || z.mirror) continue; dx = z.pos.x - cx; dz2 = z.pos.z - cz; d = Math.hypot(dx, dz2); if (d > lim + .4) { z.pos.x = cx + dx / d * (lim + .4); z.pos.z = cz + dz2 / d * (lim + .4); } } }
+  if (aN('infammo') && !isMelee()) { S.mag = Math.max(S.mag, magSizeNow()); S.reload = 0; }
+  { const fb = $('bFire'), fist = abyFist(); if (fb && fb.classList.contains('abyfist') !== fist) fb.classList.toggle('abyfist', fist); }
+  ABY.t += dt; S.sta = Math.max(S.sta, 100); if (S.exhausted) S.exhausted = false; if (ABY.snap) S.food = ABY.snap.food;
   S.maxHp = Math.round(maxHpNow() * (ABY.hpMul || 1)); if (S.hp > S.maxHp) S.hp = S.maxHp;
   // spawning
   if (ABY.state === 'fight') { ABY.spawnT -= dt; if (ABY.spawnLeft > 0 && ABY.spawnT <= 0 && abyAlive() < 10) { ABY.spawnT = .45; ABY.spawnLeft--; abySpawnOne(); }
@@ -17201,8 +17209,9 @@ function abyOnHit(z, D) {
 }
 killZombie = (o => function (z) {
   if (!abyOn() || !z || z.dead || !z.aby && !z.boss) return o(z);
-  const fl = ABY.fl, base = weaponDmg(), x = z.pos.x, zz = z.pos.z, frozen = z.abyFz > ABY.t, bled = (z.abyB | 0) > 0; const r = o(z); ABY.kills++;
+  const fl = ABY.fl, base = weaponDmg(), x = z.pos.x, zz = z.pos.z, frozen = z.abyFz > ABY.t, bled = (z.abyB | 0) > 0; let r; ABY.kl = true; try { r = o(z); } finally { ABY.kl = false; } ABY.kills++;
   abyDrop(x, zz, z.boss ? 8 + ABY.floor : z.abyE ? 5 : 1);
+  if (WEAP[ABY.wp].cls !== 'melee' && !aN('infammo') && (z.boss || z.abyE || Math.random() < .14)) abyAmmoDrop(x, zz, Math.max(4, Math.round(magSizeNow() * (z.boss ? 1.5 : z.abyE ? .8 : .4))));
   if (aN('leech')) abyHeal(aV('leech'));
   if (aN('rite') && bled) abyHeal(ABYC.rite.v / 100);
   if (aN('boom') && !z.abyBoom && ABY.booms < 4) { ABY.booms++; const k = frozen && aN('shatter') ? ABYC.shatter.v : 1; burst(x, 1, zz, 0xffa040, 18, 6); try { sfx.boom && sfx.boom(); } catch (e) { }
@@ -17226,8 +17235,15 @@ takeDamage = (o => function (n, src) {
 })(takeDamage);
 
 /* ---- shooting and swinging: card triggers, plus the burst-fire card ---- */
+const abyFist = () => abyOn() && !isMelee() && S.mag <= 0 && (S.reserve | 0) <= 0 && S.reload <= 0 && !aN('infammo');
+function abyPunch() { if (S.dead || S.fireCd > 0) return; S.fireCd = .42; const [ax, az] = aimDir(), px = player.pos.x, pz = player.pos.z;
+  let best = null, bd = 9; for (const z of zombies) { if (z.dead || z.mirror) continue; const ex = z.pos.x - px, ez = z.pos.z - pz, d = Math.hypot(ex, ez); if (d > 1.9 + (z.r || .5)) continue; if ((ex * ax + ez * az) / (d || 1) < .3 && d > (z.r || .5) + .5) continue; if (d < bd) { bd = d; best = z; } }
+  try { sfx.swing(); } catch (e) { } burst(px + ax * 1.1, 1.2, pz + az * 1.1, 0xffffff, 4, 2);
+  if (!best) return; const d = weaponDmg() * .35 + 8 + S.level * .6; ABY.p = true; try { hurtZombie(best, d, ax, az); } finally { ABY.p = false; }
+  if (!best.boss) { best.knx = ax * 5; best.knz = az * 5; } try { sfx.hit(); } catch (e) { } S.shake = Math.max(S.shake, .1); }
 shoot = (o => function () {
   if (!abyOn()) return o.apply(this, arguments);
+  if (abyFist()) { abyPunch(); return; }   // out of bullets: fists
   const fl = ABY.fl; ABY.shots++; fl.bounced = fl.pierced = 0; fl.fullShot = aN('r_full') && S.mag >= magSizeNow(); fl.steady = aN('s_still') && (fl.stillT || 0) >= 1; if (fl.steady) fl.stillT = 0;
   fl.eye = aN('s_eye') && ABY.t >= (fl.eyeT || 0); if (fl.eye) fl.eyeT = ABY.t + 10;
   ABY.p = true; let r; try { r = o.apply(this, arguments); } finally { ABY.p = false; } fl.fullShot = fl.steady = fl.eye = false; if (fl.quick > 0) fl.quick--;
@@ -17272,13 +17288,25 @@ ABY.drops = [];
 function abyDrop(x, z, n) { if (!n) return; const G = abyCoinGeo(), k = Math.min(6, n);
   for (let i = 0; i < k; i++) { const g = new THREE.Group(), f = new THREE.Mesh(G.face, G.fm), r = new THREE.Mesh(G.rim, G.rm); f.rotation.x = Math.PI / 2; g.add(f); g.add(r); g.position.set(x, 1, z); scene.add(g);
     const a = Math.random() * 6.28, sp = 2 + Math.random() * 2; ABY.drops.push({ g, v: Math.floor(n / k) + (i < n % k ? 1 : 0), vx: Math.cos(a) * sp, vz: Math.sin(a) * sp, vy: 5 + Math.random() * 2, t: 0 }); } }
+function abyAmmoDrop(x, z, n) { const g = new THREE.Group(), L = c => new THREE.MeshLambertMaterial({ color: c });
+  const b = new THREE.Mesh(geo(.5, .3, .32), L(0x5a7a3a)); g.add(b); const lid = new THREE.Mesh(geo(.52, .06, .34), L(0x3e5628)); lid.position.y = .17; g.add(lid);
+  for (const x0 of [-.12, 0, .12]) { const c = new THREE.Mesh(geo(.07, .16, .07), L(0xe0b040)); c.position.set(x0, .27, 0); g.add(c); }
+  g.position.set(x, 1, z); scene.add(g); const a = Math.random() * 6.28; ABY.drops.push({ g, ammo: n, vx: Math.cos(a) * 2, vz: Math.sin(a) * 2, vy: 6, t: 0 }); }
 function abyCoinGet(v) { if (!v) return; ABY.ac = (ABY.ac | 0) + v; S.abyss.ac = (S.abyss.ac | 0) + v; }
 function abyCoinTick(dt) { const px = player.pos.x, pz = player.pos.z;
   for (let i = ABY.drops.length - 1; i >= 0; i--) { const D = ABY.drops[i], p = D.g.position; D.t += dt; D.g.rotation.y += dt * 6;
     if (D.t < .55) { D.vy -= 18 * dt; p.x += D.vx * dt; p.z += D.vz * dt; p.y = Math.max(.35, p.y + D.vy * dt); }
     else { const dx = px - p.x, dz2 = pz - p.z, d = Math.hypot(dx, dz2), sp = Math.min(d, (8 + D.t * 14) * dt); p.x += dx / (d || 1) * sp; p.z += dz2 / (d || 1) * sp; p.y += (1.1 - p.y) * Math.min(1, dt * 6);
-      if (d < .6) { scene.remove(D.g); ABY.drops.splice(i, 1); abyCoinGet(D.v); try { sfx.pick(); } catch (e) { } } } } }
-function abyCoinClear(bank) { for (const D of ABY.drops) { try { scene.remove(D.g); } catch (e) { } if (bank) abyCoinGet(D.v); } ABY.drops = []; }
+      if (d < .6) { scene.remove(D.g); ABY.drops.splice(i, 1); if (D.ammo) { S.reserve = (S.reserve | 0) + D.ammo; feed(T2('子弹 +', 'Ammo +') + D.ammo, '#cfe8a0'); refreshHud(); } else abyCoinGet(D.v); try { sfx.pick(); } catch (e) { } } } } }
+function abyCoinClear(bank) { for (const D of ABY.drops) { try { scene.remove(D.g); } catch (e) { } if (bank && !D.ammo) abyCoinGet(D.v); } ABY.drops = []; }
+
+bossDie = (o => function (b) { if (!abyOn()) return o(b);   // a boss down here leaves nothing behind
+  try { slamRing.visible = false; boltRings.forEach(m => { m.visible = false; }); sfx.boom(); el.boss.style.display = 'none'; } catch (e) { } S.shake = .9; banner((b.title || b.T.name) + T2(' 倒下了', ' falls'), '', 2.5); })(bossDie);
+spawnLoot = (o => function () { if (abyOn()) return; return o.apply(this, arguments); })(spawnLoot);
+gain = (o => function (k, n) { if (ABY.kl && abyOn()) return; return o(k, n); })(gain);
+try { gearDropFor = (o => function (z) { if (abyOn()) return; return o(z); })(gearDropFor); } catch (e) { }
+// companions stay home: they don't come down into the abyss
+try { compsTick = (o => function (dt) { if (abyOn() || (ABY.on && S.dun)) { try { for (const [id] of COMPS) compDespawn(id); } catch (e) { } return; } return o(dt); })(compsTick); } catch (e) { }
 
 /* ---- the cards: pick 1 of 3 ---- */
 function abyRollQ() { const luck = aN('luck') ? aV('luck') : 0, P = ABY_QP.slice(); P[0] = Math.max(.05, P[0] - luck * 2); P[2] += luck * .6; P[3] += luck * .8; P[4] += luck * .6;
@@ -17382,7 +17410,7 @@ function abyPage() {
     m.innerHTML = '<div class="abyh">' + T2('无尽深渊', 'The Endless Abyss') + '</div><p class="abysub">' + T2('只能带一把武器下去，一层一层往下打，每层选一张卡。死了就结束，卡不带出来。', 'One weapon, floor after floor, a card each floor. Die and it ends; cards stay down there.') + '</p>' +
       '<div class="abyws">' + W_ORDER.map(id => { const own = wLv(id) > 0; return '<button class="abyw' + (id === sel ? ' on' : '') + (own ? '' : ' off') + '" data-w="' + id + '">' + (own ? wImg(id, wLv(id), 'x') : '') + '<b>' + wName(id) + '</b><small>' + (own ? 'Lv.' + wLv(id) + ' · ' + T2('最高 ', 'best ') + (S.abyss.bestBy[id] | 0) + T2(' 层', '') : T2('还没有 · 在工作台制作', 'Not owned · craft it')) + '</small></button>'; }).join('') + '</div>' +
       '<div class="abyinfo"><span>' + abyCoinIc(16) + T2(' 深渊币 ', ' Abyss coins ') + '<b>' + (S.abyss.ac | 0) + '</b></span><span>' + T2('历史最高 ', 'Best ') + '<b>' + (S.abyss.best | 0) + '</b>' + T2(' 层', '') + '</span><span>' + T2('本周领奖局数 ', 'Paid runs left ') + '<b>' + Math.max(0, 3 - S.abyss.runs) + ' / 3</b></span></div>' +
-      '<p class="abynote">' + T2('深渊里的怪只掉「深渊币」（死了也不会丢），不掉别的、不给经验；外面的东西（地区特性、周王加成）影响不到它们，全部会冲你来。奖励：每周前 3 局按结算层数给余烬币（每层 80，最多 3000）和经验；第 5 / 10 / 15 / 20 / 25 / 30 / 40 / 50 层第一次通过有首通奖励（经验、余烬币、宝石、深渊币……）。弹药和体力无限，不用医疗包，出来后一切恢复原样。', 'Monsters here drop only Abyss coins (kept even if you fall), nothing else and no XP; nothing from outside (region traits, the weekly king) touches them, and all of them come for you. Rewards: first 3 runs a week pay coins (80 a floor, max 3000) and XP; first clears of floors 5/10/15/20/25/30/40/50 pay once (XP, coins, gems, Abyss coins …). Ammo and stamina are endless; everything is put back when you leave.') + '</p>' +
+      '<p class="abynote">' + T2('深渊里的怪只掉「深渊币」（死了也不会丢），不掉别的、不给经验；外面的东西（地区特性、周王加成）影响不到它们，全部会冲你来。奖励：每周前 3 局按结算层数给余烬币（每层 80，最多 3000）和经验；第 5 / 10 / 15 / 20 / 25 / 30 / 40 / 50 层第一次通过有首通奖励（经验、余烬币、宝石、深渊币……）。体力无限；子弹只带满弹匣 + 3 个弹匣，怪偶尔掉一点子弹，打光了就用拳头（也有「无限子弹」卡）；伙伴不能跟进来；不用医疗包，出来后一切恢复原样。', 'Monsters here drop only Abyss coins (kept even if you fall), nothing else and no XP; nothing from outside (region traits, the weekly king) touches them, and all of them come for you. Rewards: first 3 runs a week pay coins (80 a floor, max 3000) and XP; first clears of floors 5/10/15/20/25/30/40/50 pay once (XP, coins, gems, Abyss coins …). Stamina is endless; you bring a full magazine + 3 more, monsters sometimes drop a little ammo, and with none left you punch (there is an Infinite Ammo card); companions stay outside; everything is put back when you leave.') + '</p>' +
       '<div class="abygb"><button class="sbtn ghostb abyx">' + T2('返回', 'Back') + '</button><button class="go abygo"' + (lock || !sel ? ' disabled' : '') + '>' + (lock || T2('下潜', 'Dive')) + '</button></div>';
     m.querySelectorAll('.abyw').forEach(b => b.addEventListener('click', () => { if (b.classList.contains('off')) return; sel = b.dataset.w; draw(); }));
     m.querySelector('.abyx').addEventListener('click', () => m.remove());
@@ -17533,6 +17561,7 @@ const HY_ABY = .9;
     '.abyfoot,.abygb{display:flex;gap:10px;justify-content:center}.abygate{max-width:520px;text-align:center;font-size:14px}.abywarn{color:#ffb4a0;font-size:13px}' +
     '.abyws{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;width:min(720px,94vw)}.abyw{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 6px;border-radius:12px;border:2px solid #44535e;background:#1c252c;color:#fff}' +
     '.abyw.on{border-color:#ffd27a;background:#2a3a44;box-shadow:0 0 0 2px rgba(255,210,122,.35)}.abyw.off{opacity:.45}.abyw img{height:34px;max-width:100%;object-fit:contain}.abyw small{font-size:11px;color:#c8d2da}' +
+    '#bFire.abyfist .fireIc{background-image:' + hudUrl('fist') + '!important}' +
     '.abycn{display:inline-block;vertical-align:-3px;font-style:normal}.abycn svg{width:100%;height:100%;display:block}.abyac{font-size:15px;margin:0;display:flex;align-items:center;gap:4px}.abyac b{color:#5ae8d8;font-size:18px}' +
     '.abyinfo{display:flex;gap:16px;font-size:14px;flex-wrap:wrap;justify-content:center;align-items:center}.abyinfo b{color:#ffd27a}' +
     '.abyend{display:flex;gap:18px}.abybig{display:flex;flex-direction:column;align-items:center}.abybig b{font:900 30px var(--font-hud,sans-serif);color:#ffd27a}.abybig small{font-size:12px;color:#c8d2da}.abyrw{max-width:560px;text-align:center;font-size:14px}' +
@@ -18799,4 +18828,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794706205').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794707044').catch(()=>{});</script></body></html>
