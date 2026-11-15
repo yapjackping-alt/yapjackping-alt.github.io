@@ -17722,7 +17722,9 @@ function terInit() {
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setIndex(idx);
   const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })); m.receiveShadow = true; m.userData.ter = 1; islandG.add(m); TER.mesh = m;
   // the old flat grass top goes a little lower so the two never flicker against each other
-  for (const c of islandG.children) { const p = c.geometry && c.geometry.parameters; if (c !== m && p && (p.radiusTop === ISL_R || p.radiusTop === ISL_R + 9)) c.position.y -= .06; if (c !== m && p && p.radiusTop === ISL_R + 16 && c.material) { c.material = c.material.clone(); c.material.color.setHex(0x40666c); } }   // the sea floor round the island darker, so the water reads as water
+  for (const c of islandG.children.slice()) { const p = c.geometry && c.geometry.parameters; if (c !== m && p && (p.radiusTop === ISL_R || p.radiusTop === ISL_R + 9)) c.position.y -= 2.5;   // the old flat grass / sand discs go well below the deepest dig (they covered holes)
+    if (c !== m && p && p.radiusTop === ISL_R + 16 && c.material) { c.visible = false; const mt = c.material.clone(); mt.color.setHex(0x40666c);   // the sea floor: only as a ring now (the disc covered dug holes too), darker so the water reads as water
+      const ring = new THREE.Mesh(new THREE.RingGeometry(ISL_R + 15.5, ISL_R + 34, 64, 1), mt); ring.rotation.x = -Math.PI / 2; ring.position.y = -.9; ring.receiveShadow = true; islandG.add(ring); } }   // the sea floor round the island darker, so the water reads as water
   terMeshAll();
   // things standing on the island ground (palms, rocks, decorations): they follow the ground
   for (const c of islandG.children) { if (c === m) continue; const p = c.geometry && c.geometry.parameters; if (p && (p.radiusTop >= ISL_R || p.width >= 200)) continue; if (c.userData && c.userData.noCast && c.position.y < -.2) continue;
@@ -17734,7 +17736,9 @@ function terVert(i, j) {
   const N = TER_N, k = j * N + i, x = i * TER_S - TER_O, z = j * TER_S - TER_O, r = Math.hypot(x, z), P = TER.mesh.geometry.attributes.position.array, C = TER.mesh.geometry.attributes.color.array, H = TER.h;
   const y = r > ISL_R + 16.5 ? -6 : terBase(r) + H[k]; P[k * 3 + 1] = y;   // past the beach the mesh drops away, the old sea floor shows (deep water stays dark)
   const nb = (a, b) => (a < 0 || b < 0 || a >= N || b >= N) ? y : H[b * N + a], sl = Math.max(Math.abs(nb(i + 1, j) - nb(i - 1, j)), Math.abs(nb(i, j + 1) - nb(i, j - 1))) / (2 * TER_S);
-  const c = (r > ISL_R + 9 ? TER_WET : r > ISL_R - .3 ? TER_SAND : ((i * 7 + j * 13) % 5) < 2 ? TER_GRASS2 : TER_GRASS).clone(); if (r <= ISL_R - .3) { if (sl > .75) c.lerp(TER_DIRT, Math.min(1, (sl - .75) * 1.6)); if (y < -.15) c.lerp(TER_DIRT, Math.min(1, -y)); if (y > 4.5) c.lerp(TER_ROCK, Math.min(1, (y - 4.5) / 2)); } if (y < -.26) c.lerp(TER_SEA, Math.min(.9, .35 + (-.26 - y) * 1.6));   // under the water: darker and bluer, so you can see it is sea
+  // grass shade varies in soft, large patches (the old one changed every vertex and looked like a checkerboard)
+  const nz = .5 + .25 * Math.sin(x * .11 + z * .07) + .17 * Math.sin(x * .05 - z * .13 + 1.7) + .08 * Math.sin((x + z) * .19 + .4);
+  const c = r > ISL_R + 9 ? TER_WET.clone() : r > ISL_R - .3 ? TER_SAND.clone() : TER_GRASS.clone().lerp(TER_GRASS2, clamp(nz, 0, 1)); if (r <= ISL_R - .3) { if (sl > .75) c.lerp(TER_DIRT, Math.min(1, (sl - .75) * 1.6)); if (y < -.15) c.lerp(TER_DIRT, Math.min(1, -y)); if (y > 4.5) c.lerp(TER_ROCK, Math.min(1, (y - 4.5) / 2)); } if (y < -.26) c.lerp(TER_SEA, Math.min(.9, .35 + (-.26 - y) * 1.6));   // under the water: darker and bluer, so you can see it is sea
   C[k * 3] = c.r; C[k * 3 + 1] = c.g; C[k * 3 + 2] = c.b;
 }
 function terMeshAll() { for (let j = 0; j < TER_N; j++) for (let i = 0; i < TER_N; i++) terVert(i, j); terMeshDone(true); }
@@ -17901,23 +17905,31 @@ petsTick = (o => function (dt) { const r = o(dt); try { shoreWaveTick(dt); } cat
    ground). The colour goes into the terrain mesh, the blades / flowers / stones are drawn as instanced meshes (cheap), each
    standing on the ground. It can go anywhere the brush can (even next to buildings; nothing grows through a floor). */
 const TPAINT = { p: new Uint8Array(TER_N * TER_N), dirty: false, t: 0, meshes: null };
-TER_TOOLS.push(['p_turf', T2('草皮', 'Turf')], ['p_flow', T2('花草皮', 'Flowers')], ['p_stone', T2('石板路', 'Stone path')], ['p_erase', T2('擦掉', 'Erase')]);
+TER_TOOLS.push(['p_turf', T2('草皮', 'Turf')], ['p_flow', T2('花草皮', 'Flowers')], ['p_stone', T2('石板路', 'Stone path')], ['p_water', T2('水池', 'Water')], ['p_erase', T2('擦掉', 'Erase')]);
 Object.assign(TER_IC, {
   p_turf: '<path d="M4 19l2-7 2 7M9 19l2-9 2 9M14 19l2-6 2 6" />',
   p_flow: '<path d="M6 20v-6M12 20v-8M18 20v-5" /><circle cx="6" cy="12" r="2" /><circle cx="12" cy="9" r="2" /><circle cx="18" cy="13" r="2" />',
   p_stone: '<path d="M3 15l4-3 5 1 2 4-5 2zM13 9l4-3 4 2-1 4-5-1z" />',
+  p_water: '<path d="M3 14c3-3 6 3 9 0s6 3 9 0M3 19c3-3 6 3 9 0s6 3 9 0M12 4c-3 4-4 6-4 7a4 4 0 0 0 8 0c0-1-1-3-4-7z" />',
   p_erase: '<path d="M5 15l7-8 7 7-5 5H9zM9 19h11" />'
 });
-const TP_TYPE = { p_turf: 1, p_flow: 2, p_stone: 3, p_erase: 0 };
-const TP_COL = [null, new THREE.Color(0x4caa3c), new THREE.Color(0x58aa44), new THREE.Color(0x8c887e)], TP_COL2 = new THREE.Color(0x77736a);
+const TP_TYPE = { p_turf: 1, p_flow: 2, p_stone: 3, p_water: 4, p_erase: 0 };
+TPAINT.wl = new Float32Array(TER_N * TER_N); TPAINT.L = null;
+const TP_COL = [null, new THREE.Color(0x4caa3c), new THREE.Color(0x58aa44), new THREE.Color(0x8c887e), new THREE.Color(0x4a4636)], TP_COL2 = new THREE.Color(0x77736a);
 terBrush = (o => function (dt) {
   if (!(TER.tool in TP_TYPE)) return o(dt);
-  const a = buildAnchor; if (!a) return; const R = TER_SIZES[TER.size] || 4.2, N = TER_N, v = TP_TYPE[TER.tool]; TER.near = [];
+  const a = buildAnchor; if (!a) return; const R = TER_SIZES[TER.size] || 4.2, N = TER_N, v = TP_TYPE[TER.tool];
+  // water digs a pond: it keeps away from buildings like the terrain brushes; the water surface is level, at the height where the stroke began
+  TER.near = v === 4 ? builds.filter(b => b.hp > 0 && Math.abs(b.x - a.x) < R + 5 && Math.abs(b.z - a.z) < R + 5) : [];
+  if (v === 4 && TPAINT.L == null) TPAINT.L = terH(a.x, a.z) - .15; let dug = false;
   const i0 = Math.max(1, Math.floor((a.x - HOME.x + TER_O - R) / TER_S)), i1 = Math.min(N - 2, Math.ceil((a.x - HOME.x + TER_O + R) / TER_S)), j0 = Math.max(1, Math.floor((a.z - HOME.z + TER_O - R) / TER_S)), j1 = Math.min(N - 2, Math.ceil((a.z - HOME.z + TER_O + R) / TER_S));
   let ch = false;
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const x = HOME.x + i * TER_S - TER_O, z = HOME.z + j * TER_S - TER_O; if (Math.hypot(x - a.x, z - a.z) > R * .85 || terLockW(x, z) <= 0) continue;
-    const k = j * N + i; if (TPAINT.p[k] !== v) { TPAINT.p[k] = v; ch = true; terVert(i, j); } }
-  if (!ch) return; terMeshDone(false); TPAINT.dirty = true; TER.dirty = 1;
+    const k = j * N + i;
+    if (v === 4) { const want = TPAINT.L - .55 - terBase(Math.hypot(x - HOME.x, z - HOME.z)); if (TER.h[k] > want) { TER.h[k] = Math.max(TER_MIN, want); dug = true; TER.any = true; } if (TPAINT.p[k] !== 4 || Math.abs(TPAINT.wl[k] - TPAINT.L) > .01) { TPAINT.wl[k] = TPAINT.L; TPAINT.p[k] = 4; ch = true; } continue; }
+    if (TPAINT.p[k] !== v) { TPAINT.p[k] = v; ch = true; terVert(i, j); } }
+  if (dug || (ch && v === 4)) { for (let j = j0 - 1; j <= j1 + 1; j++) for (let i = i0 - 1; i <= i1 + 1; i++) if (i >= 0 && j >= 0 && i < N && j < N) terVert(i, j); }
+  if (!ch && !dug) return; terMeshDone(false); TPAINT.dirty = true; TER.dirty = 1;
 })(terBrush);
 // the colour of a painted spot
 terVert = (o => function (i, j) { o(i, j); const k = j * TER_N + i, v = TPAINT.p[k]; if (!v || !TER.mesh) return;
@@ -17929,6 +17941,7 @@ function tpMeshes() {
   const blade = new THREE.BoxGeometry(.05, .34, .1); blade.translate(0, .17, 0);
   M.blade = new THREE.InstancedMesh(blade, new THREE.MeshLambertMaterial({ color: 0xffffff }), 9000);
   M.flower = new THREE.InstancedMesh(new THREE.OctahedronGeometry(.08, 0), new THREE.MeshLambertMaterial({ color: 0xffffff }), 3000);
+  { const wg = new THREE.PlaneGeometry(1.5, 1.5); wg.rotateX(-Math.PI / 2); M.water = new THREE.InstancedMesh(wg, wtrMats().pool.clone(), 4000); }   // its own copy (instanced and plain meshes need different shaders); the moving texture is shared
   const st = new THREE.DodecahedronGeometry(1, 0); M.stone = new THREE.InstancedMesh(st, new THREE.MeshLambertMaterial({ color: 0xffffff }), 3000);
   for (const k in M) { M[k].setColorAt(0, new THREE.Color(0xffffff)); M[k].count = 0; M[k].frustumCulled = false;   // the colour buffer must exist before the first draw, or the shader is built without it (black grass)
     M[k].userData.noCast = 1; M[k].castShadow = false; M[k].receiveShadow = true; scene.add(M[k]); }
@@ -17936,12 +17949,16 @@ function tpMeshes() {
 }
 const _tpM = new THREE.Matrix4(), _tpQ = new THREE.Quaternion(), _tpE = new THREE.Euler(), _tpP = new THREE.Vector3(), _tpS = new THREE.Vector3(), _tpC = new THREE.Color();
 function tpRebuild() {
-  const M = tpMeshes(), N = TER_N, cnt = { blade: 0, flower: 0, stone: 0 };
+  const M = tpMeshes(), N = TER_N, cnt = { blade: 0, flower: 0, stone: 0, water: 0 };
   const greens = [0x5fae4a, 0x4e9a3e, 0x78c25a], fls = [0xff7aa8, 0xffe066, 0xffffff, 0x9a8cff, 0xff9a4a], grays = [0x9a958c, 0x8a857c, 0xa8a296];
   const floors = builds.filter(b => b.hp > 0 && !(b.lv | 0) && BT[b.type] && (BT[b.type].k === 'cell' || PLAT_H[b.type] || RAMP[b.type] || TRI[b.type]));
   const put = (m, x, y, z, sx, sy, sz, ry, rz, col) => { const n = cnt[m]; if (n >= M[m].instanceMatrix.count) return; _tpE.set(0, ry, rz || 0); _tpQ.setFromEuler(_tpE); _tpP.set(x, y, z); _tpS.set(sx, sy, sz); _tpM.compose(_tpP, _tpQ, _tpS); M[m].setMatrixAt(n, _tpM); _tpC.setHex(col); M[m].setColorAt(n, _tpC); cnt[m] = n + 1; };
   for (let k = 0; k < TPAINT.p.length; k++) { const v = TPAINT.p[k]; if (!v) continue; const i = k % N, j = (k / N) | 0, x0 = HOME.x + i * TER_S - TER_O, z0 = HOME.z + j * TER_S - TER_O;
     if (floors.some(b => Math.abs(b.x - x0) < 1.6 && Math.abs(b.z - z0) < 1.6)) continue;   // nothing grows through a floor
+    if (v === 4) { put('water', x0, TPAINT.wl[k], z0, 1, 1, 1, 0, 0, 0xffffff);
+      // stones round the edge of the pond
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const kk = (j + dj) * N + i + di; if (TPAINT.p[kk] === 4) continue; const x = x0 + di * .75 + (tpHash(k, di * 3 + dj) - .5) * .5, z = z0 + dj * .75 + (tpHash(k, dj * 5 + di) - .5) * .5, s = .26 + tpHash(k, di + dj * 7 + 9) * .14;
+        put('stone', x, Math.max(terH(x, z), TPAINT.wl[k]) + .02, z, s, s * .6, s, tpHash(k, di * 11 + dj) * 6, 0, grays[(tpHash(k, di + 2 * dj + 20) * 3) | 0]); } continue; }
     if (v === 3) { const x = x0 + (tpHash(k, 1) - .5) * .3, z = z0 + (tpHash(k, 2) - .5) * .3, s = .42 + tpHash(k, 3) * .1; put('stone', x, terH(x, z) + .015, z, s, .05, s * (.8 + tpHash(k, 4) * .3), tpHash(k, 5) * 6, 0, grays[(tpHash(k, 6) * 3) | 0]); continue; }
     const nb = v === 1 ? 6 : 4; for (let s = 0; s < nb; s++) { const x = x0 + (tpHash(k, s * 7 + 1) - .5) * 1.5, z = z0 + (tpHash(k, s * 7 + 2) - .5) * 1.5, h = .7 + tpHash(k, s * 7 + 3) * .8;
       put('blade', x, terH(x, z), z, 1, h, 1, tpHash(k, s * 7 + 4) * 3, (tpHash(k, s * 7 + 5) - .5) * .5, greens[(tpHash(k, s * 7 + 6) * 3) | 0]); }
@@ -17957,10 +17974,68 @@ petsTick = (o => function (dt) { const r = o(dt); try {
 addBuild = (o => function () { const b = o.apply(this, arguments); if (TPAINT.p.some(v => v)) TPAINT.dirty = true; return b; })(addBuild);
 dropBuild = (o => function () { const r = o.apply(this, arguments); if (TPAINT.p.some(v => v)) TPAINT.dirty = true; return r; })(dropBuild);
 // save / load
-serialize = (o => function () { const d = o(); try { const p = []; for (let k = 0; k < TPAINT.p.length; k++) if (TPAINT.p[k]) p.push(k, TPAINT.p[k]); if (p.length) { d.ter = d.ter || { v: 2, h: [], gy: {} }; d.ter.p = p; } } catch (e) { } return d; })(serialize);
+serialize = (o => function () { const d = o(); try { const p = []; for (let k = 0; k < TPAINT.p.length; k++) if (TPAINT.p[k]) p.push(k, TPAINT.p[k] === 4 ? 4 + Math.round((TPAINT.wl[k] + 10) * 50) * 8 : TPAINT.p[k]); if (p.length) { d.ter = d.ter || { v: 2, h: [], gy: {} }; d.ter.p = p; } } catch (e) { } return d; })(serialize);
 applySave = (o => function (d) {
-  TPAINT.p.fill(0); try { const p = d && d.ter && d.ter.p; if (Array.isArray(p)) for (let i = 0; i + 1 < p.length; i += 2) { const k = p[i] | 0; if (k >= 0 && k < TPAINT.p.length) TPAINT.p[k] = p[i + 1] & 3; } } catch (e) { }
+  TPAINT.p.fill(0); try { const p = d && d.ter && d.ter.p; if (Array.isArray(p)) for (let i = 0; i + 1 < p.length; i += 2) { const k = p[i] | 0; if (k >= 0 && k < TPAINT.p.length) { const v = p[i + 1] | 0; TPAINT.p[k] = v & 7; if ((v & 7) === 4) TPAINT.wl[k] = (v >> 3) / 50 - 10; } } } catch (e) { }
   const r = o(d); TPAINT.dirty = true; TPAINT.t = 0; return r; })(applySave);
+
+// a new stroke of water starts a new level
+petsTick = (o => function (dt) { const r = o(dt); if (!TER.down) TPAINT.L = null; return r; })(petsTick);
+
+/* ---- waterfalls fall all the way down: placed up high (on a hill or a raised floor), the water keeps falling from the
+   front of its pool to the ground below, with foam where it lands ---- */
+function wfExt(b) {
+  const g = b.g; if (!g) return; const big = b.type === 'wfall', w = big ? 2.4 : 1.4, c = Math.cos(b.rot), s = Math.sin(b.rot), fz = 1.25;
+  const fx = b.x + fz * s, fzw = b.z + fz * c, base = g.position.y, ground = terH(fx, fzw), drop = base + .12 - ground;
+  if (Math.abs((g.userData.drop || 0) - drop) < .05) return; g.userData.drop = drop;
+  if (g.userData.ext) { g.remove(g.userData.ext); g.userData.ext = null; } if (drop < .5) return;
+  const W = wtrMats(), e = new THREE.Group(), sh = new THREE.Mesh(new THREE.PlaneGeometry(w * .6, drop), W.fall); sh.position.set(0, .12 - drop / 2, fz); sh.userData.noCast = 1; e.add(sh);
+  const R = mulberry32(7); for (let i = 0; i < 6; i++) { const f = gblob(e, new THREE.IcosahedronGeometry(1, 0), W.foam, (R() - .5) * w * .7, .12 - drop + .1, fz + (R() - .3) * .5, .2 + R() * .15, .12, .2 + R() * .12); f.userData.noCast = 1; }
+  g.add(e); g.userData.ext = e;
+}
+let _wfT = 0;
+petsTick = (o => function (dt) { const r = o(dt); _wfT -= dt; if (_wfT <= 0) { _wfT = .5; try { for (const b of builds) if ((b.type === 'wfall' || b.type === 'wfall2') && b.hp > 0) wfExt(b); } catch (e) { } } return r; })(petsTick);
+/* ============ water round the boats ============
+   Every boat on the water (老钱's ship, the 深渊号 submarine, the small boat at the pier, your fishing boat) has soft rings of
+   ripples spreading out from its hull. Your fishing boat while it moves leaves a white wake behind it (two lines spreading
+   apart) and a splash at the bow; the faster, the more. */
+const WAKE = { pool: [], t: 0, last: null, sp: 0, ringT: 0, foamT: 0, hulls: null };
+const _wkGeoR = new THREE.RingGeometry(.86, 1, 40), _wkGeoC = new THREE.CircleGeometry(1, 12);
+function wkGet(geo) {
+  let w = WAKE.pool.find(q => !q.on && q.geo === geo);
+  if (!w) { if (WAKE.pool.length > 90) return null; const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xf2fbff, transparent: true, opacity: 0, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.renderOrder = 5; m.userData.noCast = 1; m.visible = false; scene.add(m); w = { m, geo, on: false }; WAKE.pool.push(w); }
+  return w;
+}
+function wkSpawn(geo, x, z, rx, rz, grow, life, op, vx, vz) { const w = wkGet(geo); if (!w) return; Object.assign(w, { on: true, x, z, rx, rz, grow, life, t: 0, op, vx: vx || 0, vz: vz || 0 }); w.m.visible = true; }
+// the hulls sitting on the water (their size from their shape)
+function wkHulls() {
+  const out = [], add = (g, k) => { if (!g || !g.visible) return; const b = new THREE.Box3().setFromObject(g), c = new THREE.Vector3(), s = new THREE.Vector3(); b.getCenter(c); b.getSize(s); out.push({ g, k, x: c.x, z: c.z, rx: Math.max(1.2, s.x * .55), rz: Math.max(1.2, s.z * .55) }); };
+  try { add(QS.g, 'q'); } catch (e) { } try { add(ABS.g, 's'); } catch (e) { } try { add(boatG, 'p'); } catch (e) { }
+  return out;
+}
+function wakeTick(dt) {
+  WAKE.t += dt; const onIsl = S.isl && !S.dun;
+  // ripples round the moored ships
+  if (onIsl) { if (!WAKE.hulls || WAKE.t - (WAKE.hT || 0) > 6) { WAKE.hT = WAKE.t; WAKE.hulls = wkHulls(); }
+    WAKE.ringT -= dt; if (WAKE.ringT <= 0) { WAKE.ringT = 1.4; for (const h of WAKE.hulls) if (Math.hypot(h.x - player.pos.x, h.z - player.pos.z) < 70) wkSpawn(_wkGeoR, h.x, h.z, h.rx, h.rz, .7, 3.2, .45); } }
+  // your fishing boat
+  try { const g = BOAT.g; if (g && g.visible) { const p = g.position, l = WAKE.last; if (l) { const sp = Math.hypot(p.x - l.x, p.z - l.z) / Math.max(dt, 1e-3); WAKE.sp += (sp - WAKE.sp) * Math.min(1, dt * 4); } WAKE.last = { x: p.x, z: p.z };
+      const yaw = g.rotation.y, fx = Math.sin(yaw), fz = Math.cos(yaw), moving = WAKE.sp > 1.2;
+      // which way is the bow? the boat moves along its own axis; take the movement direction when it moves
+      let dx = fx, dz = fz; if (l && moving) { const mx = p.x - l.x, mz = p.z - l.z, ml = Math.hypot(mx, mz); if (ml > 1e-4) { dx = mx / ml; dz = mz / ml; } }
+      if (moving) { WAKE.foamT -= dt; const k = Math.min(1, WAKE.sp / 9); if (WAKE.foamT <= 0) { WAKE.foamT = .07 - .03 * k;
+          const sx = -dz, sz = dx;   // sideways
+          for (const sd of [-1, 1]) wkSpawn(_wkGeoC, p.x - dx * 2.2 + sx * sd * .7, p.z - dz * 2.2 + sz * sd * .7, .35, .35, 1.3 + k, 1.6, .55 + .25 * k, sx * sd * (1 + k * 2), sz * sd * (1 + k * 2));
+          wkSpawn(_wkGeoC, p.x - dx * 2.6, p.z - dz * 2.6, .5, .5, 1.6, 1.2, .5, 0, 0);
+          if (Math.random() < .5 + .5 * k) wkSpawn(_wkGeoC, p.x + dx * 2.1 + (Math.random() - .5) * .6, p.z + dz * 2.1 + (Math.random() - .5) * .6, .3, .3, 1.2, .5, .6, sx * (Math.random() - .5) * 3, sz * (Math.random() - .5) * 3); } }
+      else { WAKE.ringT2 = (WAKE.ringT2 || 0) - dt; if (WAKE.ringT2 <= 0) { WAKE.ringT2 = 1.8; wkSpawn(_wkGeoR, p.x, p.z, 1.6, 2.6, .6, 3, .4); } }   // idle: gentle rings
+    } else WAKE.last = null; } catch (e) { }
+  // move / grow / fade everything that is out
+  for (const w of WAKE.pool) { if (!w.on) continue; w.t += dt; const u = w.t / w.life; if (u >= 1) { w.on = false; w.m.visible = false; continue; }
+    w.x += w.vx * dt; w.z += w.vz * dt; w.vx *= Math.pow(.3, dt); w.vz *= Math.pow(.3, dt); const s = 1 + w.grow * u;
+    w.m.position.set(w.x, -.27, w.z); w.m.scale.set(w.rx * s, w.rz * s, 1); w.m.material.opacity = w.op * (u < .15 ? u / .15 : 1 - (u - .15) / .85); }
+}
+petsTick = (o => function (dt) { const r = o(dt); try { wakeTick(dt); } catch (e) { } return r; })(petsTick);
 /* ============ defences cost more the more you have ============
    Owner: don't forbid anything, but make walls of turrets expensive. Every attacking defence (all five turret grades, 重机枪塔,
    电网塔, 尖刺陷阱) costs twice its old price, and each one more of the SAME kind doubles again: the 1st ×2, the 2nd ×4, the 3rd ×8 …
@@ -20728,4 +20803,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794751382').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794752285').catch(()=>{});</script></body></html>
