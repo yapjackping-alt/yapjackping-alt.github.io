@@ -17739,7 +17739,7 @@ function terVert(i, j) {
   const nb = (a, b) => (a < 0 || b < 0 || a >= N || b >= N) ? y : H[b * N + a], sl = Math.max(Math.abs(nb(i + 1, j) - nb(i - 1, j)), Math.abs(nb(i, j + 1) - nb(i, j - 1))) / (2 * TER_S);
   // grass shade varies in soft, large patches (the old one changed every vertex and looked like a checkerboard)
   const nz = .5 + .25 * Math.sin(x * .11 + z * .07) + .17 * Math.sin(x * .05 - z * .13 + 1.7) + .08 * Math.sin((x + z) * .19 + .4);
-  const c = r > ISL_R + 9 ? TER_WET.clone() : r > ISL_R - .3 ? TER_SAND.clone() : TER_GRASS.clone().lerp(TER_GRASS2, clamp(nz, 0, 1)); if (r <= ISL_R - .3) { if (sl > .75) c.lerp(TER_DIRT, Math.min(1, (sl - .75) * 1.6)); if (y < -.15) c.lerp(TER_DIRT, Math.min(1, -y)); if (y > 4.5) c.lerp(TER_ROCK, Math.min(1, (y - 4.5) / 2)); } if (y < -.26) c.lerp(TER_SEA, Math.min(.9, .35 + (-.26 - y) * 1.6));   // under the water: darker and bluer, so you can see it is sea
+  const c = r > ISL_R + 9 ? TER_WET.clone() : r > ISL_R - .3 ? TER_SAND.clone() : TER_GRASS.clone().lerp(TER_GRASS2, clamp(nz, 0, 1)); if (r <= ISL_R - .3) { if (sl > .75) c.lerp(TER_DIRT, Math.min(1, (sl - .75) * 1.6)); if (y < -.15) c.lerp(TER_DIRT, Math.min(.85, -y * .8)); if (y > 4.5) c.lerp(TER_ROCK, Math.min(1, (y - 4.5) / 2)); } if (y < -.26 && r > ISL_R - .3) c.lerp(TER_SEA, Math.min(.9, .35 + (-.26 - y) * 1.6));   // under the water: darker and bluer, so you can see it is sea
   C[k * 3] = c.r; C[k * 3 + 1] = c.g; C[k * 3 + 2] = c.b;
 }
 function terMeshAll() { for (let j = 0; j < TER_N; j++) for (let i = 0; i < TER_N; i++) terVert(i, j); terMeshDone(true); }
@@ -17752,10 +17752,18 @@ function terProps() {
 
 /* ---- the brushes ---- */
 // can the ground here change? not near the shore / pier, not under anything you built (or the home fire)
+function terLandW(x, z) {
+  try { const lx = x - HOME.x, lz = z - HOME.z, W = ISLW, sx = W.stream.x1 - W.stream.x0, sz = W.stream.z1 - W.stream.z0, t = Math.max(0, Math.min(1, ((lx - W.stream.x0) * sx + (lz - W.stream.z0) * sz) / (sx * sx + sz * sz)));
+    const d = Math.min(Math.hypot(lx - W.pond.x, lz - W.pond.z) - 5.6, Math.hypot(lx - W.hill.x, lz - W.hill.z) - W.hill.r - 1, Math.hypot(lx - W.stream.x0 - sx * t, lz - W.stream.z0 - sz * t) - 1.6);
+    return d <= 0 ? 0 : d < 1.5 ? d / 1.5 : 1; } catch (e) { return 1; } }
+function terLandD(x, z) { try { const lx = x - HOME.x, lz = z - HOME.z, W = ISLW, sx = W.stream.x1 - W.stream.x0, sz = W.stream.z1 - W.stream.z0, t = Math.max(0, Math.min(1, ((lx - W.stream.x0) * sx + (lz - W.stream.z0) * sz) / (sx * sx + sz * sz)));
+    return Math.min(Math.hypot(lx - W.pond.x, lz - W.pond.z) - 5.6, Math.hypot(lx - W.hill.x, lz - W.hill.z) - W.hill.r - 1, Math.hypot(lx - W.stream.x0 - sx * t, lz - W.stream.z0 - sz * t) - 1.6); } catch (e) { return 99; } }
 function terLockW(x, z) {
   // the beach can be shaped too, out to the water; the north shore with the pier and the two jetties stays as it is
   const r = Math.hypot(x - HOME.x, z - HOME.z); if (r > ISL_R + 13) return 0; let w = r > ISL_R + 9.5 ? (ISL_R + 13 - r) / 3.5 : 1;
   if (Math.abs(x - HOME.x) < 24 && z - HOME.z < -ISL_R + 14) return 0;
+  // the island's own pond, the hill with the waterfall and the stream are fixed: the ground round them stays (digging next to them left the pond on a pedestal)
+  w *= terLandW(x, z); if (w <= 0) return 0;
   for (const b of TER.near) { const T = BT[b.type], hw = Math.max(T.hw || .5, T.hd || .5) + .9; if (Math.abs(x - b.x) < hw && Math.abs(z - b.z) < hw) return 0; }
   return w;
 }
@@ -17902,6 +17910,24 @@ function shoreWaveTick(dt) {
     const s = ((ISL_R + 13.5) + ((ISL_R + 9.3) - (ISL_R + 13.5)) * e) / R0; m.scale.set(s, s, 1); m.position.y = -.27 + .13 * e; m.material.opacity = Math.sin(ph * Math.PI) * (ph > .8 ? (1 - ph) * 5 * .6 : .6); });
 }
 petsTick = (o => function (dt) { const r = o(dt); try { shoreWaveTick(dt); } catch (e) { } return r; })(petsTick);
+
+/* ---- older saves: ground dug round the island's pond / hill / stream before they were locked is put back ---- */
+// next to them the ground may only rise / fall gently (holding the brush used to dig a cliff right at their edge)
+let _terLand = null;
+function terLandList() { if (_terLand) return _terLand; const N = TER_N, L = []; for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const d = terLandD(HOME.x + i * TER_S - TER_O, HOME.z + j * TER_S - TER_O); if (d < 12) L.push(j * N + i, Math.max(0, d) * .5); } return (_terLand = L); }
+function terLandFix(all) { if (!TER.any) return; const L = terLandList(), N = TER_N; let ch = false;
+  for (let q = 0; q < L.length; q += 2) { const k = L[q], m = L[q + 1], h = TER.h[k]; if (h > m || h < -m) { TER.h[k] = Math.max(-m, Math.min(m, h)); ch = true; if (!all && TER.mesh) terVert(k % N, (k / N) | 0); } }
+  if (ch && TER.mesh) { if (all) terMeshAll(); else terMeshDone(false); try { terProps(); } catch (e) { } } return ch; }
+terBrush = (o => function (dt) { const r = o(dt); try { terLandFix(false); } catch (e) { } return r; })(terBrush);
+applySave = (o => function (d) { const r = o(d); try { terLandFix(true); } catch (e) { } return r; })(applySave);
+
+/* ---- the sea plane under the island: it lies at -0.3 everywhere, so ground dug lower inland showed flat SEA WATER in the
+   hole (it looked like a pond you never made). The sea is now cut out inside the grass ring; painted ponds have their own water. ---- */
+try { for (const c of islandG.children) { const p = c.geometry && c.geometry.parameters; if (!p || p.width !== 1600 || !c.material) continue;
+  const m = c.material; m.onBeforeCompile = sh => { sh.uniforms.uHoleR = { value: ISL_R - 1.5 };
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vLocXY;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvLocXY = position.xy;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vLocXY;\nuniform float uHoleR;').replace('void main() {', 'void main() {\nif (length(vLocXY) < uHoleR) discard;'); };
+  m.customProgramCacheKey = () => 'oceanHole'; m.needsUpdate = true; } } catch (e) { console.warn('ocean hole', e); }
 /* ============ painting the ground: 草皮 / 花草皮 / 石板路 with the same round brush as the terrain ============
    In the 地形 tab: 草皮 (lush grass with blades), 花草皮 (grass with little flowers), 石板路 (flat stones), 擦掉 (back to plain
    ground). The colour goes into the terrain mesh, the blades / flowers / stones are drawn as instanced meshes (cheap), each
@@ -18061,6 +18087,8 @@ let _tpFixT = 0;
 petsTick = (o => function (dt) { const r = o(dt); _tpFixT -= dt; if (_tpFixT <= 0) { _tpFixT = 1; try { if (TER.any && S.isl && !S.dun) for (const b of builds) {
   const T = BT[b.type]; if (!T || T.k !== 'free' || b.hp <= 0 || (b.lv | 0) || !b.g || (MV && MV.o === b)) continue;
   try { const g = baseGy(b.x, b.z, b.type, 0); if (Math.abs(g - (b.gy || 0)) > .08) { b.gy = g; b._top = null; b.g.position.y = bY(b); } } catch (e) { window._tpFixErr = String(e); } } } catch (e) { window._tpFixErr = 'L ' + e; } } return r; })(petsTick);
+// the water brush digs too: keep the gentle slope next to the island's pond / hill / stream
+terBrush = (o => function (dt) { const r = o(dt); try { if (TER.tool === 'p_water') terLandFix(false); } catch (e) { } return r; })(terBrush);
 /* ============ water round the boats ============
    Every boat on the water (老钱's ship, the 深渊号 submarine, the small boat at the pier, your fishing boat) has soft rings of
    ripples spreading out from its hull. Your fishing boat while it moves leaves a white wake behind it (two lines spreading
@@ -20890,4 +20918,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794755263').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794756020').catch(()=>{});</script></body></html>
