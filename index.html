@@ -17543,7 +17543,7 @@ function abyShipBuild() { if (ABS.g || typeof islandG === 'undefined') return;
     for (const [x, z] of [[-2.2, jz - 1.3], [ABS.jx1 + .3, jz + 1.2]]) { bx(.14, 1.9, .14, mat(0x3a3a40), x, 1.2, z, J); bx(.36, .06, .36, brass, x, 2.15, z, J); ABS.wins.push(bx(.26, .32, .26, lit, x, 2.35, z, J)); bx(.36, .06, .36, brass, x, 2.55, z, J); }
     cyl(.18, .22, .5, steelD, ABS.jx1 + 2.4, .6, jz - 2.6, J, 8); line([ABS.jx1 + 2.4, .8, jz - 2.6], [ABS.rx + 1.5, -.25 + HY + .9, ABS.rz + 6], rope, .05, J);
     ABS.jetty = J; }
-  for (const dz of [-5.5, -2.8, 0, 2.8, 5.5]) addCircle(HOME.x + ABS.rx, HOME.z + ABS.rz + dz, 2.0);   // you can't wade through the hull
+  for (const dz of [-6, -3, 0]) addCircle(HOME.x + ABS.rx, HOME.z + ABS.rz + dz, 1.8);   // the stern end stays open for the gangplank   // you can't wade through the hull
 }
 // stand on the jetty (its outer half) to see the button
 const abyShipNear = () => { try { if (!S.isl || S.dun || S.boat) return false; const x = player.pos.x - HOME.x, z = player.pos.z - HOME.z;
@@ -17603,6 +17603,228 @@ const HY_ABY = .9;
     '@media (max-height:460px){.abyc{min-height:170px;padding-top:27px;gap:4px}.abyc .abyic{--isz:40px}.abyc p{font-size:12.5px}.abyc b{font-size:16px}}';
   document.head.appendChild(st);
 } catch (e) { console.warn('aby ui', e); } })();
+/* ============ 走上船：老钱的商船 → 收藏馆，深渊号 → 潜艇舱内 ============
+   - Both gangplanks are walkable now. Walk up to the deck end and you are taken inside (a 3D room, built with the dungeon engine
+     as DUNS[10] / DUNS[11] at the far-away dungeon spot, so nothing outside can wander in). Walk to the door to come back out
+     at the bottom of the same gangplank. 回岛 still works too.
+   - 老钱的收藏馆 (DUNS[10]): left half = your collection: four glass cabinets, one per dungeon (24/22/22/22 slots); what you own
+     stands on a lit shelf with a rarity-coloured base, what you don't is a dark "?" block. A centre pedestal shows your rarest piece.
+     Right half = the weapon-skin gallery: the six hand-made weapon skins on pedestals, turning under a rarity ring; walk up to one to
+     see it, open the 3D preview, and buy it (only skins that are sold for gems; the rest say where they come from).
+   - 深渊号舱内 (DUNS[11]): a riveted control room with portholes onto the deep sea, a big bow window, pipes and valves, bunks,
+     a diver's locker, a chart table showing your best floor, and the dive console that starts 无尽深渊 (same page as the button
+     outside). The owner hasn't decided the rest of the sub yet; this is a room to build on.
+   No save data of its own; nothing here changes any number. */
+const SHIP_Q = 10, SHIP_S = 11, SHIPS = { spin: [], glow: [], fish: [], lab: null, ret: null, cool: false, lastP: null, t: 0 };
+// gangplanks (relative to HOME): from the land end a to the ship end b
+const SHIP_PL = {
+  q: { a: [QS.rx + .3, QS_JETTY_Z], b: [QS.rx + .3, QS.rz + 2.5], id: SHIP_Q, face: 0 },
+  s: { a: [ABS.jx1 + .9, ABS.jz - 2.6], b: [ABS.rx + .55, ABS.rz + 4.4], id: SHIP_S, face: Math.atan2(1, .4) }
+};
+function shipSeg(P, x, z) { const ax = P.a[0], az = P.a[1], bx = P.b[0] - ax, bz = P.b[1] - az, L2 = bx * bx + bz * bz; let t = ((x - ax) * bx + (z - az) * bz) / L2; t = Math.max(0, Math.min(1, t));
+  const px = ax + bx * t, pz = az + bz * t; return { t, d: Math.hypot(x - px, z - pz), px, pz }; }
+// walk on the planks (they reach past the shallows), and walk up into the ship
+try { islandTick = (o => function (dt) {
+  if (S.boat || S.dun || !S.isl || S.dead) { o(dt); return; }
+  let x = player.pos.x - HOME.x, z = player.pos.z - HOME.z, on = null, sg = null;
+  for (const k in SHIP_PL) { const g = shipSeg(SHIP_PL[k], x, z); if (g.d < .65 && g.t > .02) { on = k; sg = g; break; } }
+  if (!on && SHIPS.lastP && Math.hypot(x, z) > ISL_R + 9) {   // stepped off the side of a plank over deep water: back onto it
+    const g = shipSeg(SHIP_PL[SHIPS.lastP], x, z); if (g.d < 1.6) { x = g.px; z = g.pz; player.pos.x = HOME.x + x; player.pos.z = HOME.z + z; on = SHIPS.lastP; sg = g; } }
+  SHIPS.lastP = on; const px = player.pos.x, pz = player.pos.z; o(dt); if (on) { player.pos.x = px; player.pos.z = pz; }
+  if (!on) SHIPS.cool = false;
+  if (on && sg.t > .88 && !SHIPS.cool && !S.paused) { SHIPS.cool = true; shipEnter(on); }
+})(islandTick); } catch (e) { }
+
+function shipEnter(k) { if (S.dun || (typeof ABY !== 'undefined' && ABY.on)) return; const P = SHIP_PL[k]; SHIPS.ret = k; DUN.id = P.id;
+  dunTravel(k === 'q' ? T2('登上老钱的商船', "Boarding Old Qian's ship") : T2('登上深渊号', 'Boarding the Abyss Diver'), k === 'q' ? T2('老钱的收藏馆', "Old Qian's Gallery") : T2('深渊号 · 舱内', 'Inside the Abyss Diver'), dunEnter); }
+function shipPlace(k) { const P = SHIP_PL[k]; if (!P) return; const dx = P.a[0] - P.b[0], dz = P.a[1] - P.b[1], L = Math.hypot(dx, dz) || 1;
+  player.pos.set(HOME.x + P.a[0] + dx / L * .4, 0, HOME.z + P.a[1] + dz / L * .4); player.face = Math.atan2(dx, dz); camPos.set(player.pos.x, camH, player.pos.z + camD); SHIPS.cool = true; SHIPS.lastP = null; }
+function shipLeave() { const k = SHIPS.ret || (DUN.id === SHIP_S ? 's' : 'q'); dunTravel(T2('下船', 'Going ashore'), T2('回到海岛', 'Back to the island'), () => { goIsland(true); shipPlace(k); }); }
+dunEnter = (o => function () { const me = DUN.id === SHIP_Q || DUN.id === SHIP_S; o(); if (me && S.dun) { try { DSNAP = null; } catch (e) { } saveGame(); } })(dunEnter);
+dunCleanup = (o => function () { const me = DUN.on && (DUN.id === SHIP_Q || DUN.id === SHIP_S); o(); if (me) { SHIPS.spin = []; SHIPS.glow = []; SHIPS.fish = []; SHIPS.lab = null; } })(dunCleanup);
+dunEnv = (o => function () { o(); if (!S.dun || (DUN.id !== SHIP_Q && DUN.id !== SHIP_S)) return; const q = DUN.id === SHIP_Q;
+  scene.fog.color.setHex(q ? 0x2a1c12 : 0x0c2a34); scene.fog.near = 30; scene.fog.far = 90; try { hemiLight.color.setHex(q ? 0xfff0d8 : 0xe0f6ff); hemiLight.intensity = 1.2; renderer.setClearColor(q ? 0x1a120c : 0x081c24); } catch (e) { } })(dunEnv);
+dunTrk = (o => function () { if (S.dun && (DUN.id === SHIP_Q || DUN.id === SHIP_S)) { const e = $('dunObj'); if (e) e.style.display = 'none'; return; } return o(); })(dunTrk);
+dunGuide = (o => function () { if (S.dun && (DUN.id === SHIP_Q || DUN.id === SHIP_S)) return; return o(); })(dunGuide);
+function shipLights(col, n) { for (let i = 0; i < n; i++) { const Lt = new THREE.PointLight(col, .95, 18, 1.5); Lt.userData.c = col; Lt.position.set(DUN.x, 2.3, DUN.z); scene.add(Lt); DUN.lights.push(Lt); } }
+function shipStartCommon(x, z, face) { player.pos.set(dX(x), 0, dZ(z)); player.face = face; camPos.set(player.pos.x, camH, player.pos.z + camD);
+  try { for (const L of DUN.lights) L.color.setHex(L.userData.c || 0xffe0b0); } catch (e) { } try { dunEnv(); } catch (e) { } }
+// fit a model into a w×h×d box, sitting on y=0
+function shipFit(g, w, h, d) { try { const bb = new THREE.Box3().setFromObject(g), sz = new THREE.Vector3(), ct = new THREE.Vector3(); bb.getSize(sz); bb.getCenter(ct);
+  const k = Math.min(w / (sz.x || 1), h / (sz.y || 1), d / (sz.z || 1)); const H = new THREE.Group(); g.position.set(-ct.x, -bb.min.y, -ct.z); H.add(g); H.scale.setScalar(k); return H; } catch (e) { return g; } }
+
+/* ---------- 老钱的收藏馆 ---------- */
+const QH = { W: 15, D: 11 };   // half sizes: x -15..15, z -11..11
+const SHIP_WSK = ['moondragon', 'cosmos', 'phoenix', 'galaxy', 'starorbit', 'thunderblade'];
+const SHIP_WHOW = { moondragon: T2('老钱 · 用遗物币兑换', 'Old Qian · relic coins'), phoenix: T2('商城 · 时装补给箱', 'Mall · Fashion box'), galaxy: T2('商城 · 时装补给箱', 'Mall · Fashion box'),
+  starorbit: T2('主线剧情奖励', 'Main story reward'), thunderblade: T2('主线剧情奖励', 'Main story reward') };
+function qhBuild() {
+  DUN.G = new THREE.Group(); DUN.G.position.set(DUN.x, 0, DUN.z); scene.add(DUN.G);
+  const R = mulberry32(7731), rr = (a, b) => a + R() * (b - a), L = (c, o) => new THREE.MeshLambertMaterial(Object.assign({ color: c }, o || {})), Bm = c => new THREE.MeshBasicMaterial({ color: c });
+  const p1 = L(0x8a5a34), p2 = L(0x7a4e2c), p3 = L(0x6a4224), wall = L(0x5a3a22), wallD = L(0x3e2816), beam = L(0x2e1e10), gold = L(0xb08a3a), goldB = L(0xd8b050, { emissive: 0x2a1a00 }), shelf = L(0x4a3020),
+    red = L(0xa0262a), redD = L(0x701a1e), lamp = Bm(0xffd88a), glass = new THREE.MeshLambertMaterial({ color: 0xcfefff, transparent: true, opacity: .16, depthWrite: false }), dark = L(0x2a2420), sea = Bm(0x1e6a8a);
+  const W = QH.W, D = QH.D, H = 4.2, g = DUN.G, b = (w, h, d, m, x, y, z, ry) => { const o = box(w, h, d, m, x, y, z, g); if (ry) o.rotation.y = ry; return o; };
+  // floor: long planks with seams; a red carpet with gold edges from the door to the back
+  for (let x = -W; x < W; x += .7) b(.68, .1, D * 2, [p1, p2, p3][Math.floor((x + W) / .7) % 3], x + .35, .0, 0);
+  b(3, .02, D * 2 - 1, red, 0, .07, .5); for (const s of [-1, 1]) b(.12, .025, D * 2 - 1, gold, s * 1.5, .075, .5);
+  for (let z = -D + 2; z < D; z += 3) b(2.4, .03, .1, redD, 0, .08, z);
+  // walls (they fade when they stand between you and the camera), wall ribs, beams, portholes onto the sea
+  dSolid(-W - .4, -D - .4, W + .4, -D, H, wall, true); dSolid(-W - .4, D, -1.6, D + .4, H, wall, true); dSolid(1.6, D, W + .4, D + .4, H, wall, true);
+  dSolid(-W - .4, -D, -W, D, H, wall, true); dSolid(W, -D, W + .4, D, H, wall, true);
+  for (let x = -W + 2; x < W; x += 4) { b(.3, H, .3, beam, x, H / 2, -D + .2); b(.3, .3, .3, gold, x, H - .2, -D + .3); }
+  for (let z = -D + 2; z < D - 1; z += 4) for (const s of [-1, 1]) b(.3, H, .3, beam, s * (W - .2), H / 2, z);
+  for (const x of [-12, -6.5, 6.5, 12]) { const r = new THREE.Mesh(new THREE.TorusGeometry(.55, .1, 8, 18), gold); r.position.set(x, 3.0, -D + .25); g.add(r); const c = new THREE.Mesh(new THREE.CircleGeometry(.5, 18), sea); c.position.set(x, 3.0, -D + .21); g.add(c); }
+  // the door (south, middle): frame, an exit sign on the floor
+  b(3.6, .4, .5, beam, 0, H - .2, D + .2); for (const s of [-1, 1]) b(.4, H, .5, beam, s * 1.8, H / 2, D + .2);
+  b(3.2, .02, 1.2, L(0x3a2a1a), 0, .08, D - .6);
+  dInt(0, D - 1, T2('离开 · 回到码头', 'Leave · back to the jetty'), () => true, shipLeave, 2.2);
+  // a sign on the back wall
+  { const s = labelSprite(T2('老钱的收藏馆', "Old Qian's Gallery"), '#ffd98a', 1.3); s.position.set(0, 3.6, -D + .6); g.add(s); b(7.4, 1.0, .12, beam, 0, 3.6, -D + .1); b(7.6, .08, .14, gold, 0, 4.12, -D + .1); b(7.6, .08, .14, gold, 0, 3.08, -D + .1); }
+  // hanging lanterns along the walls
+  for (const [x, z] of [[-W + .5, -6], [-W + .5, 2], [W - .5, -6], [W - .5, 2], [-7, -D + .5], [7, -D + .5]]) { b(.1, .6, .1, beam, x, 3.2, z); b(.36, .06, .36, gold, x, 2.88, z); b(.28, .4, .28, lamp, x, 2.62, z); b(.36, .06, .36, gold, x, 2.4, z); dAnchor(x * .85, z * .85); }
+  dAnchor(0, 0); dAnchor(-7, 2); dAnchor(7, 2);
+  shipLights(0xffd8a0, 3);
+  // decoration: barrels and coin piles in the corners, a rope coil, a chest
+  for (const [x, z] of [[-W + 1.2, D - 1.4], [W - 1.2, D - 1.4], [W - 1.2, D - 2.6]]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(.42, .38, .9, 10), p3); c.position.set(x, .45, z); g.add(c); for (const y of [.2, .7]) { const r = new THREE.Mesh(new THREE.CylinderGeometry(.44, .44, .06, 10), dark); r.position.set(x, y, z); g.add(r); } DUN.obs.push(addCircle(dX(x), dZ(z), .5)); }
+  for (const [x, z, r] of [[-W + 2.6, D - 1.2, .6], [W - 2.6, D - 1.4, .5]]) { const m = new THREE.Mesh(new THREE.ConeGeometry(r, r * .7, 10), goldB); m.position.set(x, r * .35, z); g.add(m); }
+
+  /* --- left half: the collection --- */
+  const CAB = [[1, -W + .45, -4.6, Math.PI / 2], [2, -W + .45, 4.2, Math.PI / 2], [3, -10.6, -D + .45, 0], [4, -4.2, -D + .45, 0]];
+  for (const [d, x, z, ry] of CAB) qhCabinet(d, x, z, ry, { b, L, gold, goldB, beam, glass, dark, lamp, shelf });
+  { const s = labelSprite(T2('我的收藏 ', 'My collection ') + COL_ORDER.filter(k => colN(k)).length + ' / ' + COL_ORDER.length, '#bff0ff', 1.0); s.position.set(-7.5, 4.3, 2); g.add(s); SHIPS.lab = s; }
+  // the centre pedestal: your rarest piece, turning
+  { const best = COL_ORDER.filter(k => colN(k)).sort((a, c) => (COLX[c].r | 0) - (COLX[a].r | 0))[0], x = -7.5, z = 2;
+    const ped = new THREE.Mesh(new THREE.CylinderGeometry(.9, 1.1, .9, 8), beam); ped.position.set(x, .45, z); g.add(ped); const top = new THREE.Mesh(new THREE.CylinderGeometry(.95, .95, .1, 8), gold); top.position.set(x, .95, z); g.add(top);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(.8, .05, 6, 28), Bm(best ? parseInt(colRC(COLX[best].r).slice(1), 16) : 0x888888)); ring.rotation.x = Math.PI / 2; ring.position.set(x, 1.02, z); g.add(ring);
+    const dome = new THREE.Mesh(new THREE.CylinderGeometry(.85, .85, 1.9, 12, 1, true), glass); dome.position.set(x, 1.95, z); g.add(dome); const cap = new THREE.Mesh(new THREE.CylinderGeometry(.9, .9, .08, 12), gold); cap.position.set(x, 2.92, z); g.add(cap);
+    if (best) { const m = shipFit(colModel(best), 1.1, 1.1, 1.1); m.position.set(x, 1.15, z); g.add(m); SHIPS.spin.push({ g: m, sp: .7 }); const t = labelSprite(T2('镇馆之宝 · ', 'Centrepiece · ') + COLX[best].n, colRC(COLX[best].r), .75); t.position.set(x, 3.6, z); g.add(t); }
+    DUN.obs.push(addCircle(dX(x), dZ(z), 1.1)); dInt(x, z + 1.6, T2('看看我的收藏', 'My collection'), () => true, () => qhColPanel(0), 1.8); }
+
+  /* --- right half: the weapon-skin gallery --- */
+  b(.1, .02, D * 2 - 2, gold, 1.9, .08, .5);
+  { b(9.6, 1.2, .12, beam, 9.2, 2.9, -D + .1); b(9.8, .08, .14, gold, 9.2, 3.52, -D + .1); b(9.8, .08, .14, gold, 9.2, 2.28, -D + .1);
+    const s = labelSprite(T2('限定武器外观 · 老钱私藏', 'Limited weapon skins'), '#ffd98a', 1.1); s.position.set(9.2, 2.95, -D + .6); g.add(s); }
+  const spots = [[4.6, -5.6], [9.2, -5.6], [13.2, -5.6], [4.6, 2.2], [9.2, 2.2], [13.2, 2.2]];
+  SHIP_WSK.filter(k => WSKINS[k]).forEach((k, i) => { const [x, z] = spots[i]; qhGun(k, x, z, { b, L, gold, goldB, beam, glass }); });
+}
+function qhCabinet(d, x, z, ry, M) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; DUN.G.add(g);   // local: width along x, front faces +z
+  const list = colOf(d), cols = 6, rows = Math.ceil(list.length / cols), w = 5.6, h = 3.3, sw = w / cols, sh = 2.7 / rows, bx = (W, H, D, m, X, Y, Z) => box(W, H, D, m, X, Y, Z, g);
+  bx(w + .3, h, .5, M.beam, 0, h / 2, -.2); bx(w + .4, .14, .9, M.beam, 0, h + .02, 0); bx(w + .42, .04, .92, M.gold, 0, h + .1, 0); bx(w + .4, .3, .9, M.beam, 0, .15, 0);
+  for (let r = 0; r <= rows; r++) { bx(w, .06, .7, M.shelf, 0, .3 + r * sh, .05); bx(w, .03, .03, M.gold, 0, .32 + r * sh, .41); }
+  for (let c = 0; c <= cols; c++) bx(.05, 2.7, .7, M.beam, -w / 2 + c * sw, .3 + 1.35, .05);
+  bx(w, 2.72, .03, M.glass, 0, .3 + 1.35, .42);   // glass front
+  list.forEach((k, i) => { const r = rows - 1 - Math.floor(i / cols), c = i % cols, cx = -w / 2 + sw * (c + .5), cy = .36 + r * sh;
+    if (colN(k)) { const C = COLX[k], base = new THREE.Mesh(new THREE.CylinderGeometry(.28, .3, .06, 10), new THREE.MeshBasicMaterial({ color: parseInt(colRC(C.r | 0).slice(1), 16) })); base.position.set(cx, cy + .03, .1); g.add(base);
+      try { const m = shipFit(colModel(k), sw * .72, sh * .7, .5); m.position.set(cx, cy + .06, .1); g.add(m); } catch (e) { } }
+    else { const q = box(.3, .34, .3, M.dark, cx, cy + .2, .1, g); q.rotation.y = .5; } });
+  const own = list.filter(k => colN(k)).length, s = labelSprite(T2('副本' + DUN_CN[d] + ' · ', 'Dungeon ' + d + ' · ') + own + ' / ' + list.length, own === list.length ? '#ffd27a' : '#e8e0d0', .75); s.position.set(0, h + .6, 0); g.add(s);
+  const fx = x + Math.sin(ry) * 1.6, fz = z + Math.cos(ry) * 1.6; DUN.obs.push(addBox(dX(x), dZ(z), ry ? .5 : w / 2 + .2, ry ? w / 2 + .2 : .5));
+  dInt(fx, fz, T2('看看收藏 · 副本' + DUN_CN[d], 'Collection · dungeon ' + d), () => true, () => qhColPanel(d), 2.2);
+}
+function qhGun(k, x, z, M) { const K = WSKINS[k], id = K.only, own = S.wskOwn.includes(k + ':' + id), rc = { 5: 0xff4d8d, 4: 0xffc94a, 3: 0xc28bff }[K.r] || 0xe6e6e6, g = DUN.G;
+  const ped = new THREE.Mesh(new THREE.CylinderGeometry(.85, 1.05, 1.0, 8), M.beam); ped.position.set(x, .5, z); g.add(ped);
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(.9, .9, .1, 8), M.gold); top.position.set(x, 1.05, z); g.add(top);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(.75, .05, 6, 28), new THREE.MeshBasicMaterial({ color: rc })); ring.rotation.x = Math.PI / 2; ring.position.set(x, 1.12, z); g.add(ring); SHIPS.glow.push({ m: ring, ph: x });
+  try { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,240,200,.9)', 'rgba(255,200,120,0)'), transparent: true, depthWrite: false, opacity: .22, blending: THREE.AdditiveBlending })); sp.scale.set(2.4, 2.4, 1); sp.position.set(x, 1.9, z); g.add(sp); } catch (e) { }
+  try { const w = buildWeapon(id, 4, k), H = shipFit(w, 3.0, 1.2, 3.0), P = new THREE.Group(); P.position.set(x, 1.55, z); H.position.y = -.4; P.add(H); g.add(P); SHIPS.spin.push({ g: P, sp: .5 }); } catch (e) { console.warn('gallery gun', e); }
+  const t = labelSprite(K.n + ' · ' + WEAP[id].n + (own ? T2(' · 已拥有', ' · owned') : ''), '#' + rc.toString(16).padStart(6, '0'), .8); t.position.set(x, 3.25, z); g.add(t);
+  DUN.obs.push(addCircle(dX(x), dZ(z), 1.0)); dInt(x, z + 1.7, T2('看看「', 'See ') + K.n + T2('」', ''), () => true, () => qhGunCard(k), 1.9); }
+// the collection list for one dungeon (d = 0: all four)
+function qhColPanel(d) { let m = $('qhColM'); if (m) m.remove(); m = document.createElement('div'); m.id = 'qhColM'; m.className = 'abym';
+  const ds = d ? [d] : [1, 2, 3, 4], tot = COL_ORDER.length, own = COL_ORDER.filter(k => colN(k)).length;
+  m.innerHTML = '<div class="abyh">' + (d ? T2('收藏 · 副本' + DUN_CN[d], 'Collection · dungeon ' + d) : T2('我的收藏 ', 'My collection ') + own + ' / ' + tot) + '</div>' +
+    ds.map(dd => { const L = colOf(dd); return '<div class="abyrwr"><small>' + T2('副本' + DUN_CN[dd], 'Dungeon ' + dd) + ' · ' + L.filter(k => colN(k)).length + ' / ' + L.length + '</small><div class="abytiles">' +
+      L.map(k => { const C = COLX[k], n = colN(k); return '<div class="abytile qhcol' + (n ? '' : ' no') + '" style="border-color:' + (n ? colRC(C.r | 0) : '#3a444c') + '"><i>' + (n ? svgIcon('col_' + k) : '<b class="qhq">?</b>') + '</i><b>' + (n ? (n > 1 ? '×' + n : '') : '') + '</b><small>' + (n ? C.n : '？？？') + '</small></div>'; }).join('') + '</div></div>'; }).join('') +
+    '<button class="go abyok">' + T2('关闭', 'Close') + '</button>';
+  m.querySelector('.abyok').addEventListener('click', () => m.remove()); document.body.appendChild(m); }
+function qhGunCard(k) { const K = WSKINS[k], id = K.only, own = S.wskOwn.includes(k + ':' + id), RN = { 5: ['神话', '#ff4d8d'], 4: ['传说', '#ffc94a'], 3: ['史诗', '#c28bff'] }[K.r] || ['', '#fff'];
+  const sell = typeof WSK_DIRECT !== 'undefined' && WSK_DIRECT.some(([a, b2]) => a === k && b2 === id);
+  let m = $('qhGunM'); if (m) m.remove(); m = document.createElement('div'); m.id = 'qhGunM'; m.className = 'abym';
+  m.innerHTML = '<div class="qhgun" style="--qc:' + RN[1] + '"><div class="qhpic">' + (typeof icHtml === 'function' ? icHtml('wsk:' + k + ':' + id, 'big') : '') + '</div><b>' + K.n + ' · ' + WEAP[id].n + '</b><em>' + RN[0] + T2(' · 武器外观', ' · weapon skin') + '</em>' +
+    '<p>' + (K.d || '') + '</p><p class="qhst">' + T2('属性：', 'Stats: ') + (K.stt || '') + '</p><p class="qhhow">' + (own ? T2('你已经拥有：在背包点这把武器就能换上', 'Owned: equip it from your bag') : sell ? T2('可以用晶石直接买', 'Sold for gems') : T2('获得方式：', 'Where: ') + (SHIP_WHOW[k] || T2('活动奖励', 'Events'))) + '</p>' +
+    '<div class="abygb"><button class="sbtn ghostb qh3d">' + T2('3D 预览', '3D preview') + '</button>' + (sell && !own ? '<button class="go qhbuy">' + T2('去购买', 'Buy') + '</button>' : '') + '<button class="sbtn ghostb abyok">' + T2('关闭', 'Close') + '</button></div></div>';
+  m.querySelector('.abyok').addEventListener('click', () => m.remove());
+  m.querySelector('.qh3d').addEventListener('click', () => { m.remove(); try { wskPreview(k, id); } catch (e) { } });
+  const bb = m.querySelector('.qhbuy'); if (bb) bb.addEventListener('click', () => { m.remove(); try { wskDetail(k, id); } catch (e) { } });
+  m.addEventListener('click', e => { if (e.target === m) m.remove(); }); document.body.appendChild(m); }
+
+/* ---------- 深渊号 · 舱内 ---------- */
+const SH = { W: 10, D: 5 };   // x -10..10 (bow at -x), z -5..5
+function shBuild() {
+  DUN.G = new THREE.Group(); DUN.G.position.set(DUN.x, 0, DUN.z); scene.add(DUN.G);
+  const L = (c, o) => new THREE.MeshLambertMaterial(Object.assign({ color: c }, o || {})), Bm = c => new THREE.MeshBasicMaterial({ color: c });
+  const steel = L(0x4a6670), steelD = L(0x2e444c), steelL = L(0x6a8a94), teal = L(0x2f8a96), brass = L(0xe0aa3a, { emissive: 0x3a2400 }), red = L(0xc8502a), grate = L(0x3a4a50), grateD = L(0x24323a),
+    sea = Bm(0x0e5a78), seaL = Bm(0x3ab8d8), scr = Bm(0x5ae8c0), scrA = Bm(0xffc94a), lamp = Bm(0xffe8b0), wood = L(0x8a6a48), cloth = L(0xc8c0a8), blanket = L(0x2f6a8a);
+  const W = SH.W, D = SH.D, H = 3.6, g = DUN.G, b = (w, h, d, m, x, y, z, ry, rz) => { const o = box(w, h, d, m, x, y, z, g); if (ry) o.rotation.y = ry; if (rz) o.rotation.z = rz; return o; };
+  const cyl = (rt, rb, h, m, x, y, z, rx, rz, seg) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg || 10), m); o.position.set(x, y, z); if (rx) o.rotation.x = rx; if (rz) o.rotation.z = rz; g.add(o); return o; };
+  // floor: metal grating with a walkway
+  for (let x = -W; x < W; x += .5) b(.48, .08, D * 2, (Math.round((x + W) * 2) % 2) ? grate : grateD, x + .25, 0, 0);
+  b(W * 2, .02, 1.6, steelL, 0, .06, 0); for (let x = -W + .5; x < W; x += .5) b(.04, .025, 1.6, steelD, x, .07, 0);
+  // hull walls (curved look: two tiers leaning in), ribs with rivets, portholes onto the deep sea
+  dSolid(-W - .4, -D - .4, W + .4, -D, H, steel, true); dSolid(-W - .4, D, W + .4, D + .4, H, steel, true);
+  dSolid(-W - .4, -D, -W, D, H, steel, true); dSolid(W, -D, W + .4, 2.2, H, steel, true); dSolid(W, 3.6, W + .4, D, H, steel, true);
+  for (let x = -W + 1; x < W; x += 2.2) for (const s of [-1, 1]) { b(.22, H, .3, steelD, x, H / 2, s * (D - .15)); for (let y = .6; y < H; y += .7) b(.08, .08, .08, brass, x + .12, y, s * (D - .32)); }
+  for (const x of [-6.6, -2.2, 2.2, 6.6]) for (const s of [-1, 1]) { const r = new THREE.Mesh(new THREE.TorusGeometry(.45, .1, 8, 18), brass); r.position.set(x, 2.0, s * (D - .2)); g.add(r);
+    const c = new THREE.Mesh(new THREE.CircleGeometry(.42, 18), sea); c.position.set(x, 2.0, s * (D - .24)); if (s > 0) c.rotation.y = Math.PI; g.add(c); SHIPS.glow.push({ m: c, sea: 1, ph: x + s }); }
+  // fish drifting past the portholes (little dark shapes on the far side of the glass)
+  for (let i = 0; i < 6; i++) { const f = box(.22, .08, .05, Bm(0x062a3a), 0, 2.0, (i % 2 ? 1 : -1) * (D - .27), g); SHIPS.fish.push({ m: f, ph: i * 1.7, sp: .4 + (i % 3) * .15, s: i % 2 ? 1 : -1 }); }
+  // pipes along the walls with red valves
+  for (const s of [-1, 1]) { for (const y of [2.9, 3.15]) cyl(.08, .08, W * 2, s > 0 ? steelL : brass, 0, y, s * (D - .45), 0, Math.PI / 2, 8);
+    for (const x of [-4, 3, 7]) { const v = new THREE.Mesh(new THREE.TorusGeometry(.16, .035, 6, 12), red); v.position.set(x, 2.9, s * (D - .62)); g.add(v); } }
+  // the bow: a big round window onto the abyss, the control console, the captain's chair, the periscope
+  { const r = new THREE.Mesh(new THREE.TorusGeometry(1.4, .16, 8, 28), brass); r.rotation.y = Math.PI / 2; r.position.set(-W + .25, 1.9, 0); g.add(r);
+    const c = new THREE.Mesh(new THREE.CircleGeometry(1.3, 28), sea); c.rotation.y = Math.PI / 2; c.position.set(-W + .21, 1.9, 0); g.add(c); SHIPS.glow.push({ m: c, sea: 1, ph: 0 });
+    for (let i = 0; i < 4; i++) b(.04, 2.6, .05, brass, -W + .27, 1.9, 0, 0, i * Math.PI / 4); }
+  { const cx = -W + 1.6; b(1.2, 1.0, 4.2, steelD, cx, .5, 0); b(1.3, .12, 4.4, brass, cx, 1.05, 0); b(.7, .6, 4.0, steelL, cx - .2, 1.35, 0, 0, -.35);
+    for (const [z, m] of [[-1.4, scr], [0, scrA], [1.4, scr]]) { const s = b(.05, .42, 1.0, m, cx + .12, 1.42, z, 0, -.35); SHIPS.glow.push({ m: s, ph: z, scr: 1 }); }
+    for (let i = 0; i < 6; i++) { b(.06, .3, .06, steelL, cx + .35, 1.25, -1.6 + i * .64); b(.12, .1, .12, i % 2 ? red : brass, cx + .35, 1.42, -1.6 + i * .64); }
+    DUN.obs.push(addBox(dX(cx), dZ(0), .65, 2.2));
+    const lab = labelSprite(T2('下潜控制台 · 无尽深渊', 'Dive console · Endless Abyss'), '#7ae8d8', .9); lab.position.set(cx, 2.8, 0); g.add(lab);
+    dInt(cx + 1.6, 0, T2('下潜 · 无尽深渊', 'Dive · Endless Abyss'), () => true, () => { try { abyPage(); } catch (e) { } }, 1.8); }
+  { const x = -W + 3.4; cyl(.06, .06, .5, steelD, x, .25, 0); b(.6, .1, .6, red, x, .55, 0); b(.6, .6, .1, red, x, .85, .28); cyl(.12, .12, 3.0, steelD, x + .9, 2.1, -1.3); b(.2, .2, .5, steelD, x + .9, 1.2, -1.45); }
+  // the chart table in the middle: a glowing sea chart and your record
+  { b(2.4, .9, 1.6, wood, 1, .45, -2.6); b(2.5, .06, 1.7, brass, 1, .92, -2.6); const ch = b(2.2, .02, 1.4, Bm(0x1a6a7a), 1, .96, -2.6); SHIPS.glow.push({ m: ch, ph: 1, scr: 1 });
+    for (let i = 0; i < 5; i++) b(.5 - i * .08, .025, .02, seaL, .5 + i * .2, .98, -2.9 + i * .15);
+    DUN.obs.push(addBox(dX(1), dZ(-2.6), 1.25, .85));
+    const best = (S.abyss && S.abyss.best) | 0, lab = labelSprite(T2('最深纪录 · 第 ' + best + ' 层', 'Deepest · floor ' + best), '#ffd27a', .8); lab.position.set(1, 2.3, -2.6); g.add(lab); }
+  // the stern: bunks, a diver's locker, the ladder up to the hatch (the way out)
+  { for (const y of [.5, 1.6]) { b(2.4, .14, 1.1, steelD, 6.4, y, -4.2); b(2.2, .16, .9, blanket, 6.4, y + .14, -4.2); b(.5, .14, .7, cloth, 5.5, y + .26, -4.2); }
+    for (const x of [5.2, 7.6]) b(.08, 2.2, .08, steelD, x, 1.1, -3.65); DUN.obs.push(addBox(dX(6.4), dZ(-4.2), 1.25, .6));
+    b(1.4, 2.4, .8, teal, 3.2, 1.2, 4.4); b(1.3, .05, .05, brass, 3.2, 1.8, 3.98); const hel = new THREE.Mesh(new THREE.IcosahedronGeometry(.32, 1), L(0xe8b040, { emissive: 0x3a2400, flatShading: true })); hel.position.set(3.2, 2.7, 4.4); g.add(hel);
+    DUN.obs.push(addBox(dX(3.2), dZ(4.4), .75, .45)); }
+  { const x = W - .7, z = 2.9; for (const s of [-1, 1]) b(.08, H, .08, steelL, x, H / 2, z + s * .45); for (let y = .4; y < H; y += .45) b(.06, .06, .9, brass, x, y, z);
+    const hatch = cyl(.6, .6, .14, steelD, x, H - .05, z); const wheel = new THREE.Mesh(new THREE.TorusGeometry(.3, .04, 6, 14), red); wheel.rotation.x = Math.PI / 2; wheel.position.set(x, H - .14, z); g.add(wheel);
+    dInt(x - 1.2, z, T2('爬上舱口 · 离开', 'Climb out'), () => true, shipLeave, 1.9);
+    const lab = labelSprite(T2('出口', 'Exit'), '#cfeaff', .7); lab.position.set(x - .2, H + .4, z); g.add(lab); }
+  // lamps in cages along the ceiling line
+  for (const x of [-6, -1, 4, 8]) for (const s of [-1, 1]) { b(.3, .3, .2, lamp, x, 3.0, s * (D - .5)); b(.36, .06, .26, steelD, x, 3.18, s * (D - .5)); dAnchor(x, s * 2); }
+  shipLights(0xfff0d8, 3);
+}
+
+DUNS[SHIP_Q] = { nm: '老钱的收藏馆', sh: '收藏馆', boss: '', cls: '', txt: () => ({ intro: [] }), lv: [1, 99], build: qhBuild, setup: () => { DUN.st = { stage: 0, done: false }; },
+  start: () => shipStartCommon(0, QH.D - 2, Math.PI), enter: () => shipEnter('q'), lift: '<b>登船</b><span>老钱的收藏馆</span>', tips: ['左边是你的收藏，右边是老钱私藏的武器外观。', '走到展柜或展台前面，点按钮看详细。', '从门口出去就回到码头。'] };
+DUNS[SHIP_S] = { nm: '深渊号 · 舱内', sh: '深渊号', boss: '', cls: '', txt: () => ({ intro: [] }), lv: [1, 99], build: shBuild, setup: () => { DUN.st = { stage: 0, done: false }; },
+  start: () => shipStartCommon(W_SH_X, 2.9, -Math.PI / 2), enter: () => shipEnter('s'), lift: '<b>登艇</b><span>深渊号</span>', tips: ['船头的控制台可以下潜进入无尽深渊。', '舱口的梯子爬上去就回到码头。'] };
+const W_SH_X = SH.W - 2;
+
+// the dive console inside the sub can start the abyss: leave the cabin first; after the run you come back up at the sub's gangplank
+abyEnter = (o => function (wp) { if (S.dun && DUN.id === SHIP_S && !ABY.on) { try { dunCleanup(); } catch (e) { } } const r = o(wp); if (ABY.on) { SHIPS.ret = 's'; window._shipBack = 's'; } return r; })(abyEnter);
+goIsland = (o => function (silent) { const r = o(silent); try { if (window._shipBack && !S.dun && !(typeof ABY !== 'undefined' && ABY.on)) { const k = window._shipBack; window._shipBack = null; shipPlace(k); } } catch (e) { } return r; })(goIsland);
+
+/* per frame: things turn, glow and drift */
+zSpecialTick = (o => function (dt) { o(dt); if (!S.dun || (DUN.id !== SHIP_Q && DUN.id !== SHIP_S)) return; const t = (SHIPS.t += dt);
+  for (const s of SHIPS.spin) s.g.rotation.y += dt * s.sp;
+  for (const G of SHIPS.glow) { if (G.sea) G.m.material.color.setRGB(.05, .3 + Math.sin(t * .8 + G.ph) * .06, .45 + Math.sin(t * .6 + G.ph) * .08); else if (G.scr) { } else G.m.scale.setScalar(1 + Math.sin(t * 2 + G.ph) * .04); }
+  for (const F of SHIPS.fish) { const p = ((t * F.sp + F.ph) % 4) / 4; F.m.position.x = F.s > 0 ? -W_SH_FISH + p * W_SH_FISH * 2 : W_SH_FISH - p * W_SH_FISH * 2; F.m.visible = [-6.6, -2.2, 2.2, 6.6].some(x => Math.abs(F.m.position.x - x) < .4); }
+})(zSpecialTick);
+const W_SH_FISH = 8;
+(() => { try { const st = document.createElement('style'); st.textContent =
+  '.qhcol.no{opacity:.55}.qhq{display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:24px;color:#8a96a0;font-style:normal}' +
+  '.qhgun{display:flex;flex-direction:column;align-items:center;gap:6px;max-width:440px;width:92vw;padding:16px;border-radius:16px;border:3px solid var(--qc);background:#1c252c;text-align:center}' +
+  '.qhgun>b{font-size:20px;color:#fff}.qhgun>em{font-style:normal;font-weight:900;color:var(--qc)}.qhgun p{margin:0;font-size:13.5px;color:#e8eef2;line-height:1.5}.qhgun .qhst{color:#9fe8a0}.qhgun .qhhow{color:#ffd27a;font-weight:800}' +
+  '.qhpic{width:100%;display:flex;justify-content:center}.qhpic img{max-width:100%;max-height:150px;object-fit:contain}';
+  document.head.appendChild(st); } catch (e) { } })();
 /* ============ 资源商店: buy resources with gems, as many times as you like ============
    Real money only ever buys 晶石 (the Google Play packs); everything here costs 晶石.
    Prices are checked against the island merchant (1000 余烬币 = 50 晶石 here, so 1 晶石 ≈ 20 币): about 1.5× the coin price;
@@ -18861,4 +19083,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794709842').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794711476').catch(()=>{});</script></body></html>
