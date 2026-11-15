@@ -16841,6 +16841,322 @@ ghostTransform = (o => function () { const t = o(); if (!t || !buildSel || !ALLF
       for (const u of [-1, 1]) { const along = s * (1.5 - hdN), side = u * (hdO + 1.58); tryC(b.x + ax[0] * along + px[0] * side, b.z + ax[1] * along + px[1] * side, perp); } } }   // round the corner
   if (!best) return t; return Object.assign({}, t, { x: best.x, z: best.z, rot: best.rot, ok: true }); })(ghostTransform);
 for (const k of LOWF) { const tier = 2; if (BPX[k]) continue; BPX[k] = [tier, BT[k].name]; BT[k].bp = 1; if (!BP[k]) BP[k] = { n: BT[k].name, d: '', cv: 0 }; (BPPOOL[tier] = BPPOOL[tier] || []).push(bpPrize(k)); }
+/* ============ building 3.0 ============
+   1) On the island, opening build mode switches to a god view: your character vanishes, the camera floats above the island.
+      Two fingers: pinch to zoom, drag to move the view. One finger: put the piece where you touch. PC: wheel zooms, WASD or
+      right-drag moves the view, the mouse moves the piece, a left click places it. A floor picker (地面 / 2楼 …) on the left
+      chooses which storey you build on; what is above it is hidden so you can see inside. Off the island nothing changes.
+   2) 半墙高楼板 / 矮墙高楼板: floors at the height of a half wall / a low wall. Walk onto them (they step you up), and the
+      half / low walls under their edges let you climb over, like other games.
+   3) 半墙玻璃 / 矮墙玻璃: glass versions of the half and low walls.
+   4) A new build menu: tabs by kind (常用 · 地基楼板 · 墙 · 门窗 · 屋顶 · 家具 · 生活 · 防御 · 移动 · 拆除) and small tiles with a
+      3D picture of each piece, so things are quick to find. */
+
+/* ---- new pieces ---- */
+const PLAT_H = { pfl2: WALL_H / 2, pfl4: WALL_H / 4 };
+BT.pfl2 = { name: '半墙高楼板', cat: 'st', k: 'plat', cost: { wood: 8 }, hp: 320, hw: 1.5, hd: 1.5, ob: [], desc: '和半墙一样高的楼板，可以走上去' };
+BT.pfl4 = { name: '矮墙高楼板', cat: 'st', k: 'plat', cost: { wood: 6 }, hp: 260, hw: 1.5, hd: 1.5, ob: [], desc: '和矮墙一样高的楼板，可以走上去' };
+BT.hgwall = { name: '半墙玻璃', cat: 'st', k: 'edge', cost: { wood: 1, metal: 3 }, hp: 180, hw: 1.5, hd: .1, ob: [[0, 0, 1.5, .1]], desc: '半墙高的玻璃，只看得到边框' };
+BT.qgwall = { name: '矮墙玻璃', cat: 'st', k: 'edge', cost: { wood: 1, metal: 2 }, hp: 130, hw: 1.5, hd: .1, ob: [[0, 0, 1.5, .1]], desc: '矮墙高的玻璃，只看得到边框' };
+const GL2_H = { hgwall: WALL_H / 2, qgwall: WALL_H / 4 };
+for (const k of ['pfl2', 'pfl4', 'hgwall', 'qgwall']) { const tier = 2; if (BPX[k]) continue; BPX[k] = [tier, BT[k].name]; BT[k].bp = 1; if (!BP[k]) BP[k] = { n: BT[k].name, d: '', cv: 0 }; (BPPOOL[tier] = BPPOOL[tier] || []).push(bpPrize(k)); }
+
+function gl2Fill(g, H, joinL, joinR) {
+  while (g.children.length) g.remove(g.children[0]);
+  const e = .045, bar = (w, h, d, x, y) => { const m = box(w, h, d, GW.edge, x, y, 0, g); m.castShadow = false; m.userData.noCast = 1; };
+  bar(3, e, e, 0, e / 2); bar(3, e * 1.6, e * 1.6, 0, H - e * .8);
+  if (!joinL) bar(e, H, e, -1.5, H / 2); if (!joinR) bar(e, H, e, 1.5, H / 2);
+  const p = new THREE.Mesh(new THREE.PlaneGeometry(3, H), GW.pane); p.position.y = H / 2; p.renderOrder = 4; g.add(p);
+}
+buildMesh = (orig => function (type) {
+  if (PLAT_H[type]) { const H = PLAT_H[type], g = new THREE.Group();
+    // planks on top with a beam frame round the edge, a post at each corner
+    const n = 6, w = 3 / n; for (let i = 0; i < n; i++) box(w - .03, .1, 2.96, i % 2 ? plank : plank2, -1.5 + w * (i + .5), H - .05, 0, g);
+    box(3.04, .16, .14, beam, 0, H - .12, -1.45, g); box(3.04, .16, .14, beam, 0, H - .12, 1.45, g); box(.14, .16, 3.04, beam, -1.45, H - .12, 0, g); box(.14, .16, 3.04, beam, 1.45, H - .12, 0, g);
+    for (const [x, z] of [[-1.4, -1.4], [1.4, -1.4], [-1.4, 1.4], [1.4, 1.4]]) box(.2, H - .1, .2, beam, x, (H - .1) / 2, z, g);
+    return g; }
+  if (GL2_H[type]) { const g = new THREE.Group(), inner = new THREE.Group(); g.add(inner); g.userData.glass2 = inner; gl2Fill(inner, GL2_H[type], false, false); return g; }
+  return orig(type);
+})(buildMesh);
+// glass in a row joins into one pane (like the tall glass wall)
+const gl2At = (t, x, z, lv) => builds.find(b => b.type === t && b.hp > 0 && (b.lv | 0) === lv && Math.abs(b.x - x) < .1 && Math.abs(b.z - z) < .1);
+function gl2Refresh(b) { if (!b || !b.g || !b.g.userData.glass2) return; const c = Math.round(Math.cos(b.rot)), s = Math.round(Math.sin(b.rot)), lv = b.lv | 0;
+  const nb = k => { const o = gl2At(b.type, b.x + k * 3 * c, b.z - k * 3 * s, lv); return o && Math.abs(Math.sin(o.rot - b.rot)) < .1; };
+  gl2Fill(b.g.userData.glass2, GL2_H[b.type], nb(-1), nb(1)); }
+function gl2Around(b) { gl2Refresh(b); const c = Math.round(Math.cos(b.rot)), s = Math.round(Math.sin(b.rot)); for (const k of [-1, 1]) gl2Refresh(gl2At(b.type, b.x + k * 3 * c, b.z - k * 3 * s, b.lv | 0)); }
+addBuild = (orig => function (type, x, z, rot, free, lv) { const b = orig(type, x, z, rot, free, lv); if (GL2_H[type] && b) gl2Around(b); if (PLAT_H[type]) PLT.dirty = true; return b; })(addBuild);
+dropBuild = (orig => function (b) { const t = b && b.type, r = orig(b); if (GL2_H[t]) { const c = Math.round(Math.cos(b.rot)), s = Math.round(Math.sin(b.rot)); for (const k of [-1, 1]) gl2Refresh(gl2At(t, b.x + k * 3 * c, b.z - k * 3 * s, b.lv | 0)); } if (PLAT_H[t]) PLT.dirty = true; return r; })(dropBuild);
+
+/* ---- standing on the raised floors ---- */
+const PLT = { y: 0, v: 0, dirty: true, pass: [], near: false, t: 0 };
+const PASS_W = { hwall: WALL_H / 2, qwall: WALL_H / 4, hgwall: WALL_H / 2, qgwall: WALL_H / 4 };
+function platAt(x, z) { let h = 0; for (const b of builds) { const H = PLAT_H[b.type]; if (!H || b.hp <= 0 || (b.lv | 0)) continue; if (Math.abs(x - b.x) < 1.52 && Math.abs(z - b.z) < 1.52 && H > h) h = H; } return h; }
+// low walls along the edge of a raised floor that is at least as high: you can step over them
+function platPassList() {
+  const out = [];
+  for (const w of builds) { const wh = PASS_W[w.type]; if (!wh || w.hp <= 0 || (w.lv | 0)) continue;
+    const c = Math.cos(w.rot), s = Math.sin(w.rot), nx = s, nz = c;   // the wall runs along (c, -s); its sides are ±(s, c)
+    if (Math.max(platAt(w.x + nx * .9, w.z + nz * .9), platAt(w.x - nx * .9, w.z - nz * .9)) >= wh - .05) for (const o of w.obs) out.push(o); }
+  return out;
+}
+const _platOn = () => S.started && !S.dead && (S.fl | 0) === 0 && !S.stB && !S.fall && !S.climbA && !S.boat && !(S.dun);
+collide = (o => function (pos, r) {
+  if (pos !== player.pos || !PLT.near || !PLT.pass.length || !_platOn()) return o(pos, r);
+  const was = PLT.pass.map(q => q.open); for (const q of PLT.pass) q.open = true;
+  try { return o(pos, r); } finally { PLT.pass.forEach((q, i) => { q.open = was[i]; }); }
+})(collide);
+function platTick(dt) {
+  PLT.t -= dt; if (PLT.dirty || PLT.t <= 0) { PLT.t = .5; PLT.dirty = false; PLT.has = builds.some(b => PLAT_H[b.type] && b.hp > 0); PLT.pass = PLT.has ? platPassList() : []; }
+  if (!PLT.has && PLT.y <= 0) return;
+  const p = player.pos; PLT.near = PLT.has && builds.some(b => PLAT_H[b.type] && b.hp > 0 && Math.abs(p.x - b.x) < 3.2 && Math.abs(p.z - b.z) < 3.2);
+  if (!_platOn() || (typeof GV !== 'undefined' && GV.on)) { PLT.y = 0; PLT.v = 0; return; }
+  const want = PLT.has ? platAt(p.x, p.z) : 0;
+  if (want >= PLT.y) { PLT.y += (want - PLT.y) * Math.min(1, dt * 12); PLT.v = 0; }
+  else { PLT.v += 22 * dt; PLT.y = Math.max(want, PLT.y - PLT.v * dt); if (PLT.y <= want + .001) { if (PLT.v > 4) S.shake = Math.max(S.shake, .1); PLT.v = 0; } }
+  if (PLT.y > .002) pm.g.position.y = PLT.y;
+}
+// where a raised floor goes: on the grid like a foundation (it can sit on one), ground storey only
+ghostTransform = (o => function () {
+  const T = BT[buildSel]; if (!T || T.k !== 'plat') return o();
+  const aim = aimPoint(), x = (Math.floor(aim.x / BG) + .5) * BG, z = (Math.floor(aim.z / BG) + .5) * BG;
+  if ((S.fl | 0) > 0) return { x, z, rot: 0, y: (S.fl | 0) * UPY, lv: S.fl | 0, ok: false, why: T2('这种楼板只能放在地面层', 'Only on the ground storey') };
+  const taken = builds.some(b => PLAT_H[b.type] && b.hp > 0 && Math.abs(b.x - x) < .1 && Math.abs(b.z - z) < .1);
+  const ok = !taken && areaOk(x, z, 1.5, 1.5) && !blockedBy(x, z, 1.4, 1.4, q => !!q.ref) && !zombies.some(zb => !zb.dead && Math.hypot(zb.pos.x - x, zb.pos.z - z) < 1.8);
+  return { x, z, rot: 0, y: 0, lv: 0, ok, why: taken ? T2('这一格已经有楼板了', 'This cell already has one') : '' };
+})(ghostTransform);
+
+/* ---- god view on the island ---- */
+const GV = { on: false, x: 0, z: 0, d: 26, fl: 0, cut: true, px: 0, pz: 0, pitch: 1.0, ptr: new Map(), g0: null, hidden: new Set(), hintT: 0, keys: {}, drag: null };
+const gvWant = () => buildOpen && S.started && S.isl && !S.dun && !S.boat && !S.dead && !(typeof ABY !== 'undefined' && ABY.on);
+const gvBaseY = () => GV.fl * UPY;
+function gvMaxFl() { let m = 0; for (const b of builds) if (b.type === 'upfl' && b.hp > 0) m = Math.max(m, (b.lv | 0) + 1); return Math.min(3, m); }
+function gvEnter() {
+  GV.on = true; GV.px = player.pos.x; GV.pz = player.pos.z; GV.x = player.pos.x; GV.z = player.pos.z - 2; GV.fl = Math.min(S.fl | 0, gvMaxFl()); GV.ptr.clear(); GV.g0 = null; GV.keys = {};
+  S.sprint = false; input.mx = input.mz = 0; input.fire = false; buildAnchor = null;
+  document.body.classList.add('gvOn'); gvFlPaint(); gvHint();
+}
+function gvExit() {
+  GV.on = false; GV.ptr.clear(); GV.g0 = null; document.body.classList.remove('gvOn');
+  for (const b of GV.hidden) if (b.g) b.g.visible = true; GV.hidden.clear();
+  pm.g.visible = !fpOn(); buildAnchor = null; const f = $('gvFl'); if (f) f.style.display = 'none';
+}
+function gvHint() { let h = $('gvHint'); if (!h) { h = document.createElement('div'); h.id = 'gvHint'; document.body.appendChild(h); }
+  h.innerHTML = IS_PC ? T2('滚轮缩放 · WASD / 右键拖动移动视角 · 左键放置', 'Wheel: zoom · WASD / right-drag: move · Left click: place') : T2('双指捏合缩放 · 双指拖动移动视角 · 单指点选位置', 'Pinch to zoom · two fingers to move · one finger to aim');
+  h.classList.add('on'); clearTimeout(GV.hintT); GV.hintT = setTimeout(() => h.classList.remove('on'), 4200); }
+// what is above the storey you build on is hidden, so you can see in (ceilings / roofs of this storey too, unless you are placing one)
+function gvHideTick() {
+  const upper = buildSel && BT[buildSel] && BT[buildSel].k === 'upper', F = GV.fl;
+  for (const b of builds) { if (!b.g) continue; const ceil = b.type === 'upfl' || ROOFS.includes(b.type), L = b.lv | 0;
+    const hide = GV.cut && (ceil ? (upper ? L > F : L >= F) : L > F);
+    if (hide && b.g.visible) { b.g.visible = false; GV.hidden.add(b); } else if (!hide && GV.hidden.has(b)) { b.g.visible = true; GV.hidden.delete(b); } }
+  for (const b of GV.hidden) if (!builds.includes(b)) GV.hidden.delete(b);
+}
+function gvTick(dt) {
+  const want = gvWant(); if (want !== GV.on) want ? gvEnter() : gvExit(); if (!GV.on) return;
+  // the character stays where it was, out of sight
+  player.pos.x = GV.px; player.pos.z = GV.pz; pm.g.visible = false; S.sprint = false;
+  { let mx = 0, mz = 0; const K = GV.keys; if (K.KeyA || K.ArrowLeft) mx -= 1; if (K.KeyD || K.ArrowRight) mx += 1; if (K.KeyW || K.ArrowUp) mz -= 1; if (K.KeyS || K.ArrowDown) mz += 1;
+    if (mx || mz) { const sp = GV.d * .9 * dt, l = Math.hypot(mx, mz); gvPan(mx / l * sp, mz / l * sp, true); } }
+  if (GV.zk) { GV.d = clamp(GV.d * Math.exp(GV.zk * dt * 1.6), 8, 70); }
+  gvHideTick();
+  const y0 = gvBaseY(), p = GV.pitch, cy = y0 + GV.d * Math.sin(p), cz = GV.z + GV.d * Math.cos(p);
+  camera.position.set(GV.x, cy, cz); camera.lookAt(GV.x, y0, GV.z); if (camera.updateMatrixWorld) camera.updateMatrixWorld();
+  GV.flT = (GV.flT || 0) - dt; if (GV.flT <= 0) { GV.flT = .5; gvFlPaint(); }
+}
+function gvPan(dx, dz, moveAnchor) {
+  const R = ISL_R + 14; GV.x += dx; GV.z += dz; const ox = GV.x - HOME.x, oz = GV.z - HOME.z, d = Math.hypot(ox, oz); if (d > R) { GV.x = HOME.x + ox / d * R; GV.z = HOME.z + oz / d * R; }
+  if (moveAnchor && buildAnchor) { buildAnchor = { x: buildAnchor.x + dx, z: buildAnchor.z + dz }; }
+}
+staRingTick = (o => function (dt) { try { gvTick(dt); } catch (e) { console.warn('gv', e); } try { platTick(dt); } catch (e) { } return o(dt); })(staRingTick);
+// the ground under a screen point: on the storey you build on
+groundAt = (o => function (cx, cy) {
+  if (!GV.on) return o(cx, cy);
+  const r = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }; if (!_bv.unproject) return null;
+  _bv.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1, .5).unproject(camera);
+  const P = camera.position, Y = gvBaseY(), dy = _bv.y - P.y; if (dy > -1e-4) return null; const t = (Y - P.y) / dy; return { x: P.x + (_bv.x - P.x) * t, z: P.z + (_bv.z - P.z) * t };
+})(groundAt);
+aimPoint = (o => function () { if (!GV.on) return o(); return buildAnchor || { x: GV.x, z: GV.z }; })(aimPoint);
+// build on the chosen storey: the build code reads the storey you stand on, so lend it the picked one while it works
+const gvAs = fn => function () { if (!GV.on) return fn.apply(this, arguments); const f = S.fl, u = S.up; S.fl = GV.fl; S.up = GV.fl > 0; try { return fn.apply(this, arguments); } finally { S.fl = f; S.up = u; } };
+ghostTransform = gvAs(ghostTransform);
+placeBuild = (o => gvAs(function () { const n = builds.length, k = buildSel; const r = o(); if (builds.length > n && k && BT[k]) brecPush(k); return r; }))(placeBuild);
+// picking a piece under your finger: only the ones you can see
+pickBuild = (o => function (ok) {
+  if (!GV.on) return o(ok);
+  try { if (!buildTap) return null; const r = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    _pickV.set(((buildTap.x - r.left) / r.width) * 2 - 1, -((buildTap.y - r.top) / r.height) * 2 + 1); _pickRay.setFromCamera(_pickV, camera);
+    const list = builds.filter(b => b.g && b.g.visible && b.hp > 0 && ok(b) && Math.hypot(b.x - GV.x, b.z - GV.z) < 80);
+    const hits = _pickRay.intersectObjects(list.map(b => b.g), true);
+    for (const h of hits) { let q = h.object; while (q && !list.some(b => b.g === q)) q = q.parent; if (q) return list.find(b => b.g === q); }
+  } catch (e) { } return null; })(pickBuild);
+removeTarget = (o => function () { const r = o(); if (GV.on && r && r.g && r.g.visible === false) return null; return r; })(removeTarget);
+
+/* ---- touch & mouse in god view (they never reach the game: no shooting, no walking) ---- */
+function gvTouchMid() { const a = [...GV.ptr.values()]; return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2, d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1 }; }
+function gvWorldPerPx() { return 2 * GV.d * Math.tan((camera.fov || 50) * Math.PI / 360) / Math.max(1, window.innerHeight); }
+function gvAim(e) { const p = groundAt(e.clientX, e.clientY); if (p) buildAnchor = { x: p.x, z: p.z }; buildTap = { x: e.clientX, y: e.clientY }; }
+window.addEventListener('pointerdown', e => {
+  if (!GV.on || e.target !== canvas) return; e.stopPropagation(); e.preventDefault(); try { canvas.setPointerCapture(e.pointerId); } catch (er) { }
+  if (e.pointerType === 'mouse') { if (e.button === 0) { GV.drag = { x: e.clientX, y: e.clientY, moved: 0, place: true }; gvAim(e); } else GV.drag = { x: e.clientX, y: e.clientY, moved: 0, pan: true }; return; }
+  GV.ptr.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (GV.ptr.size === 1) gvAim(e); else if (GV.ptr.size === 2) GV.g0 = gvTouchMid();
+}, true);
+window.addEventListener('pointermove', e => {
+  if (!GV.on || (e.target !== canvas && !GV.ptr.has(e.pointerId) && !GV.drag)) return;
+  if (e.pointerType === 'mouse') { e.stopPropagation();
+    if (GV.drag) { const dx = e.clientX - GV.drag.x, dy = e.clientY - GV.drag.y; GV.drag.moved += Math.abs(dx) + Math.abs(dy); GV.drag.x = e.clientX; GV.drag.y = e.clientY;
+      if (GV.drag.pan) { const w = gvWorldPerPx(); gvPan(-dx * w, -dy * w / Math.sin(GV.pitch), false); return; } }
+    if (e.target === canvas) gvAim(e); return; }
+  if (!GV.ptr.has(e.pointerId)) return; e.stopPropagation(); e.preventDefault(); GV.ptr.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (GV.ptr.size >= 2 && GV.g0) { const m = gvTouchMid(), w = gvWorldPerPx();
+    gvPan(-(m.x - GV.g0.x) * w, -(m.y - GV.g0.y) * w / Math.sin(GV.pitch), true); GV.d = clamp(GV.d * GV.g0.d / m.d, 8, 70); GV.g0 = m; }
+  else if (GV.ptr.size === 1 && !GV.g0) gvAim(e);
+}, true);
+const gvUp = e => { if (!GV.on) return;
+  if (e.pointerType === 'mouse') { const d = GV.drag; GV.drag = null; if (d && d.place && d.moved < 8 && e.target === canvas && e.type === 'pointerup') { e.stopPropagation(); try { placeBuild(); } catch (er) { } } return; }
+  if (!GV.ptr.has(e.pointerId)) return; e.stopPropagation(); GV.ptr.delete(e.pointerId); if (GV.ptr.size < 2) { if (!GV.ptr.size) GV.g0 = null; } };
+window.addEventListener('pointerup', gvUp, true); window.addEventListener('pointercancel', gvUp, true);
+window.addEventListener('wheel', e => { if (!GV.on || e.target !== canvas) return; e.preventDefault(); GV.d = clamp(GV.d * Math.exp(e.deltaY * .0015), 8, 70); }, { passive: false, capture: true });
+// keys: WASD / arrows move the view, + / − zoom; the fighting keys do nothing while you build here
+const GV_BLOCK = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyF', 'KeyQ', 'KeyR', 'KeyH', 'ShiftLeft', 'ShiftRight', 'KeyG', 'KeyZ', 'KeyJ', 'KeyV', 'KeyX', 'Equal', 'Minus', 'NumpadAdd', 'NumpadSubtract'];
+window.addEventListener('keydown', e => { if (!GV.on || !GV_BLOCK.includes(e.code)) return; if (e.target && /input|textarea|select/i.test(e.target.tagName || '')) return;
+  e.stopImmediatePropagation(); e.preventDefault(); GV.keys[e.code] = true; GV.zk = GV.keys.Equal || GV.keys.NumpadAdd ? -1 : GV.keys.Minus || GV.keys.NumpadSubtract ? 1 : 0; }, true);
+window.addEventListener('keyup', e => { if (!GV_BLOCK.includes(e.code)) return; GV.keys[e.code] = false; keys[e.code] = false; GV.zk = GV.keys.Equal || GV.keys.NumpadAdd ? -1 : GV.keys.Minus || GV.keys.NumpadSubtract ? 1 : 0; }, true);
+
+/* ---- the storey picker + zoom buttons (left side) ---- */
+const GV_FLN = () => [T2('地面', 'Ground'), T2('2楼', '2F'), T2('3楼', '3F'), T2('4楼', '4F')];
+function gvFlPaint() {
+  let el = $('gvFl'); if (!el) { el = document.createElement('div'); el.id = 'gvFl'; document.body.appendChild(el);
+    el.addEventListener('pointerdown', e => { const b = e.target.closest && e.target.closest('button'); if (!b) return; e.preventDefault(); e.stopPropagation();
+      if (b.dataset.fl != null) { GV.fl = +b.dataset.fl; buildAnchor = null; try { sfx.pick(); } catch (er) { } }
+      else if (b.dataset.z) GV.d = clamp(GV.d * (b.dataset.z === 'in' ? .78 : 1.28), 8, 70);
+      else if (b.dataset.cut) { GV.cut = !GV.cut; if (!GV.cut) for (const q of GV.hidden) if (q.g) q.g.visible = true; if (!GV.cut) GV.hidden.clear(); }
+      GV.flKey = ''; gvFlPaint(); }); }
+  if (!GV.on) { el.style.display = 'none'; return; }
+  const mx = gvMaxFl(); if (GV.fl > mx) GV.fl = mx; const key = mx + '|' + GV.fl + '|' + GV.cut; el.style.display = 'flex'; if (GV.flKey === key) return; GV.flKey = key;
+  const N = GV_FLN(); let h = '<button data-z="in" aria-label="zoom in">＋</button><button data-z="out" aria-label="zoom out">－</button><i></i>';
+  for (let L = mx; L >= 0; L--) h += '<button data-fl="' + L + '" class="' + (L === GV.fl ? 'on' : '') + '">' + N[L] + '</button>';
+  if (mx > 0) h += '<button data-cut="1" class="cut' + (GV.cut ? '' : ' on') + '">' + (GV.cut ? T2('显示楼上', 'Show above') : T2('隐藏楼上', 'Hide above')) + '</button>';
+  el.innerHTML = h;
+}
+
+/* ---- the new build menu ---- */
+const B5_TABS = [
+  ['rec', T2('常用', 'Recent')],
+  ['fnd', T2('地基楼板', 'Floors'), ['fnd', 'sfnd', 'upfl', 'pfl2', 'pfl4', 'stair', 'ladder']],
+  ['wall', T2('墙', 'Walls'), ['wwall', 'iwall', 'swall', 'gwall', 'hwall', 'qwall', 'hgwall', 'qgwall']],
+  ['door', T2('门窗', 'Doors'), ['dframe', 'door', 'window', 'swin']],
+  ['roof', T2('屋顶山墙', 'Roofs'), ['roofG', 'roofS', 'roofP1', 'roofP2', 'roofP3', 'gab1', 'gab2', 'gab3', 'slp1', 'slp2', 'slp3', 'arc1', 'arc2', 'arc3']],
+  ['fu', T2('家具', 'Furniture'), ['bed', 'table', 'chair', 'cabinet', 'shelf', 'chest', 'locker', 'showcase', 'lamp', 'chand', 'rug', 'plant', 'tank']],
+  ['life', T2('生活', 'Living'), ['fire', 'pot', 'farm']],
+  ['df', T2('防御', 'Defence'), ['wall', 'gate', 'lfence', 'lrail', 'spike', 'turret', 'turret_b', 'turret_s', 'turret_g', 'turret_m', 'hmg', 'tesla']],
+];
+{ const seen = new Set(); B5_TABS.forEach(t => (t[2] || []).forEach(k => seen.add(k)));
+  for (const k in BT) { if (seen.has(k) || !BT[k].cat || BT[k].cat === 'old') continue; const tab = BT[k].cat === 'df' ? 'df' : BT[k].cat === 'fu' ? 'fu' : BT[k].k === 'edge' ? 'wall' : 'fnd'; B5_TABS.find(t => t[0] === tab)[2].push(k); } }
+const B5 = { tab: null, rec: [] }; try { B5.rec = JSON.parse(localStorage.getItem('ember_brec') || '[]').filter(k => BT[k]); } catch (e) { }
+function brecPush(k) { B5.rec = [k].concat(B5.rec.filter(q => q !== k)).slice(0, 12); try { localStorage.setItem('ember_brec', JSON.stringify(B5.rec)); } catch (e) { } }
+const b5Keys = tab => { if (tab === 'rec') return B5.rec.filter(k => BT[k]); const t = B5_TABS.find(q => q[0] === tab); return t ? t[2].filter(k => BT[k]) : []; };
+const b5TabOf = k => { const t = B5_TABS.find(q => q[2] && q[2].includes(k)); return t ? t[0] : 'fnd'; };
+// pictures: each piece rendered once, a few per frame
+const B5PIC = { url: {}, q: [], busy: false };
+function b5Pic(k) {
+  const id = 'bt:' + k; if (TH.url[id] != null) return TH.url[id]; if (!thumbInit()) return (TH.url[id] = '');
+  let g = null; try { g = buildMesh(k); } catch (e) { return (TH.url[id] = ''); }
+  try { if (g.userData.lit) { _lamps = Math.max(0, _lamps - 1); g.userData.lit = 0; } g.traverse(o => { if (o.isLight) o.intensity = 0; if (o.isSprite) o.visible = false; });
+    const hold = new THREE.Group(); hold.add(g); hold.rotation.set(.5, -.62, 0); TH.sc.add(hold); hold.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(hold), ctr = new THREE.Vector3(), sz = new THREE.Vector3(); bb.getCenter(ctr); bb.getSize(sz); hold.position.sub(ctr);
+    const W = 120; TH.R.setSize(W, W, false); TH.cam.aspect = 1; const tf = Math.tan(TH.cam.fov * Math.PI / 360), rad = Math.max(sz.x, sz.y) * .5 * 1.08;
+    TH.cam.position.set(0, 0, rad / tf + sz.z * .5); TH.cam.lookAt(0, 0, 0); TH.cam.updateProjectionMatrix(); TH.R.render(TH.sc, TH.cam); TH.url[id] = TH.R.domElement.toDataURL('image/png'); TH.sc.remove(hold);
+  } catch (e) { TH.url[id] = ''; }
+  return TH.url[id];
+}
+function b5PicPump() {
+  if (B5PIC.busy) return; B5PIC.busy = true;
+  const step = () => { try { let n = 0; while (B5PIC.q.length && n < 3) { const k = B5PIC.q.shift(), u = b5Pic(k); n++;
+      try { buildEl.querySelectorAll('.b5t[data-k="' + k + '"] .b5img').forEach(i => { if (u) i.style.backgroundImage = 'url(' + u + ')'; i.classList.add('ok'); }); } catch (e) { } }
+    } catch (e) { B5PIC.q.length = 0; }
+    if (B5PIC.q.length) requestAnimationFrame(step); else B5PIC.busy = false; };
+  requestAnimationFrame(step);
+}
+const B5_TOOLS = [['move', T2('移动', 'Move')], ['remove', T2('拆除', 'Remove')]];
+function b5Cost(k) { const c = costOf(k), s = []; if (c.wood) s.push('<em class="' + (bmHave('wood') < c.wood ? 'lack' : '') + '"><i class="dot" style="background:#c9955c"></i>' + c.wood + '</em>');
+  if (c.metal) s.push('<em class="' + (bmHave('metal') < c.metal ? 'lack' : '') + '"><i class="dot" style="background:#a9c4d8"></i>' + c.metal + '</em>'); return s.join('') || '<em class="free">' + T2('免费', 'Free') + '</em>'; }
+function b5Build() {
+  if (!B5.tab) B5.tab = buildSel === 'move' || buildSel === 'remove' ? buildSel : buildSel && BT[buildSel] ? b5TabOf(buildSel) : 'fnd';
+  if (B5.tab === 'rec' && !B5.rec.length) B5.tab = 'fnd';
+  buildEl.innerHTML = ''; buildEl.classList.add('b5');
+  const tabs = document.createElement('div'); tabs.className = 'b5tabs';
+  B5_TABS.forEach(([k, n]) => { if (k === 'rec' && !B5.rec.length) return; const b = document.createElement('button'); b.className = 'b5tab' + (B5.tab === k ? ' on' : ''); b.dataset.tab = k; b.textContent = n;
+    b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); B5.tab = k; const keys = b5Keys(k); buildCards();
+      if (!keys.includes(buildSel)) { const f = keys.find(q => !bpLocked(q) && !(typeof ulBuildLock === 'function' && ulBuildLock(q))); if (f) b5Pick(f); } }); tabs.appendChild(b); });
+  B5_TOOLS.forEach(([k, n]) => { const b = document.createElement('button'); b.className = 'b5tab btool' + (buildSel === k ? ' on' : ''); b.dataset.tool = k; b.dataset.tab = k; b.textContent = n;
+    b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); B5.tab = k; selectBuild(k); buildCards(); }); tabs.appendChild(b); });
+  buildEl.appendChild(tabs);
+  const info = document.createElement('div'); info.className = 'b5info'; info.innerHTML = '<div class="b5sel" id="b5Sel"></div><div class="bhave" id="bHave"></div>'; buildEl.appendChild(info);
+  const row = document.createElement('div'); row.className = 'brow b5row'; buildEl.appendChild(row);
+  if (B5.tab === 'move' || B5.tab === 'remove') row.innerHTML = '<p class="b5tip">' + (B5.tab === 'move' ? T2('点一下要挪的东西，按「选中」，再点新位置按「放下」', 'Tap the piece, press Select, then tap the new spot and press Drop') : T2('点一下要拆的东西（变红），再按「拆除」，返还 60% 材料', 'Tap a piece (it turns red), then press Remove: 60% back')) + '</p>';
+  else b5Keys(B5.tab).forEach(k => { const T = BT[k], c = document.createElement('button'); c.className = 'card b5t'; c.dataset.k = k;
+    const u = TH.url['bt:' + k]; c.innerHTML = '<i class="b5img' + (u != null ? ' ok' : '') + '"' + (u ? ' style="background-image:url(' + u + ')"' : '') + '></i><b>' + T.name + '</b><span>' + (T.desc || '') + '</span><div class="cost">' + b5Cost(k) + '</div>';
+    if (u == null && !B5PIC.q.includes(k)) B5PIC.q.push(k);
+    c.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); b5Pick(k); }); row.appendChild(c); });
+  b5PicPump();
+  // keep the chosen tile in view
+  setTimeout(() => { try { const s = row.querySelector('.b5t.sel'); if (s && s.scrollIntoView) s.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { } }, 0);
+}
+function b5Pick(k) { if (BT[k]) buildCat = BT[k].cat; selectBuild(k); b5Info(); }
+function b5Info() {
+  const el = $('b5Sel'); if (!el) return; const k = buildSel;
+  if (!k || k === 'move' || k === 'remove' || !BT[k]) { el.innerHTML = '<b>' + (k === 'move' ? T2('移动', 'Move') : k === 'remove' ? T2('拆除', 'Remove') : '') + '</b>'; return; }
+  const T = BT[k]; el.innerHTML = '<b>' + T.name + '</b><span>' + (bpLocked(k) ? T2('需要蓝图 · ', 'Needs blueprint · ') + bpSrc(k) : (T.desc || '')) + '</span>';
+}
+buildCards = (o => function () {
+  if (typeof buildEl === 'undefined' || !buildEl) return o();
+  b5Build();
+  // blueprint locks and level locks paint the tiles like they painted the old cards
+  try { buildEl.querySelectorAll('.card').forEach(c => { const k = c.dataset.k; if (!BT[k] || !BT[k].bp) return; c.classList.add('bpc'); if (bpLocked(k)) c.classList.add('bplock'); }); } catch (e) { }
+  try { ulPaintBuild(); } catch (e) { }
+  refreshBuildCards();
+})(buildCards);
+refreshBuildCards = (o => function () {
+  try { o(); } catch (e) { }
+  if (!buildEl.classList.contains('b5')) return;
+  buildEl.querySelectorAll('.b5tab').forEach(b => b.classList.toggle('on', b.dataset.tab === (buildSel === 'move' || buildSel === 'remove' ? buildSel : B5.tab)));
+  const h = $('bHave'); if (h) h.innerHTML = '<span><i class="dot" style="background:#c9955c"></i>' + bmHave('wood') + '</span><span><i class="dot" style="background:#a9c4d8"></i>' + bmHave('metal') + '</span>';
+  b5Info();
+})(refreshBuildCards);
+toggleBuild = (o => function () { const was = buildOpen; if (!was) B5.tab = null; return o.apply(this, arguments); })(toggleBuild);
+
+setTimeout(() => { try { const st = document.createElement('style'); const hide = PCHIDE_IDS.concat(['bClimb', 'staRing', 'xhair', 'eHint', 'bDunI', 'stickzone', 'joyHint', 'storyTrk', 'keyHint', 'bChat']).map(id => 'body.gvOn #' + id).join(',');
+  st.textContent = hide + '{opacity:0!important;pointer-events:none!important}' +
+  '#build.b5{gap:6px;padding:7px;max-width:640px}' +
+  '#build .b5tabs{display:flex;gap:5px;overflow-x:auto;flex:0 0 auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}#build .b5tabs::-webkit-scrollbar{display:none}' +
+  '#build .b5tab{flex:0 0 auto;height:32px;padding:0 11px;border-radius:9px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:#d8e0e6;font-size:13px;font-weight:800;white-space:nowrap}' +
+  '#build .b5tab.on{background:rgba(255,122,47,.34);color:#fff;border-color:var(--ember)}#build .b5tab.btool{background:rgba(110,150,180,.12)}#build .b5tab.btool.on{background:rgba(224,57,62,.38);border-color:#ff8a7a}' +
+  '#build .b5info{display:flex;align-items:center;gap:8px;min-height:22px;flex:0 0 auto}#build .b5sel{flex:1;min-width:0;display:flex;align-items:baseline;gap:7px;overflow:hidden;white-space:nowrap}#build .b5sel b{font-size:14px;color:#ffd27a}#build .b5sel span{font-size:11.5px;color:#c8d2da;overflow:hidden;text-overflow:ellipsis}' +
+  '#build .b5info .bhave{flex-direction:row;padding:2px 8px;gap:8px}' +
+  '#build .b5row{display:grid!important;grid-auto-flow:column;grid-template-rows:repeat(var(--b5r,1),auto);grid-auto-columns:76px;gap:6px;overflow-x:auto;overflow-y:hidden;padding-bottom:2px}' +
+  '#build .b5t{min-width:0;width:76px;padding:4px 3px 5px;align-items:center;text-align:center;gap:1px;position:relative}' +
+  '#build .b5t .b5img{display:block;width:52px;height:46px;background:center/contain no-repeat;border-radius:7px}#build .b5t .b5img:not(.ok){background:rgba(255,255,255,.06)}' +
+  '#build .b5t b{font-size:11.5px;line-height:1.15;max-width:72px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#build .b5t span{display:none}' +
+  '#build .b5t .cost{gap:4px;justify-content:center;font-size:11px;flex-wrap:nowrap}#build .b5t .cost em.free{color:#8fd16f}' +
+  '#build .b5t.bplock .b5img{opacity:.45}#build .b5t.bplock::before{content:"";position:absolute;right:4px;top:4px;width:17px;height:17px;border-radius:50%;background:#16303a url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Crect x=%275%27 y=%2711%27 width=%2714%27 height=%2710%27 rx=%272%27 fill=%27%239fe8ff%27/%3E%3Cpath d=%27M8 11V8a4 4 0 0 1 8 0v3%27 fill=%27none%27 stroke=%27%239fe8ff%27 stroke-width=%272.4%27/%3E%3C/svg%3E") center/11px no-repeat;border:1px solid #9fe8ff}' +
+  '#build .b5tip{margin:6px 4px;font-size:13px;color:#e8eef2;white-space:normal}' +
+  // god view: the panel sits at the bottom, two rows of tiles in portrait; the place / turn / close buttons ride on top of it
+  'body.gvOn #build{left:calc(var(--sl) + 6px)!important;right:calc(var(--sr) + 6px)!important;bottom:calc(var(--sb) + 6px)!important;max-width:none!important;margin:0!important}' +
+  '@media (orientation:portrait){body.gvOn #build .b5row{--b5r:2}}' +
+  'body.gvOn #bPlace{position:fixed!important;right:calc(var(--sr) + 10px)!important;bottom:calc(var(--sb) + var(--bph,190px) + 16px)!important}' +
+  'body.gvOn #bRot{position:fixed!important;right:calc(var(--sr) + 88px)!important;bottom:calc(var(--sb) + var(--bph,190px) + 24px)!important}' +
+  'body.gvOn #bBuild{position:fixed!important;right:calc(var(--sr) + 10px)!important;bottom:calc(var(--sb) + var(--bph,190px) + 96px)!important}' +
+  '@media (orientation:landscape){body.gvOn #build{right:calc(var(--sr) + 96px)!important}body.gvOn #bPlace{bottom:calc(var(--sb) + 10px)!important}body.gvOn #bRot{right:calc(var(--sr) + 18px)!important;bottom:calc(var(--sb) + 90px)!important}body.gvOn #bBuild{bottom:calc(var(--sb) + 152px)!important}}' +
+  '#gvFl{position:fixed;left:calc(var(--sl) + 8px);top:50%;transform:translateY(-62%);z-index:6;display:none;flex-direction:column;gap:5px;pointer-events:auto}' +
+  '#gvFl button{min-width:52px;height:36px;padding:0 8px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:rgba(14,20,26,.72);color:#e8eef2;font-size:13px;font-weight:800}#gvFl button.on{background:rgba(255,122,47,.5);border-color:#ffb27a;color:#fff}' +
+  '#gvFl button[data-z]{font-size:20px;line-height:1}#gvFl i{height:4px}#gvFl button.cut{font-size:11px;height:30px}#gvFl button.cut.on{background:rgba(125,224,255,.3)}' +
+  '@media (orientation:landscape){#gvFl{top:calc(var(--st) + 74px);transform:none;flex-direction:row;align-items:center}#gvFl i{width:6px;height:auto}#gvFl button{height:32px}' +
+  '#build.b5 .b5row{grid-auto-columns:64px}#build.b5 .b5t{width:64px;padding:3px 2px 4px}#build.b5 .b5t .b5img{width:42px;height:34px}#build.b5 .b5t b{font-size:11px;max-width:60px}#build.b5 .b5tab{height:29px;padding:0 9px;font-size:12.5px}}' +
+  '#gvHint{position:fixed;left:50%;top:calc(var(--st) + 64px);transform:translateX(-50%);z-index:7;padding:7px 14px;border-radius:999px;background:rgba(10,14,18,.78);color:#fff;font-size:13px;font-weight:700;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .4s}#gvHint.on{opacity:1}';
+  document.head.appendChild(st); } catch (e) { console.warn('b5 css', e); } }, 0);
+// the panel height, so the buttons above it never cover it
+setInterval(() => { try { if (GV.on && buildEl.offsetHeight) document.body.style.setProperty('--bph', buildEl.offsetHeight + 'px'); } catch (e) { } }, 300);
 /* ============ the storage box screen 2.0 ============
    Both sides (your bag and the storage) are grids of cells, one cell per stack (99 per cell, as before), the count in the corner.
    Tap a cell: a card shows the item's name, what it is and what it's for, and how many you have there. Pick how many to move —
@@ -19585,4 +19901,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794723513').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794726523').catch(()=>{});</script></body></html>
