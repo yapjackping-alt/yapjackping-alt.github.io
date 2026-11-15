@@ -17091,13 +17091,15 @@ function gvOnPiece(cx, cy) { try {
   o.getWorldPosition ? o.getWorldPosition(_gvV) : _gvV.copy(o.position); _gvV.y += .6; _gvV.project(camera);
   const r = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : { left: 0, top: 0, width: innerWidth, height: innerHeight }, sx = r.left + (_gvV.x + 1) / 2 * r.width, sy = r.top + (1 - _gvV.y) / 2 * r.height;
   return Math.hypot(sx - cx, sy - cy) < Math.max(56, 150 / Math.max(1, GV.d / 14)); } catch (e) { return false; } }
+// the eraser (拆除 tab → 橡皮擦) paints like a terrain brush: one finger rubs buildings away
+function gvErasing() { return typeof B5ER !== 'undefined' && B5ER.on && buildSel === 'remove' && GV.on; }
 function gvAim(e) { const p = groundAt(e.clientX, e.clientY); if (p) buildAnchor = { x: p.x, z: p.z }; buildTap = { x: e.clientX, y: e.clientY }; }
 window.addEventListener('pointerdown', e => {
   if (!GV.on || e.target !== canvas) return; e.stopPropagation(); e.preventDefault(); try { canvas.setPointerCapture(e.pointerId); } catch (er) { }
-  if (e.pointerType === 'mouse') { if (e.button === 0) { if (TER.on && TER.tool !== 'pan') { GV.drag = { x: e.clientX, y: e.clientY, moved: 0, paint: true }; TER.down = true; } else GV.drag = { x: e.clientX, y: e.clientY, moved: 0, place: !TER.on, pan: true }; gvAim(e); } else GV.drag = { x: e.clientX, y: e.clientY, moved: 0, pan: true }; return; }
+  if (e.pointerType === 'mouse') { if (e.button === 0) { if ((TER.on && TER.tool !== 'pan') || gvErasing()) { GV.drag = { x: e.clientX, y: e.clientY, moved: 0, paint: true }; TER.down = true; } else GV.drag = { x: e.clientX, y: e.clientY, moved: 0, place: !TER.on, pan: true }; gvAim(e); } else GV.drag = { x: e.clientX, y: e.clientY, moved: 0, pan: true }; return; }
   GV.ptr.set(e.pointerId, { x: e.clientX, y: e.clientY });
   // one finger: drag = move the view, a tap (no drag) = put the piece there; two fingers: pinch + move
-  if (GV.ptr.size === 1) { GV.t1 = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: 0, ev: { clientX: e.clientX, clientY: e.clientY }, grab: !TER.on && gvOnPiece(e.clientX, e.clientY), paint: TER.on && TER.tool !== 'pan' }; if (GV.t1.grab || GV.t1.paint) gvAim(e); TER.down = GV.t1.paint; } else if (GV.ptr.size === 2) { GV.g0 = gvTouchMid(); GV.t1 = null; TER.down = false; }
+  if (GV.ptr.size === 1) { GV.t1 = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: 0, ev: { clientX: e.clientX, clientY: e.clientY }, grab: !TER.on && !gvErasing() && gvOnPiece(e.clientX, e.clientY), paint: (TER.on && TER.tool !== 'pan') || gvErasing() }; if (GV.t1.grab || GV.t1.paint) gvAim(e); TER.down = GV.t1.paint; } else if (GV.ptr.size === 2) { GV.g0 = gvTouchMid(); GV.t1 = null; TER.down = false; }
 }, true);
 window.addEventListener('pointermove', e => {
   if (!GV.on || (e.target !== canvas && !GV.ptr.has(e.pointerId) && !GV.drag)) return;
@@ -18497,6 +18499,40 @@ renderStash = function () {
   '.stq{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.stq span{font-weight:800}.stq input[type=number]{width:84px;font-size:18px;font-weight:900;text-align:center;padding:6px;border-radius:10px;border:2px solid #44535e;background:#0f161b;color:#fff}' +
   '.stq input[type=range]{flex:1;min-width:140px;accent-color:#ffc94a;height:28px}.stqb{display:flex;gap:6px}.stqb button{flex:1}.stfull{color:#ffb4a0!important;font-weight:800}';
   document.head.appendChild(st); } catch (e) { } })();
+/* ============ eraser (owner: "a rubber that deletes buildings directly") ============
+   拆除 tab has two modes: 点选拆除 (tap a piece, press 拆除, as before) and 橡皮擦: in the top view one finger (or the left
+   mouse button) rubs over buildings and everything under the red circle on the storey you are looking at is taken down at
+   once (60% of the material back, as with 拆除). Fixtures (tent, pot, workbench…) and the home fire are never erased. */
+const B5ER = { on: false, n: 0, ring: null, t: 0, r: 1.3 };
+function erHit(b, x, z) { const T = BT[b.type]; if (!T) return false; const k = T.k, pad = k === 'cell' ? 1.1 : k === 'edge' ? .6 : Math.max(.4, Math.min(1.2, Math.max(T.hw || .5, T.hd || .5))); return Math.hypot(b.x - x, b.z - z) < B5ER.r + pad * .7; }
+function erTick(dt) {
+  const on = gvErasing(); if (!B5ER.ring) { const r = new THREE.Mesh(new THREE.RingGeometry(.86, 1, 40), new THREE.MeshBasicMaterial({ color: 0xff5a4a, transparent: true, opacity: .9, depthTest: false, side: THREE.DoubleSide })); r.rotation.x = -Math.PI / 2; r.renderOrder = 10; r.visible = false; scene.add(r); B5ER.ring = r; }
+  if (document.body.classList.contains('erOn') !== on) document.body.classList.toggle('erOn', on);   // no 拆除 button while rubbing
+  const a = buildAnchor, ring = B5ER.ring; ring.visible = !!(on && a);
+  if (ring.visible) { const y = (typeof terH === 'function' ? terH(a.x, a.z) : 0) + (GV.fl | 0) * UPY + .15; ring.position.set(a.x, y, a.z); ring.scale.set(B5ER.r, B5ER.r, 1); }
+  if (!on || !TER.down || !a) { if (B5ER.n && !TER.down) { const n = B5ER.n; B5ER.n = 0; feed(T2('橡皮擦：拆掉了 ' + n + ' 个，返还部分材料', 'Eraser: removed ' + n + ', some material back'), '#8fd16f'); try { refreshHud(); saveGame(); } catch (e) { } } return; }
+  B5ER.t -= dt; if (B5ER.t > 0) return; B5ER.t = .06;
+  const L = GV.fl | 0, hit = builds.filter(b => b.hp > 0 && (b.lv | 0) === L && !isHomeFire(b) && erHit(b, a.x, a.z)).slice(0, 6); if (!hit.length) return;
+  // use the normal 拆除 for each (doors in frames, defence refunds, the grass that grows back… all stay right), quietly
+  const f0 = feed, s0 = saveGame, rt = removeTarget; feed = () => { }; saveGame = () => { };
+  try { for (const b of hit) { if (!builds.includes(b)) continue; removeTarget = () => b; try { placeBuild(); B5ER.n++; } catch (e) { } } }
+  finally { removeTarget = rt; feed = f0; saveGame = s0; GV.remNext = null; GV.tx = null; }
+}
+petsTick = (o => function (dt) { const r = o(dt); try { erTick(dt); } catch (e) { } return r; })(petsTick);
+
+// the two modes inside the 拆除 tab
+buildCards = (o => function () { const r = o.apply(this, arguments);
+  try { if (typeof B5 !== 'undefined' && B5.tab === 'remove' && GV.on) { const row = buildEl.querySelector('.b5row'); if (row) {
+      const box = document.createElement('div'); box.className = 'erMode';
+      box.innerHTML = '<button data-er="0" class="' + (B5ER.on ? '' : 'on') + '">' + T2('点选拆除', 'Tap to remove') + '</button><button data-er="1" class="' + (B5ER.on ? 'on' : '') + '">' + T2('橡皮擦', 'Eraser') + '</button>' +
+        (B5ER.on ? '<p class="b5tip">' + T2('一个手指在建筑上擦过去，红圈里的东西直接拆掉（只拆你现在看的那一层），两个手指移动画面。', 'Rub over buildings with one finger: everything in the red circle on this storey is removed. Two fingers move the view.') + '</p>' : '');
+      box.addEventListener('pointerdown', e => { const b = e.target.closest('button'); if (!b) return; e.preventDefault(); e.stopPropagation(); B5ER.on = b.dataset.er === '1'; try { clearHilite(); } catch (er) { } buildCards(); });
+      if (B5ER.on) row.innerHTML = ''; row.prepend(box); } } } catch (e) { }
+  return r; })(buildCards);
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+  '.erMode{display:flex;flex-wrap:wrap;gap:8px;padding:4px 2px 6px;width:100%;grid-column:1/-1;box-sizing:border-box}body.erOn #bPlace{display:none!important}.erMode button{flex:1;min-width:110px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.07);color:#e8eef2;font-weight:800;font-size:15px}.erMode button.on{background:rgba(230,70,60,.55);border-color:#ff9b8a;color:#fff}.erMode .b5tip{width:100%;margin:2px 0 0}' })); } catch (e) { }
+// leaving the 拆除 tab or build mode switches the eraser off
+toggleBuild = (o => function () { const r = o.apply(this, arguments); if (!buildOpen) B5ER.on = false; return r; })(toggleBuild);
 /* ============ build menu: swipe to scroll ============
    The tiles picked themselves on pointerdown, so a swipe that started on a tile picked it, the menu was rebuilt and the
    list jumped back to the top: you could never scroll down (worst in the 地形 tab). Now a tile is picked only on a TAP
@@ -21208,4 +21244,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794766811').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794767167').catch(()=>{});</script></body></html>
