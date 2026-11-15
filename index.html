@@ -17686,7 +17686,7 @@ for (const k in GDN2) { const tier = 2; if (BPX[k]) continue; BPX[k] = [tier, BT
    machine. Buildings get a base height `b.gy` when they are placed (a foundation sits on the highest corner of its ground, and
    level with the foundations next to it); floors, stairs, ramps above it are relative to that base. Ground under a building
    cannot be changed (move or remove the building first) and the shore and the pier stay flat. */
-const TER_N = 121, TER_S = 1.5, TER_O = 90, TER_MIN = -2, TER_MAX = 8;
+const TER_N = 121, TER_S = 1.5, TER_O = 90, TER_MIN = -2, TER_MAX = 8, TER_M = 2;   // TER_M: the mesh is drawn this many times finer than the ground points
 const TER = { h: new Float32Array(TER_N * TER_N), any: false, on: false, down: false, tool: 'up', size: 1, flatH: null, mesh: null, ring: null, dirty: 0, nT: 0, propT: 0,
   off: 0, added: 0, cam: 0, climbGy: 0, loadGy: null, props: [], near: [] };
 try { const v = JSON.parse(localStorage.getItem('ember_ter') || '{}'); if (v.tool) TER.tool = v.tool; if (v.size != null) TER.size = v.size; } catch (e) { }
@@ -17697,10 +17697,13 @@ const TER_SZ_ORDER = [3, 4, 5, 0, 1, 2], TER_SZ_NAME = { 3: ['极小', 'Tiny'], 
 function terBase(r) { if (r < ISL_R - .5) return 0; if (r < ISL_R + 1.5) return -.18 * (r - ISL_R + .5) / 2; if (r < ISL_R + 9) return -.18; if (r < ISL_R + 16) return -.18 - (r - ISL_R - 9) / 7 * 1.2; return -1.4; }
 // the ground at a world point: the shape + what you dug / piled (0 away from the island, and while nothing was ever changed)
 function terH(x, z) { if (!TER.any) return 0; const r = Math.hypot(x - HOME.x, z - HOME.z); if (r > ISL_R + 16) return 0; return terBase(r) + terD(x, z); }
+// smooth (Catmull-Rom) between the 1.5 m ground points, the same curve the ground mesh is drawn with, so hills are round, not faceted
+function _tcr(p0, p1, p2, p3, t) { return .5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t * t * t); }
+function terCR(fx, fz) { const N = TER_N, H = TER.h, i = Math.min(N - 2, Math.max(0, fx | 0)), j = Math.min(N - 2, Math.max(0, fz | 0)), u = fx - i, v = fz - j, row = jj => { jj = jj < 0 ? 0 : jj >= N ? N - 1 : jj; const o = jj * N, a = H[o + Math.max(0, i - 1)], b = H[o + i], c = H[o + i + 1], d = H[o + Math.min(N - 1, i + 2)]; return _tcr(a, b, c, d, u); };
+  return _tcr(row(j - 1), row(j), row(j + 1), row(j + 2), v); }
 function terD(x, z) {
   if (!TER.any) return 0; const fx = (x - HOME.x + TER_O) / TER_S, fz = (z - HOME.z + TER_O) / TER_S; if (!(fx >= 0 && fz >= 0 && fx < TER_N - 1 && fz < TER_N - 1)) return 0;
-  const i = fx | 0, j = fz | 0, u = fx - i, v = fz - j, H = TER.h, a = H[j * TER_N + i], b = H[j * TER_N + i + 1], c = H[(j + 1) * TER_N + i], d = H[(j + 1) * TER_N + i + 1];
-  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+  return terCR(fx, fz);
 }
 const _floorLike = b => { const T = BT[b.type]; return T && (T.k === 'cell' || PLAT_H[b.type] || RAMP[b.type] || TRI[b.type]); };
 // the base under a point for heights measured "from the floor": a foundation-like piece covering it, else the ground; upstairs the 楼板 under it
@@ -17728,16 +17731,19 @@ const terKey = b => b.type + '|' + (+b.x).toFixed(2) + '|' + (+b.z).toFixed(2) +
 /* ---- the mesh ---- */
 const TER_SEA = new THREE.Color(0x2f5a66), TER_SAND = new THREE.Color(0xbfa070), TER_WET = new THREE.Color(0xa89a70), TER_GRASS = new THREE.Color(0x5c8c46), TER_GRASS2 = new THREE.Color(0x6a9a4e), TER_DIRT = new THREE.Color(0x8a6a48), TER_ROCK = new THREE.Color(0x8a8278);
 function terInit() {
-  if (TER.mesh) return; const N = TER_N, pos = new Float32Array(N * N * 3), col = new Float32Array(N * N * 3), idx = [];
-  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const k = j * N + i; pos[k * 3] = i * TER_S - TER_O; pos[k * 3 + 2] = j * TER_S - TER_O; }
-  for (let j = 0; j < N - 1; j++) for (let i = 0; i < N - 1; i++) { const a = j * N + i, b = a + 1, c = a + N, d = c + 1; idx.push(a, c, b, b, c, d); }
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setIndex(idx);
-  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })); m.receiveShadow = true; m.userData.ter = 1; islandG.add(m); TER.mesh = m;
-  // height lines while sculpting (地形 tab): a thin line every 0.5 m, a stronger one every 2 m, so you can see slopes and how high things are from above
+  if (TER.mesh) return; const N = TER_N;
+  // the ground points (1.5 m) keep the heights and colours; the mesh is drawn twice as fine (0.75 m) with a smooth curve through them
+  TER.dp = new Float32Array(N * N); TER.dc = new Float32Array(N * N * 3);
+  const M = TER_M, RN = (N - 1) * M + 1, pos = new Float32Array(RN * RN * 3), col = new Float32Array(RN * RN * 3), nor = new Float32Array(RN * RN * 3), idx = new Uint32Array((RN - 1) * (RN - 1) * 6);
+  for (let J = 0; J < RN; J++) for (let I = 0; I < RN; I++) { const k = J * RN + I; pos[k * 3] = I * TER_S / M - TER_O; pos[k * 3 + 2] = J * TER_S / M - TER_O; nor[k * 3 + 1] = 1; }
+  { let q = 0; for (let J = 0; J < RN - 1; J++) for (let I = 0; I < RN - 1; I++) { const a = J * RN + I, b = a + 1, c = a + RN, d = c + 1; idx[q++] = a; idx[q++] = c; idx[q++] = b; idx[q++] = b; idx[q++] = c; idx[q++] = d; } }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g.setIndex(new THREE.BufferAttribute(idx, 1));
+  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })); m.receiveShadow = true; m.userData.ter = 1; m.frustumCulled = false; islandG.add(m); TER.mesh = m; TER.RN = RN;
+  // height lines while sculpting (地形 tab): a thin line every 0.5 m, a stronger one every 2 m, so you can see slopes and how high things are from above (not on flat ground: flat ground exactly at a line height turned all dark)
   m.material.extensions = { derivatives: true }; TER.cont = { value: 0 };
   m.material.onBeforeCompile = sh => { sh.uniforms.uCont = TER.cont;
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vTerY;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvTerY = position.y;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vTerY;\nuniform float uCont;').replace('#include <dithering_fragment>', '#include <dithering_fragment>\nif (uCont > .5) { float lv = vTerY / .5; float fw = max(fwidth(lv), .001); float d = abs(fract(lv + .5) - .5); float ln = 1. - smoothstep(fw * .6, fw * 1.6, d); float mj = abs(mod(floor(lv + .5), 4.)) < .5 ? 1. : 0.; gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(.12, .1, .06), ln * (mj > .5 ? .6 : .32)); }'); };
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vTerY;\nuniform float uCont;').replace('#include <dithering_fragment>', '#include <dithering_fragment>\nif (uCont > .5) { float lv = vTerY / .5; float fw0 = fwidth(lv); float fw = max(fw0, .001); float d = abs(fract(lv + .5) - .5); float ln = (1. - smoothstep(fw * .6, fw * 1.6, d)) * smoothstep(.0003, .002, fw0) * step(.08, abs(vTerY)); float mj = abs(mod(floor(lv + .5), 4.)) < .5 ? 1. : 0.; gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(.12, .1, .06), ln * (mj > .5 ? .6 : .32)); }'); };
   m.material.customProgramCacheKey = () => 'terCont';
   // the old flat grass top goes a little lower so the two never flicker against each other
   for (const c of islandG.children.slice()) { const p = c.geometry && c.geometry.parameters; if (c !== m && p && (p.radiusTop === ISL_R || p.radiusTop === ISL_R + 9)) { c.position.y -= 40; c.visible = false; }   // the old flat grass / sand discs go well below the deepest dig (they covered holes)
@@ -17751,8 +17757,9 @@ function terInit() {
     TER.props.push({ o: c, y0: c.position.y }); }
 }
 function terVert(i, j) {
-  const N = TER_N, k = j * N + i, x = i * TER_S - TER_O, z = j * TER_S - TER_O, r = Math.hypot(x, z), P = TER.mesh.geometry.attributes.position.array, C = TER.mesh.geometry.attributes.color.array, H = TER.h;
-  const y = r > ISL_R + 16.5 ? -6 : terBase(r) + H[k]; P[k * 3 + 1] = y;   // past the beach the mesh drops away, the old sea floor shows (deep water stays dark)
+  const N = TER_N, k = j * N + i, x = i * TER_S - TER_O, z = j * TER_S - TER_O, r = Math.hypot(x, z), C = TER.dc, H = TER.h, bb = TER.bb || (TER.bb = { i0: 1e9, i1: -1, j0: 1e9, j1: -1 });
+  if (i < bb.i0) bb.i0 = i; if (i > bb.i1) bb.i1 = i; if (j < bb.j0) bb.j0 = j; if (j > bb.j1) bb.j1 = j;
+  const y = r > ISL_R + 16.5 ? -6 : terBase(r) + H[k]; TER.dp[k] = y;   // past the beach the mesh drops away, the old sea floor shows (deep water stays dark)
   const nb = (a, b) => (a < 0 || b < 0 || a >= N || b >= N) ? y : H[b * N + a], sl = Math.max(Math.abs(nb(i + 1, j) - nb(i - 1, j)), Math.abs(nb(i, j + 1) - nb(i, j - 1))) / (2 * TER_S);
   // grass shade varies in soft, large patches (the old one changed every vertex and looked like a checkerboard)
   const nz = .5 + .25 * Math.sin(x * .11 + z * .07) + .17 * Math.sin(x * .05 - z * .13 + 1.7) + .08 * Math.sin((x + z) * .19 + .4);
@@ -17760,7 +17767,17 @@ function terVert(i, j) {
   C[k * 3] = c.r; C[k * 3 + 1] = c.g; C[k * 3 + 2] = c.b;
 }
 function terMeshAll() { for (let j = 0; j < TER_N; j++) for (let i = 0; i < TER_N; i++) terVert(i, j); terMeshDone(true); }
-function terMeshDone(norm) { const g = TER.mesh.geometry; g.attributes.position.needsUpdate = true; g.attributes.color.needsUpdate = true; if (norm) { g.computeVertexNormals(); g.computeBoundingSphere(); } }
+// redraw the part of the mesh round the ground points that changed: smooth heights (Catmull-Rom), blended colours, normals from the slope
+function terMeshDone(norm) { const bb = TER.bb; if (!bb || bb.i1 < 0) return; TER.bb = null;
+  const g = TER.mesh.geometry, M = TER_M, RN = TER.RN, N = TER_N, P = g.attributes.position.array, C = g.attributes.color.array, NR = g.attributes.normal.array, D = TER.dc, S = TER_S / M;
+  const I0 = Math.max(0, (bb.i0 - 2) * M), I1 = Math.min(RN - 1, (bb.i1 + 2) * M), J0 = Math.max(0, (bb.j0 - 2) * M), J1 = Math.min(RN - 1, (bb.j1 + 2) * M);
+  for (let J = J0; J <= J1; J++) for (let I = I0; I <= I1; I++) { const k = J * RN + I, x = P[k * 3], z = P[k * 3 + 2], r = Math.hypot(x, z), fx = I / M, fz = J / M;
+    P[k * 3 + 1] = r > ISL_R + 16.5 ? -6 : terBase(r) + (TER.any ? terCR(fx, fz) : 0);
+    const i = Math.min(N - 2, fx | 0), j = Math.min(N - 2, fz | 0), u = fx - i, v = fz - j, a = (j * N + i) * 3, b = a + 3, c = a + N * 3, d = c + 3;
+    for (let q = 0; q < 3; q++) C[k * 3 + q] = (D[a + q] * (1 - u) + D[b + q] * u) * (1 - v) + (D[c + q] * (1 - u) + D[d + q] * u) * v; }
+  for (let J = J0; J <= J1; J++) for (let I = I0; I <= I1; I++) { const k = J * RN + I, yl = P[(J * RN + Math.max(0, I - 1)) * 3 + 1], yr = P[(J * RN + Math.min(RN - 1, I + 1)) * 3 + 1], yu = P[(Math.max(0, J - 1) * RN + I) * 3 + 1], yd = P[(Math.min(RN - 1, J + 1) * RN + I) * 3 + 1];
+    let nx = -(yr - yl) / (2 * S), nz = -(yd - yu) / (2 * S); const l = Math.hypot(nx, 1, nz); NR[k * 3] = nx / l; NR[k * 3 + 1] = 1 / l; NR[k * 3 + 2] = nz / l; }
+  g.attributes.position.needsUpdate = true; g.attributes.color.needsUpdate = true; g.attributes.normal.needsUpdate = true; }
 // whatever stands on the ground follows it
 function terProps() {
   for (const p of TER.props) p.o.position.y = p.y0 + terD(HOME.x + p.o.position.x, HOME.z + p.o.position.z);
@@ -18017,7 +18034,7 @@ terVert = (o => function (i, j) { o(i, j); if (!TER.mesh) return; const N = TER_
   for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const q = TPAINT.p[jj * N + ii]; if (q) w[q] += di || dj ? 1 : 2; }
   let t = 0; for (let q = 1; q < 7; q++) if (w[q] > w[t]) t = q; if (v) t = v; if (!t || !w[t]) return;
   let f = w[t] / 10; f = v ? .55 + .45 * f : f * .6;
-  const C = TER.mesh.geometry.attributes.color.array, c = t === 3 ? _tpC.copy(TP_COL[3]).lerp(TP_COL2, tpHash(k, 77)).multiplyScalar(.92 + tpHash(k, 78) * .12) : _tpC.copy(TP_COL[t]);
+  const C = TER.dc, c = t === 3 ? _tpC.copy(TP_COL[3]).lerp(TP_COL2, tpHash(k, 77)).multiplyScalar(.92 + tpHash(k, 78) * .12) : _tpC.copy(TP_COL[t]);
   _tpB.setRGB(C[k * 3], C[k * 3 + 1], C[k * 3 + 2]).lerp(c, f); C[k * 3] = _tpB.r; C[k * 3 + 1] = _tpB.g; C[k * 3 + 2] = _tpB.b; })(terVert);
 // the blades, flowers and stones on top
 function tpHash(k, s) { let h = (k * 374761393 + s * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
@@ -20984,4 +21001,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794764269').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794765262').catch(()=>{});</script></body></html>
