@@ -18128,20 +18128,31 @@ petsTick = (o => function (dt) { const r = o(dt); if (!TER.down) TPAINT.L = null
 /* ---- waterfalls fall all the way down: placed up high (on a hill or a raised floor), the water keeps falling from the
    front of its pool to the ground below, with foam where it lands ---- */
 function wfExt(b) {
-  const g = b.g; if (!g) return; const big = b.type === 'wfall', w = big ? 2.4 : 1.4, c = Math.cos(b.rot), s = Math.sin(b.rot), fz = .05;
-  const fx = b.x + fz * s, fzw = b.z + fz * c, base = g.position.y, ground = terH(fx, fzw), drop = base + .05 - ground;   // where the sheet ends (no pool any more)
-  // lowest ground under the rock + pool: on a slope the piece would hang in the air, so a rock base fills down to the ground
+  const g = b.g; if (!g) return; const big = b.type === 'wfall', w = big ? 2.4 : 1.4, c = Math.cos(b.rot), s = Math.sin(b.rot), fz = .05, base = g.position.y;
+  const at = (lz, lx) => terH(b.x + (lx || 0) * c + lz * s, b.z - (lx || 0) * s + lz * c);   // ground at a spot given in the piece's own frame (+z = the way the water falls)
+  // owner: the water must go all the way down. From the lip it falls straight down to the ground in front, then keeps running
+  // down the slope as a cascade for as long as the ground keeps dropping (up to 8 m out), and splashes at the very bottom.
+  const pts = [[fz, base + .05]]; { let h = at(fz); if (base + .05 - h > .3) pts.push([fz, h + .08]); let prev = h;
+    for (let d = .4; d <= 8; d += .4) { const hh = at(fz + d); if (hh > prev - .03) break; pts.push([fz + d, hh + .08]); prev = hh; } }
+  const drop = pts[0][1] - pts[pts.length - 1][1];
+  // the rock base behind the water: on a slope the cliff would hang in the air
   const T = BT[b.type] || {}, hw = T.hw || 1.2, hd = T.hd || 1; let gmin = 1e9;
-  for (const lx of [-hw, 0, hw]) for (const lz of [-hd, 0, hd]) gmin = Math.min(gmin, terH(b.x + lx * c + lz * s, b.z - lx * s + lz * c));
-  const skirt = base - gmin, key = drop * 1000 + skirt;
-  if (Math.abs((g.userData.drop || 0) - key) < .05) return; g.userData.drop = key;
+  for (const lx of [-hw, 0, hw]) for (const lz of [-hd * 1.4, -hd * .8, -.2]) gmin = Math.min(gmin, at(lz, lx));
+  const skirt = base - gmin, key = Math.round(drop * 100) * 1000 + Math.round(skirt * 100) + pts.length * .001;
+  if (g.userData.drop === key) return; g.userData.drop = key;
   for (const ch of g.children) if (ch.userData.baseFoam) ch.visible = drop < .5;   // the splash goes down with the water
   if (g.userData.ext) { g.remove(g.userData.ext); g.userData.ext = null; } if (drop < .5 && skirt < .25) return;
   const W = wtrMats(), e = new THREE.Group();
-  if (skirt >= .25) { const rk = new THREE.Mesh(facet(new THREE.CylinderGeometry(1, 1.12, 1, 7, 1)), gmat(0x6a645c)); rk.scale.set(hw * 1.05, skirt + .3, hd * 1.15); rk.position.set(0, -(skirt + .3) / 2 + .02, 0); rk.castShadow = rk.receiveShadow = true; e.add(rk); }
+  if (skirt >= .25) { const rk = new THREE.Mesh(facet(new THREE.CylinderGeometry(1, 1.12, 1, 7, 1)), gmat(0x6a645c)); rk.scale.set(hw * 1.05, skirt + .3, hd * .75); rk.position.set(0, -(skirt + .3) / 2 + .02, -hd * .8 - .1); rk.castShadow = rk.receiveShadow = true; e.add(rk); }   // behind the water, so the water falls past it
   g.add(e); g.userData.ext = e; if (drop < .5) return;
-  const sh = new THREE.Mesh(new THREE.PlaneGeometry(w * .7, drop), W.fall); sh.position.set(0, .05 - drop / 2, fz); sh.userData.noCast = 1; e.add(sh);
-  const R = mulberry32(7); for (let i = 0; i < 6; i++) { const f = gblob(e, new THREE.IcosahedronGeometry(1, 0), W.foam, (R() - .5) * w * .7, .05 - drop + .1, fz + (R() - .1) * .5, .2 + R() * .15, .12, .2 + R() * .12); f.userData.noCast = 1; }
+  // one strip through the points: straight down first, then along the slope
+  const pos = [], uv = [], idx = [], hw2 = w * .36; let v = 0;
+  pts.forEach(([z, y], i) => { if (i) v += Math.hypot(z - pts[i - 1][0], y - pts[i - 1][1]) / 2; const yl = y - base; pos.push(-hw2, yl, z + .03, hw2, yl, z + .03); uv.push(0, v, 1, v); if (i) { const a = (i - 1) * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); } });
+  const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); gg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); gg.setIndex(idx); gg.computeVertexNormals();
+  const sh = new THREE.Mesh(gg, W.fall); sh.userData.noCast = 1; sh.material.side = THREE.DoubleSide; e.add(sh);
+  const [ez, ey] = pts[pts.length - 1], R = mulberry32(7);
+  for (let i = 0; i < 7; i++) { const f = gblob(e, new THREE.IcosahedronGeometry(1, 0), W.foam, (R() - .5) * w * .8, ey - base + .02, ez + (R() - .3) * .7, .2 + R() * .16, .12, .2 + R() * .14); f.userData.noCast = 1; }
+  if (pts.length > 3) for (let i = 2; i < pts.length - 1; i += 3) { const [z, y] = pts[i]; const f = gblob(e, new THREE.IcosahedronGeometry(1, 0), W.foam, (R() - .5) * w * .5, y - base, z, .12, .06, .14); f.userData.noCast = 1; }   // a little white water on the way down
 }
 let _wfT = 0;
 petsTick = (o => function (dt) { const r = o(dt); _wfT -= dt; if (_wfT <= 0) { _wfT = .5; try { for (const b of builds) if ((b.type === 'wfall' || b.type === 'wfall2') && b.hp > 0) wfExt(b); } catch (e) { } } return r; })(petsTick);
@@ -18381,6 +18392,38 @@ islPondNear = (o => function (px, pz) { const r = o(px, pz); if (r) return r;
 
 serialize = (o => function () { const d = o(); try { if (TRIV.list.length) { d.ter = d.ter || { v: 2, h: [], gy: {} }; d.ter.rivers = TRIV.list.map(r => ({ w: r.w, p: r.p.map(v => Math.round(v * 100) / 100), l: (r.l || []).map(v => Math.round(v * 100) / 100) })); } } catch (e) { } return d; })(serialize);
 applySave = (o => function (d) { const r = o(d); try { const L = d && d.ter && d.ter.rivers; TRIV.list = Array.isArray(L) ? L.filter(q => q && Array.isArray(q.p) && q.p.length >= 4).map(q => ({ w: clamp(+q.w || 2.6, .6, 6), p: q.p.map(Number), l: Array.isArray(q.l) ? q.l.map(Number) : [] })) : []; TRIV.cur = null; TRIV.dirty = true; TRIV.t = 0; } catch (e) { } return r; })(applySave);
+/* ============ swimming in your own ponds and rivers (owner: "in water the character should swim, not stand on it") ============
+   On the island, where painted water (水池 / 圈池塘) or a drawn river is deeper than about half a metre, you swim: body
+   flat at the surface, arm strokes and kicks, slower, no shooting; walk out where it gets shallow. */
+const SWN = { on: false, y: 0, bt: 0, arm: null };
+function islWaterLevel(x, z) {
+  let lv = null;
+  try { const N = TER_N, fx = (x - HOME.x + TER_O) / TER_S, fz = (z - HOME.z + TER_O) / TER_S, i = Math.floor(fx), j = Math.floor(fz);
+    if (i >= 0 && j >= 0 && i < N - 1 && j < N - 1) for (const k of [j * N + i, j * N + i + 1, (j + 1) * N + i, (j + 1) * N + i + 1]) if (TPAINT.p[k] === 4 && (lv == null || TPAINT.wl[k] > lv)) lv = TPAINT.wl[k]; } catch (e) { }
+  try { for (const r of TRIV.list) { const s = r._s || (r._s = tpathSpline(r.p)); for (let q = 0; q < s.length; q += 2) { if (Math.abs(HOME.x + s[q] - x) > r.w || Math.abs(HOME.z + s[q + 1] - z) > r.w) continue;
+        if (Math.hypot(HOME.x + s[q] - x, HOME.z + s[q + 1] - z) < r.w / 2 + .3) { const l = (r.l || [])[q / 2]; if (l != null && (lv == null || l > lv)) lv = l; } } } } catch (e) { }
+  return lv;
+}
+function swn2Tick(dt) {
+  const ok = S.started && S.isl && !S.dun && !S.boat && !S.dead && !(S.fl | 0) && !S.fall && !S.climbA && !(typeof SW !== 'undefined' && SW.b) && !(typeof GV !== 'undefined' && GV.on);
+  let want = false, lvl = null;
+  if (ok) { lvl = islWaterLevel(player.pos.x, player.pos.z); if (lvl != null) { const d = lvl - terH(player.pos.x, player.pos.z); want = SWN.on ? d > .38 : d > .55; } }
+  if (want && !SWN.on) { SWN.on = true; SWN.arm = [pm.armR.rotation.clone(), pm.armL.rotation.clone()]; gun.visible = false; burst(player.pos.x, lvl + .2, player.pos.z, 0xbfe8ff, 14, 3); try { if (AC) sfxNoise(.35, .16, 1300, { f1: 300 }); } catch (e) { } }
+  if (!want && SWN.on) { SWN.on = false; pm.g.rotation.x = 0; pm.body.rotation.z = 0; if (SWN.arm) { pm.armR.rotation.copy(SWN.arm[0]); pm.armL.rotation.copy(SWN.arm[1]); } pm.legL.rotation.set(0, 0, 0); pm.legR.rotation.set(0, 0, 0); gun.visible = true; }
+  if (!SWN.on) return;
+  input.fire = false; S.sprint = false;
+  const mv = Math.hypot(input.mx || 0, input.mz || 0) > .1 || (typeof keys !== 'undefined' && (keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD)), t = S.t * (mv ? 5 : 2.2);
+  SWN.y = lvl - .62 + Math.sin(S.t * 2) * .06;   // terOff puts the body here (the camera follows)
+  pm.g.rotation.x = mv ? 1.25 : .35; pm.body.rotation.z = Math.sin(t * .5) * .12;
+  pm.armR.rotation.set(-Math.PI + Math.sin(t) * 1.6, 0, -.2); pm.armL.rotation.set(-Math.PI - Math.sin(t) * 1.6, 0, .2);
+  pm.legL.rotation.x = Math.sin(t * 2) * .45; pm.legR.rotation.x = -Math.sin(t * 2) * .45;
+  SWN.bt -= dt; if (SWN.bt <= 0) { SWN.bt = rand(.25, .6); burst(player.pos.x + rand(-.3, .3), lvl + .05, player.pos.z + rand(-.3, .3), 0xdff6ff, 2, 1.2); }
+}
+petsTick = (o => function (dt) { const r = o(dt); try { swn2Tick(dt); } catch (e) { } return r; })(petsTick);
+terOff = (o => function () { return SWN.on ? SWN.y : o(); })(terOff);
+swimMul = (o => function () { return SWN.on ? .55 : o(); })(swimMul);
+// a river that was edited / re-loaded needs its samples again
+trivRebuild = (o => function () { for (const r of TRIV.list) r._s = null; return o(); })(trivRebuild);
 /* ============ water round the boats ============
    Every boat on the water (老钱's ship, the 深渊号 submarine, the small boat at the pier, your fishing boat) has soft rings of
    ripples spreading out from its hull. Your fishing boat while it moves leaves a white wake behind it (two lines spreading
@@ -21244,4 +21287,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794767167').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794767491').catch(()=>{});</script></body></html>
