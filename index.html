@@ -17915,25 +17915,32 @@ Object.assign(TER_IC, {
 });
 const TP_TYPE = { p_turf: 1, p_flow: 2, p_stone: 3, p_water: 4, p_erase: 0 };
 TPAINT.wl = new Float32Array(TER_N * TER_N); TPAINT.L = null;
-const TP_COL = [null, new THREE.Color(0x4caa3c), new THREE.Color(0x58aa44), new THREE.Color(0x8c887e), new THREE.Color(0x4a4636)], TP_COL2 = new THREE.Color(0x77736a);
+const TP_COL = [null, new THREE.Color(0x4caa3c), new THREE.Color(0x58aa44), new THREE.Color(0x7d7262), new THREE.Color(0x4a4636)], TP_COL2 = new THREE.Color(0x6c6456);
 terBrush = (o => function (dt) {
   if (!(TER.tool in TP_TYPE)) return o(dt);
   const a = buildAnchor; if (!a) return; const R = TER_SIZES[TER.size] || 4.2, N = TER_N, v = TP_TYPE[TER.tool];
   // water digs a pond: it keeps away from buildings like the terrain brushes; the water surface is level, at the height where the stroke began
   TER.near = v === 4 ? builds.filter(b => b.hp > 0 && Math.abs(b.x - a.x) < R + 5 && Math.abs(b.z - a.z) < R + 5) : [];
-  if (v === 4 && TPAINT.L == null) TPAINT.L = terH(a.x, a.z) - .15; let dug = false;
-  const i0 = Math.max(1, Math.floor((a.x - HOME.x + TER_O - R) / TER_S)), i1 = Math.min(N - 2, Math.ceil((a.x - HOME.x + TER_O + R) / TER_S)), j0 = Math.max(1, Math.floor((a.z - HOME.z + TER_O - R) / TER_S)), j1 = Math.min(N - 2, Math.ceil((a.z - HOME.z + TER_O + R) / TER_S));
+  if (v === 4 && TPAINT.L == null) { TPAINT.L = terH(a.x, a.z) - .15;
+    // starting on or next to a pond: keep that pond's level, so the two join without a step
+    const ci = Math.round((a.x - HOME.x + TER_O) / TER_S), cj = Math.round((a.z - HOME.z + TER_O) / TER_S); let bd = 1e9;
+    for (let dj = -3; dj <= 3; dj++) for (let di = -3; di <= 3; di++) { const i = ci + di, j = cj + dj; if (i < 0 || j < 0 || i >= N || j >= N) continue; const k = j * N + i; if (TPAINT.p[k] === 4 && di * di + dj * dj < bd) { bd = di * di + dj * dj; TPAINT.L = TPAINT.wl[k]; } } } let dug = false;
+  const RR = v === 4 ? R * 1.2 : R;
+  const i0 = Math.max(1, Math.floor((a.x - HOME.x + TER_O - RR) / TER_S)), i1 = Math.min(N - 2, Math.ceil((a.x - HOME.x + TER_O + RR) / TER_S)), j0 = Math.max(1, Math.floor((a.z - HOME.z + TER_O - RR) / TER_S)), j1 = Math.min(N - 2, Math.ceil((a.z - HOME.z + TER_O + RR) / TER_S));
   let ch = false;
-  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const x = HOME.x + i * TER_S - TER_O, z = HOME.z + j * TER_S - TER_O; if (Math.hypot(x - a.x, z - a.z) > R * .85 || terLockW(x, z) <= 0) continue;
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const x = HOME.x + i * TER_S - TER_O, z = HOME.z + j * TER_S - TER_O, d = Math.hypot(x - a.x, z - a.z); if (d > (v === 4 ? R * 1.15 : R * .85) || terLockW(x, z) <= 0) continue;
     const k = j * N + i;
-    if (v === 4) { const want = TPAINT.L - .55 - terBase(Math.hypot(x - HOME.x, z - HOME.z)); if (TER.h[k] > want) { TER.h[k] = Math.max(TER_MIN, want); dug = true; TER.any = true; } if (TPAINT.p[k] !== 4 || Math.abs(TPAINT.wl[k] - TPAINT.L) > .01) { TPAINT.wl[k] = TPAINT.L; TPAINT.p[k] = 4; ch = true; } continue; }
+    // water digs a round bowl (deepest in the middle, a gentle bank at the rim): the shore is where the level meets the bank, a round line instead of squares
+    if (v === 4) { const fall = Math.min(1, Math.max(0, (R * 1.15 - d) / (R * .6))), want = TPAINT.L + .15 - .7 * fall - terBase(Math.hypot(x - HOME.x, z - HOME.z));
+      if (TER.h[k] > want + .005) { TER.h[k] = Math.max(TER_MIN, want); dug = true; TER.any = true; }
+      if (d <= R * .85 && (TPAINT.p[k] !== 4 || Math.abs(TPAINT.wl[k] - TPAINT.L) > .01)) { TPAINT.wl[k] = TPAINT.L; TPAINT.p[k] = 4; ch = true; } continue; }
     if (TPAINT.p[k] !== v) { TPAINT.p[k] = v; ch = true; terVert(i, j); } }
   if (dug || (ch && v === 4)) { for (let j = j0 - 1; j <= j1 + 1; j++) for (let i = i0 - 1; i <= i1 + 1; i++) if (i >= 0 && j >= 0 && i < N && j < N) terVert(i, j); }
   if (!ch && !dug) return; terMeshDone(false); TPAINT.dirty = true; TER.dirty = 1;
 })(terBrush);
 // the colour of a painted spot
 terVert = (o => function (i, j) { o(i, j); const k = j * TER_N + i, v = TPAINT.p[k]; if (!v || !TER.mesh) return;
-  const C = TER.mesh.geometry.attributes.color.array, c = v === 3 && ((i + j) % 2) ? TP_COL2 : TP_COL[v]; C[k * 3] = c.r; C[k * 3 + 1] = c.g; C[k * 3 + 2] = c.b; })(terVert);
+  const C = TER.mesh.geometry.attributes.color.array, c = v === 3 ? _tpC.copy(TP_COL[3]).lerp(TP_COL2, tpHash(k, 77)).multiplyScalar(.92 + tpHash(k, 78) * .12) : TP_COL[v]; C[k * 3] = c.r; C[k * 3 + 1] = c.g; C[k * 3 + 2] = c.b; })(terVert);
 // the blades, flowers and stones on top
 function tpHash(k, s) { let h = (k * 374761393 + s * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
 function tpMeshes() {
@@ -17941,7 +17948,7 @@ function tpMeshes() {
   const blade = new THREE.BoxGeometry(.05, .34, .1); blade.translate(0, .17, 0);
   M.blade = new THREE.InstancedMesh(blade, new THREE.MeshLambertMaterial({ color: 0xffffff }), 9000);
   M.flower = new THREE.InstancedMesh(new THREE.OctahedronGeometry(.08, 0), new THREE.MeshLambertMaterial({ color: 0xffffff }), 3000);
-  { const wg = new THREE.PlaneGeometry(1.5, 1.5); wg.rotateX(-Math.PI / 2); M.water = new THREE.InstancedMesh(wg, wtrMats().pool.clone(), 4000); }   // its own copy (instanced and plain meshes need different shaders); the moving texture is shared
+  { const fg = facet(new THREE.CylinderGeometry(1, .92, 1, 6, 1)); M.flag = new THREE.InstancedMesh(fg, new THREE.MeshLambertMaterial({ color: 0xffffff }), 7000); }   // flat flagstones for the path
   const st = new THREE.DodecahedronGeometry(1, 0); M.stone = new THREE.InstancedMesh(st, new THREE.MeshLambertMaterial({ color: 0xffffff }), 3000);
   for (const k in M) { M[k].setColorAt(0, new THREE.Color(0xffffff)); M[k].count = 0; M[k].frustumCulled = false;   // the colour buffer must exist before the first draw, or the shader is built without it (black grass)
     M[k].userData.noCast = 1; M[k].castShadow = false; M[k].receiveShadow = true; scene.add(M[k]); }
@@ -17949,26 +17956,47 @@ function tpMeshes() {
 }
 const _tpM = new THREE.Matrix4(), _tpQ = new THREE.Quaternion(), _tpE = new THREE.Euler(), _tpP = new THREE.Vector3(), _tpS = new THREE.Vector3(), _tpC = new THREE.Color();
 function tpRebuild() {
-  const M = tpMeshes(), N = TER_N, cnt = { blade: 0, flower: 0, stone: 0, water: 0 };
-  const greens = [0x5fae4a, 0x4e9a3e, 0x78c25a], fls = [0xff7aa8, 0xffe066, 0xffffff, 0x9a8cff, 0xff9a4a], grays = [0x9a958c, 0x8a857c, 0xa8a296];
+  const M = tpMeshes(), N = TER_N, cnt = { blade: 0, flower: 0, stone: 0, flag: 0 };
+  const greens = [0x5fae4a, 0x4e9a3e, 0x78c25a], fls = [0xff7aa8, 0xffe066, 0xffffff, 0x9a8cff, 0xff9a4a], grays = [0x8a857c, 0x7a756c, 0x969083], flags = [0x8e8a82, 0x7f7b73, 0x9a9488, 0x857d70, 0x96897a, 0x737069];
   const floors = builds.filter(b => b.hp > 0 && !(b.lv | 0) && BT[b.type] && (BT[b.type].k === 'cell' || PLAT_H[b.type] || RAMP[b.type] || TRI[b.type]));
   const put = (m, x, y, z, sx, sy, sz, ry, rz, col) => { const n = cnt[m]; if (n >= M[m].instanceMatrix.count) return; _tpE.set(0, ry, rz || 0); _tpQ.setFromEuler(_tpE); _tpP.set(x, y, z); _tpS.set(sx, sy, sz); _tpM.compose(_tpP, _tpQ, _tpS); M[m].setMatrixAt(n, _tpM); _tpC.setHex(col); M[m].setColorAt(n, _tpC); cnt[m] = n + 1; };
   for (let k = 0; k < TPAINT.p.length; k++) { const v = TPAINT.p[k]; if (!v) continue; const i = k % N, j = (k / N) | 0, x0 = HOME.x + i * TER_S - TER_O, z0 = HOME.z + j * TER_S - TER_O;
     if (floors.some(b => Math.abs(b.x - x0) < 1.6 && Math.abs(b.z - z0) < 1.6)) continue;   // nothing grows through a floor
-    if (v === 4) { put('water', x0, TPAINT.wl[k], z0, 1, 1, 1, 0, 0, 0xffffff);
-      // stones round the edge of the pond
-      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const kk = (j + dj) * N + i + di; if (TPAINT.p[kk] === 4) continue; const x = x0 + di * .75 + (tpHash(k, di * 3 + dj) - .5) * .5, z = z0 + dj * .75 + (tpHash(k, dj * 5 + di) - .5) * .5, s = .26 + tpHash(k, di + dj * 7 + 9) * .14;
+    if (v === 4) {
+      // a few stones on the bank, not on every side of every cell (that read as a grid)
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const kk = (j + dj) * N + i + di; if (TPAINT.p[kk] === 4 || tpHash(k, di * 13 + dj * 17 + 3) < .55) continue; const f = .85 + tpHash(k, di * 3 + dj + 50) * .45, x = x0 + di * TER_S * f + (tpHash(k, di * 3 + dj) - .5) * 1.1, z = z0 + dj * TER_S * f + (tpHash(k, dj * 5 + di) - .5) * 1.1, s = .18 + tpHash(k, di + dj * 7 + 9) * .2;
         put('stone', x, Math.max(terH(x, z), TPAINT.wl[k]) + .02, z, s, s * .6, s, tpHash(k, di * 11 + dj) * 6, 0, grays[(tpHash(k, di + 2 * dj + 20) * 3) | 0]); } continue; }
-    if (v === 3) { const x = x0 + (tpHash(k, 1) - .5) * .3, z = z0 + (tpHash(k, 2) - .5) * .3, s = .42 + tpHash(k, 3) * .1; put('stone', x, terH(x, z) + .015, z, s, .05, s * (.8 + tpHash(k, 4) * .3), tpHash(k, 5) * 6, 0, grays[(tpHash(k, 6) * 3) | 0]); continue; }
+    if (v === 3) { // flagstones: 3 flat slabs of different size / shade per spot, with gaps of gravel between
+      for (let q = 0; q < 3; q++) { const x = x0 + ((q % 2) - .5) * .7 + (tpHash(k, q * 9 + 1) - .5) * .35, z = z0 + (q === 2 ? .38 : -.3) + (tpHash(k, q * 9 + 2) - .5) * .3, sx = .3 + tpHash(k, q * 9 + 3) * .14, sz = sx * (.75 + tpHash(k, q * 9 + 4) * .4);
+        put('flag', x, terH(x, z) + .01, z, sx, .045 + tpHash(k, q * 9 + 5) * .02, sz, tpHash(k, q * 9 + 6) * 6, 0, flags[(tpHash(k, q * 9 + 7) * flags.length) | 0]); } continue; }
     const nb = v === 1 ? 6 : 4; for (let s = 0; s < nb; s++) { const x = x0 + (tpHash(k, s * 7 + 1) - .5) * 1.5, z = z0 + (tpHash(k, s * 7 + 2) - .5) * 1.5, h = .7 + tpHash(k, s * 7 + 3) * .8;
       put('blade', x, terH(x, z), z, 1, h, 1, tpHash(k, s * 7 + 4) * 3, (tpHash(k, s * 7 + 5) - .5) * .5, greens[(tpHash(k, s * 7 + 6) * 3) | 0]); }
     if (v === 2) for (let s = 0; s < 3; s++) { const x = x0 + (tpHash(k, s * 5 + 40) - .5) * 1.4, z = z0 + (tpHash(k, s * 5 + 41) - .5) * 1.4; put('flower', x, terH(x, z) + .32 + tpHash(k, s * 5 + 42) * .15, z, 1, 1, 1, tpHash(k, s) * 3, 0, fls[(tpHash(k, s * 5 + 43) * fls.length) | 0]); }
   }
+  try { tpWater(floors); } catch (e) { console.warn('tp water', e); }
   for (const m in M) { M[m].count = cnt[m]; M[m].instanceMatrix.needsUpdate = true; if (M[m].instanceColor) M[m].instanceColor.needsUpdate = true; M[m].visible = S.isl && !S.dun; }
+}
+/* the water of painted ponds: ONE smooth surface over the terrain grid (it used to be a square tile per point, so the
+   edge went in steps). Each painted point is at its own level; the points round it take the same level, so the surface
+   runs into the bank and the shore is where it meets the ground — a natural line, not squares. Where the ground next to it
+   is lower, the water follows the ground down instead of hanging in the air. */
+function tpWater(floors) {
+  const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, idx = new Int32Array(N * N).fill(-1), pos = [], uv = [], ind = [];
+  const vh = k => { if (P[k] === 4) return WL[k]; const i = k % N, j = (k / N) | 0; let m = -1e9;
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const kk = (j + dj) * N + i + di; if (kk >= 0 && kk < N * N && P[kk] === 4) m = Math.max(m, WL[kk]); }
+    const x = HOME.x + i * TER_S - TER_O, z = HOME.z + j * TER_S - TER_O, g = terH(x, z); return g < m ? g - .03 : m; };
+  const V = k => { if (idx[k] >= 0) return idx[k]; const i = k % N, j = (k / N) | 0, x = HOME.x + i * TER_S - TER_O, z = HOME.z + j * TER_S - TER_O; idx[k] = pos.length / 3; pos.push(x, vh(k), z); uv.push(x / 3, z / 3); return idx[k]; };
+  for (let j = 0; j < N - 1; j++) for (let i = 0; i < N - 1; i++) { const a = j * N + i, b = a + 1, c = a + N, d = c + 1;
+    if (P[a] !== 4 && P[b] !== 4 && P[c] !== 4 && P[d] !== 4) continue;
+    const cx = HOME.x + (i + .5) * TER_S - TER_O, cz = HOME.z + (j + .5) * TER_S - TER_O; if (floors.some(f => Math.abs(f.x - cx) < 1.6 && Math.abs(f.z - cz) < 1.6)) continue;
+    const A = V(a), B = V(b), C = V(c), D = V(d); ind.push(A, C, B, B, C, D); }
+  let m = TPAINT.wm; if (!m) { m = new THREE.Mesh(new THREE.BufferGeometry(), wtrMats().pool); m.userData.noCast = 1; m.receiveShadow = true; m.renderOrder = 2; m.frustumCulled = false; scene.add(m); TPAINT.wm = m; }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(ind); g.computeVertexNormals();
+  m.geometry.dispose(); m.geometry = g; m.visible = S.isl && !S.dun && ind.length > 0;
 }
 petsTick = (o => function (dt) { const r = o(dt); try {
   TPAINT.t -= dt; if (TPAINT.dirty && TPAINT.t <= 0) { TPAINT.t = .35; TPAINT.dirty = false; tpRebuild(); }
-  if (TPAINT.meshes) { const on = S.isl && !S.dun; for (const m in TPAINT.meshes) TPAINT.meshes[m].visible = on; }
+  if (TPAINT.meshes) { const on = S.isl && !S.dun; for (const m in TPAINT.meshes) TPAINT.meshes[m].visible = on; if (TPAINT.wm) TPAINT.wm.visible = on; }
 } catch (e) { console.warn('tpaint', e); } return r; })(petsTick);
 // build or move something on painted ground: the grass under a new floor goes away
 addBuild = (o => function () { const b = o.apply(this, arguments); if (TPAINT.p.some(v => v)) TPAINT.dirty = true; return b; })(addBuild);
@@ -20830,4 +20858,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794753620').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794754276').catch(()=>{});</script></body></html>
