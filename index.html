@@ -1,5 +1,6 @@
 <!doctype html><html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<script>(function(){try{var sa=navigator.standalone||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches);if(!sa)return;var m=document.querySelector('meta[name=viewport]');var p=(window.screen&&screen.height>screen.width&&(window.orientation===0||window.orientation===180||window.orientation===undefined))||innerHeight>innerWidth;if(p&&m.content.indexOf('height=')<0)m.content+=',height=device-height';}catch(e){}})();</script>
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="余烬末日">
 <meta name="theme-color" content="#0a0608"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon-180.png"><link rel="icon" href="icon-192.png">
@@ -10983,6 +10984,7 @@ function renderAttPick() {
     if (lv < ATT_MAX) { const u = document.createElement('button'); u.className = 'sbtn ghostb'; const c = attCost(a); u.textContent = '升级'; u.disabled = !costOk(c); u.title = Object.keys(c).filter(k => c[k]).map(k => (k === 'coin' ? '余烬币' : MAT[k].n) + '×' + c[k]).join(' ');
       u.addEventListener('click', () => { attUp(a[0]); renderAttPick(); renderWeapon(); }); row.appendChild(u); }
     const b = document.createElement('button'); b.className = 'sbtn'; b.textContent = on ? '卸下' : '装上'; b.addEventListener('click', () => { attEquip(id, sk, on ? 0 : a[0]); sfx.pick(); renderAttPick(); renderWeapon(); }); row.appendChild(b);
+    if (lv > 1 && attTransTargets(a).length) { const tb = document.createElement('button'); tb.className = 'sbtn ghostb'; tb.textContent = T2('转移等级', 'Move level'); tb.addEventListener('click', () => attTransPick(a[0])); row.appendChild(tb); }
     const x = document.createElement('button'); x.className = 'sbtn ghostb'; const v = attScrapV(a); x.textContent = '分解';
     x.addEventListener('click', () => { if ((a[3] >= 4 || lv >= 10) && !x.dataset.sure) { x.dataset.sure = 1; x.textContent = '再点确认'; return; } attScrap(a[0]); feed('分解得到 ' + Object.keys(v).map(k => MAT[k].n + ' ×' + v[k]).join('、'), '#b8c4d0'); renderAttPick(); renderWeapon(); saveGame(); }); row.appendChild(x);
     box.appendChild(row); });
@@ -11032,6 +11034,26 @@ shopLoad = (o => function (d) { o(d); S.atts = []; S.watt = {}; S.attN = 1; try 
     const o2 = A.v === 2 ? { a: w.a | 0, b: w.b | 0, e: w.e | 0 } : { a: w.mz | 0, b: w.gr | 0, e: w.ec | 0 };
     if (A.v !== 2) { for (const [sk, lvk] of [['a', 'lv'], ['b', 'lv'], ['e', 'el']]) { const a = attById(o2[sk]); if (a) a[4] = Math.max(a[4], clamp(w[lvk] | 0 || 1, 1, ATT_MAX)); } }
     S.watt[id] = { a: 0, b: 0, e: 0 }; for (const [sk, t] of sl) { const a = attById(o2[sk]); if (a && a[1] === t) S.watt[id][sk] = a[0]; } } } } catch (e) { } })(shopLoad);
+
+/* ---- 转移等级: move an attachment's level onto another one (so a better drop doesn't start again from Lv.1, and
+   breaking down an old one doesn't throw its levels away). Parts go to parts, element cores to element cores.
+   The receiving one takes the level, the giving one goes back to Lv.1. Free; only to a lower-level one. ---- */
+const attGrp = a => a[1] === 'el' ? 'el' : 'part';
+function attTransTargets(a) { const lv = a[4] || 1; return S.atts.filter(b => b[0] !== a[0] && attGrp(b) === attGrp(a) && (b[4] || 1) < lv); }
+function attTransPick(u) { const a = attById(u); if (!a) return; const lv = a[4] || 1, L = attTransTargets(a).sort((x, y) => y[3] - x[3] || (x[4] || 1) - (y[4] || 1));
+  let m = $('attTrM'); if (m) m.remove(); m = document.createElement('div'); m.id = 'attTrM'; m.className = 'stcm';
+  m.innerHTML = '<div class="stkcard" style="--rc:' + GQ[a[3]].c + '"><div class="stkch"><span class="stkci">' + svgIcon(attIc(a)) + '</span><div><b>' + T2('转移等级 · ', 'Move level · ') + attKind(a).n + ' Lv.' + lv + '</b><small>' + T2('选一个要接收等级的配件：它会变成 Lv.' + lv + '，这个会回到 Lv.1', 'Pick the one to receive it: it becomes Lv.' + lv + ', this one goes back to Lv.1') + '</small></div></div><div class="attTrL"></div>' +
+    '<div class="abygb"><button class="sbtn ghostb stx">' + T2('取消', 'Cancel') + '</button></div></div>';
+  const box = m.querySelector('.attTrL');
+  L.forEach(b => { const K = attKind(b), on = attOn(b[0]), r = document.createElement('button'); r.className = 'attTrR'; r.style.setProperty('--qc', GQ[b[3]].c);
+    r.innerHTML = '<span class="attic">' + svgIcon(attIc(b)) + '</span><span><b style="color:' + GQ[b[3]].c + '">' + GQ[b[3]].n + ' · ' + K.n + '</b><small>Lv.' + (b[4] || 1) + ' → <b>Lv.' + lv + '</b>' + (on ? T2(' · 装在' + WEAP[on].n + '上', ' · on ' + WEAP[on].n) : '') + '</small></span>';
+    r.addEventListener('click', () => { if (!r.dataset.sure) { box.querySelectorAll('.attTrR').forEach(q => { q.dataset.sure = ''; q.classList.remove('sure'); }); r.dataset.sure = 1; r.classList.add('sure'); return; }
+      b[4] = lv; a[4] = 1; m.remove(); try { sfx.build(); } catch (e) { } feed(T2('等级转移：', 'Level moved: ') + K.n + ' → Lv.' + lv, GQ[b[3]].c); S.magSize = magSizeNow(); refreshHud(); saveGame(); try { renderAttPick(); renderWeapon(); } catch (e) { } });
+    box.appendChild(r); });
+  m.querySelector('.stx').addEventListener('click', () => m.remove()); m.addEventListener('click', e => { if (e.target === m) m.remove(); }); document.body.appendChild(m); }
+(() => { try { const st = document.createElement('style'); st.textContent = '.attTrL{display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow:auto}.attTrR{display:flex;align-items:center;gap:8px;text-align:left;padding:6px 8px;border-radius:10px;border:2px solid #44535e;background:#0f161b;color:#fff}.attTrR .attic{width:40px;height:40px;flex:0 0 40px}.attTrR .attic svg,.attTrR .attic img{width:100%;height:100%}.attTrR small{display:block;font-size:12px;color:#c8d2da}.attTrR.sure{border-color:#ffc94a;box-shadow:0 0 0 2px rgba(255,201,74,.35)}.attTrR.sure small::after{content:"  · 再点一次确认";color:#ffc94a;font-weight:800}';
+  document.head.appendChild(st); } catch (e) { } })();
+
 /* ============ online play over Firebase Realtime Database ============
    The web version, the phone version and the claude.ai page all meet in the same rooms. A room lives at
    /rooms/<code> (the public lobby is "lobby"):
@@ -16807,12 +16829,15 @@ buildMesh = (orig => function (type) {
     for (const s of [-1, 1]) { box(.14, 1.0, .14, iron, s * 1.5, .5, 0, g); const k = box(.14, .14, .14, gold, s * 1.5, 1.07, 0, g); k.rotation.y = Math.PI / 4; } return g; }
   return orig(type);
 })(buildMesh);
-// snap end to end with any fence (the old code only knew the two tall ones)
-ghostTransform = (o => function () { const t = o(); if (!t || !LOWF.includes(buildSel) && !(t && (buildSel === 'wall' || buildSel === 'gate'))) return t;
-  if (S.up || S.fl > 0) return t; const aim = aimPoint(); let best = null, bd = 2.6;
-  for (const b of builds) { if (!ALLF.includes(b.type) || b.hp <= 0) continue; const ax = Math.abs(Math.sin(b.rot)) > .7 ? [0, 1] : [1, 0];
-    for (const s of [-1, 1]) { const ex = b.x + ax[0] * s * 3.1, ez = b.z + ax[1] * s * 3.1, d = Math.hypot(ex - aim.x, ez - aim.z); if (d < bd) { bd = d; best = { x: ex, z: ez, rot: b.rot }; } } }
-  if (!best) return t; return Object.assign({}, t, { x: best.x, z: best.z, rot: best.rot, ok: spotOk(BT[buildSel], best.x, best.z, best.rot) }); })(ghostTransform);
+// fences snap to any fence (tall or low): straight on from an end, or round a corner (an L) — the old code only joined straight
+ghostTransform = (o => function () { const t = o(); if (!t || !buildSel || !ALLF.includes(buildSel)) return t;
+  if (S.up || S.fl > 0) return t; const aim = aimPoint(), T = BT[buildSel], hdN = T.hd || .2; let best = null, bd = 2.4;
+  const tryC = (x, z, rot) => { const d = Math.hypot(x - aim.x, z - aim.z); if (d < bd && spotOk(T, x, z, rot)) { bd = d; best = { x, z, rot }; } };
+  for (const b of builds) { if (!ALLF.includes(b.type) || b.hp <= 0) continue; const alongZ = Math.abs(Math.sin(b.rot)) > .7, ax = alongZ ? [0, 1] : [1, 0], px = alongZ ? [1, 0] : [0, 1], hdO = BT[b.type].hd || .2;
+    const perp = alongZ ? 0 : Math.PI / 2;
+    for (const s of [-1, 1]) { tryC(b.x + ax[0] * s * 3.1, b.z + ax[1] * s * 3.1, b.rot);   // straight on
+      for (const u of [-1, 1]) { const along = s * (1.5 - hdN), side = u * (hdO + 1.58); tryC(b.x + ax[0] * along + px[0] * side, b.z + ax[1] * along + px[1] * side, perp); } } }   // round the corner
+  if (!best) return t; return Object.assign({}, t, { x: best.x, z: best.z, rot: best.rot, ok: true }); })(ghostTransform);
 for (const k of LOWF) { const tier = 2; if (BPX[k]) continue; BPX[k] = [tier, BT[k].name]; BT[k].bp = 1; if (!BP[k]) BP[k] = { n: BT[k].name, d: '', cv: 0 }; (BPPOOL[tier] = BPPOOL[tier] || []).push(bpPrize(k)); }
 /* ============ the storage box screen 2.0 ============
    Both sides (your bag and the storage) are grids of cells, one cell per stack (99 per cell, as before), the count in the corner.
@@ -16855,6 +16880,8 @@ renderStash = function () {
   box.appendChild(Object.assign(document.createElement('p'), { className: 'snote', textContent: T2('升级武器、制作、卖给商人时，柜子里的材料也能直接用。储物箱被打爆会掉出一部分物品。', 'Materials in storage can be used for upgrades, crafting and selling. A destroyed box spills some items.') }));
 };
 (() => { try { const st = document.createElement('style'); st.textContent =
+  '#stashList .stcols{grid-template-columns:1fr 1fr!important;gap:8px;align-items:start}#stashList .stcol{min-width:0;max-height:calc(100dvh - 210px);overflow:auto;padding:6px;border-radius:12px;background:rgba(15,22,27,.55)}' +
+  '#stashList .stcol h3{position:sticky;top:-6px;z-index:1;margin:-6px -6px 6px;padding:6px;background:#141c22;border-radius:12px 12px 0 0;font-size:14px}#stashList .stgrid{grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:4px}' +
   '.stcm{position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;padding:14px;background:rgba(6,10,14,.6)}' +
   '.stkcard{width:min(380px,94vw);max-height:92vh;overflow:auto;padding:14px;border-radius:16px;border:3px solid var(--rc);background:#1c252c;color:#fff;display:flex;flex-direction:column;gap:8px}' +
   '.stkch{display:flex;align-items:center;gap:10px}.stkci{width:52px;height:52px;flex:0 0 52px;border-radius:12px;background:#0f161b;border:2px solid var(--rc);display:flex;align-items:center;justify-content:center}.stkci svg,.stkci img{width:80%;height:80%}' +
@@ -16871,7 +16898,7 @@ renderStash = function () {
      different piece for each place: the island (day / night), the sea, the mainland by danger (calm / wild / dark), dungeons,
      a boss fight, the abyss, 老钱的收藏馆 and the submarine. Pieces cross-fade when you move. Settings: 背景音乐 on/off + volume.
    Everything is generated live (no audio files). */
-if (VOL.mus == null) VOL.mus = .5; if (VOL.musOn == null) VOL.musOn = true;
+if (VOL.mus == null) VOL.mus = .4; if (VOL.musOn == null) VOL.musOn = true;
 const SND2 = { sea: null, boat: null, bx: null, bz: null, bv: 0, t: 0, wT: 0, wP: 7, up: 0 };
 const _sm2 = (a, b, k) => a + (b - a) * k;
 function snd2Loop(dur) { const s = AC.createBufferSource(); s.buffer = noiseBuf(dur); s.loop = true; return s; }
@@ -16953,7 +16980,7 @@ function muTheme() {
 }
 function muInit() { if (MU.g || !AC) return; MU.g = AC.createGain(); MU.g.gain.value = 0; MU.g.connect(ALLG || BUS);
   const d = AC.createDelay(1.5), fb = AC.createGain(), lp = AC.createBiquadFilter(); d.delayTime.value = .36; fb.gain.value = .32; lp.type = 'lowpass'; lp.frequency.value = 2200; d.connect(lp); lp.connect(fb); fb.connect(d); lp.connect(MU.g); MU.dl = d; }
-function muVol() { return VOL.musOn ? .26 * (VOL.mus == null ? .5 : VOL.mus) : 0; }
+function muVol() { return VOL.musOn ? .13 * (VOL.mus == null ? .4 : VOL.mus) : 0; }   // kept well under the sound effects
 function muBus(th) { const g = AC.createGain(), w = AC.createGain(); g.gain.value = 0; g.connect(MU.g); w.gain.value = th.delay || .2; g.connect(w); w.connect(MU.dl); return g; }
 function muSwitch(k) { const now = AC.currentTime; if (MU.cur) { const old = MU.cur.g; old.gain.cancelScheduledValues(now); old.gain.setTargetAtTime(0, now, .6); setTimeout(() => { try { old.disconnect(); } catch (e) { } }, 4000); }
   const th = THEMES[k], g = muBus(th); g.gain.setTargetAtTime(1, now + .2, .8); MU.cur = { k, th, g, prev: th.root + 12, bar: 0 }; MU.theme = k; MU.next = now + .25; MU.step = 0; }
@@ -16983,7 +17010,7 @@ renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!bo
   [[true, T2('开', 'On')], [false, T2('关', 'Off')]].forEach(([k, n]) => { const b = document.createElement('button'); b.className = 'sbtn' + (!!VOL.musOn === k ? ' on' : ''); b.textContent = n; b.addEventListener('click', () => { VOL.musOn = k; audioInit(); applyVol(); renderSettings(); }); op.appendChild(b); });
   r.appendChild(op); const amb = [...box.querySelectorAll('.setrow')].find(e => /环境音|Ambience/.test(e.textContent)); if (amb) amb.after(r); else box.appendChild(r);
   const r2 = document.createElement('div'); r2.className = 'setrow'; r2.innerHTML = '<span>' + T2('音乐音量', 'Music volume') + '</span>'; const inp = document.createElement('input'), vb = document.createElement('b');
-  inp.type = 'range'; inp.min = 0; inp.max = 100; inp.value = Math.round((VOL.mus == null ? .5 : VOL.mus) * 100); vb.className = 'val'; vb.textContent = inp.value;
+  inp.type = 'range'; inp.min = 0; inp.max = 100; inp.value = Math.round((VOL.mus == null ? .4 : VOL.mus) * 100); vb.className = 'val'; vb.textContent = inp.value;
   inp.addEventListener('input', () => { VOL.mus = inp.value / 100; vb.textContent = inp.value; audioInit(); applyVol(); }); r2.appendChild(inp); r2.appendChild(vb); r.after(r2); } catch (e) { console.warn('music settings', e); } })(renderSettings);
 /* ============ HUD touches ============
    - The task tracker: a little ▲ / ▼ button at its top-right corner folds it. Folded, it shows only the chapter and the task's
@@ -17090,6 +17117,11 @@ try { const st = document.createElement('style'); st.textContent = '#bkPanel .sn
   const fix = () => { const portrait = innerHeight > innerWidth || (screen.orientation && /portrait/.test(screen.orientation.type)), want = portrait ? base + ',height=device-height' : base;
     if (m.content !== want) { m.content = want; setTimeout(() => { try { resize(); } catch (e) { } }, 150); } };
   fix(); addEventListener('orientationchange', () => setTimeout(fix, 250)); addEventListener('resize', () => setTimeout(fix, 250));
+  // self-check (after an update iOS sometimes lays the page out short again): in portrait, if the page is still shorter than the
+  // screen, take the height out and put it back so iOS measures again; a few tries per orientation, then leave it alone
+  let tries = 0, lastO = ''; const heal = () => { try { const portrait = innerHeight > innerWidth, o = portrait ? 'p' : 'l'; if (o !== lastO) { lastO = o; tries = 0; } if (!portrait || tries >= 6) return;
+    const H = Math.max(screen.height, screen.width); if (H - innerHeight <= 8) return; tries++; m.content = base; setTimeout(() => { m.content = base + ',height=device-height'; setTimeout(() => { try { resize(); } catch (e) { } }, 120); }, 80); } catch (e) { } };
+  setInterval(heal, 1500); addEventListener('pageshow', () => { tries = 0; setTimeout(heal, 300); }); document.addEventListener('visibilitychange', () => { if (!document.hidden) { tries = 0; setTimeout(heal, 300); } });
 } catch (e) { } })();
 /* ============ 无尽深渊: a roguelike run, floor after floor (DUNS[9]) ============
    - Board the 深渊号 at the island pier (Lv.20+; solo, the public lobby is fine). Pick ONE weapon you own; the run uses only that one.
@@ -19354,4 +19386,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794720795').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794721149').catch(()=>{});</script></body></html>
