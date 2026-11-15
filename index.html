@@ -17090,11 +17090,12 @@ const abyWeek = () => { const d = new Date(Date.now() - 4 * 3600e3); d.setHours(
 
 /* ---- floors ---- */
 const ABY_ZT = [['walker', 'runner', 'crawler', 'spitter'], ['walker', 'runner', 'brute', 'spitter', 'bomber', 'shield'], ['runner', 'brute', 'bomber', 'shield', 'screamer', 'healer', 'spitter']];
+const abyHpK = () => { const n = ABY.floor; return 1 + .06 * n + .0016 * n * n; }, abyDmgK = () => { const n = ABY.floor; return 1 + .03 * n + .0009 * n * n; };   // floor 10 ×1.8/×1.4 · 30 ×3.2/×2.7 · 55 ×9.1/×5.4
 const abyLv = () => Math.max(1, S.level - 5) + Math.floor(ABY.floor * .8);
 function abyFloor() {
   ABY.floor++; const n = ABY.floor; ABY.state = 'fight';
-  S.hp = Math.min(S.maxHp, S.hp + S.maxHp * .25); ABY.shield = Math.round(S.maxHp * (aV('aegis') + (ABY.tmpShield || 0))); ABY.tmpShield = 0;
-  const bossF = n % 5 === 0; ABY.spawnLeft = bossF ? Math.min(6, 2 + n / 5) : Math.min(20, 4 + n); ABY.spawnT = 0; ABY.boss = null; ABY.elite = Math.random() < .15 && !bossF;
+  S.hp = Math.min(S.maxHp, S.hp + S.maxHp * .25); ABY.shield = Math.round(S.maxHp * Math.min(.4, aV('aegis') + (ABY.tmpShield || 0))); ABY.tmpShield = 0;   // shields never more than 40% of your life
+  const bossF = n % 5 === 0; ABY.spawnLeft = bossF ? Math.min(10, 2 + Math.floor(n / 5)) : Math.min(34, 4 + n); ABY.spawnT = 0; ABY.boss = null; ABY.elite = bossF ? 0 : (Math.random() < Math.min(.6, .15 + n * .008) ? 1 : 0) + (n >= 25 && Math.random() < .4 ? 1 : 0);
   if (DUN.abyPortal) DUN.abyPortal.material.opacity = 0;
   banner(T2('第 ' + n + ' 层', 'Floor ' + n), bossF ? T2('首领层', 'Boss floor') : T2('敌人等级 ', 'Enemy Lv.') + abyLv(), 2.2); try { sfx.growl(); } catch (e) { }
   if (bossF) setTimeout(abyBossSpawn, 1200);
@@ -17102,14 +17103,14 @@ function abyFloor() {
 function abySpot() { for (let k = 0; k < 20; k++) { const a = Math.random() * Math.PI * 2, r = ABY_R - 2 - Math.random() * 3, x = Math.cos(a) * r, z = Math.sin(a) * r; if (Math.hypot(dX(x) - player.pos.x, dZ(z) - player.pos.z) > 9) return [x, z]; } return [0, -ABY_R + 3]; }
 function abySpawnOne() {
   const n = ABY.floor, pool = ABY_ZT[Math.min(2, Math.floor(n / 10))], [x, z] = abySpot(), zb = dz(pick(pool), x, z, abyLv(), 1); if (!zb) return;
-  const k = 1 + .03 * n; zb.hp = zb.max = zb.max * k; abyClean(zb);
-  if (ABY.elite) { ABY.elite = false; zb.abyE = 1; zb.hp = zb.max = zb.max * 2.5; zb.dmg *= 1.3; try { zb.g.scale.multiplyScalar(1.2); const ring = new THREE.Mesh(new THREE.RingGeometry(.7, .95, 24), new THREE.MeshBasicMaterial({ color: 0xffc94a, transparent: true, opacity: .8, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = .06; zb.g.add(ring); } catch (e) { } feed(T2('精英出现了：打倒它多抽一次卡', 'An elite: kill it for an extra card'), '#ffc94a'); }
+  zb.hp = zb.max = zb.max * abyHpK(); zb.dmg *= abyDmgK(); abyClean(zb);
+  if (ABY.elite > 0) { ABY.elite--; zb.abyE = 1; zb.hp = zb.max = zb.max * 2.5; zb.dmg *= 1.3; try { zb.g.scale.multiplyScalar(1.2); const ring = new THREE.Mesh(new THREE.RingGeometry(.7, .95, 24), new THREE.MeshBasicMaterial({ color: 0xffc94a, transparent: true, opacity: .8, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = .06; zb.g.add(ring); } catch (e) { } feed(T2('精英出现了：打倒它多抽一次卡', 'An elite: kill it for an extra card'), '#ffc94a'); }
 }
 function abyBossSpawn() { if (!abyOn()) return; const n = ABY.floor, rb = ((n / 5 - 1) % 10) + 1;
   const ob = banner; banner = function () { }; try { spawnBoss({ id: 'aby', x: dX(0), z: dZ(-ABY_R + 6), tp: (n / 5) | 0, rb, level: abyLv(), bn: '', buff: null }); } catch (e) { console.warn(e); } finally { banner = ob; }
   if (!boss) return; ABY.boss = boss;
   if (boss.weekly) { boss.hp = boss.max = Math.round(boss.max / 1.5); boss.dmg /= 1.25; boss.title = String(boss.title).replace('周王·', ''); try { el.bossName.textContent = boss.title + ' Lv.' + boss.lv; } catch (e) { } }   // the weekly king's buff is an outside-world thing
-  boss.weekly = false; boss.buff = null; abyClean(boss); banner(T2('第 ' + n + ' 层首领', 'Floor ' + n + ' boss'), boss.title, 2.6); boss.dun = 1; boss.aby = 1; boss.hp = boss.max = Math.round(boss.max * (.6 + .06 * n)); boss.state = 'chase'; try { refreshBossHud(); } catch (e) { } }
+  boss.weekly = false; boss.buff = null; abyClean(boss); banner(T2('第 ' + n + ' 层首领', 'Floor ' + n + ' boss'), boss.title, 2.6); boss.dun = 1; boss.aby = 1; boss.hp = boss.max = Math.round(boss.max * .6 * abyHpK()); boss.dmg *= abyDmgK(); boss.state = 'chase'; try { refreshBossHud(); } catch (e) { } }
 // nothing from the outside world touches the monsters down here (region traits, the weekly king, night sight …), and every one of them comes for you
 function abyClean(z) { z.aby = 1; z.abyC = 1; z.buff = null; z.tough = false; z.aggro = 999; z.horde = true; if (z.boss && z.state === 'idle') z.state = 'chase'; }
 const abyAlive = () => zombies.filter(z => z.aby && !z.dead && !z.mirror).length + (ABY.boss && !ABY.boss.dead ? 1 : 0);
@@ -17128,7 +17129,7 @@ function abyNext() {   // after the cards: the checkpoint question every 5 floor
 let _abyHud = 0;
 zSpecialTick = (o => function (dt) { o(dt); if (!abyOn()) { if (ABY.on && !S.dun && !ABY.snap) ABY.on = false; return; }
   for (const z of zombies) { if (z.dead || z.mirror) continue;
-    if (!z.abyC) { if (!z.boss) { try { const T = ZT[z.type], D = dif(), lv = abyLv(); z.lv = lv; z.hp = z.max = T.hp * lvHp(lv) * D.hp * (1 + .03 * ABY.floor) * .7; z.dmg = T.dmg * lvDmg(lv) * D.dmg; z.spd = T.spd * rand(.95, 1.1); } catch (e) { } } abyClean(z); }   // a boss's summons
+    if (!z.abyC) { if (!z.boss) { try { const T = ZT[z.type], D = dif(), lv = abyLv(); z.lv = lv; z.hp = z.max = T.hp * lvHp(lv) * D.hp * abyHpK() * .7; z.dmg = T.dmg * lvDmg(lv) * D.dmg * abyDmgK(); z.spd = T.spd * rand(.95, 1.1); } catch (e) { } } abyClean(z); }   // a boss's summons
     z.aggro = 999; if (z.boss && z.state === 'idle') z.state = 'chase'; }
   abyCoinTick(dt);
   { const cx = dX(0), cz = dZ(0), lim = ABY_R - .9; let dx = player.pos.x - cx, dz2 = player.pos.z - cz, d = Math.hypot(dx, dz2);
@@ -17139,7 +17140,7 @@ zSpecialTick = (o => function (dt) { o(dt); if (!abyOn()) { if (ABY.on && !S.dun
   ABY.t += dt; S.sta = Math.max(S.sta, 100); if (S.exhausted) S.exhausted = false; if (ABY.snap) S.food = ABY.snap.food;
   S.maxHp = Math.round(maxHpNow() * (ABY.hpMul || 1)); if (S.hp > S.maxHp) S.hp = S.maxHp;
   // spawning
-  if (ABY.state === 'fight') { ABY.spawnT -= dt; if (ABY.spawnLeft > 0 && ABY.spawnT <= 0 && abyAlive() < 10) { ABY.spawnT = .45; ABY.spawnLeft--; abySpawnOne(); }
+  if (ABY.state === 'fight') { ABY.spawnT -= dt; if (ABY.spawnLeft > 0 && ABY.spawnT <= 0 && abyAlive() < Math.min(18, 8 + Math.floor(ABY.floor / 4))) { ABY.spawnT = Math.max(.25, .45 - ABY.floor * .004); ABY.spawnLeft--; abySpawnOne(); }
     if (ABY.spawnLeft <= 0 && abyAlive() === 0 && (ABY.floor % 5 !== 0 || ABY.boss)) abyCleared(); }
   // the portal spins, the crystals bob
   if (DUN.abyPortal) DUN.abyPortal.rotation.y += dt * 1.5; if (DUN.abyRune) DUN.abyRune.rotation.z += dt * .3; if (DUN.abyCr) DUN.abyCr.forEach((c, i) => { c.rotation.y += dt; c.position.y = 4.3 + Math.sin(ABY.t * 1.5 + i) * .15; });
@@ -17233,7 +17234,7 @@ killZombie = (o => function (z) {
 })(killZombie);
 takeDamage = (o => function (n, src) {
   if (!abyOn() || S.dead || S.invT > 0) return o(n, src);
-  const fl = ABY.fl; let k = 1 - aV('wall'); if (fl.roarDr > ABY.t) k -= aV('a_roar'); if (aN('k_tough') && ABY.t < (fl.swingAt || 0) + 1) k -= aV('k_tough'); n *= Math.max(.25, k);
+  const fl = ABY.fl; let k = 1 - aV('wall'); if (fl.roarDr > ABY.t) k -= aV('a_roar'); if (aN('k_tough') && ABY.t < (fl.swingAt || 0) + 1) k -= aV('k_tough'); n *= Math.max(.5, k);
   if (ABY.shield > 0) { const a = Math.min(ABY.shield, n); ABY.shield -= a; n -= a; burst(player.pos.x, 1.4, player.pos.z, 0x7ae8ff, 4, 3); if (n <= 0) return; }
   if (aN('counter')) fl.counter = ABY.t + 1; if (aN('a_rage')) { fl.rage = (fl.rage || []).filter(t => t > ABY.t); fl.rage.push(ABY.t + 4); }
   if (S.hp - n <= 0) { if (ABY.revive > 0) { ABY.revive--; S.hp = S.maxHp * aV('undying'); S.invT = 2.5; banner(T2('不死之身', 'Undying'), T2('你又站了起来', 'You rise again'), 2.2); burst(player.pos.x, 1.4, player.pos.z, 0xffd27a, 30, 7); return; }
@@ -17331,7 +17332,7 @@ function abyDraw(only) {
 function abyDesc(c, q) { if (c.fill) return c.d; const k = ABY_Q[q][2], v = c.v * k;
   return c.d.replace('{v}', (Math.round(v * 10) / 10).toString()).replace('{s}', (c.s * k).toFixed(1)).replace('{n3}', String(c.v)); }
 function abyTake(c, q) {
-  if (c.id === '_heal') { S.hp = Math.min(S.maxHp, S.hp + S.maxHp * .4); return; } if (c.id === '_shield') { ABY.tmpShield = .3; ABY.shield += Math.round(S.maxHp * .3); return; }
+  if (c.id === '_heal') { S.hp = Math.min(S.maxHp, S.hp + S.maxHp * .4); return; } if (c.id === '_shield') { ABY.tmpShield = .3; ABY.shield = Math.min(Math.round(S.maxHp * .4), ABY.shield + Math.round(S.maxHp * .3)); return; }
   (ABY.cards[c.id] = ABY.cards[c.id] || []).push(q); ABY.picks.push([c.id, q]);
   if (c.id === 'undying') ABY.revive++;
   if (c.id === 'gamble') { ABY.hpMul = (ABY.hpMul || 1) * .8; for (let i = 0; i < c.v; i++) { const d = abyDraw()[0]; if (d && !d.c.fill && d.c.id !== 'gamble') { abyTake(d.c, 0); feed(T2('赌徒抽到：', 'Gambler: ') + d.c.n, '#ffc94a'); } } }
@@ -17356,7 +17357,7 @@ function abyPick(first) {
 // every 5 floors: leave with the rewards, or keep going
 function abyGate() { S.paused = true; let m = $('abyGateM'); if (m) m.remove(); m = document.createElement('div'); m.id = 'abyGateM'; m.className = 'abym';
   const R = abyReward(ABY.floor, true);
-  m.innerHTML = '<div class="abyh">' + T2('第 ' + ABY.floor + ' 层 · 安全点', 'Floor ' + ABY.floor + ' · checkpoint') + '</div><div class="abygate"><p>' + T2('现在离开，按第 ' + ABY.floor + ' 层结算：', 'Leave now and get floor ' + ABY.floor + ': ') + R.txt + '</p>' +
+  m.innerHTML = '<div class="abyh">' + T2('第 ' + ABY.floor + ' 层 · 安全点', 'Floor ' + ABY.floor + ' · checkpoint') + '</div><div class="abygate"><p>' + T2('现在离开，按第 ' + ABY.floor + ' 层结算：', 'Leave now and get floor ' + ABY.floor + ': ') + '</p>' + R.html +
     '<p class="abywarn">' + T2('继续往下：如果在第 ' + (ABY.floor + 1) + '–' + (ABY.floor + 4) + ' 层倒下，只按第 ' + ABY.floor + ' 层结算。', 'Go on: dying before floor ' + (ABY.floor + 5) + ' still pays floor ' + ABY.floor + '.') + '</p>' +
     '<div class="abygb"><button class="sbtn ghostb abyout">' + T2('带着奖励离开', 'Leave with rewards') + '</button><button class="go abyon">' + T2('继续往下', 'Go deeper') + '</button></div></div>';
   m.querySelector('.abyout').addEventListener('click', () => { m.remove(); S.paused = false; abyEnd('leave'); });
@@ -17375,8 +17376,21 @@ function abyReward(paid, preview) {
   const full = S.abyss.runs < 3, coin = Math.round(Math.min(3000, 80 * paid) * (full ? 1 : .1)), xp = paid > 0 && full ? stXp(S.level, Math.min(.5, paid * .015)) : 0, ms = ABY_MS.filter(([f]) => paid >= f && !S.abyss.claimed[f]);
   const parts = []; if (coin) parts.push(T2('余烬币 ', 'coins ') + coin); if (xp) parts.push(T2('经验 ', 'XP ') + xp);
   ms.forEach(([f, rw]) => parts.push(T2('第 ' + f + ' 层首通奖励：', 'First clear of floor ' + f + ': ') + abyMsTxt(rw)));
-  return { coin, xp, ms, full, txt: parts.join(' · ') || T2('没有奖励', 'nothing') };
+  const sum = {}; ms.forEach(([, rw]) => { for (const k in rw) sum[k] = (sum[k] || 0) + (k === 'xp' ? stXp(S.level, rw[k]) : rw[k]); });
+  let html = '';
+  if (coin || xp) html += '<div class="abyrwr"><small>' + T2('结算奖励', 'Floor reward') + '</small><div class="abytiles">' + (coin ? abyTile('coin', coin) : '') + (xp ? abyTile('xp', xp) : '') + '</div></div>';
+  if (ms.length) html += '<div class="abyrwr"><small>' + T2('首通奖励 · 第 ', 'First clear · floor ') + ms.map(([f]) => f).join(' / ') + T2(' 层', '') + '</small><div class="abytiles">' + ['xp', 'coin', 'gem', 'heart', 'bpf', 'ac'].filter(k => sum[k]).map(k => abyTile(k, sum[k])).join('') + '</div></div>';
+  if (!html) html = '<div class="abyrwr"><small>' + T2('没有奖励', 'No reward') + '</small></div>';
+  return { coin, xp, ms, full, txt: parts.join(' · ') || T2('没有奖励', 'nothing'), html };
 }
+// one reward tile: a drawn icon and the amount (never a wall of text)
+const ABY_RIC = {
+  xp: '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="#2f8a3e"/><path d="M24 7l4.6 9.4 10.4 1.5-7.5 7.3 1.8 10.3L24 30.6l-9.3 4.9 1.8-10.3L9 17.9l10.4-1.5z" fill="#ffe27a" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/><text x="24" y="44" font-size="9" font-weight="900" text-anchor="middle" fill="#fff" font-family="sans-serif">EXP</text></svg>',
+  gem: '<svg viewBox="0 0 48 48"><path d="M24 4l14 12-14 28L10 16z" fill="#5ac8ff"/><path d="M10 16h28M24 4l-5 12 5 28 5-28z" fill="none" stroke="#e8c060" stroke-width="2" stroke-linejoin="round"/><path d="M24 4l14 12-14 28L10 16z" fill="none" stroke="#e8c060" stroke-width="2.4" stroke-linejoin="round"/><path d="M19 16l5-12 5 12z" fill="#bff0ff"/></svg>'
+};
+const abyNum = n => n < 10000 ? String(n) : T2('万', 'k') === '万' ? (Math.round(n / 1000) / 10) + '万' : Math.round(n / 1000) + 'k';
+function abyTile(k, n) { let ic = k === 'ac' ? ABY_COIN_SVG : ABY_RIC[k] || ''; if (!ic) { try { ic = svgIcon(k); } catch (e) { ic = ''; } }
+  return '<div class="abytile" title="' + (k === 'ac' ? T2('深渊币', 'Abyss coins') : stItN(k)) + '"><i>' + ic + '</i><b>×' + abyNum(n) + '</b><small>' + (k === 'ac' ? T2('深渊币', 'Abyss') : stItN(k)) + '</small></div>'; }
 function abyEnd(why) { if (!abyOn() || ABY.result) return; ABY.result = abyResult(why); ABY.state = 'end';
   for (const z of zombies) if (z.aby && !z.dead) z.removed = true;
   dunTravel(why === 'dead' ? T2('你倒下了', 'You fell') : T2('离开深渊', 'Leaving'), T2('深渊号回航', 'Back to the island'), () => goIsland(false)); }
@@ -17389,7 +17403,7 @@ function abySettle(r) {
   const cards = r.picks.map(([id, q]) => '<span style="--qc:' + ABY_Q[q][1] + '">' + abyIcon(ABYC[id], 18) + ABYC[id].n + '</span>').join('');
   m.innerHTML = '<div class="abyh">' + (r.why === 'dead' ? T2('倒在了第 ' + r.floor + ' 层', 'Fell on floor ' + r.floor) : r.why === 'leave' ? T2('带着奖励离开', 'Left with the rewards') : T2('中途离开', 'Left early')) + '</div>' +
     '<div class="abyend"><div class="abybig"><b>' + r.cleared + '</b><small>' + T2('通过的层数', 'floors cleared') + '</small></div><div class="abybig"><b>' + r.paid + '</b><small>' + T2('结算层数', 'floors paid') + '</small></div><div class="abybig"><b>' + (S.abyss.bestBy[r.wp] | 0) + '</b><small>' + wName(r.wp) + T2(' 最高', ' best') + '</small></div></div>' +
-    '<p class="abyac">' + abyCoinIc(22) + T2(' 这一局拿到深渊币 ', ' Abyss coins this run: ') + '<b>' + (r.ac | 0) + '</b>' + T2('（共 ', ' (total ') + (S.abyss.ac | 0) + T2('）', ')') + (r.acOk ? '' : T2(' · 这周的深渊币已经拿过了', ' · this week\'s Abyss coins were already taken')) + '</p><p class="abyrw">' + R.txt + (R.full ? '' : T2('（本周前 3 局之后，余烬币只给一成）', ' (after 3 runs this week coins are 10%)')) + '</p>' +
+    '<p class="abyac">' + abyCoinIc(22) + T2(' 这一局拿到深渊币 ', ' Abyss coins this run: ') + '<b>' + (r.ac | 0) + '</b>' + T2('（共 ', ' (total ') + (S.abyss.ac | 0) + T2('）', ')') + (r.acOk ? '' : T2(' · 这周的深渊币已经拿过了', ' · this week\'s Abyss coins were already taken')) + '</p>' + R.html + '<p class="abyrw">' + (R.full ? '' : T2('（本周前 3 局之后，余烬币只给一成）', ' (after 3 runs this week coins are 10%)')) + '</p>' +
     '<div class="abydeck">' + (cards || '<i>' + T2('没有卡', 'no cards') + '</i>') + '</div><button class="go abyok">' + T2('知道了', 'OK') + '</button>';
   m.querySelector('.abyok').addEventListener('click', () => m.remove()); document.body.appendChild(m);
 }
@@ -17556,7 +17570,7 @@ const HY_ABY = .9;
   setTimeout(() => { try { if (typeof KE_LIST !== 'undefined' && !KE_LIST.includes('bAbyss')) KE_LIST.push('bAbyss'); } catch (e) { } }, 0);
   const st = document.createElement('style'); st.textContent =
     '#bAbyss{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--sb) + 142px);display:none;font-size:15px;border:2px solid #ffd27a;background:linear-gradient(180deg,#1f7f8c,#13525c);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6);box-shadow:0 3px 12px rgba(0,0,0,.45)}' +
-    '.abym{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));background:rgba(8,12,16,.93);color:#fff;overflow:auto}' +
+    '.abym>:first-child{margin-top:auto}.abym>:last-child{margin-bottom:auto}.abym{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:10px;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));background:rgba(8,12,16,.93);color:#fff;overflow:auto}' +
     '.abyh{font-size:21px;font-weight:900;letter-spacing:.1em;color:#ffd27a;text-shadow:0 2px 0 rgba(0,0,0,.7);text-align:center}.abysub,.abynote{max-width:620px;text-align:center;font-size:13px;color:#e8eef2;margin:0;line-height:1.5}' +
     '.abycs{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;max-width:780px}' +
     '.abyc{position:relative;width:min(230px,31vw);min-width:150px;min-height:200px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:28px 10px 10px;border-radius:14px;border:3px solid var(--qc);background:#1c252c;color:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.6),0 6px 18px rgba(0,0,0,.5);cursor:pointer;text-align:center;overflow:hidden}' +
@@ -17570,6 +17584,8 @@ const HY_ABY = .9;
     '.abyw.on{border-color:#ffd27a;background:#2a3a44;box-shadow:0 0 0 2px rgba(255,210,122,.35)}.abyw.off{opacity:.45}.abyw img{height:34px;max-width:100%;object-fit:contain}.abyw small{font-size:11px;color:#c8d2da}' +
     '#bFire.abyfist .fireIc{background-image:' + hudUrl('fist') + '!important}' +
     '.abycn{display:inline-block;vertical-align:-3px;font-style:normal}.abycn svg{width:100%;height:100%;display:block}.abyac{font-size:15px;margin:0;display:flex;align-items:center;gap:4px}.abyac b{color:#5ae8d8;font-size:18px}' +
+    '.abytiles{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}.abyrwr{display:flex;flex-direction:column;align-items:center;gap:5px;margin:4px 0}.abyrwr>small{font-size:12.5px;color:#ffd27a;font-weight:800}' +
+    '.abytile{display:flex;flex-direction:column;align-items:center;width:74px;padding:6px 4px 5px;border-radius:12px;background:#1c252c;border:2px solid #44535e}.abytile i{display:block;width:40px;height:40px;font-style:normal}.abytile i svg,.abytile i img{width:100%;height:100%;display:block;object-fit:contain}.abytile b{font-size:14px;color:#fff;margin-top:2px}.abytile small{font-size:10.5px;color:#c8d2da;white-space:nowrap}' +
     '.abyinfo{display:flex;gap:16px;font-size:14px;flex-wrap:wrap;justify-content:center;align-items:center}.abyinfo b{color:#ffd27a}' +
     '.abyend{display:flex;gap:18px}.abybig{display:flex;flex-direction:column;align-items:center}.abybig b{font:900 30px var(--font-hud,sans-serif);color:#ffd27a}.abybig small{font-size:12px;color:#c8d2da}.abyrw{max-width:560px;text-align:center;font-size:14px}' +
     '.abydeck{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;max-width:660px}.abydeck span{display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 8px 2px 3px;border-radius:999px;border:2px solid var(--qc);background:#1c252c;color:#fff}.abydeck .abyic{border-width:1px}' +
@@ -18835,4 +18851,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794708775').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794709553').catch(()=>{});</script></body></html>
