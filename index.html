@@ -17015,7 +17015,7 @@ function gvExit() {
   pm.g.visible = !fpOn(); buildAnchor = null; const f = $('gvFl'); if (f) f.style.display = 'none';
 }
 function gvHint() { let h = $('gvHint'); if (!h) { h = document.createElement('div'); h.id = 'gvHint'; document.body.appendChild(h); }
-  h.innerHTML = IS_PC ? T2('滚轮缩放 · 拖动 / WASD 移动画面 · 点一下放置', 'Wheel: zoom · WASD / right-drag: move · Left click: place') : T2('单指拖动画面 · 双指捏合缩放 · 点一下选位置', 'Pinch to zoom · two fingers to move · one finger to aim');
+  h.innerHTML = IS_PC ? T2('滚轮缩放 · 拖动 / WASD 移动画面 · 鼠标指位置 · 点一下放置', 'Wheel: zoom · WASD / right-drag: move · Left click: place') : T2('按住建筑拖动 = 移动建筑 · 拖空地 = 移动画面 · 双指缩放', 'Pinch to zoom · two fingers to move · one finger to aim');
   h.classList.add('on'); clearTimeout(GV.hintT); GV.hintT = setTimeout(() => h.classList.remove('on'), 4200); }
 // what is above the storey you build on is hidden, so you can see in (ceilings / roofs of this storey too, unless you are placing one)
 function gvHideTick() {
@@ -17068,13 +17068,20 @@ removeTarget = (o => function () { const r = o(); if (GV.on && r && r.g && r.g.v
 /* ---- touch & mouse in god view (they never reach the game: no shooting, no walking) ---- */
 function gvTouchMid() { const a = [...GV.ptr.values()]; return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2, d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1 }; }
 function gvWorldPerPx() { return 2 * GV.d * Math.tan((camera.fov || 50) * Math.PI / 360) / Math.max(1, window.innerHeight); }
+// is a screen point on (or close to) the piece being placed / moved? then dragging moves the piece, not the view
+const _gvV = new THREE.Vector3();
+function gvOnPiece(cx, cy) { try {
+  const o = buildSel === 'move' ? (MV.o && MV.o.g) : buildSel === 'remove' ? null : ghost; if (!o || !_gvV.project) return false;
+  o.getWorldPosition ? o.getWorldPosition(_gvV) : _gvV.copy(o.position); _gvV.y += .6; _gvV.project(camera);
+  const r = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : { left: 0, top: 0, width: innerWidth, height: innerHeight }, sx = r.left + (_gvV.x + 1) / 2 * r.width, sy = r.top + (1 - _gvV.y) / 2 * r.height;
+  return Math.hypot(sx - cx, sy - cy) < Math.max(56, 150 / Math.max(1, GV.d / 14)); } catch (e) { return false; } }
 function gvAim(e) { const p = groundAt(e.clientX, e.clientY); if (p) buildAnchor = { x: p.x, z: p.z }; buildTap = { x: e.clientX, y: e.clientY }; }
 window.addEventListener('pointerdown', e => {
   if (!GV.on || e.target !== canvas) return; e.stopPropagation(); e.preventDefault(); try { canvas.setPointerCapture(e.pointerId); } catch (er) { }
   if (e.pointerType === 'mouse') { if (e.button === 0) { GV.drag = { x: e.clientX, y: e.clientY, moved: 0, place: true, pan: true }; gvAim(e); } else GV.drag = { x: e.clientX, y: e.clientY, moved: 0, pan: true }; return; }
   GV.ptr.set(e.pointerId, { x: e.clientX, y: e.clientY });
   // one finger: drag = move the view, a tap (no drag) = put the piece there; two fingers: pinch + move
-  if (GV.ptr.size === 1) GV.t1 = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: 0, ev: { clientX: e.clientX, clientY: e.clientY } }; else if (GV.ptr.size === 2) { GV.g0 = gvTouchMid(); GV.t1 = null; }
+  if (GV.ptr.size === 1) { GV.t1 = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: 0, ev: { clientX: e.clientX, clientY: e.clientY }, grab: gvOnPiece(e.clientX, e.clientY) }; if (GV.t1.grab) gvAim(e); } else if (GV.ptr.size === 2) { GV.g0 = gvTouchMid(); GV.t1 = null; }
 }, true);
 window.addEventListener('pointermove', e => {
   if (!GV.on || (e.target !== canvas && !GV.ptr.has(e.pointerId) && !GV.drag)) return;
@@ -17086,12 +17093,13 @@ window.addEventListener('pointermove', e => {
   if (GV.ptr.size >= 2 && GV.g0) { const m = gvTouchMid(), w = gvWorldPerPx();
     gvPan(-(m.x - GV.g0.x) * w, -(m.y - GV.g0.y) * w / Math.sin(GV.pitch), false); GV.d = clamp(GV.d * GV.g0.d / m.d, 8, 70); GV.g0 = m; }
   else if (GV.ptr.size === 1 && !GV.g0 && GV.t1) { const t = GV.t1, dx = e.clientX - t.lx, dy = e.clientY - t.ly; t.lx = e.clientX; t.ly = e.clientY; t.moved += Math.abs(dx) + Math.abs(dy);
-    if (t.moved > 10) { const w = gvWorldPerPx(); gvPan(-dx * w, -dy * w / Math.sin(GV.pitch), false); } }
+    if (t.grab) gvAim(e);   // the finger started on the piece: the piece follows it
+    else if (t.moved > 12) { const w = gvWorldPerPx(); gvPan(-dx * w, -dy * w / Math.sin(GV.pitch), false); } }
 }, true);
 const gvUp = e => { if (!GV.on) return;
   if (e.pointerType === 'mouse') { const d = GV.drag; GV.drag = null; if (d && d.place && d.moved < 8 && e.target === canvas && e.type === 'pointerup') { e.stopPropagation(); try { placeBuild(); } catch (er) { } } return; }
   if (!GV.ptr.has(e.pointerId)) return; e.stopPropagation(); GV.ptr.delete(e.pointerId);
-  if (!GV.ptr.size) { if (GV.t1 && GV.t1.moved <= 10 && !GV.g0 && e.type === 'pointerup') gvAim(GV.t1.ev); GV.t1 = null; GV.g0 = null; } };
+  if (!GV.ptr.size) { if (GV.t1 && !GV.t1.grab && GV.t1.moved <= 12 && !GV.g0 && e.type === 'pointerup') gvAim(GV.t1.ev); GV.t1 = null; GV.g0 = null; } };
 window.addEventListener('pointerup', gvUp, true); window.addEventListener('pointercancel', gvUp, true);
 window.addEventListener('wheel', e => { if (!GV.on || e.target !== canvas) return; e.preventDefault(); GV.d = clamp(GV.d * Math.exp(e.deltaY * .0015), 8, 70); }, { passive: false, capture: true });
 // keys: WASD / arrows move the view, + / − zoom; the fighting keys do nothing while you build here
@@ -20211,4 +20219,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794745348').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794745664').catch(()=>{});</script></body></html>
