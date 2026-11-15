@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="余烬末日">
 <meta name="theme-color" content="#0a0608"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon-180.png"><link rel="icon" href="icon-192.png">
-<style>html,body{margin:0;height:100%;background:#0a0608;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}</style>
+<style>@media (display-mode: standalone){html{min-height:min(100lvh,calc(100% + env(safe-area-inset-top)))}}html,body{margin:0;height:100%;background:#0a0608;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}</style>
 </head><body>
 <title>余烬末日</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -17931,25 +17931,22 @@ renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!bo
 try { const st = document.createElement('style'); st.textContent = '#bkPanel .snote b{color:#ffb07a}.bkh{margin:12px 0 4px;font-size:15px;color:#ffd8a8}.bkrow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:6px 0}#bkIn{width:min(560px,92vw);box-sizing:border-box;border-radius:10px;background:rgba(0,0,0,.35);color:#f3e6d6;border:1px solid rgba(255,255,255,.2);padding:8px;font-size:12px}.bkbtn{margin-top:10px;width:100%}'; document.head.appendChild(st); } catch (e) { }
 
 
-/* ---- iPhone home-screen app, portrait: iOS lays the page out 62 px short (the status bar's height) and leaves a dark strip at the bottom.
-   Try to make the layout viewport the full screen height while in portrait (viewport meta height=device-height), and put it back in landscape. */
+/* ---- iPhone home-screen app, portrait: the dark strip at the bottom.
+   Root cause: an iOS 26 WebKit bug (WebKit bug 301108): an installed web app with viewport-fit=cover and the black-translucent
+   status bar gets a viewport that is short by the status bar's height (402×874 screen → 812), and the missing part ends up
+   as a strip at the bottom, outside the page. Content cannot be drawn there.
+   What we do: (1) the viewport meta gets height=device-height once in portrait (inline script in pwa_build.sh), and is only
+   changed again when the phone is really turned; (2) the page root is made screen-tall in the CSS (html min-height trick used
+   by other apps for this bug). The old self-heal that kept rewriting the viewport tag made the screen flash: removed. */
 (() => { try {
   const sa = navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches); if (!sa) return;
+  document.documentElement.classList.add('sa');
   const m = document.querySelector('meta[name=viewport]'); if (!m) return; const base = m.content.replace(/,\s*height=[^,]*/g, '');
-  const fix = () => { const portrait = innerHeight > innerWidth || (screen.orientation && /portrait/.test(screen.orientation.type)), want = portrait ? base + ',height=device-height' : base;
-    if (m.content !== want) { m.content = want; setTimeout(() => { try { resize(); } catch (e) { } }, 150); } };
-  fix(); addEventListener('orientationchange', () => setTimeout(fix, 250)); addEventListener('resize', () => setTimeout(fix, 250));
-  // self-check (after an update iOS sometimes lays the page out short again): in portrait, if the page is still shorter than the
-  // screen, take the height out and put it back so iOS measures again; a few tries per orientation, then leave it alone
-  let tries = 0, lastO = ''; const heal = () => { try { const portrait = innerHeight > innerWidth, o = portrait ? 'p' : 'l'; if (o !== lastO) { lastO = o; tries = 0; } if (!portrait || tries >= 9) return;
-    const H = Math.max(screen.height, screen.width); if (H - innerHeight <= 8) return; const n = tries++ % 3;
-    // three different ways to make iOS measure again, in turn: the height taken out and put back; the height as a number;
-    // viewport-fit taken out and put back
-    const fin = c => setTimeout(() => { m.content = c; setTimeout(() => { try { resize(); } catch (e) { } }, 120); }, 80);
-    if (n === 0) { m.content = base; fin(base + ',height=device-height'); }
-    else if (n === 1) { m.content = base + ',height=' + H; fin(base + ',height=device-height'); }
-    else { m.content = base.replace(/,\s*viewport-fit=cover/, '') + ',height=device-height'; fin(base + ',height=device-height'); } } catch (e) { } };
-  setInterval(heal, 1500); addEventListener('pageshow', () => { tries = 0; setTimeout(heal, 300); }); document.addEventListener('visibilitychange', () => { if (!document.hidden) { tries = 0; setTimeout(heal, 300); } });
+  let lastP = null;
+  const fix = () => { const portrait = (screen.orientation && screen.orientation.type) ? /portrait/.test(screen.orientation.type) : innerHeight > innerWidth; if (portrait === lastP) return; lastP = portrait;
+    const want = portrait ? base + ',height=device-height' : base; if (m.content !== want) { m.content = want; setTimeout(() => { try { resize(); } catch (e) { } }, 150); } };
+  fix(); addEventListener('orientationchange', () => setTimeout(fix, 300));
+  const st = document.createElement('style'); st.textContent = 'html.sa{min-height:min(100lvh,calc(100% + env(safe-area-inset-top)))}'; document.head.appendChild(st);
 } catch (e) { } })();
 /* ============ 无尽深渊: a roguelike run, floor after floor (DUNS[9]) ============
    - Board the 深渊号 at the island pier (Lv.20+; solo, the public lobby is fine). Pick ONE weapon you own; the run uses only that one.
@@ -20214,4 +20211,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794744938').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794745348').catch(()=>{});</script></body></html>
