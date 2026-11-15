@@ -17753,8 +17753,9 @@ function terInit() {
   // things standing on the island ground (palms, rocks, decorations): they follow the ground
   for (const c of islandG.children) { if (c === m) continue; const p = c.geometry && c.geometry.parameters; if (p && (p.radiusTop >= ISL_R || p.width >= 200)) continue; if (c.userData && c.userData.noCast && c.position.y < -.2) continue;
     const r = Math.hypot(c.position.x, c.position.z); if (r > ISL_R + 14) continue;
-    try { const bb = new THREE.Box3().setFromObject(c), sz = new THREE.Vector3(); bb.getSize(sz); if (sz.x > 9 || sz.z > 9) continue; } catch (e) { continue; }   // only small things, not whole groups spread over the island
-    TER.props.push({ o: c, y0: c.position.y }); }
+    let cx = c.position.x, cz = c.position.z;
+    try { const bb = new THREE.Box3().setFromObject(c), sz = new THREE.Vector3(), ce = new THREE.Vector3(); bb.getSize(sz); if (sz.x > 9 || sz.z > 9) continue; bb.getCenter(ce); cx = ce.x - HOME.x; cz = ce.z - HOME.z; } catch (e) { continue; }   // only small things, not whole groups spread over the island
+    TER.props.push({ o: c, y0: c.position.y, cx, cz }); }   // cx/cz: where it really stands (the island trees are groups at 0,0 with the tree drawn off to the side)
 }
 function terVert(i, j) {
   const N = TER_N, k = j * N + i, x = i * TER_S - TER_O, z = j * TER_S - TER_O, r = Math.hypot(x, z), C = TER.dc, H = TER.h, bb = TER.bb || (TER.bb = { i0: 1e9, i1: -1, j0: 1e9, j1: -1 });
@@ -17780,7 +17781,7 @@ function terMeshDone(norm) { const bb = TER.bb; if (!bb || bb.i1 < 0) return; TE
   g.attributes.position.needsUpdate = true; g.attributes.color.needsUpdate = true; g.attributes.normal.needsUpdate = true; }
 // whatever stands on the ground follows it
 function terProps() {
-  for (const p of TER.props) p.o.position.y = p.y0 + terD(HOME.x + p.o.position.x, HOME.z + p.o.position.z);
+  for (const p of TER.props) p.o.position.y = p.y0 + terD(HOME.x + (p.cx != null ? p.cx : p.o.position.x), HOME.z + (p.cz != null ? p.cz : p.o.position.z));
   try { for (const f of fixList()) { if (MV.o === f || !f.g) continue; f.g.position.y = terD(f.x, f.z); } } catch (e) { }
 }
 
@@ -17805,7 +17806,7 @@ function terLockW(x, z) {
 }
 function terBrush(dt) {
   const a = buildAnchor; if (!a) return; const R = TER_SIZES[TER.size] || 4.2, N = TER_N, H = TER.h, tool = TER.tool;
-  TER.near = builds.filter(b => b.hp > 0 && !terLoose(b) && Math.abs(b.x - a.x) < R + 5 && Math.abs(b.z - a.z) < R + 5);   // loose pieces (trees, plants, lamps…) do not lock the ground: they ride up and down with it
+  TER.near = builds.filter(b => b.hp > 0 && !terLoose(b) && !(b.lv | 0) && Math.abs(b.x - a.x) < R + 5 && Math.abs(b.z - a.z) < R + 5);   // loose pieces (trees, plants, lamps…) do not lock the ground: they ride up and down with it
   const i0 = Math.max(1, Math.floor((a.x - HOME.x + TER_O - R) / TER_S)), i1 = Math.min(N - 2, Math.ceil((a.x - HOME.x + TER_O + R) / TER_S)), j0 = Math.max(1, Math.floor((a.z - HOME.z + TER_O - R) / TER_S)), j1 = Math.min(N - 2, Math.ceil((a.z - HOME.z + TER_O + R) / TER_S));
   if (tool === 'flat' && TER.flatH == null) TER.flatH = terH(a.x, a.z);
   const old = tool === 'smooth' ? H.slice() : null; let changed = false;
@@ -18008,7 +18009,7 @@ terBrush = (o => function (dt) {
   if (!(TER.tool in TP_TYPE)) return o(dt);
   const a = buildAnchor; if (!a) return; const R = TER_SIZES[TER.size] || 4.2, N = TER_N, v = TP_TYPE[TER.tool];
   // water digs a pond: it keeps away from buildings like the terrain brushes; the water surface is level, at the height where the stroke began
-  TER.near = v === 4 ? builds.filter(b => b.hp > 0 && !terLoose(b) && Math.abs(b.x - a.x) < R + 5 && Math.abs(b.z - a.z) < R + 5) : [];
+  TER.near = v === 4 ? builds.filter(b => b.hp > 0 && !terLoose(b) && !(b.lv | 0) && Math.abs(b.x - a.x) < R + 5 && Math.abs(b.z - a.z) < R + 5) : [];
   if (v === 4 && TPAINT.L == null) { TPAINT.L = terH(a.x, a.z) - .15;
     // starting on or next to a pond: keep that pond's level, so the two join without a step
     const ci = Math.round((a.x - HOME.x + TER_O) / TER_S), cj = Math.round((a.z - HOME.z + TER_O) / TER_S); let bd = 1e9;
@@ -18279,7 +18280,7 @@ const trivTool = () => TER.tool === 'river' || TER.tool === 'pond_draw';
 function trivMat() { if (TRIV.mat) return TRIV.mat; const b = tpWaterMat(), m = b.clone(); m.map = b.map.clone(); m.map.needsUpdate = true; m.map.wrapS = m.map.wrapT = THREE.RepeatWrapping; TRIV.mat = m; return m; }
 
 // ---- digging ----
-function trivNear(minx, maxx, minz, maxz) { TER.near = builds.filter(b => b.hp > 0 && !terLoose(b) && b.x > minx - 6 && b.x < maxx + 6 && b.z > minz - 6 && b.z < maxz + 6); }
+function trivNear(minx, maxx, minz, maxz) { TER.near = builds.filter(b => b.hp > 0 && !terLoose(b) && !(b.lv | 0) && b.x > minx - 6 && b.x < maxx + 6 && b.z > minz - 6 && b.z < maxz + 6); }
 function trivDig(s, lv, w) {   // s: spline samples (relative), lv: water level per sample
   const N = TER_N, H = TER.h, half = w / 2, reach = half + 1.4; let minx = 1e9, maxx = -1e9, minz = 1e9, maxz = -1e9;
   for (let i = 0; i < s.length; i += 2) { minx = Math.min(minx, s[i]); maxx = Math.max(maxx, s[i]); minz = Math.min(minz, s[i + 1]); maxz = Math.max(maxz, s[i + 1]); }
@@ -21207,4 +21208,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794766200').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794766811').catch(()=>{});</script></body></html>
