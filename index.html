@@ -16850,7 +16850,7 @@ try { const st = document.createElement('style'); st.textContent = '#bkPanel .sn
      普通 / 稀有 / 史诗 / 传说 / 神话: the higher, the stronger the same card is. Some cards only show up once you hold their partners.
    - Nothing in the run touches your save: ammo is endless, stamina is full, medkits and food are not used, the weapon comes back.
      Monsters drop only 深渊币 (S.abyss.ac, kept even if you fall) and give no XP; nothing from the outside world touches them, all chase you.
-     Rewards at the end: first-clear rewards per milestone floor (XP, coins, gems, 深渊币), plus coins + XP. ONLY the first run of each week pays anything (the owner's rule); later runs that week pay nothing (深渊币 drops still count).
+     Rewards at the end: first-clear rewards per milestone floor (XP, coins, gems, 深渊币), plus coins + XP for the first 3 runs each week. 深渊币 drop only in the first run of each week (owner's rule); first-clear rewards are once ever.
    Save: S.abyss = { best, bestBy:{weapon:floor}, wk, runs, claimed:{} }. */
 const ABY_ID = 9, ABY_MINLV = 20, ABY_R = 21;
 const ABY = { on: false, wp: '', floor: 0, cards: {}, picks: [], rer: 2, queue: 0, state: '', spawnLeft: 0, shield: 0, revive: 0, snap: null, result: null,
@@ -17062,7 +17062,7 @@ function abyEnter(wp) {
   if (S.level < ABY_MINLV) { feed(T2('无尽深渊要 Lv.' + ABY_MINLV + ' 才能进', 'Needs Lv.' + ABY_MINLV), '#ff9b8a'); return; }
   if (!WEAP[wp] || wLv(wp) <= 0) return;
   ABY.snap = { wp: S.wp, wpp: S.wpPrev, reserve: S.reserve | 0, med: S.med | 0, hp: S.hp, food: S.food, sta: S.sta, mag: S.mag | 0 };
-  ABY.wp = wp; ABY.floor = 0; ABY.cards = {}; ABY.picks = []; ABY.rer = 2; ABY.queue = 0; ABY.shield = 0; ABY.revive = 0; ABY.result = null; ABY.fires = []; ABY.fl = {}; ABY.shots = ABY.swings = ABY.kills = 0; ABY.hpMul = 1; ABY.ac = 0; abyCoinClear(false);
+  ABY.wp = wp; ABY.floor = 0; ABY.cards = {}; ABY.picks = []; ABY.rer = 2; ABY.queue = 0; ABY.shield = 0; ABY.revive = 0; ABY.result = null; ABY.fires = []; ABY.fl = {}; ABY.shots = ABY.swings = ABY.kills = 0; ABY.hpMul = 1; ABY.ac = 0; abyCoinClear(false); ABY.acOk = S.abyss.acWk !== abyWeek(); S.abyss.acWk = abyWeek();   // this run is the week's 深渊币 run (even if you fall or leave early)
   ABY.on = true; ABY.allowEq = true; try { equip(wp); } catch (e) { S.wp = wp; } ABY.allowEq = false; S.wpPrev = wp;
   if (WEAP[wp].cls !== 'melee') { S.mag = magSizeNow(wp); S.reserve = magSizeNow(wp) * 3; S.reload = 0; }
   DUN.id = ABY_ID; dunTravel(T2('登上深渊号', 'Boarding'), T2('无尽深渊', 'The Endless Abyss'), dunEnter);
@@ -17078,7 +17078,7 @@ function abyRestore() { const s = ABY.snap; ABY.on = false; if (!s) return; ABY.
 // closed the game during a run: put things back on the next start (no rewards)
 shopSave = (o => function () { const r = o(); try { r.aby = S.abyss; if (ABY.on && ABY.snap) r.abyS = ABY.snap; } catch (e) { } return r; })(shopSave);
 shopLoad = (o => function (d) { o(d); const a = d && d.sh && d.sh.aby;
-  S.abyss = { best: 0, bestBy: {}, wk: '', runs: 0, claimed: {}, ac: 0 }; try { if (a && typeof a === 'object') { S.abyss.best = a.best | 0; S.abyss.ac = Math.max(0, a.ac | 0); S.abyss.wk = String(a.wk || ''); S.abyss.runs = a.runs | 0; for (const k in a.bestBy || {}) if (WEAP[k]) S.abyss.bestBy[k] = a.bestBy[k] | 0; for (const k in a.claimed || {}) S.abyss.claimed[k] = 1; } } catch (e) { }
+  S.abyss = { best: 0, bestBy: {}, wk: '', runs: 0, claimed: {}, ac: 0, acWk: '' }; try { if (a && typeof a === 'object') { S.abyss.best = a.best | 0; S.abyss.acWk = String(a.acWk || ''); S.abyss.ac = Math.max(0, a.ac | 0); S.abyss.wk = String(a.wk || ''); S.abyss.runs = a.runs | 0; for (const k in a.bestBy || {}) if (WEAP[k]) S.abyss.bestBy[k] = a.bestBy[k] | 0; for (const k in a.claimed || {}) S.abyss.claimed[k] = 1; } } catch (e) { }
   try { const s = d && d.sh && d.sh.abyS; if (s && typeof s === 'object') setTimeout(() => { if (ABY.on) return; ABY.snap = { wp: s.wp, wpp: s.wpp, reserve: s.reserve | 0, med: s.med | 0, hp: +s.hp || 1, food: +s.food || 50, sta: +s.sta || 100, mag: s.mag | 0 }; ABY.on = true; abyRestore(); }, 0); } catch (e) { } })(shopLoad);
 
 /* ---- the run's rules: no weapon swapping, endless ammo and stamina, no medkits, no drops, no XP ---- */
@@ -17292,7 +17292,7 @@ let ABY_CG = null;
 function abyCoinGeo() { if (ABY_CG) return ABY_CG; ABY_CG = { face: new THREE.CylinderGeometry(.26, .26, .07, 14), rim: new THREE.TorusGeometry(.26, .05, 5, 14),
   fm: new THREE.MeshLambertMaterial({ color: 0x1f9aa6, emissive: 0x0a3a40 }), rm: new THREE.MeshLambertMaterial({ color: 0xf0c040, emissive: 0x4a3000 }) }; return ABY_CG; }
 ABY.drops = [];
-function abyDrop(x, z, n) { if (!n) return; const G = abyCoinGeo(), k = Math.min(6, n);
+function abyDrop(x, z, n) { if (!n || !ABY.acOk) return; const G = abyCoinGeo(), k = Math.min(6, n);
   for (let i = 0; i < k; i++) { const g = new THREE.Group(), f = new THREE.Mesh(G.face, G.fm), r = new THREE.Mesh(G.rim, G.rm); f.rotation.x = Math.PI / 2; g.add(f); g.add(r); g.position.set(x, 1, z); scene.add(g);
     const a = Math.random() * 6.28, sp = 2 + Math.random() * 2; ABY.drops.push({ g, v: Math.floor(n / k) + (i < n % k ? 1 : 0), vx: Math.cos(a) * sp, vz: Math.sin(a) * sp, vy: 5 + Math.random() * 2, t: 0 }); } }
 function abyAmmoDrop(x, z, n) { const g = new THREE.Group(), L = c => new THREE.MeshLambertMaterial({ color: c });
@@ -17355,7 +17355,7 @@ function abyPick(first) {
 }
 // every 5 floors: leave with the rewards, or keep going
 function abyGate() { S.paused = true; let m = $('abyGateM'); if (m) m.remove(); m = document.createElement('div'); m.id = 'abyGateM'; m.className = 'abym';
-  const R = abyReward(ABY.floor, true); if (!R.full) R.txt = T2('这周的奖励已经领过了', 'this week\'s reward is already taken');
+  const R = abyReward(ABY.floor, true);
   m.innerHTML = '<div class="abyh">' + T2('第 ' + ABY.floor + ' 层 · 安全点', 'Floor ' + ABY.floor + ' · checkpoint') + '</div><div class="abygate"><p>' + T2('现在离开，按第 ' + ABY.floor + ' 层结算：', 'Leave now and get floor ' + ABY.floor + ': ') + R.txt + '</p>' +
     '<p class="abywarn">' + T2('继续往下：如果在第 ' + (ABY.floor + 1) + '–' + (ABY.floor + 4) + ' 层倒下，只按第 ' + ABY.floor + ' 层结算。', 'Go on: dying before floor ' + (ABY.floor + 5) + ' still pays floor ' + ABY.floor + '.') + '</p>' +
     '<div class="abygb"><button class="sbtn ghostb abyout">' + T2('带着奖励离开', 'Leave with rewards') + '</button><button class="go abyon">' + T2('继续往下', 'Go deeper') + '</button></div></div>';
@@ -17369,10 +17369,10 @@ const ABY_MS = [[5, { xp: .3, coin: 500, ac: 30 }], [10, { xp: .5, coin: 1500, b
   [25, { xp: .9, heart: 1, ac: 120 }], [30, { xp: 1, gem: 100, heart: 2, ac: 150 }], [40, { xp: 1.2, gem: 150, ac: 200 }], [50, { xp: 1.5, gem: 200, ac: 300 }]];
 const abyMsTxt = rw => Object.keys(rw).map(k => k === 'xp' ? T2('经验 ', 'XP ') + stXp(S.level, rw[k]) : k === 'ac' ? T2('深渊币 ×', 'Abyss coins ×') + rw[k] : stItN(k) + ' ×' + rw[k]).join('、');
 function abyResult(why) { const f = ABY.floor, cleared = ABY.state === 'clear' || ABY.state === '' ? f : f - 1, paid = why === 'leave' ? cleared : Math.floor(Math.max(0, cleared) / 5) * 5;
-  return { why, floor: f, cleared: Math.max(0, cleared), paid, wp: ABY.wp, picks: ABY.picks.slice(), ac: ABY.ac | 0 }; }
+  return { why, floor: f, cleared: Math.max(0, cleared), paid, wp: ABY.wp, picks: ABY.picks.slice(), ac: ABY.ac | 0, acOk: ABY.acOk }; }
 function abyReward(paid, preview) {
   const wk = abyWeek(); if (S.abyss.wk !== wk) { S.abyss.wk = wk; S.abyss.runs = 0; }
-  const full = S.abyss.runs < 1, coin = full ? Math.round(Math.min(3000, 80 * paid)) : 0, xp = paid > 0 && full ? stXp(S.level, Math.min(.5, paid * .015)) : 0, ms = !full ? [] : ABY_MS.filter(([f]) => paid >= f && !S.abyss.claimed[f]);
+  const full = S.abyss.runs < 3, coin = Math.round(Math.min(3000, 80 * paid) * (full ? 1 : .1)), xp = paid > 0 && full ? stXp(S.level, Math.min(.5, paid * .015)) : 0, ms = ABY_MS.filter(([f]) => paid >= f && !S.abyss.claimed[f]);
   const parts = []; if (coin) parts.push(T2('余烬币 ', 'coins ') + coin); if (xp) parts.push(T2('经验 ', 'XP ') + xp);
   ms.forEach(([f, rw]) => parts.push(T2('第 ' + f + ' 层首通奖励：', 'First clear of floor ' + f + ': ') + abyMsTxt(rw)));
   return { coin, xp, ms, full, txt: parts.join(' · ') || T2('没有奖励', 'nothing') };
@@ -17389,7 +17389,7 @@ function abySettle(r) {
   const cards = r.picks.map(([id, q]) => '<span style="--qc:' + ABY_Q[q][1] + '">' + abyIcon(ABYC[id], 18) + ABYC[id].n + '</span>').join('');
   m.innerHTML = '<div class="abyh">' + (r.why === 'dead' ? T2('倒在了第 ' + r.floor + ' 层', 'Fell on floor ' + r.floor) : r.why === 'leave' ? T2('带着奖励离开', 'Left with the rewards') : T2('中途离开', 'Left early')) + '</div>' +
     '<div class="abyend"><div class="abybig"><b>' + r.cleared + '</b><small>' + T2('通过的层数', 'floors cleared') + '</small></div><div class="abybig"><b>' + r.paid + '</b><small>' + T2('结算层数', 'floors paid') + '</small></div><div class="abybig"><b>' + (S.abyss.bestBy[r.wp] | 0) + '</b><small>' + wName(r.wp) + T2(' 最高', ' best') + '</small></div></div>' +
-    '<p class="abyac">' + abyCoinIc(22) + T2(' 这一局拿到深渊币 ', ' Abyss coins this run: ') + '<b>' + (r.ac | 0) + '</b>' + T2('（共 ', ' (total ') + (S.abyss.ac | 0) + T2('）', ')') + '</p><p class="abyrw">' + R.txt + (R.full ? '' : T2('（这周的奖励已经领过了：每周只有第一局有奖励，下周一再来）', ' (this week\'s reward is already taken: only the first run each week pays; come back next Monday)')) + '</p>' +
+    '<p class="abyac">' + abyCoinIc(22) + T2(' 这一局拿到深渊币 ', ' Abyss coins this run: ') + '<b>' + (r.ac | 0) + '</b>' + T2('（共 ', ' (total ') + (S.abyss.ac | 0) + T2('）', ')') + (r.acOk ? '' : T2(' · 这周的深渊币已经拿过了', ' · this week\'s Abyss coins were already taken')) + '</p><p class="abyrw">' + R.txt + (R.full ? '' : T2('（本周前 3 局之后，余烬币只给一成）', ' (after 3 runs this week coins are 10%)')) + '</p>' +
     '<div class="abydeck">' + (cards || '<i>' + T2('没有卡', 'no cards') + '</i>') + '</div><button class="go abyok">' + T2('知道了', 'OK') + '</button>';
   m.querySelector('.abyok').addEventListener('click', () => m.remove()); document.body.appendChild(m);
 }
@@ -17416,8 +17416,8 @@ function abyPage() {
   const draw = () => {
     m.innerHTML = '<div class="abyh">' + T2('无尽深渊', 'The Endless Abyss') + '</div><p class="abysub">' + T2('只能带一把武器下去，一层一层往下打，每层选一张卡。死了就结束，卡不带出来。', 'One weapon, floor after floor, a card each floor. Die and it ends; cards stay down there.') + '</p>' +
       '<div class="abyws">' + W_ORDER.map(id => { const own = wLv(id) > 0; return '<button class="abyw' + (id === sel ? ' on' : '') + (own ? '' : ' off') + '" data-w="' + id + '">' + (own ? wImg(id, wLv(id), 'x') : '') + '<b>' + wName(id) + '</b><small>' + (own ? 'Lv.' + wLv(id) + ' · ' + T2('最高 ', 'best ') + (S.abyss.bestBy[id] | 0) + T2(' 层', '') : T2('还没有 · 在工作台制作', 'Not owned · craft it')) + '</small></button>'; }).join('') + '</div>' +
-      '<div class="abyinfo"><span>' + abyCoinIc(16) + T2(' 深渊币 ', ' Abyss coins ') + '<b>' + (S.abyss.ac | 0) + '</b></span><span>' + T2('历史最高 ', 'Best ') + '<b>' + (S.abyss.best | 0) + '</b>' + T2(' 层', '') + '</span><span>' + T2('本周奖励 ', 'This week ') + '<b>' + (S.abyss.runs < 1 ? T2('还没领', 'not taken') : T2('已领过', 'taken')) + '</b></span></div>' +
-      '<p class="abynote">' + T2('深渊里的怪只掉「深渊币」（死了也不会丢），不掉别的、不给经验；外面的东西（地区特性、周王加成）影响不到它们，全部会冲你来。奖励每周只能拿一次，算这周打的第一局：按结算层数给余烬币（每层 80，最多 3000）和经验，这一局第一次到达第 5 / 10 / 15 / 20 / 25 / 30 / 40 / 50 层还有首通奖励（经验、余烬币、宝石、深渊币……）。同一周之后再打就没有奖励了（深渊币照样掉）。体力无限；子弹只带满弹匣 + 3 个弹匣，怪偶尔掉一点子弹，打光了就用拳头（也有「无限子弹」卡）；伙伴不能跟进来；不用医疗包，出来后一切恢复原样。', 'Monsters here drop only Abyss coins (kept even if you fall), nothing else and no XP; nothing from outside (region traits, the weekly king) touches them, and all of them come for you. Rewards come once a week, from your first run: coins (80 a floor, max 3000) and XP, plus first-clear rewards for floors 5/10/15/20/25/30/40/50 reached in that run. Later runs that week pay nothing (Abyss coins still drop). Stamina is endless; you bring a full magazine + 3 more, monsters sometimes drop a little ammo, and with none left you punch (there is an Infinite Ammo card); companions stay outside; everything is put back when you leave.') + '</p>' +
+      '<div class="abyinfo"><span>' + abyCoinIc(16) + T2(' 深渊币 ', ' Abyss coins ') + '<b>' + (S.abyss.ac | 0) + '</b></span><span>' + T2('历史最高 ', 'Best ') + '<b>' + (S.abyss.best | 0) + '</b>' + T2(' 层', '') + '</span><span>' + T2('本周深渊币 ', 'Abyss coins this week ') + '<b>' + (S.abyss.acWk !== abyWeek() ? T2('还能拿', 'available') : T2('已拿过', 'taken')) + '</b></span><span>' + T2('本周领奖局数 ', 'Paid runs left ') + '<b>' + Math.max(0, 3 - S.abyss.runs) + ' / 3</b></span></div>' +
+      '<p class="abynote">' + T2('深渊里的怪只掉「深渊币」（每周只有第一局会掉，死了也不会丢），不掉别的、不给经验；外面的东西（地区特性、周王加成）影响不到它们，全部会冲你来。奖励：每周前 3 局按结算层数给余烬币（每层 80，最多 3000）和经验；第 5 / 10 / 15 / 20 / 25 / 30 / 40 / 50 层第一次通过有首通奖励（经验、余烬币、宝石、深渊币……），每个只能拿一次。体力无限；子弹只带满弹匣 + 3 个弹匣，怪偶尔掉一点子弹，打光了就用拳头（也有「无限子弹」卡）；伙伴不能跟进来；不用医疗包，出来后一切恢复原样。', 'Monsters here drop only Abyss coins (only in your first run each week; kept even if you fall), nothing else and no XP; nothing from outside (region traits, the weekly king) touches them, and all of them come for you. Rewards: first 3 runs a week pay coins (80 a floor, max 3000) and XP; first clears of floors 5/10/15/20/25/30/40/50 pay once ever (XP, coins, gems, Abyss coins …). Stamina is endless; you bring a full magazine + 3 more, monsters sometimes drop a little ammo, and with none left you punch (there is an Infinite Ammo card); companions stay outside; everything is put back when you leave.') + '</p>' +
       '<div class="abygb"><button class="sbtn ghostb abyx">' + T2('返回', 'Back') + '</button><button class="go abygo"' + (lock || !sel ? ' disabled' : '') + '>' + (lock || T2('下潜', 'Dive')) + '</button></div>';
     m.querySelectorAll('.abyw').forEach(b => b.addEventListener('click', () => { if (b.classList.contains('off')) return; sel = b.dataset.w; draw(); }));
     m.querySelector('.abyx').addEventListener('click', () => m.remove());
@@ -18835,4 +18835,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794708358').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794708775').catch(()=>{});</script></body></html>
