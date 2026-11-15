@@ -4374,7 +4374,9 @@ function buildMesh(type) {
   return g;
 }
 const costOf = t => { const c = BT[t].cost, k = 1 - Math.min(.6, ts('bcost')); return { wood: Math.ceil((c.wood || 0) * k), metal: Math.ceil((c.metal || 0) * k) }; };
-function canAfford(t) { const c = costOf(t); return c.wood <= S.wood && c.metal <= S.metal; }
+// wood/metal you can build with: bag + storage (falls back to the bag during start-up, before the storage code exists)
+function bmHave(k) { try { return matHave(k); } catch (e) { return k === 'wood' ? S.wood : S.metal; } }
+function canAfford(t) { const c = costOf(t); return c.wood <= bmHave('wood') && c.metal <= bmHave('metal'); }
 // local box -> world box for a quarter-turn rotation
 function obWorld(x, z, rot, o) { const c = Math.round(Math.cos(rot)), s = Math.round(Math.sin(rot)), sw = Math.abs(s) === 1; return { x: x + o[0] * c + o[1] * s, z: z - o[0] * s + o[1] * c, hw: sw ? o[3] : o[2], hd: sw ? o[2] : o[3] }; }
 function addBuild(type, x, z, rot, free, lv) {
@@ -4441,8 +4443,8 @@ function buildCards() {
   Object.keys(BT).filter(k => BT[k].cat === buildCat).forEach(k => {
     const T = k === 'remove' ? { name: '拆除', desc: '返还 60% 材料', cost: {} } : k === 'move' ? { name: '移动', desc: '挪动家具和海岛设施', cost: {} } : BT[k], c = document.createElement('button'); c.className = 'card'; c.dataset.k = k;
     const cost = [], cc = k === 'remove' || k === 'move' ? {} : costOf(k);
-    if (cc.wood) cost.push('<em class="' + (S.wood < cc.wood ? 'lack' : '') + '"><i class="dot" style="background:#c9955c"></i>木头 ' + cc.wood + '</em>');
-    if (cc.metal) cost.push('<em class="' + (S.metal < cc.metal ? 'lack' : '') + '"><i class="dot" style="background:#a9c4d8"></i>铁片 ' + cc.metal + '</em>');
+    if (cc.wood) cost.push('<em class="' + (bmHave('wood') < cc.wood ? 'lack' : '') + '"><i class="dot" style="background:#c9955c"></i>木头 ' + cc.wood + '</em>');
+    if (cc.metal) cost.push('<em class="' + (bmHave('metal') < cc.metal ? 'lack' : '') + '"><i class="dot" style="background:#a9c4d8"></i>铁片 ' + cc.metal + '</em>');
     c.innerHTML = '<b>' + T.name + '</b><span>' + T.desc + '</span><div class="cost">' + cost.join('') + '</div>';
     c.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); selectBuild(k); });
     row.appendChild(c);
@@ -4454,7 +4456,7 @@ function refreshBuildCards() {
   buildEl.querySelectorAll('.btool').forEach(b => b.classList.toggle('on', b.dataset.tool === buildSel));
   buildEl.querySelectorAll('.bcat:not(.btool)').forEach((b, i) => b.classList.toggle('on', buildSel !== 'move' && buildSel !== 'remove' && BCATS[i] && BCATS[i][0] === buildCat));
   buildEl.querySelectorAll('.card').forEach(c => { const k = c.dataset.k; c.classList.toggle('sel', k === buildSel); c.classList.toggle('no', !canAffordSel(k));
-    if (k !== 'remove' && k !== 'move') { const cc = costOf(k), em = c.querySelectorAll('.cost em'); let i = 0; if (cc.wood && em[i]) em[i++].classList.toggle('lack', S.wood < cc.wood); if (cc.metal && em[i]) em[i].classList.toggle('lack', S.metal < cc.metal); } });
+    if (k !== 'remove' && k !== 'move') { const cc = costOf(k), em = c.querySelectorAll('.cost em'); let i = 0; if (cc.wood && em[i]) em[i++].classList.toggle('lack', bmHave('wood') < cc.wood); if (cc.metal && em[i]) em[i].classList.toggle('lack', bmHave('metal') < cc.metal); } });
   const h = $('bHave'); if (h) h.innerHTML = '<b>现有</b><span><i class="dot" style="background:#c9955c"></i>木头 ' + S.wood + '</span><span><i class="dot" style="background:#a9c4d8"></i>铁片 ' + S.metal + '</span>';
 }
 // the demolish highlight tints a private copy of the materials (they are shared between buildings)
@@ -4648,7 +4650,7 @@ function placeBuild() {
   const t = ghostTransform();
   if (!canAfford(buildSel)) { feed('物资不足', '#ff9b8a'); return; }
   if (!t.ok) { feed(t.why || '这里放不下，换个地方', '#ff9b8a'); return; }
-  const c = costOf(buildSel); S.wood -= c.wood; S.metal -= c.metal;
+  const c = costOf(buildSel); if (c.wood) matAdd('wood', -c.wood); if (c.metal) matAdd('metal', -c.metal);   // from the bag first, then the storage
   addBuild(buildSel, t.x, t.z, t.rot, false, t.lv || 0); sfx.build(); burst(t.x, (t.y || 0) + .5, t.z, 0xc9955c, 8, 4); feed('建成 ' + BT[buildSel].name, '#8fd16f');
   questTick('build', 1); refreshHud(); refreshBuildCards(); saveGame();
 }
@@ -5102,7 +5104,7 @@ function renderBench() {
   { const t = document.createElement('div'); t.className = 'snote'; t.textContent = '身上 余烬币 ' + S.coin + ' · 木头 ' + S.wood + ' · 铁片 ' + S.metal; box.appendChild(t); } const t = document.createElement('div'); t.className = 'snote'; t.style.color = '#ffd27a'; t.textContent = '修理装备（每件最多修 3 次，修满后再坏就报废）'; box.appendChild(t);
     hurt.forEach(it => { const c = repairCost(it), left = GREP_MAX - gRep(it), Q = GQ[it[1]];
       const row = shopRow(Q.n + ' · ' + gName(it) + ' Lv.' + it[2], '耐久 ' + Math.ceil(gDur(it)) + '% · ' + (left > 0 ? '还能修 ' + left + ' 次 · 需要 ' + c.coin + ' 币 木头 ' + c.wood + ' 铁片 ' + c.metal : '修理次数用完了'), Q.c);
-      const b = document.createElement('button'); b.className = 'sbtn'; b.textContent = '修理'; b.disabled = left <= 0 || S.coin < c.coin || S.wood < c.wood || S.metal < c.metal;
+      const b = document.createElement('button'); b.className = 'sbtn'; b.textContent = '修理'; b.disabled = left <= 0 || S.coin < c.coin || matHave('wood') < c.wood || matHave('metal') < c.metal;
       b.addEventListener('click', () => { if (repairGear(it)) { refreshHud(); renderBench(); saveGame(); } }); row.appendChild(b); box.appendChild(row); }); return; }
   const head = document.createElement('div'); head.className = 'snote'; head.textContent = '身上弹药 ' + S.reserve + ' · 医疗包 ' + S.med + ' · 木头 ' + matHave('wood') + ' · 铁片 ' + matHave('metal') + ' · 火药 ' + matHave('powder'); box.appendChild(head);
   CRAFT.forEach(r => {
@@ -5619,8 +5621,8 @@ function gearWear(kind) {
 const repairCost = it => { const miss = (100 - gDur(it)) / 100, q = it[1] + 1; return { coin: Math.ceil((10 + it[2] * 2) * q * miss), wood: Math.ceil(3 * q * miss), metal: Math.ceil(2 * q * miss) }; };
 function repairGear(it) {
   if (gRep(it) >= GREP_MAX || gDur(it) >= 100) return false; const c = repairCost(it);
-  if (S.coin < c.coin || S.wood < c.wood || S.metal < c.metal) { feed('修理材料不够', '#ff9b8a'); return false; }
-  S.coin -= c.coin; S.wood -= c.wood; S.metal -= c.metal; it[5] = 100; it[6] = gRep(it) + 1; sfx.build();
+  if (S.coin < c.coin || matHave('wood') < c.wood || matHave('metal') < c.metal) { feed('修理材料不够', '#ff9b8a'); return false; }
+  S.coin -= c.coin; if (c.wood) matAdd('wood', -c.wood); if (c.metal) matAdd('metal', -c.metal); it[5] = 100; it[6] = gRep(it) + 1; sfx.build();
   feed('修好了 ' + gName(it) + (gRep(it) >= GREP_MAX ? '（这是最后一次，下次坏了就报废）' : '（还能修 ' + (GREP_MAX - gRep(it)) + ' 次）'), '#8fd16f'); gearChanged(); return true;
 }
 function redressPlayer() { try { outfitOn(pm, S.gear); } catch (e) { } if (typeof DOLL !== 'undefined') DOLL.key = ''; }
@@ -16843,6 +16845,7 @@ for (const k of LOWF) { const tier = 2; if (BPX[k]) continue; BPX[k] = [tier, BT
    Both sides (your bag and the storage) are grids of cells, one cell per stack (99 per cell, as before), the count in the corner.
    Tap a cell: a card shows the item's name, what it is and what it's for, and how many you have there. Pick how many to move —
    type the number or drag the slider (or tap 1 / half / all) — then 「取出」 (from the storage) or 「放入」 (from the bag). */
+let STSORT = 0; try { STSORT = localStorage.getItem('ember_stsort') === '1' ? 1 : 0; } catch (e) { }
 function stMove(k, q, put) { const M = S.stash.m;
   if (put) { q = Math.min(q, bagHave(k), stashRoom(k)); if (q <= 0) { uiToast(T2('储物柜满了，多造一个储物柜或储物箱', 'Storage is full')); return 0; }
     if (k === 'med') S.med -= q; else if (k === 'wood') S.wood -= q; else if (k === 'metal') S.metal -= q; else if (k === 'core') S.core -= q; else { S.inv[k] -= q; if (S.inv[k] <= 0) delete S.inv[k]; } M[k] = (M[k] || 0) + q; }
@@ -16865,7 +16868,12 @@ function stCard(k, put) { const it = ITEMS[k], have = put ? bagHave(k) : (S.stas
   m.addEventListener('click', e => { if (e.target === m) m.remove(); }); document.body.appendChild(m); if (num) setTimeout(() => { try { num.select(); } catch (e) { } }, 50); }
 renderStash = function () {
   const box = $('stashList'); if (!box) return; box.innerHTML = ''; const M = S.stash.m, cap = stashCap(), used = stashSlotsUsed();
-  const keys = Object.keys(ITEMS).filter(k => !NOSLOT[k]).sort((a, b) => ITEMS[b].r - ITEMS[a].r);
+  const CATO = { mat: 0, use: 1, food: 2 }, keys = Object.keys(ITEMS).filter(k => !NOSLOT[k]).sort(STSORT ? (a, b) => (CATO[ITEMS[a].cat] ?? 3) - (CATO[ITEMS[b].cat] ?? 3) || ITEMS[b].r - ITEMS[a].r || (ITEMS[a].n < ITEMS[b].n ? -1 : 1) : (a, b) => ITEMS[b].r - ITEMS[a].r);
+  // every storage box and cabinet you built shares this one store: how many, and the 一键整理 button
+  { const nBox = builds.filter(b => b.hp > 0 && STASH_T[b.type]).length, bar = document.createElement('div'); bar.className = 'stbar';
+    bar.innerHTML = '<span>' + T2('你建了 ', 'You built ') + '<b>' + nBox + '</b>' + T2(' 个储物箱 / 柜，全部连在一起 · 共 ', ' boxes, all shared · ') + '<b>' + cap + '</b>' + T2(' 格', ' slots') + '</span><button class="sbtn sttidy">' + T2('一键整理', 'Tidy up') + '</button>';
+    bar.querySelector('.sttidy').addEventListener('click', () => { STSORT = 1; try { localStorage.setItem('ember_stsort', '1'); } catch (e) { } for (const k in M) if (!(M[k] > 0)) delete M[k]; saveGame(); renderStash(); try { sfx.pick(); } catch (e) { } uiToast(T2('整理好了：同类放一起，好东西在前面，满的一格在前', 'Tidied: same kinds together, best first')); });
+    box.appendChild(bar); }
   const cols = document.createElement('div'); cols.className = 'stcols'; box.appendChild(cols);
   const col = (t, note) => { const c = document.createElement('div'); c.className = 'stcol'; c.innerHTML = '<h3>' + t + '</h3>'; const g = document.createElement('div'); g.className = 'stgrid'; c.appendChild(g); if (note) c.insertAdjacentHTML('beforeend', '<p class="snote">' + note + '</p>'); cols.appendChild(c); return g; };
   const cell = (g, k, n, put) => { const s = document.createElement('button'); s.className = 'slot r' + ITEMS[k].r; s.style.setProperty('--rc', RAR[ITEMS[k].r].c); s.innerHTML = svgIcon(k) + '<span class="cnt">' + n + '</span>'; s.title = ITEMS[k].n;
@@ -16880,6 +16888,7 @@ renderStash = function () {
   box.appendChild(Object.assign(document.createElement('p'), { className: 'snote', textContent: T2('升级武器、制作、卖给商人时，柜子里的材料也能直接用。储物箱被打爆会掉出一部分物品。', 'Materials in storage can be used for upgrades, crafting and selling. A destroyed box spills some items.') }));
 };
 (() => { try { const st = document.createElement('style'); st.textContent =
+  '.stbar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px;padding:6px 8px;border-radius:10px;background:#141c22;font-size:12.5px;color:#e8eef2}.stbar b{color:#ffd27a}.stbar .sttidy{flex:0 0 auto}' +
   '#stashList .stcols{grid-template-columns:1fr 1fr!important;gap:8px;align-items:start}#stashList .stcol{min-width:0;max-height:calc(100dvh - 210px);overflow:auto;padding:6px;border-radius:12px;background:rgba(15,22,27,.55)}' +
   '#stashList .stcol h3{position:sticky;top:-6px;z-index:1;margin:-6px -6px 6px;padding:6px;background:#141c22;border-radius:12px 12px 0 0;font-size:14px}#stashList .stgrid{grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:4px}' +
   '.stcm{position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;padding:14px;background:rgba(6,10,14,.6)}' +
@@ -19386,4 +19395,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794721149').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794721660').catch(()=>{});</script></body></html>
