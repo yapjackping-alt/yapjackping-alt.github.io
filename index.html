@@ -16891,7 +16891,7 @@ dropBuild = (orig => function (b) { const t = b && b.type, r = orig(b); if (GL2_
 /* ---- standing on the raised floors ---- */
 const PLT = { y: 0, v: 0, dirty: true, pass: [], near: false, t: 0 };
 const PASS_W = { hwall: WALL_H / 2, qwall: WALL_H / 4, hgwall: WALL_H / 2, qgwall: WALL_H / 4 };
-function platCellAt(x, z, lv) { if (lv == null) lv = S.fl | 0; let h = 0; for (const b of builds) { const H = PLAT_H[b.type]; if (!H || b.hp <= 0 || (b.lv | 0) !== lv) continue; if (Math.abs(x - b.x) < 1.52 && Math.abs(z - b.z) < 1.52 && H > h) h = H; } return h; }
+function platCellAt(x, z, lv) { if (lv == null) lv = S.fl | 0; let h = 0, tb = null; for (const b of builds) { const H = PLAT_H[b.type]; if (!H || b.hp <= 0 || (b.lv | 0) !== lv) continue; if (Math.abs(x - b.x) < 1.52 && Math.abs(z - b.z) < 1.52) { if (tb == null) tb = tBase(x, z, lv); const v = H + (b.gy || 0) - tb; if (v > h) h = v; } } return h; }   // relative to the ground / floor under the point (island terrain: tBase)
 // low walls along the edge of a raised floor that is at least as high: you can step over them
 function platPassList() {
   const out = []; PLT.passB = new Set();
@@ -16946,9 +16946,9 @@ function stairAtH(b, x, z) { const H = STAIR_H[b.type], L = STAIR_L[b.type], c =
   const lx = dx * c - dz * s, lz = dx * s + dz * c; if (Math.abs(lx) > 1.52 || Math.abs(lz) > L / 2 + .05) return -1;
   const n = STAIR_N[b.type]; return H * Math.min(n, Math.floor(clamp((lz + L / 2) / L, 0, .999) * n) + 1) / n; }
 // the height under you: raised floors and short stairs
-function platAt(x, z, lv) { if (lv == null) lv = S.fl | 0; let h = platCellAt(x, z, lv); for (const b of builds) { if (!STAIR_H[b.type] || b.hp <= 0 || (b.lv | 0) !== lv) continue; const y = stairAtH(b, x, z); if (y > h) h = y; } return h; }
+function platAt(x, z, lv) { if (lv == null) lv = S.fl | 0; let h = platCellAt(x, z, lv); for (const b of builds) { if (!STAIR_H[b.type] || b.hp <= 0 || (b.lv | 0) !== lv) continue; const y = stairAtH(b, x, z); if (y >= 0) { const v = y + (b.gy || 0) - tBase(x, z, lv); if (v > h) h = v; } } return h; }
 // furniture (beds, tables, anything) put on a raised floor sits on top of it; take the floor away and it goes back to the ground
-function liftOne(b) { const T = BT[b.type]; if (!T || T.k !== 'free' || STAIR_H[b.type] || (typeof RAMP !== 'undefined' && RAMP[b.type]) || (typeof TRI !== 'undefined' && TRI[b.type]) || !b.g) return; const h = platCellAt(b.x, b.z, b.lv | 0); if (Math.abs((b.py || 0) - h) > .005) { b._top = null; b.py = h; b.g.position.y = (b.lv | 0) * UPY + h; } }
+function liftOne(b) { const T = BT[b.type]; if (!T || T.k !== 'free' || STAIR_H[b.type] || (typeof RAMP !== 'undefined' && RAMP[b.type]) || (typeof TRI !== 'undefined' && TRI[b.type]) || !b.g) return; const h = platCellAt(b.x, b.z, b.lv | 0); if (Math.abs((b.py || 0) - h) > .005) { b._top = null; b.py = h; b.g.position.y = bY(b); } }
 function platRelift() { for (const b of builds) liftOne(b); }
 // the whole footprint on the 楼板 of storey F
 function onFloorAll(x, z, f, F) { for (const [cx, cz] of [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, 0]]) if (!onUpper(x + cx * (f.hw - .1), z + cz * (f.hd - .1), 0, F)) return false; return true; }
@@ -16964,7 +16964,7 @@ upperTransform = function (T) {
 };
 // roof height: 0 = normal (on the walls of its storey), each step = a quarter wall up or down
 const RH = { k: 0, placing: false }, RH_STEP = WALL_H / 4, RH_MIN = -3, RH_MAX = 8;
-function setBuildDy(b, k) { if (!b || !b.g) return; b.dy = k | 0; b.g.position.y = (b.lv | 0) * UPY + b.dy * RH_STEP; }
+function setBuildDy(b, k) { if (!b || !b.g) return; b.dy = k | 0; b._top = null; b.g.position.y = bY(b); }
 function rhLabel(k) { if (!k) return T2('标准', 'Normal'); const a = Math.abs(k), w = Math.floor(a / 4), r = ['', '¼', '½', '¾'][a % 4]; return (k > 0 ? '+' : '−') + (w ? w : '') + r + T2('墙', ' wall'); }
 ghostTransform = (o => function () {
   const T = BT[buildSel];
@@ -17078,14 +17078,15 @@ function gvOnPiece(cx, cy) { try {
 function gvAim(e) { const p = groundAt(e.clientX, e.clientY); if (p) buildAnchor = { x: p.x, z: p.z }; buildTap = { x: e.clientX, y: e.clientY }; }
 window.addEventListener('pointerdown', e => {
   if (!GV.on || e.target !== canvas) return; e.stopPropagation(); e.preventDefault(); try { canvas.setPointerCapture(e.pointerId); } catch (er) { }
-  if (e.pointerType === 'mouse') { if (e.button === 0) { GV.drag = { x: e.clientX, y: e.clientY, moved: 0, place: true, pan: true }; gvAim(e); } else GV.drag = { x: e.clientX, y: e.clientY, moved: 0, pan: true }; return; }
+  if (e.pointerType === 'mouse') { if (e.button === 0) { if (TER.on) { GV.drag = { x: e.clientX, y: e.clientY, moved: 0, paint: true }; TER.down = true; } else GV.drag = { x: e.clientX, y: e.clientY, moved: 0, place: true, pan: true }; gvAim(e); } else GV.drag = { x: e.clientX, y: e.clientY, moved: 0, pan: true }; return; }
   GV.ptr.set(e.pointerId, { x: e.clientX, y: e.clientY });
   // one finger: drag = move the view, a tap (no drag) = put the piece there; two fingers: pinch + move
-  if (GV.ptr.size === 1) { GV.t1 = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: 0, ev: { clientX: e.clientX, clientY: e.clientY }, grab: gvOnPiece(e.clientX, e.clientY) }; if (GV.t1.grab) gvAim(e); } else if (GV.ptr.size === 2) { GV.g0 = gvTouchMid(); GV.t1 = null; }
+  if (GV.ptr.size === 1) { GV.t1 = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: 0, ev: { clientX: e.clientX, clientY: e.clientY }, grab: !TER.on && gvOnPiece(e.clientX, e.clientY), paint: TER.on }; if (GV.t1.grab || GV.t1.paint) gvAim(e); TER.down = GV.t1.paint; } else if (GV.ptr.size === 2) { GV.g0 = gvTouchMid(); GV.t1 = null; TER.down = false; }
 }, true);
 window.addEventListener('pointermove', e => {
   if (!GV.on || (e.target !== canvas && !GV.ptr.has(e.pointerId) && !GV.drag)) return;
   if (e.pointerType === 'mouse') { e.stopPropagation();
+    if (GV.drag && GV.drag.paint) { gvAim(e); return; }
     if (GV.drag) { const dx = e.clientX - GV.drag.x, dy = e.clientY - GV.drag.y; GV.drag.moved += Math.abs(dx) + Math.abs(dy); GV.drag.x = e.clientX; GV.drag.y = e.clientY;
       if (GV.drag.pan && (!GV.drag.place || GV.drag.moved > 8)) { const w = gvWorldPerPx(); gvPan(-dx * w, -dy * w / Math.sin(GV.pitch), false); return; } }
     if (e.target === canvas) gvAim(e); return; }
@@ -17093,10 +17094,11 @@ window.addEventListener('pointermove', e => {
   if (GV.ptr.size >= 2 && GV.g0) { const m = gvTouchMid(), w = gvWorldPerPx();
     gvPan(-(m.x - GV.g0.x) * w, -(m.y - GV.g0.y) * w / Math.sin(GV.pitch), false); GV.d = clamp(GV.d * GV.g0.d / m.d, 8, 70); GV.g0 = m; }
   else if (GV.ptr.size === 1 && !GV.g0 && GV.t1) { const t = GV.t1, dx = e.clientX - t.lx, dy = e.clientY - t.ly; t.lx = e.clientX; t.ly = e.clientY; t.moved += Math.abs(dx) + Math.abs(dy);
-    if (t.grab) gvAim(e);   // the finger started on the piece: the piece follows it
+    if (t.grab || t.paint) gvAim(e);   // the finger started on the piece: the piece follows it (or: painting the ground)
     else if (t.moved > 12) { const w = gvWorldPerPx(); gvPan(-dx * w, -dy * w / Math.sin(GV.pitch), false); } }
 }, true);
 const gvUp = e => { if (!GV.on) return;
+  TER.down = false;
   if (e.pointerType === 'mouse') { const d = GV.drag; GV.drag = null; if (d && d.place && d.moved < 8 && e.target === canvas && e.type === 'pointerup') { e.stopPropagation(); try { placeBuild(); } catch (er) { } } return; }
   if (!GV.ptr.has(e.pointerId)) return; e.stopPropagation(); GV.ptr.delete(e.pointerId);
   if (!GV.ptr.size) { if (GV.t1 && !GV.t1.grab && GV.t1.moved <= 12 && !GV.g0 && e.type === 'pointerup') gvAim(GV.t1.ev); GV.t1 = null; GV.g0 = null; } };
@@ -17273,7 +17275,7 @@ function rampMesh(g, t) {
 }
 const rampHere = (b, x, z) => { const c = Math.cos(b.rot), s = Math.sin(b.rot), dx = x - b.x, dz = z - b.z, lx = dx * c - dz * s, lz = dx * s + dz * c;
   if (Math.abs(lx) > 1.52 || Math.abs(lz) > 1.52) return -1; return rampH(b.type, (lz + 1.5) / 3); };
-platAt = (o => function (x, z, lv) { if (lv == null) lv = S.fl | 0; let h = o(x, z, lv); for (const b of builds) { if (!RAMP[b.type] || b.hp <= 0 || (b.lv | 0) !== lv) continue; const y = rampHere(b, x, z); if (y > h) h = y; } return h; })(platAt);
+platAt = (o => function (x, z, lv) { if (lv == null) lv = S.fl | 0; let h = o(x, z, lv); for (const b of builds) { if (!RAMP[b.type] || b.hp <= 0 || (b.lv | 0) !== lv) continue; const y = rampHere(b, x, z); if (y >= 0) { const v = y + (b.gy || 0) - tBase(x, z, lv); if (v > h) h = v; } } return h; })(platAt);
 // the platform code only wakes up near raised floors and stairs: ramps count too
 platTick = (o => function (dt) {
   const p = player.pos;
@@ -17289,10 +17291,11 @@ stairTick = (o => function (dt) {
 })(stairTick);
 
 // up on a raised floor / ramp / stair you walk over anything built that is lower than your feet (walls under the edge, a low fence …)
+const _feet = () => (typeof TER !== 'undefined' ? TER.off : 0) + (S.fl | 0) * UPY + PLT.y;
 const _topOf = b => { if (b._top == null) { try { b._top = new THREE.Box3().setFromObject(b.g).max.y; } catch (e) { b._top = 99; } } return b._top; };
 collide = (o => function (pos, r) {
-  if (pos !== player.pos || !(PLT.y > .3) || !_platOn()) return o(pos, r);
-  const opened = []; for (const q of queryObstacles(pos.x, pos.z, r + 2)) { if (!q.ref || q.open || !q.ref.g) continue; if (_topOf(q.ref) <= PLT.y + .12) { q.open = true; opened.push(q); } }
+  if (pos !== player.pos || !(PLT.y > .3 || (typeof TER !== 'undefined' && TER.any)) || !_platOn()) return o(pos, r);
+  const opened = []; for (const q of queryObstacles(pos.x, pos.z, r + 2)) { if (!q.ref || q.open || !q.ref.g) continue; if (_topOf(q.ref) <= _feet() + .12) { q.open = true; opened.push(q); } }
   try { return o(pos, r); } finally { for (const q of opened) q.open = false; }
 })(collide);
 
@@ -17352,7 +17355,7 @@ upMove = function (ox, oz) {
     if (PLT.passB && PLT.passB.has(b) && PLT.near) continue;
     if (b.diagL) { const c = Math.cos(b.rot), sn = -Math.sin(b.rot), h = b.diagL / 2, t = clamp((p.x - b.x) * c + (p.z - b.z) * sn, -h, h), cx = b.x + c * t, cz = b.z + sn * t, dx = p.x - cx, dz = p.z - cz, d = Math.hypot(dx, dz);
       if (d < r + .12) { if (d > 1e-4) { p.x = cx + dx / d * (r + .12); p.z = cz + dz / d * (r + .12); } else { p.x = ox; p.z = oz; } } continue; }
-    if (high && _topOf(b) - F * UPY <= PLT.y + .12) continue;
+    if (high && _topOf(b) <= _feet() + .12) continue;
     for (const o of T.ob) { const w = obWorld(b.x, b.z, b.rot, o), cx = clamp(p.x, w.x - w.hw, w.x + w.hw), cz = clamp(p.z, w.z - w.hd, w.z + w.hd), dx = p.x - cx, dz = p.z - cz, d2 = dx * dx + dz * dz;
       if (d2 < r * r) { if (d2 > 1e-6) { const d = Math.sqrt(d2); p.x = cx + dx / d * r; p.z = cz + dz / d * r; } else { p.x = ox; p.z = oz; } } } }
 };
@@ -17516,6 +17519,212 @@ ghostTransform = (o => function () {
 updateGhost = (o => function () { const r = o.apply(this, arguments); try { if (ghost) ghost.scale.x = buildSel && WQ(buildSel) ? (STK.gs || 1) : 1; } catch (e) { } return r; })(updateGhost);
 addBuild = (o => function (type, x, z, rot, free, lv) { const b = o(type, x, z, rot, free, lv);
   try { if (b && WQ(type)) { if (RH.placing && STK.pend) setBuildDy(b, STK.pend); if (Math.abs(Math.sin(2 * rot)) > .02) diagWall(b, RH.placing ? STK.len : 0); } } catch (e) { } return b; })(addBuild);
+/* ============ island terrain you can shape (地形) ============
+   The island's grass top is a height map (1.5 m grid). In build mode on the island, the 「地形」 tab gives brushes:
+   抬高 / 降低 / 铲平 (to the height where you started) / 平滑 / 还原 (back to flat), three sizes. One finger paints, two fingers
+   move and zoom (PC: left button paints, right-drag moves, wheel zooms).
+   Everything stands on it: you, zombies, dogs, companions, loot, trees and rocks, the tent / pot / bench / merchant / blueprint
+   machine. Buildings get a base height `b.gy` when they are placed (a foundation sits on the highest corner of its ground, and
+   level with the foundations next to it); floors, stairs, ramps above it are relative to that base. Ground under a building
+   cannot be changed (move or remove the building first) and the shore and the pier stay flat. */
+const TER_N = 97, TER_S = 1.5, TER_O = 72, TER_MIN = -2, TER_MAX = 8;
+const TER = { h: new Float32Array(TER_N * TER_N), any: false, on: false, down: false, tool: 'up', size: 1, flatH: null, mesh: null, ring: null, dirty: 0, nT: 0, propT: 0,
+  off: 0, added: 0, cam: 0, climbGy: 0, loadGy: null, props: [] };
+try { const v = JSON.parse(localStorage.getItem('ember_ter') || '{}'); if (v.tool) TER.tool = v.tool; if (v.size != null) TER.size = v.size; } catch (e) { }
+const TER_SIZES = [2.4, 4.2, 6.5];
+// height of the ground at a world point (0 away from the island)
+function terH(x, z) {
+  if (!TER.any) return 0; const fx = (x - HOME.x + TER_O) / TER_S, fz = (z - HOME.z + TER_O) / TER_S; if (!(fx >= 0 && fz >= 0 && fx < TER_N - 1 && fz < TER_N - 1)) return 0;
+  const i = fx | 0, j = fz | 0, u = fx - i, v = fz - j, H = TER.h, a = H[j * TER_N + i], b = H[j * TER_N + i + 1], c = H[(j + 1) * TER_N + i], d = H[(j + 1) * TER_N + i + 1];
+  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+}
+const _floorLike = b => { const T = BT[b.type]; return T && (T.k === 'cell' || PLAT_H[b.type] || RAMP[b.type] || TRI[b.type]); };
+// the base under a point for heights measured "from the floor": a foundation-like piece covering it, else the ground; upstairs the 楼板 under it
+function tBase(x, z, lv) {
+  if (!TER.any) return 0; lv = lv | 0;
+  if (lv > 0) { for (const b of builds) if (b.type === 'upfl' && b.hp > 0 && (b.lv | 0) === lv - 1 && Math.abs(x - b.x) < 1.52 && Math.abs(z - b.z) < 1.52) return b.gy || 0;
+    let best = 0, bd = 6; for (const b of builds) { if (b.hp <= 0 || !b.gy) continue; const d = Math.hypot(b.x - x, b.z - z); if (d < bd) { bd = d; best = b.gy; } } return best; }
+  let g = null; for (const b of builds) { if (b.hp <= 0 || (b.lv | 0) || !_floorLike(b) || Math.abs(x - b.x) > 1.52 || Math.abs(z - b.z) > 1.52) continue; const v = b.gy || 0; if (g == null || v > g) g = v; }
+  return g != null ? g : terH(x, z);
+}
+// base height for something placed now
+function baseGy(x, z, type, lv) {
+  if (!TER.any) return 0; lv = lv | 0; if (lv > 0) return tBase(x, z, lv);
+  const T = BT[type];
+  if (T && (T.k === 'cell' || PLAT_H[type] || RAMP[type] || TRI[type])) {
+    let g = Math.max(terH(x, z), terH(x - 1.4, z - 1.4), terH(x + 1.4, z - 1.4), terH(x - 1.4, z + 1.4), terH(x + 1.4, z + 1.4));
+    for (const b of builds) if (b.hp > 0 && !(b.lv | 0) && _floorLike(b) && Math.abs(b.x - x) < 3.1 && Math.abs(b.z - z) < 3.1) g = Math.max(g, b.gy || 0);
+    return g;
+  }
+  return tBase(x, z, 0);
+}
+function bY(b) { return (b.gy || 0) + (b.lv | 0) * UPY + (b.dy | 0) * RH_STEP + (b.py || 0); }
+const terKey = b => b.type + '|' + (+b.x).toFixed(2) + '|' + (+b.z).toFixed(2) + '|' + (b.lv | 0);
+
+/* ---- the mesh ---- */
+const TER_GRASS = new THREE.Color(0x5c8c46), TER_GRASS2 = new THREE.Color(0x6a9a4e), TER_DIRT = new THREE.Color(0x8a6a48), TER_ROCK = new THREE.Color(0x8a8278);
+function terInit() {
+  if (TER.mesh) return; const N = TER_N, pos = new Float32Array(N * N * 3), col = new Float32Array(N * N * 3), idx = [];
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const k = j * N + i; pos[k * 3] = i * TER_S - TER_O; pos[k * 3 + 2] = j * TER_S - TER_O; }
+  for (let j = 0; j < N - 1; j++) for (let i = 0; i < N - 1; i++) { const a = j * N + i, b = a + 1, c = a + N, d = c + 1; idx.push(a, c, b, b, c, d); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setIndex(idx);
+  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })); m.receiveShadow = true; m.userData.ter = 1; islandG.add(m); TER.mesh = m;
+  // the old flat grass top goes a little lower so the two never flicker against each other
+  for (const c of islandG.children) { const p = c.geometry && c.geometry.parameters; if (c !== m && p && p.radiusTop === ISL_R) c.position.y -= .06; }
+  terMeshAll();
+  // things standing on the island ground (palms, rocks, decorations): they follow the ground
+  for (const c of islandG.children) { if (c === m) continue; const p = c.geometry && c.geometry.parameters; if (p && (p.radiusTop >= ISL_R || p.width >= 200)) continue; if (c.userData && c.userData.noCast && c.position.y < -.2) continue;
+    const r = Math.hypot(c.position.x, c.position.z); if (r > ISL_R - 1) continue;
+    try { const bb = new THREE.Box3().setFromObject(c), sz = new THREE.Vector3(); bb.getSize(sz); if (sz.x > 9 || sz.z > 9) continue; } catch (e) { continue; }   // only small things, not whole groups spread over the island
+    TER.props.push({ o: c, y0: c.position.y }); }
+}
+function terVert(i, j) {
+  const N = TER_N, k = j * N + i, x = i * TER_S - TER_O, z = j * TER_S - TER_O, r = Math.hypot(x, z), P = TER.mesh.geometry.attributes.position.array, C = TER.mesh.geometry.attributes.color.array, H = TER.h;
+  const y = r > ISL_R + .7 ? -.35 : r > ISL_R - .7 ? 0 : H[k]; P[k * 3 + 1] = y;
+  const nb = (a, b) => (a < 0 || b < 0 || a >= N || b >= N) ? y : H[b * N + a], sl = Math.max(Math.abs(nb(i + 1, j) - nb(i - 1, j)), Math.abs(nb(i, j + 1) - nb(i, j - 1))) / (2 * TER_S);
+  const c = (((i * 7 + j * 13) % 5) < 2 ? TER_GRASS2 : TER_GRASS).clone(); if (r <= ISL_R - .7) { if (sl > .75) c.lerp(TER_DIRT, Math.min(1, (sl - .75) * 1.6)); if (y < -.15) c.lerp(TER_DIRT, Math.min(1, -y)); if (y > 4.5) c.lerp(TER_ROCK, Math.min(1, (y - 4.5) / 2)); }
+  C[k * 3] = c.r; C[k * 3 + 1] = c.g; C[k * 3 + 2] = c.b;
+}
+function terMeshAll() { for (let j = 0; j < TER_N; j++) for (let i = 0; i < TER_N; i++) terVert(i, j); terMeshDone(true); }
+function terMeshDone(norm) { const g = TER.mesh.geometry; g.attributes.position.needsUpdate = true; g.attributes.color.needsUpdate = true; if (norm) { g.computeVertexNormals(); g.computeBoundingSphere(); } }
+// whatever stands on the ground follows it
+function terProps() {
+  for (const p of TER.props) p.o.position.y = p.y0 + terH(HOME.x + p.o.position.x, HOME.z + p.o.position.z);
+  try { for (const f of fixList()) { if (MV.o === f || !f.g) continue; f.g.position.y = terH(f.x, f.z); } } catch (e) { }
+}
+
+/* ---- the brushes ---- */
+// can the ground here change? not near the shore / pier, not under anything you built (or the home fire)
+function terLockW(x, z) {
+  const r = Math.hypot(x - HOME.x, z - HOME.z); if (r > ISL_R - 6) return 0; let w = r > ISL_R - 11 ? (ISL_R - 6 - r) / 5 : 1;
+  if (Math.abs(x - HOME.x) < 6 && z - HOME.z < -ISL_R + 14) return 0;
+  for (const b of TER.near) { const T = BT[b.type], hw = Math.max(T.hw || .5, T.hd || .5) + .9; if (Math.abs(x - b.x) < hw && Math.abs(z - b.z) < hw) return 0; }
+  return w;
+}
+function terBrush(dt) {
+  const a = buildAnchor; if (!a) return; const R = TER_SIZES[TER.size] || 4.2, N = TER_N, H = TER.h, tool = TER.tool;
+  TER.near = builds.filter(b => b.hp > 0 && Math.abs(b.x - a.x) < R + 5 && Math.abs(b.z - a.z) < R + 5);
+  const i0 = Math.max(1, Math.floor((a.x - HOME.x + TER_O - R) / TER_S)), i1 = Math.min(N - 2, Math.ceil((a.x - HOME.x + TER_O + R) / TER_S)), j0 = Math.max(1, Math.floor((a.z - HOME.z + TER_O - R) / TER_S)), j1 = Math.min(N - 2, Math.ceil((a.z - HOME.z + TER_O + R) / TER_S));
+  if (tool === 'flat' && TER.flatH == null) TER.flatH = terH(a.x, a.z);
+  const old = tool === 'smooth' ? H.slice() : null; let changed = false;
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const x = HOME.x + i * TER_S - TER_O, z = HOME.z + j * TER_S - TER_O, d = Math.hypot(x - a.x, z - a.z); if (d > R) continue;
+    const fall = .5 + .5 * Math.cos(Math.PI * d / R), w = fall * terLockW(x, z); if (w <= 0) continue; const k = j * N + i, h0 = H[k]; let h = h0;
+    if (tool === 'up') h += 3.2 * dt * w; else if (tool === 'down') h -= 3.2 * dt * w;
+    else if (tool === 'flat') h += (TER.flatH - h) * Math.min(1, 6 * dt * w);
+    else if (tool === 'smooth') { const m = (old[k - 1] + old[k + 1] + old[k - N] + old[k + N] + old[k] * 2) / 6; h += (m - h) * Math.min(1, 5 * dt * w); }
+    else if (tool === 'reset') h += (0 - h) * Math.min(1, 5 * dt * w);
+    h = clamp(h, TER_MIN, TER_MAX); if (Math.abs(h - h0) > 1e-5) { H[k] = h; changed = true; }
+  }
+  if (!changed) return; TER.any = true;
+  for (let j = j0 - 1; j <= j1 + 1; j++) for (let i = i0 - 1; i <= i1 + 1; i++) if (i >= 0 && j >= 0 && i < N && j < N) terVert(i, j);
+  terMeshDone(false); TER.dirty = 1;
+}
+function terTick(dt) {
+  if (!TER.mesh) terInit();
+  const paint = TER.on && TER.down && typeof GV !== 'undefined' && GV.on;
+  if (paint) terBrush(dt); else TER.flatH = null;
+  if (TER.dirty) { TER.nT -= dt; if (TER.nT <= 0 || !paint) { TER.nT = .12; terMeshDone(true); terProps(); if (!paint) { TER.dirty = 0; S.dirty = true; try { saveGame(); } catch (e) { } } } }
+  // the brush ring
+  if (!TER.ring) { const r = new THREE.Mesh(new THREE.RingGeometry(.92, 1, 48), new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: .85, depthTest: false, side: THREE.DoubleSide })); r.rotation.x = -Math.PI / 2; r.renderOrder = 9; r.visible = false; scene.add(r); TER.ring = r; }
+  const showR = TER.on && typeof GV !== 'undefined' && GV.on && buildAnchor; TER.ring.visible = !!showR;
+  if (showR) { const R = TER_SIZES[TER.size] || 4.2; TER.ring.scale.set(R, R, 1); TER.ring.position.set(buildAnchor.x, terH(buildAnchor.x, buildAnchor.z) + .08, buildAnchor.z);
+    TER.ring.material.color.setHex({ up: 0x8fe05a, down: 0xff8a6a, flat: 0xffe08a, smooth: 0x9fe8ff, reset: 0xffffff }[TER.tool] || 0xffe08a); }
+}
+
+/* ---- buildings sit on it ---- */
+addBuild = (o => function (type, x, z, rot, free, lv) {
+  const key = type + '|' + (+x).toFixed(2) + '|' + (+z).toFixed(2) + '|' + (Math.max(0, Math.min(3, Math.round(+lv || 0)))), pre = TER.loadGy && TER.loadGy[key];
+  const b = o(type, x, z, rot, free, lv);
+  try { if (b && TER.any) { b.gy = pre != null ? +pre : baseGy(x, z, type, b.lv | 0); if (b.gy) { b._top = null; b.g.position.y = bY(b); } } } catch (e) { }
+  return b;
+})(addBuild);
+ghostTransform = (o => function () { const t = o(); try { if (t && TER.any && buildSel && BT[buildSel]) t.y = (t.y || 0) + baseGy(t.x, t.z, buildSel, t.lv | 0); } catch (e) { } return t; })(ghostTransform);
+moveTick = (o => function () { const r = o.apply(this, arguments); try { if (MV.o && TER.any && MV.o.g) MV.o.g.position.y += MV.o.fix ? terH(MV.x, MV.z) : baseGy(MV.x, MV.z, MV.o.type, 0); } catch (e) { } return r; })(moveTick);
+// the point on the ground under the finger: on the terrain (a few steps along the ray)
+groundAt = (o => function (cx, cy) {
+  if (!TER.any || !_bv.unproject) return o(cx, cy);
+  const r = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+  _bv.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1, .5).unproject(camera);
+  const P = camera.position, dy = _bv.y - P.y; if (dy > -1e-4) return null; const lv = typeof GV !== 'undefined' && GV.on ? GV.fl : 0;
+  let yp = lv * UPY, p = null; for (let it = 0; it < 5; it++) { const t = (yp - P.y) / dy; p = { x: P.x + (_bv.x - P.x) * t, z: P.z + (_bv.z - P.z) * t }; yp = lv * UPY + tBase(p.x, p.z, lv); }
+  return p;
+})(groundAt);
+
+/* ---- you, the camera, zombies, dogs, companions, loot ---- */
+// before the game sets your height this frame: take the ground back out (it is added again after)
+islandTick = (o => function (dt) { if (TER.added) { pm.g.position.y -= TER.added; TER.added = 0; } return o(dt); })(islandTick);
+startFall = (o => function (y) { const g = TER.off; const r = o(y); if (S.fall) S.fall.gy = g; return r; })(startFall);
+climbAct = (o => function () { try { const n = CLIMB.n; TER.climbGy = n && n.L ? (n.L.gy || 0) : TER.off; } catch (e) { } return o(); })(climbAct);
+function terOff() {
+  if (!TER.any || !S.isl || S.boat || S.dun) return 0; const p = player.pos;
+  if (S.climbA) return TER.climbGy || 0; if (S.fall) return S.fall.gy || 0; if (S.stB) return S.stB.gy || 0;
+  return tBase(p.x, p.z, S.fl | 0);
+}
+staRingTick = (o => function (dt) {
+  const r = o(dt);
+  try {
+    terTick(dt);
+    if (!S.isl && TER.added) { pm.g.position.y -= TER.added; TER.added = 0; }
+    const off = terOff(); TER.off = off; if (S.isl && off && !(typeof GV !== 'undefined' && GV.on)) { pm.g.position.y += off; TER.added = off; }
+    // the camera rides up and down with the ground (only moved, not turned)
+    const want = typeof GV !== 'undefined' && GV.on ? terH(GV.x, GV.z) : off; TER.cam += (want - TER.cam) * Math.min(1, dt * 5);
+    if (Math.abs(TER.cam) > .002) { camera.position.y += TER.cam; if (camera.updateMatrixWorld) camera.updateMatrixWorld(); }
+  } catch (e) { console.warn('ter', e); }
+  return r;
+})(staRingTick);
+petsTick = (o => function (dt) {
+  const r = o(dt);
+  if (TER.any && S.isl) try {
+    for (const z of zombies) { if (z.dead || z.removed || !z.pos) continue; z.pos.y = terH(z.pos.x, z.pos.z) + (z.up ? UPY : 0); }
+    if (typeof PETS !== 'undefined') for (const [, P] of PETS) { const g = P.pos || (P.g && P.g.position); if (g) g.y = terH(g.x, g.z); }
+    if (typeof COMPS !== 'undefined') for (const [, P] of COMPS) { const g = P.pos || (P.g && P.g.position) || (P.h && P.h.g && P.h.g.position); if (g) g.y = terH(g.x, g.z); }
+    for (const l of loot) l.m.position.y += terH(l.m.position.x, l.m.position.z);
+  } catch (e) { }
+  return r;
+})(petsTick);
+
+/* ---- save / load (heights + each building's base) ---- */
+serialize = (o => function () { const d = o(); try { if (TER.any) { const h = []; for (let k = 0; k < TER.h.length; k++) { const v = Math.round(TER.h[k] * 50); if (v) h.push(k, v); }
+  const gy = {}; for (const b of builds) if (b.hp > 0 && !b.home && b.gy) gy[terKey(b)] = Math.round(b.gy * 1000) / 1000; d.ter = { v: 1, h, gy }; } } catch (e) { } return d; })(serialize);
+applySave = (o => function (d) {
+  try { terInit(); TER.h.fill(0); TER.any = false; const t = d && d.ter; TER.loadGy = null;
+    if (t && Array.isArray(t.h)) { for (let i = 0; i + 1 < t.h.length; i += 2) { const k = t.h[i] | 0; if (k >= 0 && k < TER.h.length) TER.h[k] = clamp((+t.h[i + 1] || 0) / 50, TER_MIN, TER_MAX); } TER.any = t.h.length > 0 || !!(t.gy && Object.keys(t.gy).length); TER.loadGy = t.gy || {}; }
+    terMeshAll(); } catch (e) { console.warn('ter load', e); }
+  const r = o(d); TER.loadGy = null; try { terProps(); } catch (e) { } return r;
+})(applySave);
+
+/* ---- the 「地形」 tab in the build menu ---- */
+B5_TABS.push(['ter', T2('地形', 'Terrain'), []]);
+const TER_TOOLS = [['up', T2('抬高', 'Raise')], ['down', T2('降低', 'Lower')], ['flat', T2('铲平', 'Flatten')], ['smooth', T2('平滑', 'Smooth')], ['reset', T2('还原', 'Reset')]];
+const TER_IC = { up: '<path d="M4 18h16M7 14l5-8 5 8" />', down: '<path d="M4 6h16M7 10l5 8 5-8" />', flat: '<path d="M3 16h18M6 12h12" />', smooth: '<path d="M3 15c3-5 6-5 9 0s6 5 9 0" />', reset: '<path d="M5 12a7 7 0 1 0 2-5M5 4v4h4" />' };
+function terSave() { try { localStorage.setItem('ember_ter', JSON.stringify({ tool: TER.tool, size: TER.size })); } catch (e) { } }
+buildCards = (o => function () {
+  const r = o.apply(this, arguments);
+  try {
+    // only on the island, in the god view
+    const tb = buildEl.querySelector('.b5tab[data-tab="ter"]'); if (tb && !(S.isl && !S.dun)) tb.remove();
+    TER.on = B5.tab === 'ter' && S.isl && !S.dun;
+    if (TER.on) {
+      buildSel = null; if (ghost) { scene.remove(ghost); ghost = null; } clearHilite(); bPlaceEl.style.display = 'none'; bRotEl.style.display = 'none';
+      const row = buildEl.querySelector('.b5row'); if (row) { row.innerHTML = '';
+        TER_TOOLS.forEach(([k, n]) => { const c = document.createElement('button'); c.className = 'card b5t tert' + (TER.tool === k ? ' sel' : ''); c.dataset.t = k;
+          c.innerHTML = '<i class="b5img ok tic"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">' + TER_IC[k] + '</svg></i><b>' + n + '</b>';
+          c.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); TER.tool = k; terSave(); buildCards(); try { sfx.pick(); } catch (er) { } }); row.appendChild(c); });
+        [T2('小', 'S'), T2('中', 'M'), T2('大', 'L')].forEach((n, i) => { const c = document.createElement('button'); c.className = 'card b5t tert tsz' + (TER.size === i ? ' sel' : '');
+          c.innerHTML = '<i class="b5img ok tic"><svg viewBox="0 0 24 24" width="34" height="34"><circle cx="12" cy="12" r="' + (4 + i * 3.5) + '" fill="none" stroke="#ffe08a" stroke-width="2"/></svg></i><b>' + T2('笔刷', 'Brush ') + n + '</b>';
+          c.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); TER.size = i; terSave(); buildCards(); }); row.appendChild(c); }); }
+      const el = $('b5Sel'); if (el) { el._k = ''; el.innerHTML = '<b>' + T2('地形', 'Terrain') + '</b><span>' + T2('一个手指在地上涂，两个手指移动和缩放。房子下面的地不能改', 'One finger paints, two fingers move/zoom. Not under buildings') + '</span>'; }
+    } else if (TER.ring) TER.ring.visible = false;
+  } catch (e) { console.warn('ter tab', e); }
+  return r;
+})(buildCards);
+b5Info = (o => function () { if (TER.on) return; return o(); })(b5Info);
+selectBuild = (o => function (k) { if (k) TER.on = false; return o(k); })(selectBuild);
+toggleBuild = (o => function () { const r = o.apply(this, arguments); if (!buildOpen) { TER.on = false; TER.down = false; } return r; })(toggleBuild);
+setTimeout(() => { try { const st = document.createElement('style'); st.textContent =
+  '#build .tert .tic{display:flex!important;align-items:center;justify-content:center;background:rgba(255,255,255,.06)!important}#build .tert.sel .tic{background:rgba(255,122,47,.35)!important}';
+  document.head.appendChild(st); } catch (e) { } }, 0);
 /* ============ the storage box screen 2.0 ============
    Both sides (your bag and the storage) are grids of cells, one cell per stack (99 per cell, as before), the count in the corner.
    Tap a cell: a card shows the item's name, what it is and what it's for, and how many you have there. Pick how many to move —
@@ -20263,4 +20472,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794746373').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794748893').catch(()=>{});</script></body></html>
