@@ -17641,8 +17641,8 @@ function shipPlace(k) { const P = SHIP_PL[k]; if (!P) return; const dx = P.a[0] 
   player.pos.set(HOME.x + P.a[0] + dx / L * .4, 0, HOME.z + P.a[1] + dz / L * .4); player.face = Math.atan2(dx, dz); camPos.set(player.pos.x, camH, player.pos.z + camD); SHIPS.cool = true; SHIPS.lastP = null; }
 function shipLeave() { const k = SHIPS.ret || (DUN.id === SHIP_S ? 's' : 'q'); dunTravel(T2('下船', 'Going ashore'), T2('回到海岛', 'Back to the island'), () => { goIsland(true); shipPlace(k); }); }
 dunEnter = (o => function () { const me = DUN.id === SHIP_Q || DUN.id === SHIP_S; o(); if (me && S.dun) { try { DSNAP = null; } catch (e) { } saveGame(); } })(dunEnter);
-dunCleanup = (o => function () { const me = DUN.on && (DUN.id === SHIP_Q || DUN.id === SHIP_S); o(); if (me) { SHIPS.spin = []; SHIPS.glow = []; SHIPS.fish = []; SHIPS.lab = null; } })(dunCleanup);
-dunEnv = (o => function () { o(); if (!S.dun || (DUN.id !== SHIP_Q && DUN.id !== SHIP_S)) return; const q = DUN.id === SHIP_Q;
+dunCleanup = (o => function () { const me = DUN.on && (DUN.id === SHIP_Q || DUN.id === SHIP_S); o(); if (me) { SHIPS.spin = []; SHIPS.glow = []; SHIPS.fish = []; SHIPS.lab = null; SHIPS.sea = null; SHIPS.out = false; } })(dunCleanup);
+dunEnv = (o => function () { if (S.dun && (DUN.id === SHIP_Q || DUN.id === SHIP_S)) { try { const sd = scene.getObjectByName('skydome'); if (sd) sd.visible = true; groundMesh.visible = false; mountains.visible = false; embers.p.visible = false; } catch (e) { } return; } o(); if (!S.dun || (DUN.id !== SHIP_Q && DUN.id !== SHIP_S)) return; const q = DUN.id === SHIP_Q;
   scene.fog.color.setHex(q ? 0x2a1c12 : 0x0c2a34); scene.fog.near = 30; scene.fog.far = 90; try { hemiLight.color.setHex(q ? 0xfff0d8 : 0xe0f6ff); hemiLight.intensity = 1.2; renderer.setClearColor(q ? 0x1a120c : 0x081c24); } catch (e) { } })(dunEnv);
 dunTrk = (o => function () { if (S.dun && (DUN.id === SHIP_Q || DUN.id === SHIP_S)) { const e = $('dunObj'); if (e) e.style.display = 'none'; return; } return o(); })(dunTrk);
 dunGuide = (o => function () { if (S.dun && (DUN.id === SHIP_Q || DUN.id === SHIP_S)) return; return o(); })(dunGuide);
@@ -17653,17 +17653,31 @@ function shipStartCommon(x, z, face) { player.pos.set(dX(x), 0, dZ(z)); player.f
 function shipFit(g, w, h, d) { try { const bb = new THREE.Box3().setFromObject(g), sz = new THREE.Vector3(), ct = new THREE.Vector3(); bb.getSize(sz); bb.getCenter(ct);
   const k = Math.min(w / (sz.x || 1), h / (sz.y || 1), d / (sz.z || 1)); const H = new THREE.Group(); g.position.set(-ct.x, -bb.min.y, -ct.z); H.add(g); H.scale.setScalar(k); return H; } catch (e) { return g; } }
 
+/* the outside: the ship's own hull around the room and the sea, under the island's sky */
+function shipOutside(w, d, col, trim, bowAt) { const g = DUN.G, L = c => new THREE.MeshLambertMaterial({ color: c });
+  const bed = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), L(0x1c4656)); bed.rotation.x = -Math.PI / 2; bed.position.y = -3.2; g.add(bed);
+  const sea = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), new THREE.MeshLambertMaterial({ color: 0x3a9ab8, map: typeof rippleTex !== 'undefined' ? rippleTex : null, transparent: true, opacity: .7, depthWrite: false }));
+  sea.rotation.x = -Math.PI / 2; sea.position.y = -.35; sea.renderOrder = 3; g.add(sea); SHIPS.sea = sea;
+  const hm = L(col), tm = L(trim); box(w * 2 + 2.4, 1.6, d * 2 + 2.4, hm, 0, -.85, 0, g);
+  for (const s2 of [-1, 1]) { box(w * 2 + 2.5, .14, .5, tm, 0, -.02, s2 * (d + 1.0), g); box(.5, .14, d * 2 + 2.5, tm, s2 * (w + 1.0), -.02, 0, g); }   // gold/red rim round the deck edge
+  // the bow (a point) and the stern (a flat transom), so it reads as a ship from above
+  const bw = d * 2 + 2.4; if (bowAt) for (const s2 of [-1, 1]) { const o = box(.6, 1.6, bw * .78, hm, bowAt * (w + 1.2 + bw * .26), -.75, s2 * bw * .22, g); o.rotation.y = s2 * bowAt * .9; const t = box(.66, .14, bw * .78, tm, bowAt * (w + 1.2 + bw * .26), .02, s2 * bw * .22, g); t.rotation.y = s2 * bowAt * .9; }
+  if (bowAt) { const fill = box(bw * .36, 1.6, bw * .5, hm, bowAt * (w + 1.2 + bw * .16), -.75, 0, g); fill.rotation.y = Math.PI / 4; }
+  else for (const s2 of [-1, 1]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(d + 1.2, d + 1.2, 1.6, 20, 1, false, s2 < 0 ? Math.PI : 0, Math.PI), hm); c.position.set(s2 * (w + 1.2), -.85, 0); g.add(c); }   // the sub: rounded ends
+  // a little foam where the hull meets the water
+  const foam = new THREE.Mesh(new THREE.RingGeometry(1, 1.06, 48), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .35 })); foam.rotation.x = -Math.PI / 2; foam.scale.set(w + 2.2, d + 2.2, 1); foam.position.y = -.3; g.add(foam); }
+
 /* ---------- 老钱的收藏馆 ---------- */
 const QH = { W: 15, D: 11 };   // half sizes: x -15..15, z -11..11
-const SHIP_WSK = ['moondragon', 'cosmos', 'phoenix', 'galaxy', 'starorbit', 'thunderblade'];
-const SHIP_WHOW = { moondragon: T2('老钱 · 用遗物币兑换', 'Old Qian · relic coins'), phoenix: T2('商城 · 时装补给箱', 'Mall · Fashion box'), galaxy: T2('商城 · 时装补给箱', 'Mall · Fashion box'),
-  starorbit: T2('主线剧情奖励', 'Main story reward'), thunderblade: T2('主线剧情奖励', 'Main story reward') };
+const shipRelicSkins = () => (typeof RELIC_SKINS !== 'undefined' ? RELIC_SKINS : []).filter(s => WSKINS[s.key]);   // only what 老钱 trades for relic coins
+const SHIP_WHOW = {};
 function qhBuild() {
   DUN.G = new THREE.Group(); DUN.G.position.set(DUN.x, 0, DUN.z); scene.add(DUN.G);
   const R = mulberry32(7731), rr = (a, b) => a + R() * (b - a), L = (c, o) => new THREE.MeshLambertMaterial(Object.assign({ color: c }, o || {})), Bm = c => new THREE.MeshBasicMaterial({ color: c });
   const p1 = L(0x8a5a34), p2 = L(0x7a4e2c), p3 = L(0x6a4224), wall = L(0x5a3a22), wallD = L(0x3e2816), beam = L(0x2e1e10), gold = L(0xb08a3a), goldB = L(0xd8b050, { emissive: 0x2a1a00 }), shelf = L(0x4a3020),
     red = L(0xa0262a), redD = L(0x701a1e), lamp = Bm(0xffd88a), glass = new THREE.MeshLambertMaterial({ color: 0xcfefff, transparent: true, opacity: .16, depthWrite: false }), dark = L(0x2a2420), sea = Bm(0x1e6a8a);
   const W = QH.W, D = QH.D, H = 4.2, g = DUN.G, b = (w, h, d, m, x, y, z, ry) => { const o = box(w, h, d, m, x, y, z, g); if (ry) o.rotation.y = ry; return o; };
+  shipOutside(W, D, 0x5a3a20, 0xb08a3a, -1);
   // floor: long planks with seams; a red carpet with gold edges from the door to the back
   for (let x = -W; x < W; x += .7) b(.68, .1, D * 2, [p1, p2, p3][Math.floor((x + W) / .7) % 3], x + .35, .0, 0);
   b(3, .02, D * 2 - 1, red, 0, .07, .5); for (const s of [-1, 1]) b(.12, .025, D * 2 - 1, gold, s * 1.5, .075, .5);
@@ -17677,7 +17691,7 @@ function qhBuild() {
   // the door (south, middle): frame, an exit sign on the floor
   b(3.6, .4, .5, beam, 0, H - .2, D + .2); for (const s of [-1, 1]) b(.4, H, .5, beam, s * 1.8, H / 2, D + .2);
   b(3.2, .02, 1.2, L(0x3a2a1a), 0, .08, D - .6);
-  dInt(0, D - 1, T2('离开 · 回到码头', 'Leave · back to the jetty'), () => true, shipLeave, 2.2);
+  { const e = labelSprite(T2('出口 · 走出去回到码头', 'Exit · walk out to the jetty'), '#cfeaff', .7); e.position.set(0, 2.6, D + .3); g.add(e); b(3.0, .03, .5, Bm(0x7ae8d8), 0, .09, D - .2); }
   // a sign on the back wall
   { const s = labelSprite(T2('老钱的收藏馆', "Old Qian's Gallery"), '#ffd98a', 1.3); s.position.set(0, 3.6, -D + .6); g.add(s); b(7.4, 1.0, .12, beam, 0, 3.6, -D + .1); b(7.6, .08, .14, gold, 0, 4.12, -D + .1); b(7.6, .08, .14, gold, 0, 3.08, -D + .1); }
   // hanging lanterns along the walls
@@ -17703,9 +17717,9 @@ function qhBuild() {
   /* --- right half: the weapon-skin gallery --- */
   b(.1, .02, D * 2 - 2, gold, 1.9, .08, .5);
   { b(9.6, 1.2, .12, beam, 9.2, 2.9, -D + .1); b(9.8, .08, .14, gold, 9.2, 3.52, -D + .1); b(9.8, .08, .14, gold, 9.2, 2.28, -D + .1);
-    const s = labelSprite(T2('限定武器外观 · 老钱私藏', 'Limited weapon skins'), '#ffd98a', 1.1); s.position.set(9.2, 2.95, -D + .6); g.add(s); }
-  const spots = [[4.6, -5.6], [9.2, -5.6], [13.2, -5.6], [4.6, 2.2], [9.2, 2.2], [13.2, 2.2]];
-  SHIP_WSK.filter(k => WSKINS[k]).forEach((k, i) => { const [x, z] = spots[i]; qhGun(k, x, z, { b, L, gold, goldB, beam, glass }); });
+    const s = labelSprite(T2('老钱的限定外观 · 遗物币兑换', "Qian's limited skins · relic coins"), '#ffd98a', 1.1); s.position.set(9.2, 2.95, -D + .6); g.add(s); }
+  const RS = shipRelicSkins(), n = RS.length, big = n <= 2;
+  RS.forEach((rs, i) => { const x = n === 1 ? 8.6 : 4.6 + (i % 3) * 4.3, z = n === 1 ? -3 : (i < 3 ? -5.4 : 2.4); qhGun(rs.key, x, z, { b, L, gold, goldB, beam, glass }, big ? 1.6 : 1, i, rs.wid); });
 }
 function qhCabinet(d, x, z, ry, M) {
   const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; DUN.G.add(g);   // local: width along x, front faces +z
@@ -17722,14 +17736,14 @@ function qhCabinet(d, x, z, ry, M) {
   const fx = x + Math.sin(ry) * 1.6, fz = z + Math.cos(ry) * 1.6; DUN.obs.push(addBox(dX(x), dZ(z), ry ? .5 : w / 2 + .2, ry ? w / 2 + .2 : .5));
   dInt(fx, fz, T2('看看收藏 · 副本' + DUN_CN[d], 'Collection · dungeon ' + d), () => true, () => qhColPanel(d), 2.2);
 }
-function qhGun(k, x, z, M) { const K = WSKINS[k], id = K.only, own = S.wskOwn.includes(k + ':' + id), rc = { 5: 0xff4d8d, 4: 0xffc94a, 3: 0xc28bff }[K.r] || 0xe6e6e6, g = DUN.G;
-  const ped = new THREE.Mesh(new THREE.CylinderGeometry(.85, 1.05, 1.0, 8), M.beam); ped.position.set(x, .5, z); g.add(ped);
-  const top = new THREE.Mesh(new THREE.CylinderGeometry(.9, .9, .1, 8), M.gold); top.position.set(x, 1.05, z); g.add(top);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(.75, .05, 6, 28), new THREE.MeshBasicMaterial({ color: rc })); ring.rotation.x = Math.PI / 2; ring.position.set(x, 1.12, z); g.add(ring); SHIPS.glow.push({ m: ring, ph: x });
-  try { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,240,200,.9)', 'rgba(255,200,120,0)'), transparent: true, depthWrite: false, opacity: .22, blending: THREE.AdditiveBlending })); sp.scale.set(2.4, 2.4, 1); sp.position.set(x, 1.9, z); g.add(sp); } catch (e) { }
-  try { const w = buildWeapon(id, 4, k), H = shipFit(w, 3.0, 1.2, 3.0), P = new THREE.Group(); P.position.set(x, 1.55, z); H.position.y = -.4; P.add(H); g.add(P); SHIPS.spin.push({ g: P, sp: .5 }); } catch (e) { console.warn('gallery gun', e); }
-  const t = labelSprite(K.n + ' · ' + WEAP[id].n + (own ? T2(' · 已拥有', ' · owned') : ''), '#' + rc.toString(16).padStart(6, '0'), .8); t.position.set(x, 3.25, z); g.add(t);
-  DUN.obs.push(addCircle(dX(x), dZ(z), 1.0)); dInt(x, z + 1.7, T2('看看「', 'See ') + K.n + T2('」', ''), () => true, () => qhGunCard(k), 1.9); }
+function qhGun(k, x, z, M, sc, ri, wid) { sc = sc || 1; const K = WSKINS[k], id = wid || K.only, own = S.wskOwn.includes(k + ':' + id), rc = { 5: 0xff4d8d, 4: 0xffc94a, 3: 0xc28bff }[K.r] || 0xe6e6e6, g = DUN.G;
+  const ped = new THREE.Mesh(new THREE.CylinderGeometry(.85 * sc, 1.05 * sc, 1.0, 8), M.beam); ped.position.set(x, .5, z); g.add(ped); if (sc > 1) { const st = new THREE.Mesh(new THREE.CylinderGeometry(1.6 * sc, 1.7 * sc, .2, 12), M.beam); st.position.set(x, .1, z); g.add(st); const tr = new THREE.Mesh(new THREE.TorusGeometry(1.62 * sc, .05, 6, 36), M.gold); tr.rotation.x = Math.PI / 2; tr.position.set(x, .21, z); g.add(tr); }
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(.9 * sc, .9 * sc, .1, 8), M.gold); top.position.set(x, 1.05, z); g.add(top);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(.75 * sc, .05, 6, 28), new THREE.MeshBasicMaterial({ color: rc })); ring.rotation.x = Math.PI / 2; ring.position.set(x, 1.12, z); g.add(ring); SHIPS.glow.push({ m: ring, ph: x });
+  try { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,240,200,.9)', 'rgba(255,200,120,0)'), transparent: true, depthWrite: false, opacity: .22, blending: THREE.AdditiveBlending })); sp.scale.set(2.4 * sc, 2.4 * sc, 1); sp.position.set(x, 1.9, z); g.add(sp); } catch (e) { }
+  try { const w = buildWeapon(id, 4, k), H = shipFit(w, 3.0 * sc, 1.2 * sc, 3.0 * sc), P = new THREE.Group(); P.position.set(x, 1.55 + (sc - 1) * .4, z); H.position.y = -.4; P.add(H); g.add(P); SHIPS.spin.push({ g: P, sp: .5 }); } catch (e) { console.warn('gallery gun', e); }
+  const t = labelSprite(K.n + ' · ' + WEAP[id].n + (own ? T2(' · 已拥有', ' · owned') : ''), '#' + rc.toString(16).padStart(6, '0'), .8); t.position.set(x, 3.25 + (sc - 1) * .8, z); g.add(t);
+  DUN.obs.push(addCircle(dX(x), dZ(z), 1.05 * sc)); dInt(x, z + 1.7 * sc + .2, T2('看看「', 'See ') + K.n + T2('」', ''), () => true, () => qhGunCard(k, ri, id), 2.0); }
 // the collection list for one dungeon (d = 0: all four)
 function qhColPanel(d) { let m = $('qhColM'); if (m) m.remove(); m = document.createElement('div'); m.id = 'qhColM'; m.className = 'abym';
   const ds = d ? [d] : [1, 2, 3, 4], tot = COL_ORDER.length, own = COL_ORDER.filter(k => colN(k)).length;
@@ -17738,15 +17752,16 @@ function qhColPanel(d) { let m = $('qhColM'); if (m) m.remove(); m = document.cr
       L.map(k => { const C = COLX[k], n = colN(k); return '<div class="abytile qhcol' + (n ? '' : ' no') + '" style="border-color:' + (n ? colRC(C.r | 0) : '#3a444c') + '"><i>' + (n ? svgIcon('col_' + k) : '<b class="qhq">?</b>') + '</i><b>' + (n ? (n > 1 ? '×' + n : '') : '') + '</b><small>' + (n ? C.n : '？？？') + '</small></div>'; }).join('') + '</div></div>'; }).join('') +
     '<button class="go abyok">' + T2('关闭', 'Close') + '</button>';
   m.querySelector('.abyok').addEventListener('click', () => m.remove()); document.body.appendChild(m); }
-function qhGunCard(k) { const K = WSKINS[k], id = K.only, own = S.wskOwn.includes(k + ':' + id), RN = { 5: ['神话', '#ff4d8d'], 4: ['传说', '#ffc94a'], 3: ['史诗', '#c28bff'] }[K.r] || ['', '#fff'];
-  const sell = typeof WSK_DIRECT !== 'undefined' && WSK_DIRECT.some(([a, b2]) => a === k && b2 === id);
+function qhGunCard(k, ri, wid) { const K = WSKINS[k], id = wid || K.only, rs = (typeof RELIC_SKINS !== 'undefined' ? RELIC_SKINS : [])[ri], own = S.wskOwn.includes(k + ':' + id), RN = { 5: ['神话', '#ff4d8d'], 4: ['传说', '#ffc94a'], 3: ['史诗', '#c28bff'] }[K.r] || ['', '#fff'];
+  const P = rs ? rs.price() : 0, have = S.relic | 0;
   let m = $('qhGunM'); if (m) m.remove(); m = document.createElement('div'); m.id = 'qhGunM'; m.className = 'abym';
-  m.innerHTML = '<div class="qhgun" style="--qc:' + RN[1] + '"><div class="qhpic">' + (typeof icHtml === 'function' ? icHtml('wsk:' + k + ':' + id, 'big') : '') + '</div><b>' + K.n + ' · ' + WEAP[id].n + '</b><em>' + RN[0] + T2(' · 武器外观', ' · weapon skin') + '</em>' +
-    '<p>' + (K.d || '') + '</p><p class="qhst">' + T2('属性：', 'Stats: ') + (K.stt || '') + '</p><p class="qhhow">' + (own ? T2('你已经拥有：在背包点这把武器就能换上', 'Owned: equip it from your bag') : sell ? T2('可以用晶石直接买', 'Sold for gems') : T2('获得方式：', 'Where: ') + (SHIP_WHOW[k] || T2('活动奖励', 'Events'))) + '</p>' +
-    '<div class="abygb"><button class="sbtn ghostb qh3d">' + T2('3D 预览', '3D preview') + '</button>' + (sell && !own ? '<button class="go qhbuy">' + T2('去购买', 'Buy') + '</button>' : '') + '<button class="sbtn ghostb abyok">' + T2('关闭', 'Close') + '</button></div></div>';
+  m.innerHTML = '<div class="qhgun" style="--qc:' + RN[1] + '"><div class="qhpic">' + (typeof icHtml === 'function' ? icHtml('wsk:' + k + ':' + id, 'big') : '') + '</div><b>' + K.n + ' · ' + WEAP[id].n + '</b><em>' + RN[0] + T2(' · 限定武器外观', ' · limited weapon skin') + '</em>' +
+    '<p>' + (K.d || '') + '</p><p class="qhst">' + T2('属性：', 'Stats: ') + (K.stt || '') + '</p>' +
+    '<p class="qhhow">' + (own ? T2('你已经拥有：在背包点' + WEAP[id].n + '就能换上', 'Owned: equip it from your bag') : T2('只能用遗物币兑换 · 价格 ', 'Relic coins only · price ') + P + T2(' · 你有 ', ' · you have ') + have) + '</p>' +
+    '<div class="abygb"><button class="sbtn ghostb qh3d">' + T2('3D 预览', '3D preview') + '</button>' + (rs && !own ? '<button class="go qhbuy"' + (have >= P ? '' : ' disabled') + '>' + (have >= P ? T2('兑换 · ', 'Trade · ') + P : T2('遗物币不够', 'Not enough')) + '</button>' : '') + '<button class="sbtn ghostb abyok">' + T2('关闭', 'Close') + '</button></div></div>';
   m.querySelector('.abyok').addEventListener('click', () => m.remove());
   m.querySelector('.qh3d').addEventListener('click', () => { m.remove(); try { wskPreview(k, id); } catch (e) { } });
-  const bb = m.querySelector('.qhbuy'); if (bb) bb.addEventListener('click', () => { m.remove(); try { wskDetail(k, id); } catch (e) { } });
+  const bb = m.querySelector('.qhbuy'); if (bb) bb.addEventListener('click', () => { try { if (relicSkinBuy(ri, bb)) { m.remove(); feed(T2('兑换成功：', 'Got: ') + K.n + ' · ' + WEAP[id].n, '#ffd27a'); } } catch (e) { console.warn(e); } });
   m.addEventListener('click', e => { if (e.target === m) m.remove(); }); document.body.appendChild(m); }
 
 /* ---------- 深渊号 · 舱内 ---------- */
@@ -17756,6 +17771,7 @@ function shBuild() {
   const L = (c, o) => new THREE.MeshLambertMaterial(Object.assign({ color: c }, o || {})), Bm = c => new THREE.MeshBasicMaterial({ color: c });
   const steel = L(0x4a6670), steelD = L(0x2e444c), steelL = L(0x6a8a94), teal = L(0x2f8a96), brass = L(0xe0aa3a, { emissive: 0x3a2400 }), red = L(0xc8502a), grate = L(0x3a4a50), grateD = L(0x24323a),
     sea = Bm(0x0e5a78), seaL = Bm(0x3ab8d8), scr = Bm(0x5ae8c0), scrA = Bm(0xffc94a), lamp = Bm(0xffe8b0), wood = L(0x8a6a48), cloth = L(0xc8c0a8), blanket = L(0x2f6a8a);
+  shipOutside(SH.W, SH.D, 0x2f8a96, 0xc8502a, 0);
   const W = SH.W, D = SH.D, H = 3.6, g = DUN.G, b = (w, h, d, m, x, y, z, ry, rz) => { const o = box(w, h, d, m, x, y, z, g); if (ry) o.rotation.y = ry; if (rz) o.rotation.z = rz; return o; };
   const cyl = (rt, rb, h, m, x, y, z, rx, rz, seg) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg || 10), m); o.position.set(x, y, z); if (rx) o.rotation.x = rx; if (rz) o.rotation.z = rz; g.add(o); return o; };
   // floor: metal grating with a walkway
@@ -17803,7 +17819,7 @@ function shBuild() {
 }
 
 DUNS[SHIP_Q] = { nm: '老钱的收藏馆', sh: '收藏馆', boss: '', cls: '', txt: () => ({ intro: [] }), lv: [1, 99], build: qhBuild, setup: () => { DUN.st = { stage: 0, done: false }; },
-  start: () => shipStartCommon(0, QH.D - 2, Math.PI), enter: () => shipEnter('q'), lift: '<b>登船</b><span>老钱的收藏馆</span>', tips: ['左边是你的收藏，右边是老钱私藏的武器外观。', '走到展柜或展台前面，点按钮看详细。', '从门口出去就回到码头。'] };
+  start: () => { SHIPS.out = false; shipStartCommon(0, QH.D - 2.2, Math.PI); }, enter: () => shipEnter('q'), lift: '<b>登船</b><span>老钱的收藏馆</span>', tips: ['左边是你的收藏，右边是老钱用遗物币兑换的限定外观。', '走到展柜或展台前面，点按钮看详细。', '从门口走出去就回到码头。'] };
 DUNS[SHIP_S] = { nm: '深渊号 · 舱内', sh: '深渊号', boss: '', cls: '', txt: () => ({ intro: [] }), lv: [1, 99], build: shBuild, setup: () => { DUN.st = { stage: 0, done: false }; },
   start: () => shipStartCommon(W_SH_X, 2.9, -Math.PI / 2), enter: () => shipEnter('s'), lift: '<b>登艇</b><span>深渊号</span>', tips: ['船头的控制台可以下潜进入无尽深渊。', '舱口的梯子爬上去就回到码头。'] };
 const W_SH_X = SH.W - 2;
@@ -17814,6 +17830,11 @@ goIsland = (o => function (silent) { const r = o(silent); try { if (window._ship
 
 /* per frame: things turn, glow and drift */
 zSpecialTick = (o => function (dt) { o(dt); if (!S.dun || (DUN.id !== SHIP_Q && DUN.id !== SHIP_S)) return; const t = (SHIPS.t += dt);
+  { const q = DUN.id === SHIP_Q, Wd = q ? QH.W : SH.W, Dd = q ? QH.D : SH.D; let x = player.pos.x - DUN.x, z = player.pos.z - DUN.z; const door = q && Math.abs(x) < 1.3;
+    // out through the gallery door, or through any wall (both ships): straight back to the jetty
+    const outside = (door && z > Dd - .15) || Math.abs(x) > Wd - .1 || Math.abs(z) > Dd - .1;
+    if (outside && !SHIPS.out && !S.paused && !S.dead) { SHIPS.out = true; shipLeave(); } }
+  if (SHIPS.sea && SHIPS.sea.material.map) SHIPS.sea.material.map.offset.x = (t * .01) % 1;
   for (const s of SHIPS.spin) s.g.rotation.y += dt * s.sp;
   for (const G of SHIPS.glow) { if (G.sea) G.m.material.color.setRGB(.05, .3 + Math.sin(t * .8 + G.ph) * .06, .45 + Math.sin(t * .6 + G.ph) * .08); else if (G.scr) { } else G.m.scale.setScalar(1 + Math.sin(t * 2 + G.ph) * .04); }
   for (const F of SHIPS.fish) { const p = ((t * F.sp + F.ph) % 4) / 4; F.m.position.x = F.s > 0 ? -W_SH_FISH + p * W_SH_FISH * 2 : W_SH_FISH - p * W_SH_FISH * 2; F.m.visible = [-6.6, -2.2, 2.2, 6.6].some(x => Math.abs(F.m.position.x - x) < .4); }
@@ -19083,4 +19104,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794711476').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794712852').catch(()=>{});</script></body></html>
