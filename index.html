@@ -16976,7 +16976,7 @@ function muTick(dt) { if (!AC || AC.state !== 'running') return; muInit(); const
   _muT -= dt; if (_muT <= 0) { _muT = .5; const k = muTheme(); if (k !== MU.theme) { if (k === 'boss' || MU.theme === 'boss' || (MU.last += .5) > 3) { MU.last = 0; muSwitch(k); } } else MU.last = 0; }
   if (MU.cur) muSched(); }
 // runs on the title screen too (not only in play)
-{ let _lt = performance.now(); setInterval(() => { const n = performance.now(), dt = Math.min(.5, (n - _lt) / 1000); _lt = n; try { muTick(dt); } catch (e) { } }, 100); }
+{ let _lt = Date.now(); setInterval(() => { const n = Date.now(), dt = Math.min(.5, (n - _lt) / 1000); _lt = n; try { muTick(dt); } catch (e) { } }, 100); }
 applyVol = (o => function () { o(); try { if (MU.g && AC) MU.g.gain.setTargetAtTime(muVol(), AC.currentTime, .3); } catch (e) { } })(applyVol);
 renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!box) return;
   const r = document.createElement('div'); r.className = 'setrow'; r.innerHTML = '<span>' + T2('背景音乐', 'Music') + '</span>'; const op = document.createElement('div'); op.className = 'opts';
@@ -19354,4 +19354,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794720669').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794720795').catch(()=>{});</script></body></html>
