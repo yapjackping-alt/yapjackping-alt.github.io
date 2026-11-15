@@ -8436,7 +8436,7 @@ function fixSpotOk(x, z, r, own) {
   if (Math.hypot(player.pos.x - x, player.pos.z - z) < r + .4) return false;
   return true;
 }
-const ownObs = f => f.fix ? (f.id === 'kennel' ? [KENNEL.o] : f.id === 'pot' ? [ISL_POT.o] : f.id === 'bench' ? [ISLW.bench.o] : f.id === 'merch' ? (homeM.obs || []) : f.id === 'tent' ? [HOME_TENT.o] : []) : (f.obs || []);
+const ownObs = f => f.fix ? f.own ? f.own() : (f.id === 'kennel' ? [KENNEL.o] : f.id === 'pot' ? [ISL_POT.o] : f.id === 'bench' ? [ISLW.bench.o] : f.id === 'merch' ? (homeM.obs || []) : f.id === 'tent' ? [HOME_TENT.o] : []) : (f.obs || []);
 /* ---- the 移动 tool ---- */
 const MV = { o: null, x0: 0, z0: 0, rot0: 0, x: 0, z: 0, ok: false, hl: null };
 function moveTarget() {
@@ -11717,7 +11717,7 @@ const BPM = { x: HOME.x - 16, z: HOME.z - 10, g: null, near: false, shown: false
   try { cr.add(new THREE.LineSegments(new THREE.EdgesGeometry(cr.geometry), new THREE.LineBasicMaterial({ color: 0xffd060 }))); } catch (e) { }
   try { const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(126,200,255,.8)', 'rgba(80,160,255,0)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); gl.scale.set(2.4, 2.4, 1); cr.add(gl); } catch (e) { }
   try { const lab = labelSprite('蓝图抽奖机', '#7ec8ff', 1); lab.position.y = 4.5; g.add(lab); } catch (e) { }
-  addBox(BPM.x, BPM.z, .85, 1.25);
+  BPM.o = addBox(BPM.x, BPM.z, .85, 1.25);
 } catch (e) { console.warn('bpm', e); } })();
 const bpmNear = () => S.isl && !S.dead && !S.boat && Math.hypot(player.pos.x - BPM.x, player.pos.z - BPM.z) < 3.6;
 function bpmTick(dt) {
@@ -17015,7 +17015,7 @@ function gvExit() {
   pm.g.visible = !fpOn(); buildAnchor = null; const f = $('gvFl'); if (f) f.style.display = 'none';
 }
 function gvHint() { let h = $('gvHint'); if (!h) { h = document.createElement('div'); h.id = 'gvHint'; document.body.appendChild(h); }
-  h.innerHTML = IS_PC ? T2('滚轮缩放 · WASD / 右键拖动移动视角 · 左键放置', 'Wheel: zoom · WASD / right-drag: move · Left click: place') : T2('双指捏合缩放 · 双指拖动移动视角 · 单指点选位置', 'Pinch to zoom · two fingers to move · one finger to aim');
+  h.innerHTML = IS_PC ? T2('滚轮缩放 · 拖动 / WASD 移动画面 · 点一下放置', 'Wheel: zoom · WASD / right-drag: move · Left click: place') : T2('单指拖动画面 · 双指捏合缩放 · 点一下选位置', 'Pinch to zoom · two fingers to move · one finger to aim');
   h.classList.add('on'); clearTimeout(GV.hintT); GV.hintT = setTimeout(() => h.classList.remove('on'), 4200); }
 // what is above the storey you build on is hidden, so you can see in (ceilings / roofs of this storey too, unless you are placing one)
 function gvHideTick() {
@@ -17071,24 +17071,27 @@ function gvWorldPerPx() { return 2 * GV.d * Math.tan((camera.fov || 50) * Math.P
 function gvAim(e) { const p = groundAt(e.clientX, e.clientY); if (p) buildAnchor = { x: p.x, z: p.z }; buildTap = { x: e.clientX, y: e.clientY }; }
 window.addEventListener('pointerdown', e => {
   if (!GV.on || e.target !== canvas) return; e.stopPropagation(); e.preventDefault(); try { canvas.setPointerCapture(e.pointerId); } catch (er) { }
-  if (e.pointerType === 'mouse') { if (e.button === 0) { GV.drag = { x: e.clientX, y: e.clientY, moved: 0, place: true }; gvAim(e); } else GV.drag = { x: e.clientX, y: e.clientY, moved: 0, pan: true }; return; }
+  if (e.pointerType === 'mouse') { if (e.button === 0) { GV.drag = { x: e.clientX, y: e.clientY, moved: 0, place: true, pan: true }; gvAim(e); } else GV.drag = { x: e.clientX, y: e.clientY, moved: 0, pan: true }; return; }
   GV.ptr.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (GV.ptr.size === 1) gvAim(e); else if (GV.ptr.size === 2) GV.g0 = gvTouchMid();
+  // one finger: drag = move the view, a tap (no drag) = put the piece there; two fingers: pinch + move
+  if (GV.ptr.size === 1) GV.t1 = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: 0, ev: { clientX: e.clientX, clientY: e.clientY } }; else if (GV.ptr.size === 2) { GV.g0 = gvTouchMid(); GV.t1 = null; }
 }, true);
 window.addEventListener('pointermove', e => {
   if (!GV.on || (e.target !== canvas && !GV.ptr.has(e.pointerId) && !GV.drag)) return;
   if (e.pointerType === 'mouse') { e.stopPropagation();
     if (GV.drag) { const dx = e.clientX - GV.drag.x, dy = e.clientY - GV.drag.y; GV.drag.moved += Math.abs(dx) + Math.abs(dy); GV.drag.x = e.clientX; GV.drag.y = e.clientY;
-      if (GV.drag.pan) { const w = gvWorldPerPx(); gvPan(-dx * w, -dy * w / Math.sin(GV.pitch), false); return; } }
+      if (GV.drag.pan && (!GV.drag.place || GV.drag.moved > 8)) { const w = gvWorldPerPx(); gvPan(-dx * w, -dy * w / Math.sin(GV.pitch), false); return; } }
     if (e.target === canvas) gvAim(e); return; }
   if (!GV.ptr.has(e.pointerId)) return; e.stopPropagation(); e.preventDefault(); GV.ptr.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (GV.ptr.size >= 2 && GV.g0) { const m = gvTouchMid(), w = gvWorldPerPx();
-    gvPan(-(m.x - GV.g0.x) * w, -(m.y - GV.g0.y) * w / Math.sin(GV.pitch), true); GV.d = clamp(GV.d * GV.g0.d / m.d, 8, 70); GV.g0 = m; }
-  else if (GV.ptr.size === 1 && !GV.g0) gvAim(e);
+    gvPan(-(m.x - GV.g0.x) * w, -(m.y - GV.g0.y) * w / Math.sin(GV.pitch), false); GV.d = clamp(GV.d * GV.g0.d / m.d, 8, 70); GV.g0 = m; }
+  else if (GV.ptr.size === 1 && !GV.g0 && GV.t1) { const t = GV.t1, dx = e.clientX - t.lx, dy = e.clientY - t.ly; t.lx = e.clientX; t.ly = e.clientY; t.moved += Math.abs(dx) + Math.abs(dy);
+    if (t.moved > 10) { const w = gvWorldPerPx(); gvPan(-dx * w, -dy * w / Math.sin(GV.pitch), false); } }
 }, true);
 const gvUp = e => { if (!GV.on) return;
   if (e.pointerType === 'mouse') { const d = GV.drag; GV.drag = null; if (d && d.place && d.moved < 8 && e.target === canvas && e.type === 'pointerup') { e.stopPropagation(); try { placeBuild(); } catch (er) { } } return; }
-  if (!GV.ptr.has(e.pointerId)) return; e.stopPropagation(); GV.ptr.delete(e.pointerId); if (GV.ptr.size < 2) { if (!GV.ptr.size) GV.g0 = null; } };
+  if (!GV.ptr.has(e.pointerId)) return; e.stopPropagation(); GV.ptr.delete(e.pointerId);
+  if (!GV.ptr.size) { if (GV.t1 && GV.t1.moved <= 10 && !GV.g0 && e.type === 'pointerup') gvAim(GV.t1.ev); GV.t1 = null; GV.g0 = null; } };
 window.addEventListener('pointerup', gvUp, true); window.addEventListener('pointercancel', gvUp, true);
 window.addEventListener('wheel', e => { if (!GV.on || e.target !== canvas) return; e.preventDefault(); GV.d = clamp(GV.d * Math.exp(e.deltaY * .0015), 8, 70); }, { passive: false, capture: true });
 // keys: WASD / arrows move the view, + / − zoom; the fighting keys do nothing while you build here
@@ -17423,6 +17426,44 @@ setTimeout(() => { try { const st = document.createElement('style'); st.textCont
   '@media (orientation:portrait){body.gvOn #build .b5row{--b5mh:196px}#gvFl{top:auto!important;transform:none!important;bottom:calc(var(--sb) + var(--bph,300px) + 14px)}}' +
   '@media (orientation:landscape){#build .b5row{grid-template-columns:repeat(auto-fill,minmax(62px,1fr))!important;--b5mh:84px}}';
   document.head.appendChild(st); } catch (e) { } }, 0);
+
+/* ---- a fold arrow on top of the build panel (folded: only the line with the chosen piece stays, so you can see what you build),
+   and while building on the island the life bar, map, bag/quest buttons are hidden too ---- */
+let B5FOLD = false; try { B5FOLD = localStorage.getItem('ember_bfold') === '1'; } catch (e) { }
+function b5FoldPaint() { try { buildEl.classList.toggle('b5f', B5FOLD); const a = $('b5Fold'); if (a) { a.classList.toggle('dn', B5FOLD); a.setAttribute('aria-label', B5FOLD ? T2('展开', 'Open') : T2('收起', 'Fold')); } } catch (e) { } }
+buildCards = (o => function () { const r = o.apply(this, arguments); try { if (buildEl.appendChild) {
+  const a = document.createElement('button'); a.id = 'b5Fold'; a.className = 'b5fold';
+  a.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 9l7 7 7-7" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  a.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); B5FOLD = !B5FOLD; try { localStorage.setItem('ember_bfold', B5FOLD ? '1' : '0'); } catch (er) { } b5FoldPaint(); try { sfx.pick(); } catch (er) { } });
+  buildEl.appendChild(a); b5FoldPaint(); } } catch (e) { } return r; })(buildCards);
+setTimeout(() => { try { const st = document.createElement('style'); st.textContent =
+  '#build .b5fold{position:absolute;left:50%;top:-30px;transform:translateX(-50%);width:64px;height:30px;border-radius:12px 12px 0 0;border:1px solid var(--line);border-bottom:none;background:var(--panel2,rgba(20,14,22,.92));display:flex;align-items:center;justify-content:center;padding:0;pointer-events:auto}' +
+  '#build .b5fold svg{transition:transform .2s}#build .b5fold.dn svg{transform:rotate(180deg)}' +
+  '#build.b5f .b5tabs,#build.b5f .b5row{display:none!important}#build{position:absolute}' +
+  'body.gvOn #status,body.gvOn #hpBox,body.gvOn #pcRow,body.gvOn #right,body.gvOn #bossbox{opacity:0!important;pointer-events:none!important}';
+  document.head.appendChild(st); } catch (e) { } }, 0);
+
+/* ---- the 蓝图抽奖机 can be moved with 「移动」 too (never removed), like the tent, cooking pot, workbench and merchant ---- */
+try { fixAdd({ id: 'bpm', n: '蓝图抽奖机', rem: false, r: 1.3, get x() { return BPM.x; }, get z() { return BPM.z; }, get g() { return BPM.g; }, own: () => [BPM.o],
+  set(x, z) { BPM.x = x; BPM.z = z; if (BPM.g) BPM.g.position.set(x, 0, z); if (BPM.o) removeObstacle(BPM.o); BPM.o = addBox(x, z, .85, 1.25); } }); } catch (e) { console.warn('bpm fix', e); }
+
+/* ---- demolish in god view: after one piece goes, the nearest piece next to it is picked by itself and the camera glides to it ---- */
+function gvNextRemove(t) {
+  let best = null, bd = 14; for (const b of builds) { if (b.hp <= 0 || !b.g || !b.g.visible || isHomeFire(b)) continue; const d = Math.hypot(b.x - t.x, b.z - t.z) + Math.abs((b.lv | 0) - (t.lv | 0)) * 3; if (d < bd) { bd = d; best = b; } }
+  GV.remNext = best; buildTap = null; if (best) { buildAnchor = { x: best.x, z: best.z }; GV.tx = best.x; GV.tz = best.z; }
+}
+placeBuild = (o => function () {
+  const rem = GV.on && buildSel === 'remove', t = rem ? removeTarget() : null, n = builds.length, r = o.apply(this, arguments);
+  if (rem && t && !t.fix && builds.length < n) try { gvNextRemove(t); } catch (e) { } return r;
+})(placeBuild);
+removeTarget = (o => function () { if (GV.on && GV.remNext) { if (builds.includes(GV.remNext) && GV.remNext.hp > 0) return GV.remNext; GV.remNext = null; } return o(); })(removeTarget);
+gvAim = (o => function (e) { GV.remNext = null; GV.tx = null; return o(e); })(gvAim);
+gvPan = (o => function (dx, dz, a) { GV.tx = null; return o(dx, dz, a); })(gvPan);
+gvTick = (o => function (dt) {
+  if (GV.on && GV.tx != null) { const k = Math.min(1, dt * 5); GV.x += (GV.tx - GV.x) * k; GV.z += (GV.tz - GV.z) * k; if (Math.hypot(GV.tx - GV.x, GV.tz - GV.z) < .05) GV.tx = null; }
+  if (!GV.on) { GV.remNext = null; GV.tx = null; } return o(dt);
+})(gvTick);
+selectBuild = (o => function (k) { GV.remNext = null; return o(k); })(selectBuild);
 /* ============ the storage box screen 2.0 ============
    Both sides (your bag and the storage) are grids of cells, one cell per stack (99 per cell, as before), the count in the corner.
    Tap a cell: a card shows the item's name, what it is and what it's for, and how many you have there. Pick how many to move —
@@ -20173,4 +20214,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794741105').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794744938').catch(()=>{});</script></body></html>
