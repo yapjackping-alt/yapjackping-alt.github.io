@@ -5322,7 +5322,7 @@ function applySave(d) {
     builds.slice().forEach(b => { if (!b.home) dropBuild(b); });
     const mv = d.wv >= 4 ? [0, 0] : [HOME.x - 0, HOME.z - 8];
     d.builds.forEach(b => { if (!Array.isArray(b) || !BT[b[0]] || !Number.isFinite(+b[1]) || !Number.isFinite(+b[2])) return; const x = +b[1] + mv[0], z = +b[2] + mv[1];
-      const onIsl = Math.hypot(x - HOME.x, z - HOME.z) < ISL_R + 20; if ((onIsl && (Math.hypot(x - HOME.x, z - HOME.z) > ISL_R + 8 || Math.hypot(x - PAD.x, z - PAD.z) < 5.5)) || (!onIsl && !(d.wv >= 4)) || (!(b[4] > 0) && overlapsAny(x, z, .3, .3, 0))) return; const nb = addBuild(b[0], x, z, +b[3] || 0, false, +b[4] > 0 ? +b[4] : 0); if (nb && +b[6] && typeof setBuildDy === 'function') setBuildDy(nb, +b[6]); if (b[5] === 1 && nb) try { buildBreak(nb); } catch (e) { } });
+      const onIsl = Math.hypot(x - HOME.x, z - HOME.z) < ISL_R + 20; if ((onIsl && (Math.hypot(x - HOME.x, z - HOME.z) > ISL_R + 8 || Math.hypot(x - PAD.x, z - PAD.z) < 5.5)) || (!onIsl && !(d.wv >= 4)) || (!(b[4] > 0) && !(+b[6]) && overlapsAny(x, z, .3, .3, 0))) return; const nb = addBuild(b[0], x, z, +b[3] || 0, false, +b[4] > 0 ? +b[4] : 0); if (nb && +b[6] && typeof setBuildDy === 'function') setBuildDy(nb, +b[6]); if (b[5] === 1 && nb) try { buildBreak(nb); } catch (e) { } });
   }
   try { foodLoad(d); } catch (e) { console.warn('food load', e); }
   try { dailyLoad(d); } catch (e) { console.warn('daily load', e); }
@@ -17350,6 +17350,8 @@ upMove = function (ox, oz) {
   for (const b of builds) { if ((b.lv | 0) !== F || !F || b.hp <= 0) continue; const T = BT[b.type]; if (T.k !== 'edge' && T.k !== 'door' && !CWALL[b.type]) continue; if (T.k === 'door' && (b.open || 0) > .5) continue;
     if (Math.abs(p.x - b.x) > 3 || Math.abs(p.z - b.z) > 3) continue;
     if (PLT.passB && PLT.passB.has(b) && PLT.near) continue;
+    if (b.diagL) { const c = Math.cos(b.rot), sn = -Math.sin(b.rot), h = b.diagL / 2, t = clamp((p.x - b.x) * c + (p.z - b.z) * sn, -h, h), cx = b.x + c * t, cz = b.z + sn * t, dx = p.x - cx, dz = p.z - cz, d = Math.hypot(dx, dz);
+      if (d < r + .12) { if (d > 1e-4) { p.x = cx + dx / d * (r + .12); p.z = cz + dz / d * (r + .12); } else { p.x = ox; p.z = oz; } } continue; }
     if (high && _topOf(b) - F * UPY <= PLT.y + .12) continue;
     for (const o of T.ob) { const w = obWorld(b.x, b.z, b.rot, o), cx = clamp(p.x, w.x - w.hw, w.x + w.hw), cz = clamp(p.z, w.z - w.hd, w.z + w.hd), dx = p.x - cx, dz = p.z - cz, d2 = dx * dx + dz * dz;
       if (d2 < r * r) { if (d2 > 1e-6) { const d = Math.sqrt(d2); p.x = cx + dx / d * r; p.z = cz + dz / d * r; } else { p.x = ox; p.z = oz; } } } }
@@ -17400,11 +17402,13 @@ ghostTransform = (o => function () {
   const aim = aimPoint(), F = typeof GV !== 'undefined' && GV.on ? GV.fl : (S.fl | 0);
   const notZ = (x, z) => !zombies.some(zb => !zb.dead && Math.hypot(zb.pos.x - x, zb.pos.z - z) < 1.6);
   if (RAMP[buildSel] || CWALL[buildSel] || TRI[buildSel]) {
-    const x = (Math.floor(aim.x / BG) + .5) * BG, z = (Math.floor(aim.z / BG) + .5) * BG, rot = (buildRot || 0) * Math.PI / 2;
+    // the narrow floors (窄 / 窄窄) snap on a quarter-cell grid, so they can sit right next to each other inside one cell
+    const fine = TRI2[buildSel] && TRI[buildSel][2] < 1, rot = (buildRot || 0) * Math.PI / 2;
+    const x = fine ? Math.round((aim.x - 1.5) / .75) * .75 + 1.5 : (Math.floor(aim.x / BG) + .5) * BG, z = fine ? Math.round((aim.z - 1.5) / .75) * .75 + 1.5 : (Math.floor(aim.z / BG) + .5) * BG;
     const same = RAMP[buildSel] ? builds.some(b => b.hp > 0 && (RAMP[b.type] || PLAT_H[b.type]) && (b.lv | 0) === F && Math.abs(b.x - x) < .1 && Math.abs(b.z - z) < .1)
       : builds.some(b => b.hp > 0 && (CWALL[buildSel] ? CWALL[b.type] : b.type === buildSel) && (b.lv | 0) === F && Math.abs(b.x - x) < .1 && Math.abs(b.z - z) < .1 && Math.abs(Math.sin(b.rot - rot)) < .1 && Math.cos(b.rot - rot) > 0);
     // upstairs: on a 楼板 of that storey
-    const ok = !same && (F > 0 ? onUpper(x, z, 1.2, F) : areaOk(x, z, 1.5, 1.5) && !blockedBy(x, z, 1.4, 1.4, q => !!q.ref) && notZ(x, z));
+    const ok = !same && (F > 0 ? onUpper(x, z, fine ? 0 : 1.2, F) : areaOk(x, z, 1.5, 1.5) && !blockedBy(x, z, 1.4, 1.4, q => !!q.ref) && notZ(x, z));
     return { x, z, rot, y: F * UPY, lv: F, ok, why: same ? T2('这一格已经有了', 'Already one here') : F > 0 ? T2('下面要有这一层的楼板', 'Needs a floor under it') : T2('这里放不下', 'No room here') };
   }
   // narrow walls: the nearest wall line, then slide along it in steps of half their width
@@ -17422,7 +17426,7 @@ ghostTransform = (o => function () {
 /* ---- blueprints, menu ---- */
 for (const k of [...Object.keys(RAMP), ...Object.keys(CWALL), ...Object.keys(SWALL), ...Object.keys(TRI).filter(k => !k.endsWith('_m'))]) { const tier = 2; if (BPX[k]) continue; BPX[k] = [tier, BT[k].name]; BT[k].bp = 1; if (!BP[k]) BP[k] = { n: BT[k].name, d: '', cv: 0 }; (BPPOOL[tier] = BPPOOL[tier] || []).push(bpPrize(k)); }
 { const tab = id => B5_TABS.find(t => t[0] === id)[2];
-  const f = tab('fnd'), i = f.indexOf('qstair'); f.splice(i < 0 ? f.length : i, 0, ...Object.keys(RAMP)); const j = f.indexOf('upfl'); f.splice(j < 0 ? 2 : j, 0, ...Object.keys(TRI).filter(k => !k.endsWith('_m')));
+  const f = tab('fnd'), i = f.indexOf('qstair'); f.splice(i < 0 ? f.length : i, 0, ...Object.keys(RAMP)); const j = f.indexOf('upfl'); f.splice(j < 0 ? 2 : j, 0, ...Object.keys(TRI).filter(k => !k.endsWith('_m') && k !== 'triwr' && k !== 'trisr'));
   const w = tab('wall'); w.push(...Object.keys(CWALL), 'hww', 'qww', 'hsw', 'qsw', 'hgw', 'qgw'); }
 
 /* ---- the build menu: every tab and every tile visible, no half-cut ones: tabs wrap, tiles fill the width and scroll down ---- */
@@ -17472,6 +17476,46 @@ gvTick = (o => function (dt) {
   if (!GV.on) { GV.remNext = null; GV.tx = null; } return o(dt);
 })(gvTick);
 selectBuild = (o => function (k) { GV.remNext = null; return o(k); })(selectBuild);
+
+/* ---- the full triangle floor: 左 and 右 are the same shape turned round, so only one tile each ---- */
+BT.triwl.name = '木三角'; BT.trisl.name = '石三角'; BT.triwl.desc = '斜坡墙放倒的三角形，半格地板。「转向」转方向'; BT.trisl.desc = '石头的三角形半格地板。「转向」转方向';
+
+/* ---- walls: a lower wall stacks on top of another on the same edge (半墙 + 矮墙, 矮墙 + 矮墙 …, up to one wall's height),
+   and any wall goes along the slanted edge of a triangle floor (stretched to fit it) ---- */
+const WQ = t => { if (!BT[t] || BT[t].k !== 'edge' || GABLES[t] || SWALL[t]) return 0; return PASS_W[t] ? Math.round(PASS_W[t] / RH_STEP) : 4; };
+const STK = { pend: 0, len: 0, gs: 1 };
+function edgeStackTop(x, z, lv, rot) { let top = -1; for (const b of builds) { if (b.hp <= 0 || (b.lv | 0) !== lv || !WQ(b.type) || Math.abs(b.x - x) > .1 || Math.abs(b.z - z) > .1 || Math.abs(Math.sin(b.rot - rot)) > .1) continue; top = Math.max(top, (b.dy | 0) + WQ(b.type)); } return top; }
+function triHyp(b) {
+  const T = TRI[b.type]; if (!T || T[3]) return null;
+  const P = TRI2[b.type] ? triPts(b.type) : T[1] ? [[-1.5, -1.5], [1.5, -1.5], [1.5, 1.5]] : [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5]];
+  let A = null, B = null, md = 0; for (let i = 0; i < 3; i++) for (let j = i + 1; j < 3; j++) { const d = Math.hypot(P[i][0] - P[j][0], P[i][1] - P[j][1]); if (d > md) { md = d; A = P[i]; B = P[j]; } }
+  const c = Math.cos(b.rot), s = Math.sin(b.rot), w = q => [b.x + q[0] * c + q[1] * s, b.z - q[0] * s + q[1] * c], a = w(A), e = w(B);
+  return { x: (a[0] + e[0]) / 2, z: (a[1] + e[1]) / 2, L: md, rot: -Math.atan2(e[1] - a[1], e[0] - a[0]) };
+}
+function hypAt(x, z, lv) { for (const b of builds) { if (!TRI[b.type] || b.hp <= 0 || (b.lv | 0) !== lv) continue; const h = triHyp(b); if (h && Math.hypot(h.x - x, h.z - z) < .05) return h; } return null; }
+function diagWall(b, L) {
+  if (!L) { const h = hypAt(b.x, b.z, b.lv | 0); L = h ? h.L : 3 * Math.SQRT2; }
+  b.diagL = L; b._top = null; if (b.g) b.g.scale.x = L / 3;
+  for (const q of b.obs) removeObstacle(q); b.obs = [];
+  if (!(b.lv | 0)) { const n = Math.ceil(L / .45), c = Math.cos(b.rot), sn = -Math.sin(b.rot); for (let i = 0; i < n; i++) { const t = ((i + .5) / n - .5) * L; b.obs.push(addBox(b.x + c * t, b.z + sn * t, .2, .2, { ref: b })); } }
+}
+ghostTransform = (o => function () {
+  STK.pend = 0; STK.gs = 1; STK.len = 0; const q = WQ(buildSel); if (!q) return o();
+  const aim = aimPoint(), F = typeof GV !== 'undefined' && GV.on ? GV.fl : (S.fl | 0);
+  // the slanted edge of a triangle floor near the aim
+  let best = null, bd = 1.1;
+  for (const b of builds) { if (b.hp <= 0 || !TRI[b.type] || (b.lv | 0) !== F || Math.hypot(b.x - aim.x, b.z - aim.z) > 4.5) continue; const h = triHyp(b); if (!h) continue; const d = Math.hypot(h.x - aim.x, h.z - aim.z); if (d < bd) { bd = d; best = h; } }
+  if (best) { const top = edgeStackTop(best.x, best.z, F, best.rot), dy = Math.max(0, top); STK.gs = best.L / 3; STK.len = best.L; STK.pend = dy;
+    return { x: best.x, z: best.z, rot: best.rot, y: F * UPY + dy * RH_STEP, lv: F, ok: dy + q <= 4, why: T2('这里的墙已经满一层高了', 'Already a full wall here') }; }
+  // a wall already on the edge you aim at: stack on top of it
+  const e = nearestEdge(aim.x, aim.z), dE = Math.abs(e.rot ? aim.x - e.x : aim.z - e.z);
+  if (dE < .9) { const top = edgeStackTop(e.x, e.z, F, e.rot); if (top > 0 && top < 4) { STK.pend = top;
+      return { x: e.x, z: e.z, rot: e.rot, y: F * UPY + top * RH_STEP, lv: F, ok: top + q <= 4, why: T2('叠上去会超过一面墙的高度', 'That would be taller than a wall') }; } }
+  return o();
+})(ghostTransform);
+updateGhost = (o => function () { const r = o.apply(this, arguments); try { if (ghost) ghost.scale.x = buildSel && WQ(buildSel) ? (STK.gs || 1) : 1; } catch (e) { } return r; })(updateGhost);
+addBuild = (o => function (type, x, z, rot, free, lv) { const b = o(type, x, z, rot, free, lv);
+  try { if (b && WQ(type)) { if (RH.placing && STK.pend) setBuildDy(b, STK.pend); if (Math.abs(Math.sin(2 * rot)) > .02) diagWall(b, RH.placing ? STK.len : 0); } } catch (e) { } return b; })(addBuild);
 /* ============ the storage box screen 2.0 ============
    Both sides (your bag and the storage) are grids of cells, one cell per stack (99 per cell, as before), the count in the corner.
    Tap a cell: a card shows the item's name, what it is and what it's for, and how many you have there. Pick how many to move —
@@ -20219,4 +20263,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794745664').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794746373').catch(()=>{});</script></body></html>
