@@ -18172,6 +18172,92 @@ function islPondNear(px, pz) {
   for (const b of builds) { if (b.hp <= 0 || (b.type !== 'pond' && b.type !== 'pond2')) continue; const d = Math.hypot(b.x - px, b.z - pz); if (d < bd + 1) { bd = d; best = { x: b.x, z: b.z, y: (b.g ? b.g.position.y : 0) + .1 }; } }
   return best;
 }
+/* ============ drawn paths (Tiny Glade style, step 2) ============
+   地形 tab tools 画泥路 / 画石子路: drag a finger and a soft, curved path is laid along the line — no grid. The path is a ribbon
+   that lies on the ground (smooth curve through the finger points, soft frayed edges), the stone one with pebbles on it.
+   Brush size = path width. 擦掉 rubs paths out under the brush too. Paths follow the ground when you sculpt it.
+   Saved as d.ter.paths = [{t: 'dirt'|'stone', w, p: [x, z, x, z …] (relative to HOME, 2 decimals)}]. */
+const TPATH = { list: [], cur: null, g: null, dirty: false, t: 0 };
+const TPATH_W = { 3: .8, 4: 1.1, 5: 1.4, 0: 1.7, 1: 2.4, 2: 3.2 };
+// tools go right after the ground paints
+{ const i = TER_TOOLS.findIndex(t => t[0] === 'p_stone'); TER_TOOLS.splice(i < 0 ? TER_TOOLS.length : i, 0, ['path_dirt', T2('画泥路', 'Dirt path')], ['path_stone', T2('画石子路', 'Pebble path')]); }
+Object.assign(TER_IC, {
+  path_dirt: '<path d="M4 20c3-6 2-9 6-11s7-2 10-6" stroke-width="3.4" />',
+  path_stone: '<path d="M4 20c3-6 2-9 6-11s7-2 10-6" /><circle cx="7" cy="15" r="1.2" /><circle cx="12" cy="9.5" r="1.2" /><circle cx="17" cy="6" r="1.2" />'
+});
+const tpathTool = () => TER.tool === 'path_dirt' || TER.tool === 'path_stone';
+
+// textures: dirt with soft frayed edges (alpha fades across the width), pebbles drawn into the stone one
+function tpathTex(kind) {
+  const W = 128, H = 256, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const x = cv.getContext('2d'), R = mulberry32(kind === 'stone' ? 77 : 41);
+  const img = x.createImageData(W, H), d = img.data;
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) { const u = i / (W - 1), e = Math.min(u, 1 - u) * 2,   // 0 at the edge, 1 in the middle
+      fray = .18 + .1 * Math.sin(j * .21 + Math.sin(j * .07) * 3) + .06 * Math.sin(j * .63),
+      a = Math.max(0, Math.min(1, (e - fray * .55) / .32)), n = R() * .16 - .08, o = (j * W + i) * 4;
+    const base = kind === 'stone' ? [128, 114, 96] : [138, 108, 76]; d[o] = base[0] * (1 + n); d[o + 1] = base[1] * (1 + n); d[o + 2] = base[2] * (1 + n); d[o + 3] = 255 * a; }
+  x.putImageData(img, 0, 0);
+  if (kind === 'stone') for (let q = 0; q < 55; q++) { const px = 14 + R() * (W - 28), py = R() * H, r = 4 + R() * 7, c = 112 + R() * 58 | 0;
+    x.fillStyle = 'rgba(' + c + ',' + (c - 6) + ',' + (c - 16) + ',.95)'; x.beginPath(); x.ellipse(px, py, r, r * (.6 + R() * .3), R() * 3, 0, 7); x.fill();
+    x.strokeStyle = 'rgba(60,50,40,.35)'; x.lineWidth = 1; x.stroke(); }
+  else for (let q = 0; q < 140; q++) { const px = 10 + R() * (W - 20), py = R() * H; x.fillStyle = 'rgba(90,66,40,' + (.2 + R() * .3) + ')'; x.fillRect(px, py, 1 + R() * 2, 1 + R() * 2); }
+  const t = new THREE.CanvasTexture(cv); t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.RepeatWrapping; return t;
+}
+let _tpathM = null;
+function tpathMat(kind) { if (!_tpathM) _tpathM = {};
+  return _tpathM[kind] || (_tpathM[kind] = new THREE.MeshLambertMaterial({ map: tpathTex(kind), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })); }
+
+// a smooth line through the finger points (Catmull-Rom), one sample every .35 m
+function tpathSpline(p) {
+  const n = p.length / 2; if (n < 2) return []; const P = i => { i = Math.max(0, Math.min(n - 1, i)); return [p[i * 2], p[i * 2 + 1]]; }, out = [];
+  for (let i = 0; i < n - 1; i++) { const a = P(i - 1), b = P(i), c = P(i + 1), d = P(i + 2), L = Math.hypot(c[0] - b[0], c[1] - b[1]), st = Math.max(1, Math.ceil(L / .35));
+    for (let s = 0; s < st; s++) { const t = s / st; out.push(_tcr(a[0], b[0], c[0], d[0], t), _tcr(a[1], b[1], c[1], d[1], t)); } }
+  const e = P(n - 1); out.push(e[0], e[1]); return out;
+}
+function tpathMesh(path) {
+  const s = tpathSpline(path.p), n = s.length / 2; if (n < 2) return null; const w = path.w / 2, pos = [], uv = [], idx = []; let v = 0;
+  for (let i = 0; i < n; i++) { const x = s[i * 2], z = s[i * 2 + 1], ia = Math.max(0, i - 1), ib = Math.min(n - 1, i + 1); let dx = s[ib * 2] - s[ia * 2], dz = s[ib * 2 + 1] - s[ia * 2 + 1]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+    if (i) v += Math.hypot(x - s[i * 2 - 2], z - s[i * 2 - 1]) / (path.w * 1.6);
+    // round ends: the first / last bit narrows
+    const endK = Math.min(1, (i + .5) / 3, (n - i - .5) / 3), ww = w * (.55 + .45 * Math.sqrt(endK));
+    for (let q = 0; q <= 4; q++) { const f = q / 4 * 2 - 1, wx = HOME.x + x - dz * ww * f, wz = HOME.z + z + dx * ww * f; pos.push(wx, terH(wx, wz) + .045, wz); uv.push(q / 4, v); } }
+  for (let i = 0; i < n - 1; i++) for (let q = 0; q < 4; q++) { const a = i * 5 + q, b = a + 1, c = a + 5, d = c + 1; idx.push(a, b, c, b, d, c); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, tpathMat(path.t)); m.receiveShadow = true; m.renderOrder = 1; m.userData.noCast = 1; return m;
+}
+function tpathRebuild() {
+  if (!TPATH.g) { TPATH.g = new THREE.Group(); scene.add(TPATH.g); }
+  for (const c of TPATH.g.children.slice()) { TPATH.g.remove(c); c.geometry.dispose(); }
+  for (const p of TPATH.list.concat(TPATH.cur ? [TPATH.cur] : [])) { const m = tpathMesh(p); if (m) TPATH.g.add(m); }
+}
+// rub out path points under the brush (a path is split where it was cut)
+function tpathErase(ax, az, R) { const out = []; let ch = false;
+  for (const p of TPATH.list) { let seg = [];
+    for (let i = 0; i < p.p.length; i += 2) { if (Math.hypot(HOME.x + p.p[i] - ax, HOME.z + p.p[i + 1] - az) < R + p.w * .3) { ch = true; if (seg.length >= 4) out.push({ t: p.t, w: p.w, p: seg }); seg = []; } else seg.push(p.p[i], p.p[i + 1]); }
+    if (seg.length >= 4) out.push({ t: p.t, w: p.w, p: seg }); }
+  if (ch) { TPATH.list = out; TPATH.dirty = true; } }
+
+terBrush = (o => function (dt) {
+  if (tpathTool()) { const a = buildAnchor; if (!a) return; const lx = +(a.x - HOME.x).toFixed(2), lz = +(a.z - HOME.z).toFixed(2);
+    if (Math.hypot(lx, lz) > ISL_R + 12) return;
+    if (!TPATH.cur) TPATH.cur = { t: TER.tool === 'path_stone' ? 'stone' : 'dirt', w: TPATH_W[TER.size] || 1.7, p: [lx, lz] };
+    else { const p = TPATH.cur.p, px = p[p.length - 2], pz = p[p.length - 1]; if (Math.hypot(lx - px, lz - pz) >= Math.max(.6, TPATH.cur.w * .45)) { p.push(lx, lz); TPATH.dirty = true; } }
+    return; }
+  const r = o(dt);
+  if (TER.tool === 'p_erase' && buildAnchor) tpathErase(buildAnchor.x, buildAnchor.z, TER_SIZES[TER.size] || 2.4);
+  return r;
+})(terBrush);
+
+petsTick = (o => function (dt) { const r = o(dt); try {
+  if (TPATH.cur && !TER.down) {   // finger lifted: the path is finished (a single tap leaves nothing)
+    if (TPATH.cur.p.length >= 4) TPATH.list.push(TPATH.cur); TPATH.cur = null; TPATH.dirty = true; }
+  if (TER.down && !tpathTool() && TER.tool !== 'p_erase' && TER.tool !== 'pan' && !(TER.tool in TP_TYPE)) TPATH.lift = true;   // sculpting: paths follow the ground once the finger lifts
+  if (TPATH.lift && !TER.down) { TPATH.lift = false; TPATH.dirty = true; }
+  TPATH.t -= dt; if (TPATH.dirty && TPATH.t <= 0) { TPATH.t = TPATH.cur ? .12 : .3; TPATH.dirty = false; tpathRebuild(); }
+  if (TPATH.g) TPATH.g.visible = S.isl && !S.dun;
+} catch (e) { console.warn('tpath', e); } return r; })(petsTick);
+
+serialize = (o => function () { const d = o(); try { if (TPATH.list.length) { d.ter = d.ter || { v: 2, h: [], gy: {} }; d.ter.paths = TPATH.list.map(p => ({ t: p.t, w: p.w, p: p.p.map(v => Math.round(v * 100) / 100) })); } } catch (e) { } return d; })(serialize);
+applySave = (o => function (d) { const r = o(d); try { const L = d && d.ter && d.ter.paths; TPATH.list = Array.isArray(L) ? L.filter(p => p && Array.isArray(p.p) && p.p.length >= 4).map(p => ({ t: p.t === 'stone' ? 'stone' : 'dirt', w: clamp(+p.w || 1.7, .5, 4), p: p.p.map(Number) })) : []; TPATH.cur = null; TPATH.dirty = true; TPATH.t = 0; } catch (e) { } return r; })(applySave);
 /* ============ water round the boats ============
    Every boat on the water (老钱's ship, the 深渊号 submarine, the small boat at the pier, your fishing boat) has soft rings of
    ripples spreading out from its hull. Your fishing boat while it moves leaves a white wake behind it (two lines spreading
@@ -21001,4 +21087,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794765262').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794765678').catch(()=>{});</script></body></html>
