@@ -17292,7 +17292,23 @@ BT.triwl = { name: '木三角·左', cat: 'st', k: 'free', cost: { wood: 3 }, hp
 BT.triwr = { name: '木三角·右', cat: 'st', k: 'free', cost: { wood: 3 }, hp: 160, hw: 1.5, hd: 1.5, ob: [], desc: '斜坡墙放倒的三角形，半格地板（斜边朝右）' };
 BT.trisl = { name: '石三角·左', cat: 'st', k: 'free', cost: { wood: 1, metal: 3 }, hp: 300, hw: 1.5, hd: 1.5, ob: [], desc: '石头的三角形半格地板（斜边朝左）' };
 BT.trisr = { name: '石三角·右', cat: 'st', k: 'free', cost: { wood: 1, metal: 3 }, hp: 300, hw: 1.5, hd: 1.5, ob: [], desc: '石头的三角形半格地板（斜边朝右）' };
+// narrower ones (the 半 / 矮 斜坡墙 laid flat: 窄 = half as wide, 窄窄 = a quarter) and the same in 弧形 (the 弧形墙 laid flat).
+// One tile each; the 左 / 右 buttons in the menu line pick the direction (the 右 one is its own piece, id + '_m').
+const TRI2 = {}, MIRR = {};
+for (const [m, mn, cs] of [['w', '木', [{ wood: 2 }, { wood: 1 }, { wood: 3 }]], ['s', '石', [{ wood: 1, metal: 2 }, { metal: 1 }, { wood: 1, metal: 3 }]]])
+  for (const [arc, sz, tag, nm, ci] of [[0, .5, 'n', '三角窄', 0], [0, .25, 'nn', '三角窄窄', 1], [1, 1, 'f', '弧形地板', 2], [1, .5, 'n', '弧形窄地板', 0], [1, .25, 'nn', '弧形窄窄地板', 1]]) {
+    const id = (arc ? 'arc' : 'tri') + m + tag;
+    for (const r of [0, 1]) { const k = r ? id + '_m' : id; TRI[k] = [m, r, sz, arc]; TRI2[k] = 1;
+      BT[k] = { name: mn + nm + (r ? '·右' : ''), cat: 'st', k: 'free', cost: cs[ci], hp: m === 's' ? 260 : 140, hw: 1.5, hd: 1.5, ob: [], desc: (arc ? '弧形墙' : (sz > .3 ? '半斜坡墙' : '矮斜坡墙')) + '放倒的形状，' + (m === 's' ? '石头' : '木头') + '地板。上面「左 / 右」换方向' }; }
+    MIRR[id] = id + '_m'; MIRR[id + '_m'] = id; }
+function triPts(t) {
+  const [m, right, sz, arc] = TRI[t], sz2 = sz == null ? 1 : sz, sx = right ? -1 : 1, P = [];
+  if (!arc) P.push([-1.5 * sx, -1.5 + 3 * sz2], [-1.5 * sx, -1.5], [1.5 * sx, -1.5]);
+  else { P.push([-1.5 * sx, -1.5]); for (let i = 0; i <= 14; i++) { const u = i / 14, x = -1.5 + 3 * u; P.push([x * sx, -1.5 + 3 * sz2 * Math.sqrt(Math.max(0, 1 - u * u))]); } }
+  return P;
+}
 function triMesh(g, t) {
+  if (TRI2[t]) return triMesh2(g, t);
   const [m, right] = TRI[t], P = right ? [[-1.5, -1.5], [1.5, -1.5], [1.5, 1.5]] : [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5]];
   const sh = new THREE.Shape(); sh.moveTo(P[0][0], -P[0][1]); sh.lineTo(P[1][0], -P[1][1]); sh.lineTo(P[2][0], -P[2][1]); sh.lineTo(P[0][0], -P[0][1]);
   const geo = new THREE.ExtrudeGeometry(sh, { depth: .2, bevelEnabled: false }), body = new THREE.Mesh(geo, m === 's' ? stone2 : beam); body.rotation.x = -Math.PI / 2; g.add(body);
@@ -17302,6 +17318,20 @@ function triMesh(g, t) {
   const n = 6, d = 3 / n; for (let i = 0; i < n; i++) { const z = -1.5 + d * (i + .5), w = 1.5 - (z + d / 2) - .12; if (w < .15) continue;   // each strip stops short of the long edge
     box(w, .03, d - .05, i % 2 ? (m === 's' ? stone : plank) : (m === 's' ? mat(0x97938c) : plank2), right ? 1.5 - .1 - w / 2 : -1.5 + .1 + w / 2, .225, z, g); }
 }
+
+function triMesh2(g, t) {
+  const m = TRI[t][0], P = triPts(t), sh = new THREE.Shape(); sh.moveTo(P[0][0], -P[0][1]); for (let i = 1; i < P.length; i++) sh.lineTo(P[i][0], -P[i][1]); sh.lineTo(P[0][0], -P[0][1]);
+  const body = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: .2, bevelEnabled: false }), m === 's' ? stone2 : beam); body.rotation.x = -Math.PI / 2; g.add(body);
+  const top = new THREE.Mesh(new THREE.ShapeGeometry(sh), m === 's' ? stone : plank); top.rotation.x = -Math.PI / 2; top.position.y = .205; g.add(top);
+  for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < .02) continue;
+    const e = box(L + .04, .1, .12, m === 's' ? stone2 : beam, (a[0] + b[0]) / 2, .23, (a[1] + b[1]) / 2, g); e.rotation.y = -Math.atan2(b[1] - a[1], b[0] - a[0]); }
+}
+// the 左 / 右 buttons in the menu line
+b5Info = (o => function () { o(); try { const k = buildSel, el = $('b5Sel'); if (!el || !k || !MIRR[k] || bpLocked(k.replace('_m', ''))) return; const r = k.endsWith('_m'), key = 'mi' + k; if (el._k === key) return; el._k = key;
+  el.innerHTML = '<b>' + BT[k.replace('_m', '')].name + '</b><span class="rhw"><button class="rhb mib' + (r ? '' : ' on') + '" data-r="0">' + T2('左', 'Left') + '</button><button class="rhb mib' + (r ? ' on' : '') + '" data-r="1">' + T2('右', 'Right') + '</button></span>';
+  el.querySelectorAll('.mib').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); const want = b.dataset.r === '1', base = k.replace('_m', ''); const n = want ? base + '_m' : base; if (n !== buildSel) { selectBuild(n); try { sfx.pick(); } catch (er) { } } b5Info(); }));
+} catch (e) { } })(b5Info);
+refreshBuildCards = (o => function () { o(); try { if (buildSel && buildSel.endsWith('_m')) buildEl.querySelectorAll('.b5t').forEach(c => c.classList.toggle('sel', c.dataset.k + '_m' === buildSel)); } catch (e) { } })(refreshBuildCards);
 
 /* ---- upstairs you walk over built things lower than your feet too, the low walls under a raised floor's edge, and the round walls stop you ---- */
 upMove = function (ox, oz) {
@@ -17379,13 +17409,14 @@ ghostTransform = (o => function () {
 })(ghostTransform);
 
 /* ---- blueprints, menu ---- */
-for (const k of [...Object.keys(RAMP), ...Object.keys(CWALL), ...Object.keys(SWALL), ...Object.keys(TRI)]) { const tier = 2; if (BPX[k]) continue; BPX[k] = [tier, BT[k].name]; BT[k].bp = 1; if (!BP[k]) BP[k] = { n: BT[k].name, d: '', cv: 0 }; (BPPOOL[tier] = BPPOOL[tier] || []).push(bpPrize(k)); }
+for (const k of [...Object.keys(RAMP), ...Object.keys(CWALL), ...Object.keys(SWALL), ...Object.keys(TRI).filter(k => !k.endsWith('_m'))]) { const tier = 2; if (BPX[k]) continue; BPX[k] = [tier, BT[k].name]; BT[k].bp = 1; if (!BP[k]) BP[k] = { n: BT[k].name, d: '', cv: 0 }; (BPPOOL[tier] = BPPOOL[tier] || []).push(bpPrize(k)); }
 { const tab = id => B5_TABS.find(t => t[0] === id)[2];
-  const f = tab('fnd'), i = f.indexOf('qstair'); f.splice(i < 0 ? f.length : i, 0, ...Object.keys(RAMP)); const j = f.indexOf('upfl'); f.splice(j < 0 ? 2 : j, 0, ...Object.keys(TRI));
+  const f = tab('fnd'), i = f.indexOf('qstair'); f.splice(i < 0 ? f.length : i, 0, ...Object.keys(RAMP)); const j = f.indexOf('upfl'); f.splice(j < 0 ? 2 : j, 0, ...Object.keys(TRI).filter(k => !k.endsWith('_m')));
   const w = tab('wall'); w.push(...Object.keys(CWALL), 'hww', 'qww', 'hsw', 'qsw', 'hgw', 'qgw'); }
 
 /* ---- the build menu: every tab and every tile visible, no half-cut ones: tabs wrap, tiles fill the width and scroll down ---- */
 setTimeout(() => { try { const st = document.createElement('style'); st.textContent =
+  '#build .rhb.mib{min-width:44px}#build .rhb.mib.on{background:rgba(255,122,47,.6);border-color:#ffb27a}' +
   '#build .b5tabs{flex-wrap:wrap!important;overflow:visible!important}#build .b5tab{flex:1 1 auto!important;padding:0 8px!important}' +
   '#build .b5row{grid-auto-flow:row!important;grid-template-rows:none!important;grid-auto-columns:auto!important;grid-template-columns:repeat(auto-fill,minmax(70px,1fr))!important;overflow-x:hidden!important;overflow-y:auto!important;max-height:var(--b5mh,98px);-webkit-overflow-scrolling:touch}' +
   '#build .b5t{width:auto!important}' +
@@ -20142,4 +20173,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794729118').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794741105').catch(()=>{});</script></body></html>
