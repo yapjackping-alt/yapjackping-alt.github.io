@@ -18396,8 +18396,11 @@ applySave = (o => function (d) { const r = o(d); try { const L = d && d.ter && d
    On the island, where painted water (水池 / 圈池塘) or a drawn river is deeper than about half a metre, you swim: body
    flat at the surface, arm strokes and kicks, slower, no shooting; walk out where it gets shallow. */
 const SWN = { on: false, y: 0, bt: 0, arm: null };
+// the sea round the island: water at -0.3 past the beach (owner: no more invisible wall, swim out into the sea)
+const SWN_SEA = ISL_R + 45;
+function swGround(x, z) { const r = Math.hypot(x - HOME.x, z - HOME.z); if (r > ISL_R + 16) return -6; return terBase(r) + (TER.any ? terD(x, z) : 0); }
 function islWaterLevel(x, z) {
-  let lv = null;
+  let lv = null; if (Math.hypot(x - HOME.x, z - HOME.z) > ISL_R + 8) lv = -.3;
   try { const N = TER_N, fx = (x - HOME.x + TER_O) / TER_S, fz = (z - HOME.z + TER_O) / TER_S, i = Math.floor(fx), j = Math.floor(fz);
     if (i >= 0 && j >= 0 && i < N - 1 && j < N - 1) for (const k of [j * N + i, j * N + i + 1, (j + 1) * N + i, (j + 1) * N + i + 1]) if (TPAINT.p[k] === 4 && (lv == null || TPAINT.wl[k] > lv)) lv = TPAINT.wl[k]; } catch (e) { }
   try { for (const r of TRIV.list) { const s = r._s || (r._s = tpathSpline(r.p)); for (let q = 0; q < s.length; q += 2) { if (Math.abs(HOME.x + s[q] - x) > r.w || Math.abs(HOME.z + s[q + 1] - z) > r.w) continue;
@@ -18407,13 +18410,13 @@ function islWaterLevel(x, z) {
 function swn2Tick(dt) {
   const ok = S.started && S.isl && !S.dun && !S.boat && !S.dead && !(S.fl | 0) && !S.fall && !S.climbA && !(typeof SW !== 'undefined' && SW.b) && !(typeof GV !== 'undefined' && GV.on);
   let want = false, lvl = null;
-  if (ok) { lvl = islWaterLevel(player.pos.x, player.pos.z); if (lvl != null) { const d = lvl - terH(player.pos.x, player.pos.z); want = SWN.on ? d > .38 : d > .55; } }
+  if (ok) { lvl = islWaterLevel(player.pos.x, player.pos.z); if (lvl != null) { const d = lvl - swGround(player.pos.x, player.pos.z); want = SWN.on ? d > .38 : d > .55; } }
   if (want && !SWN.on) { SWN.on = true; SWN.arm = [pm.armR.rotation.clone(), pm.armL.rotation.clone()]; gun.visible = false; burst(player.pos.x, lvl + .2, player.pos.z, 0xbfe8ff, 14, 3); try { if (AC) sfxNoise(.35, .16, 1300, { f1: 300 }); } catch (e) { } }
   if (!want && SWN.on) { SWN.on = false; pm.g.rotation.x = 0; pm.body.rotation.z = 0; if (SWN.arm) { pm.armR.rotation.copy(SWN.arm[0]); pm.armL.rotation.copy(SWN.arm[1]); } pm.legL.rotation.set(0, 0, 0); pm.legR.rotation.set(0, 0, 0); gun.visible = true; }
   if (!SWN.on) return;
   input.fire = false; S.sprint = false;
   const mv = Math.hypot(input.mx || 0, input.mz || 0) > .1 || (typeof keys !== 'undefined' && (keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD)), t = S.t * (mv ? 5 : 2.2);
-  SWN.y = lvl - .62 + Math.sin(S.t * 2) * .06;   // terOff puts the body here (the camera follows)
+  SWN.lvl = lvl; SWN.y = lvl - .62 + Math.sin(S.t * 2) * .06;   // terOff puts the body here (the camera follows)
   pm.g.rotation.x = mv ? 1.25 : .35; pm.body.rotation.z = Math.sin(t * .5) * .12;
   pm.armR.rotation.set(-Math.PI + Math.sin(t) * 1.6, 0, -.2); pm.armL.rotation.set(-Math.PI - Math.sin(t) * 1.6, 0, .2);
   pm.legL.rotation.x = Math.sin(t * 2) * .45; pm.legR.rotation.x = -Math.sin(t * 2) * .45;
@@ -18424,6 +18427,24 @@ terOff = (o => function () { return SWN.on ? SWN.y : o(); })(terOff);
 swimMul = (o => function () { return SWN.on ? .55 : o(); })(swimMul);
 // a river that was edited / re-loaded needs its samples again
 trivRebuild = (o => function () { for (const r of TRIV.list) r._s = null; return o(); })(trivRebuild);
+// no wall at the beach any more: past it you swim; far out (45 m off the beach) is the limit
+islandTick = (o => function (dt) { const px = player.pos.x, pz = player.pos.z, r = o(dt);
+  try { const dx = px - HOME.x, dz = pz - HOME.z, d = Math.hypot(dx, dz), onPier = Math.abs(dx) < 1.3 && dz < 0 && dz > PAD.z - HOME.z - 3;
+    if (!onPier && !S.boat && d > ISL_R + 9 && S.isl && !S.dun) { const k = d > SWN_SEA ? SWN_SEA / d : 1; player.pos.x = HOME.x + dx * k; player.pos.z = HOME.z + dz * k; } } catch (e) { }
+  return r; })(islandTick);
+// first person in the water: no gun in your hands, the eyes just above the surface
+fpvTick = (o => function (dt) { const r = o(dt); if (SWN.on && FPV.g) FPV.g.visible = false; return r; })(fpvTick);
+staRingTick = (o => function (dt) { const r = o(dt);
+  try { if (SWN.on && typeof fpOn === 'function' && fpOn()) { camera.position.y = SWN.lvl + .24 + Math.sin(S.t * 2.2) * .05; if (camera.updateMatrixWorld) camera.updateMatrixWorld(); } } catch (e) { }
+  return r; })(staRingTick);
+// strokes and splashes instead of footsteps
+bodyAudio = (o => function (dt, moving) {
+  if (!SWN.on) return o(dt, moving); if (!AC || S.paused || S.dead) return;
+  const mv = Math.hypot(input.mx || 0, input.mz || 0) > .1; SWN.st = (SWN.st == null ? .5 : SWN.st) - dt;
+  if (SWN.st <= 0) { SWN.st = mv ? .62 + Math.random() * .1 : 1.6 + Math.random();
+    try { if (mv) { sfxNoise(.32, .13, 700, { type: 'bandpass', f1: 450, q: .7 }); sfxNoise(.18, .07, 2400, { type: 'bandpass', f1: 1500, q: 1, delay: .12 }); }
+      else sfxNoise(.5, .04, 500, { type: 'bandpass', f1: 380, q: .8 }); } catch (e) { } }
+})(bodyAudio);
 /* ============ water round the boats ============
    Every boat on the water (老钱's ship, the 深渊号 submarine, the small boat at the pier, your fishing boat) has soft rings of
    ripples spreading out from its hull. Your fishing boat while it moves leaves a white wake behind it (two lines spreading
@@ -21287,4 +21308,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794767491').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794767933').catch(()=>{});</script></body></html>
