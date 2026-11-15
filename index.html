@@ -16659,6 +16659,9 @@ function cgRender() { const c = CG.c, ov = $('compGear'), box = $('cgBox'); if (
     w.appendChild(b); d.appendChild(w); });
   box.appendChild(d); }
 try { const st = document.createElement('style'); st.textContent = '#compGear .dtl{text-align:left;width:100%}.cgh{margin:10px 0 4px;font-size:14px;color:#ffd8a8}.cgrow{display:flex;flex-direction:column;gap:4px;margin-bottom:8px}.cgrow .sbtn{align-self:flex-end}.cgup{color:#8fe05a;font-style:normal}.cgdn{color:#ff8f80;font-style:normal}'; document.head.appendChild(st); } catch (e) { }
+
+/* ---- on the fishing boat, companions who follow you wait on shore instead of walking on the sea ---- */
+compsTick = (o => function (dt) { if (!S.boat) return o(dt); const all = S.comps; S.comps = all.filter(c => c.mode !== 'follow'); try { return o(dt); } finally { S.comps = all; } })(compsTick);
 /* ============ roofs, gable walls, and blueprints for everything else ============
    New pieces:
    - 三角屋顶 / 天窗屋顶: a pitched roof over one 3×3 cell, sitting on top of the walls (like the upper floor slab).
@@ -16735,6 +16738,253 @@ shopLoad = (o => function (d) { o(d); try { const old = !(d && d.sh && d.sh.bpv2
 { let _bt = 0; zSpecialTick = (o => function (dt) { o(dt); if ((_bt -= dt) > 0) return; _bt = 1.5;
   try { const ks = []; try { const st = stStep(); if (st && st.k === 'btype') ks.push(st.t); } catch (e) { } try { const c = COMM[ST2.comm.i], s = c && S.level >= c.lv && c.steps[ST2.comm.p | 0]; if (s && s.k === 'btype') ks.push(s.t); } catch (e) { }
     for (const k of ks) if (BT[k] && BT[k].bp && !S.bp[k]) { S.bp[k] = 1; feed(T2('拿到蓝图「', 'Blueprint: ') + BT[k].name + T2('」（任务送的）', ' (task gift)'), '#7ec8ff'); try { buildCards(); } catch (e) { } } } catch (e) { } })(zSpecialTick); }
+/* ============ slope walls and one-sided roofs (from the owner's sketch) ============
+   - 斜坡墙 in three heights (as tall as a wall / a 半墙 / a 矮墙): a right triangle, the tall straight side at one end,
+     a straight slope down to the other end. 弧形墙 in the same three heights: the same shape with a rounded (bulging) slope.
+     「旋转」 flips which end is tall. Like the 山墙, putting one on an edge that already has a wall stacks it on top of that wall.
+   - 单坡屋顶 (one-sided roof) in three pitches: a single sloping roof over one 3×3 cell, its high side as high as a wall /
+     a 半墙 / a 矮墙 above the wall tops — the matching 斜坡墙 closes the sides exactly. 「旋转」 turns which side is high.
+   - The 「旋转」 button now also works for roofs (the 三角屋顶 / 天窗屋顶 ridge too: it said so, but the button ignored roofs).
+   All new pieces come from the blueprint machine, like the other non-starter pieces. */
+const SLOPES = { slp1: [WALL_H, 0], slp2: [WALL_H / 2, 0], slp3: [WALL_H / 4, 0], arc1: [WALL_H, 1], arc2: [WALL_H / 2, 1], arc3: [WALL_H / 4, 1] };
+const SHEDS = { roofP1: WALL_H, roofP2: WALL_H / 2, roofP3: WALL_H / 4 };
+BT.slp1 = { name: '斜坡墙', cat: 'st', k: 'edge', cost: { wood: 4 }, hp: 280, hw: 1.5, hd: .18, ob: [[0, 0, 1.5, .18]], stack: 1, desc: '直角三角形的墙，高的一边和墙一样高；「旋转」换方向；放在墙上会叠在墙顶' };
+BT.slp2 = { name: '半斜坡墙', cat: 'st', k: 'edge', cost: { wood: 3 }, hp: 200, hw: 1.5, hd: .18, ob: [[0, 0, 1.5, .18]], stack: 1, desc: '高的一边和半墙一样高；配「单坡屋顶」封住两边刚刚好' };
+BT.slp3 = { name: '矮斜坡墙', cat: 'st', k: 'edge', cost: { wood: 2 }, hp: 150, hw: 1.5, hd: .18, ob: [[0, 0, 1.5, .18]], stack: 1, desc: '高的一边和矮墙一样高' };
+BT.arc1 = { name: '弧形墙', cat: 'st', k: 'edge', cost: { wood: 5 }, hp: 290, hw: 1.5, hd: .18, ob: [[0, 0, 1.5, .18]], stack: 1, desc: '斜边是圆弧的斜坡墙，和墙一样高；「旋转」换方向' };
+BT.arc2 = { name: '半弧形墙', cat: 'st', k: 'edge', cost: { wood: 3 }, hp: 210, hw: 1.5, hd: .18, ob: [[0, 0, 1.5, .18]], stack: 1, desc: '圆弧斜边，和半墙一样高' };
+BT.arc3 = { name: '矮弧形墙', cat: 'st', k: 'edge', cost: { wood: 2 }, hp: 160, hw: 1.5, hd: .18, ob: [[0, 0, 1.5, .18]], stack: 1, desc: '圆弧斜边，和矮墙一样高' };
+BT.roofP1 = { name: '陡单坡屋顶', cat: 'st', k: 'upper', cost: { wood: 8 }, hp: 380, hw: 1.5, hd: 1.5, ob: [], stack: 1, desc: '只有一边的斜屋顶，高的一边和墙一样高；「旋转」换方向；两边用「斜坡墙」封' };
+BT.roofP2 = { name: '单坡屋顶', cat: 'st', k: 'upper', cost: { wood: 7 }, hp: 360, hw: 1.5, hd: 1.5, ob: [], stack: 1, desc: '只有一边的斜屋顶，高的一边和半墙一样高；两边用「半斜坡墙」封' };
+BT.roofP3 = { name: '缓单坡屋顶', cat: 'st', k: 'upper', cost: { wood: 6 }, hp: 340, hw: 1.5, hd: 1.5, ob: [], stack: 1, desc: '很平的单边斜屋顶，高的一边和矮墙一样高；两边用「矮斜坡墙」封' };
+for (const k in SLOPES) GABLES[k] = SLOPES[k][0];   // they stack on walls and fade upstairs exactly like the 山墙
+for (const k in SHEDS) ROOFS.push(k);               // they sit on wall tops, block a second roof, fade over your head like roofs
+
+// the tall side is at local x = +1.5; h(x) is the top edge
+function slopeH(H, arc, x) { const u = (x + 1.5) / 3; return arc ? H * Math.sqrt(Math.max(0, 1 - (1 - u) * (1 - u))) : H * u; }
+function slopeMesh(g, H, arc) {
+  const n = 10, w = 3 / n;
+  for (let i = 0; i < n; i++) { const xc = -1.5 + w * (i + .5), h = Math.max(.06, slopeH(H, arc, xc - w * .25)); box(w - .03, h, .2, i % 2 ? plank : plank2, xc, h / 2, 0, g); }
+  box(3.04, .14, .3, beam, 0, .07, 0, g);                       // sill
+  box(.16, H + .04, .3, beam, 1.46, (H + .04) / 2, 0, g);         // the tall post
+  const seg = arc ? 8 : 1;                                        // the trim along the slope (one beam, or eight for the arc)
+  for (let i = 0; i < seg; i++) { const x0 = -1.5 + 3 * i / seg, x1 = -1.5 + 3 * (i + 1) / seg, y0 = slopeH(H, arc, x0), y1 = slopeH(H, arc, x1), L = Math.hypot(x1 - x0, y1 - y0);
+    const r = box(L + .06, .14, .3, beam, (x0 + x1) / 2, (y0 + y1) / 2, 0, g); r.rotation.z = Math.atan2(y1 - y0, x1 - x0); }
+}
+function shedMesh(g, P) {   // one sloping plane over the cell: low edge on the wall top at local x=-1.5, high edge P higher at x=+1.5
+  const tilt = Math.atan2(P, 3), L = (3 + .3) / Math.cos(tilt), D = 3.3, pv = new THREE.Group(); pv.position.set(-1.5 - .15, UPY - .15 * Math.tan(tilt), 0); pv.rotation.z = tilt; g.add(pv);
+  box(L, .12, D, beam, L / 2, -.06, 0, pv);
+  for (let i = 0, x = .2; x < L - .05; i++, x += .3) box(.22, .05, D + .04, roofMat2[i % 3], x, .04, 0, pv);
+  box(.16, .16, 3.04, beam, -1.45, UPY + .08, 0, g);             // wall-plate on the low side
+  box(.2, .2, 3.4, beam, 1.5, UPY + P + .02, 0, g);              // the top edge on the high side
+}
+buildMesh = (orig => function (type) {
+  if (SLOPES[type]) { const g = new THREE.Group(); slopeMesh(g, SLOPES[type][0], SLOPES[type][1]); return g; }
+  if (SHEDS[type]) { const g = new THREE.Group(); shedMesh(g, SHEDS[type]); return g; }
+  return orig(type);
+})(buildMesh);
+// 「旋转」: flips a slope wall (which end is tall), turns a roof
+rotateBuild = (o => function () { if (buildOpen && buildSel && (SLOPES[buildSel] || ROOFS.includes(buildSel))) { buildRot = ((buildRot || 0) + 1) % 4; try { sfx.pick(); } catch (e) { } return; } return o(); })(rotateBuild);
+ghostTransform = (o => function () { const t = o(); if (!t || !buildSel) return t;
+  if (SLOPES[buildSel] && ((buildRot | 0) % 2)) t.rot = (t.rot || 0) + Math.PI;
+  return t; })(ghostTransform);
+// blueprints (the same machine as everything else)
+for (const k of [...Object.keys(SLOPES), ...Object.keys(SHEDS)]) { const tier = 2; if (BPX[k]) continue; BPX[k] = [tier, BT[k].name]; BT[k].bp = 1; if (!BP[k]) BP[k] = { n: BT[k].name, d: '', cv: 0 }; (BPPOOL[tier] = BPPOOL[tier] || []).push(bpPrize(k)); }
+
+/* ---- low fences (shorter than a person): 矮木栅栏 (white-painted pickets) and 矮铁栏杆 (black iron railings) ----
+   In the defence (围墙) section next to the tall fences; they snap end to end with any fence, tall or low. */
+BT.lfence = { name: '矮木栅栏', cat: 'df', k: 'free', cost: { wood: 2 }, hp: 140, hw: 1.5, hd: .15, ob: [[0, 0, 1.5, .15]], desc: '比人矮的尖头木栅栏，围院子用，挡得住怪也看得过去' };
+BT.lrail = { name: '矮铁栏杆', cat: 'df', k: 'free', cost: { wood: 1, metal: 3 }, hp: 380, hw: 1.5, hd: .15, ob: [[0, 0, 1.5, .15]], desc: '比人矮的黑铁栏杆，带尖头，比木栅栏结实' };
+const LOWF = ['lfence', 'lrail'], ALLF = ['wall', 'gate', 'lfence', 'lrail'];
+buildMesh = (orig => function (type) {
+  if (type === 'lfence') { const g = new THREE.Group(), wht = mat(0xe8e2d4), wht2 = mat(0xd8d0c0), post = mat(0x8a6a48);
+    for (let i = 0; i < 10; i++) { const x = -1.35 + i * .3, h = .78; box(.14, h, .05, i % 2 ? wht : wht2, x, h / 2, 0, g); const tip = box(.1, .1, .05, i % 2 ? wht : wht2, x, h + .02, 0, g); tip.rotation.z = Math.PI / 4; }
+    for (const y of [.25, .6]) box(3.0, .08, .06, wht2, 0, y, -.05, g);
+    for (const s of [-1, 1]) { box(.16, .95, .16, post, s * 1.5, .475, 0, g); box(.2, .06, .2, post, s * 1.5, .97, 0, g); } return g; }
+  if (type === 'lrail') { const g = new THREE.Group(), iron = mat(0x2a2c30), ironL = mat(0x4a4e56), gold = mat(0xb08a3a);
+    for (let i = 0; i < 15; i++) { const x = -1.4 + i * .2; box(.04, .9, .04, iron, x, .45, 0, g); const tip = box(.07, .07, .04, gold, x, .93, 0, g); tip.rotation.z = Math.PI / 4; }
+    for (const y of [.12, .78]) box(3.0, .06, .06, ironL, 0, y, 0, g);
+    for (const s of [-1, 1]) { box(.14, 1.0, .14, iron, s * 1.5, .5, 0, g); const k = box(.14, .14, .14, gold, s * 1.5, 1.07, 0, g); k.rotation.y = Math.PI / 4; } return g; }
+  return orig(type);
+})(buildMesh);
+// snap end to end with any fence (the old code only knew the two tall ones)
+ghostTransform = (o => function () { const t = o(); if (!t || !LOWF.includes(buildSel) && !(t && (buildSel === 'wall' || buildSel === 'gate'))) return t;
+  if (S.up || S.fl > 0) return t; const aim = aimPoint(); let best = null, bd = 2.6;
+  for (const b of builds) { if (!ALLF.includes(b.type) || b.hp <= 0) continue; const ax = Math.abs(Math.sin(b.rot)) > .7 ? [0, 1] : [1, 0];
+    for (const s of [-1, 1]) { const ex = b.x + ax[0] * s * 3.1, ez = b.z + ax[1] * s * 3.1, d = Math.hypot(ex - aim.x, ez - aim.z); if (d < bd) { bd = d; best = { x: ex, z: ez, rot: b.rot }; } } }
+  if (!best) return t; return Object.assign({}, t, { x: best.x, z: best.z, rot: best.rot, ok: spotOk(BT[buildSel], best.x, best.z, best.rot) }); })(ghostTransform);
+for (const k of LOWF) { const tier = 2; if (BPX[k]) continue; BPX[k] = [tier, BT[k].name]; BT[k].bp = 1; if (!BP[k]) BP[k] = { n: BT[k].name, d: '', cv: 0 }; (BPPOOL[tier] = BPPOOL[tier] || []).push(bpPrize(k)); }
+/* ============ the storage box screen 2.0 ============
+   Both sides (your bag and the storage) are grids of cells, one cell per stack (99 per cell, as before), the count in the corner.
+   Tap a cell: a card shows the item's name, what it is and what it's for, and how many you have there. Pick how many to move —
+   type the number or drag the slider (or tap 1 / half / all) — then 「取出」 (from the storage) or 「放入」 (from the bag). */
+function stMove(k, q, put) { const M = S.stash.m;
+  if (put) { q = Math.min(q, bagHave(k), stashRoom(k)); if (q <= 0) { uiToast(T2('储物柜满了，多造一个储物柜或储物箱', 'Storage is full')); return 0; }
+    if (k === 'med') S.med -= q; else if (k === 'wood') S.wood -= q; else if (k === 'metal') S.metal -= q; else if (k === 'core') S.core -= q; else { S.inv[k] -= q; if (S.inv[k] <= 0) delete S.inv[k]; } M[k] = (M[k] || 0) + q; }
+  else { q = Math.min(q, M[k] || 0, bagRoom(k)); if (q <= 0) { uiToast(T2('背包满了', 'Bag is full')); return 0; } M[k] -= q; if (M[k] <= 0) delete M[k]; matAdd(k, q); }
+  refreshHud(); saveGame(); renderStash(); return q; }
+function stCard(k, put) { const it = ITEMS[k], have = put ? bagHave(k) : (S.stash.m[k] || 0), room = put ? stashRoom(k) : bagRoom(k), max = Math.max(0, Math.min(have, room));
+  let m = $('stCardM'); if (m) m.remove(); m = document.createElement('div'); m.id = 'stCardM'; m.className = 'stcm';
+  const half = Math.max(1, Math.floor(max / 2));
+  m.innerHTML = '<div class="stkcard" style="--rc:' + RAR[it.r].c + '"><div class="stkch"><span class="stkci">' + svgIcon(k) + '</span><div><b>' + it.n + '</b><small>' + RAR[it.r].n + ' · ' + (put ? T2('背包里有 ', 'In bag: ') : T2('柜子里有 ', 'In storage: ')) + have + '</small></div></div>' +
+    (it.d ? '<p>' + it.d + '</p>' : '') + (it.use ? '<p class="stu"><em>' + T2('用途', 'Use') + '</em>' + it.use + '</p>' : '') + (it.src ? '<p class="stu"><em>' + T2('来源', 'From') + '</em>' + it.src + '</p>' : '') +
+    (max > 0 ? '<div class="stq"><span>' + (put ? T2('放入多少', 'Put in') : T2('拿出多少', 'Take out')) + '</span><input type="number" inputmode="numeric" min="1" max="' + max + '" value="' + Math.min(max, put ? max : 1) + '"><input type="range" min="1" max="' + max + '" value="' + Math.min(max, put ? max : 1) + '"></div>' +
+      '<div class="stqb"><button class="sbtn ghostb" data-v="1">1</button><button class="sbtn ghostb" data-v="' + half + '">' + T2('一半', 'Half') + '</button><button class="sbtn ghostb" data-v="' + max + '">' + T2('全部', 'All') + ' ' + max + '</button></div>'
+      : '<p class="stfull">' + (have <= 0 ? T2('没有了', 'None left') : put ? T2('储物柜满了', 'Storage is full') : T2('背包满了', 'Bag is full')) + '</p>') +
+    '<div class="abygb"><button class="sbtn ghostb stx">' + T2('关闭', 'Close') + '</button>' + (max > 0 ? '<button class="go stgo">' + (put ? T2('放入', 'Put in') : T2('取出', 'Take out')) + '</button>' : '') + '</div></div>';
+  const num = m.querySelector('input[type=number]'), rng = m.querySelector('input[type=range]'), clampQ = v => Math.max(1, Math.min(max, Math.round(+v || 1)));
+  if (num) { num.addEventListener('input', () => { if (num.value === '') return; rng.value = clampQ(num.value); }); num.addEventListener('change', () => { num.value = rng.value = clampQ(num.value); });
+    rng.addEventListener('input', () => { num.value = rng.value; }); m.querySelectorAll('.stqb button').forEach(b => b.addEventListener('click', () => { num.value = rng.value = clampQ(b.dataset.v); })); }
+  m.querySelector('.stx').addEventListener('click', () => m.remove());
+  const go = m.querySelector('.stgo'); if (go) go.addEventListener('click', () => { const q = stMove(k, clampQ(num.value), put); m.remove(); if (q > 0) feed((put ? T2('放入 ', 'Stored ') : T2('取出 ', 'Took ')) + it.n + ' ×' + q, '#cfe8a0'); });
+  m.addEventListener('click', e => { if (e.target === m) m.remove(); }); document.body.appendChild(m); if (num) setTimeout(() => { try { num.select(); } catch (e) { } }, 50); }
+renderStash = function () {
+  const box = $('stashList'); if (!box) return; box.innerHTML = ''; const M = S.stash.m, cap = stashCap(), used = stashSlotsUsed();
+  const keys = Object.keys(ITEMS).filter(k => !NOSLOT[k]).sort((a, b) => ITEMS[b].r - ITEMS[a].r);
+  const cols = document.createElement('div'); cols.className = 'stcols'; box.appendChild(cols);
+  const col = (t, note) => { const c = document.createElement('div'); c.className = 'stcol'; c.innerHTML = '<h3>' + t + '</h3>'; const g = document.createElement('div'); g.className = 'stgrid'; c.appendChild(g); if (note) c.insertAdjacentHTML('beforeend', '<p class="snote">' + note + '</p>'); cols.appendChild(c); return g; };
+  const cell = (g, k, n, put) => { const s = document.createElement('button'); s.className = 'slot r' + ITEMS[k].r; s.style.setProperty('--rc', RAR[ITEMS[k].r].c); s.innerHTML = svgIcon(k) + '<span class="cnt">' + n + '</span>'; s.title = ITEMS[k].n;
+    s.addEventListener('click', () => stCard(k, put)); g.appendChild(s); };
+  const stacks = (g, k, h, put) => { let n = 0; while (h > 0) { const c = Math.min(STACK, h); h -= c; n++; cell(g, k, c, put); } return n; };
+  const A = col(T2('背包 ', 'Bag ') + '<b>' + bagSlotsUsed() + ' / ' + bagCap() + T2(' 格', '') + '</b>', T2('点一格看介绍，选好数量再「放入」。', 'Tap a cell to see it, pick an amount, then Put in.'));
+  const B = col(T2('储物柜 ', 'Storage ') + '<b>' + used + ' / ' + cap + T2(' 格', '') + '</b>', T2('点一格看介绍，打字或拖动选好要拿出多少。', 'Tap a cell to see it; type or drag to choose how many to take out.'));
+  let na = 0; keys.forEach(k => { const h = bagHave(k); if (h > 0) na += stacks(A, k, h, true); });
+  if (!na) A.insertAdjacentHTML('beforeend', '<p class="snote stempty">' + T2('背包是空的', 'The bag is empty') + '</p>');
+  let nb = 0; keys.forEach(k => { const h = M[k] || 0; if (h > 0) nb += stacks(B, k, h, false); });
+  for (let i = nb; i < Math.min(cap, nb + Math.max(0, 60 - nb)); i++) { const e = document.createElement('div'); e.className = 'slot empty'; B.appendChild(e); }
+  box.appendChild(Object.assign(document.createElement('p'), { className: 'snote', textContent: T2('升级武器、制作、卖给商人时，柜子里的材料也能直接用。储物箱被打爆会掉出一部分物品。', 'Materials in storage can be used for upgrades, crafting and selling. A destroyed box spills some items.') }));
+};
+(() => { try { const st = document.createElement('style'); st.textContent =
+  '.stcm{position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;padding:14px;background:rgba(6,10,14,.6)}' +
+  '.stkcard{width:min(380px,94vw);max-height:92vh;overflow:auto;padding:14px;border-radius:16px;border:3px solid var(--rc);background:#1c252c;color:#fff;display:flex;flex-direction:column;gap:8px}' +
+  '.stkch{display:flex;align-items:center;gap:10px}.stkci{width:52px;height:52px;flex:0 0 52px;border-radius:12px;background:#0f161b;border:2px solid var(--rc);display:flex;align-items:center;justify-content:center}.stkci svg,.stkci img{width:80%;height:80%}' +
+  '.stkch b{display:block;font-size:18px;color:var(--rc)}.stkch small{font-size:12px;color:#c8d2da}.stkcard p{margin:0;font-size:13px;line-height:1.5;color:#e8eef2}.stu em{font-style:normal;font-weight:900;color:#ffd27a;margin-right:6px}' +
+  '.stq{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.stq span{font-weight:800}.stq input[type=number]{width:84px;font-size:18px;font-weight:900;text-align:center;padding:6px;border-radius:10px;border:2px solid #44535e;background:#0f161b;color:#fff}' +
+  '.stq input[type=range]{flex:1;min-width:140px;accent-color:#ffc94a;height:28px}.stqb{display:flex;gap:6px}.stqb button{flex:1}.stfull{color:#ffb4a0!important;font-weight:800}';
+  document.head.appendChild(st); } catch (e) { } })();
+/* ============ sea, the fishing boat, and background music ============
+   - 海浪: on the island near the shore, on the boat and on board the two ships you hear waves: a slow swell, then the wash
+     (louder the closer you are to the water). It goes through the 环境音 volume.
+   - 钓鱼船: the engine putts slowly when the boat sits still and revs up (higher, faster, with water rushing) when it moves.
+     Through the 音效 volume.
+   - 背景音乐: played by synthesized instruments (marimba, plucked guitar, bells, accordion, pads, bass, soft drums), a
+     different piece for each place: the island (day / night), the sea, the mainland by danger (calm / wild / dark), dungeons,
+     a boss fight, the abyss, 老钱的收藏馆 and the submarine. Pieces cross-fade when you move. Settings: 背景音乐 on/off + volume.
+   Everything is generated live (no audio files). */
+if (VOL.mus == null) VOL.mus = .5; if (VOL.musOn == null) VOL.musOn = true;
+const SND2 = { sea: null, boat: null, bx: null, bz: null, bv: 0, t: 0, wT: 0, wP: 7, up: 0 };
+const _sm2 = (a, b, k) => a + (b - a) * k;
+function snd2Loop(dur) { const s = AC.createBufferSource(); s.buffer = noiseBuf(dur); s.loop = true; return s; }
+function seaInit() { if (SND2.sea || !AC || !AMB.master) return; const src = snd2Loop(3), lp = AC.createBiquadFilter(), g = AC.createGain(), hp = AC.createBiquadFilter(), h = AC.createGain();
+  lp.type = 'lowpass'; lp.frequency.value = 420; g.gain.value = 0; hp.type = 'bandpass'; hp.frequency.value = 2600; hp.Q.value = .6; h.gain.value = 0;
+  src.connect(lp); lp.connect(g); g.connect(AMB.master); src.connect(hp); hp.connect(h); h.connect(AMB.master); src.start(); SND2.sea = { lp, g, h }; }
+function boatInit() { if (SND2.boat || !AC) return; const o1 = AC.createOscillator(), o2 = AC.createOscillator(), f = AC.createBiquadFilter(), g = AC.createGain(), lfo = AC.createOscillator(), lg = AC.createGain(), vca = AC.createGain();
+  o1.type = 'sawtooth'; o2.type = 'square'; o1.frequency.value = 44; o2.frequency.value = 22; f.type = 'lowpass'; f.frequency.value = 320; f.Q.value = 2;
+  vca.gain.value = .5; lfo.frequency.value = 6; lg.gain.value = .5; lfo.connect(lg); lg.connect(vca.gain);   // the putt-putt: the engine's loudness wobbles
+  g.gain.value = 0; o1.connect(f); o2.connect(f); f.connect(vca); vca.connect(g); g.connect(out(0));
+  const n = snd2Loop(2), nb = AC.createBiquadFilter(), ng = AC.createGain(); nb.type = 'bandpass'; nb.frequency.value = 900; nb.Q.value = .8; ng.gain.value = 0; n.connect(nb); nb.connect(ng); ng.connect(out(0));
+  o1.start(); o2.start(); lfo.start(); n.start(); SND2.boat = { o1, o2, f, g, lfo, ng, nb }; }
+ambTick = (o => function (dt) { o(dt); if (!AC || !AMB.on) return; try { snd2Tick(dt); } catch (e) { } })(ambTick);
+function snd2Tick(dt) { SND2.t += dt; const now = AC.currentTime; seaInit();
+  // how much sea you hear
+  let lv = 0; const shipIn = S.dun && typeof DUN !== 'undefined' && (DUN.id === 10 || DUN.id === 11);
+  if (S.boat) lv = 1; else if (shipIn) lv = .7; else if (S.isl && !S.dun) { const r = Math.hypot(player.pos.x - HOME.x, player.pos.z - HOME.z); lv = Math.max(0, Math.min(1, (r - 48) / 24)); }
+  if (S.paused) lv *= .6;
+  // one wave: a swell (low rumble rising), then the wash (hiss), then it draws back
+  SND2.wT += dt; if (SND2.wT > SND2.wP) { SND2.wT = 0; SND2.wP = 5.5 + Math.random() * 4; }
+  const p = SND2.wT / SND2.wP, swell = p < .45 ? Math.sin(p / .45 * Math.PI / 2) : Math.max(0, 1 - (p - .45) / .55), wash = p < .38 ? 0 : p < .55 ? (p - .38) / .17 : Math.max(0, 1 - (p - .55) / .45) ** 1.5;
+  if (SND2.sea) { SND2.sea.g.gain.setTargetAtTime(lv * (.18 + .55 * swell), now, .15); SND2.sea.h.gain.setTargetAtTime(lv * .32 * wash, now, .12); SND2.sea.lp.frequency.setTargetAtTime(300 + 500 * swell, now, .2); }
+  // the boat engine
+  if (S.boat || SND2.boat) { boatInit(); const B = SND2.boat;
+    if (S.boat) { if (SND2.bx == null) { SND2.bx = BOAT.x; SND2.bz = BOAT.z; } const sp = Math.hypot(BOAT.x - SND2.bx, BOAT.z - SND2.bz) / Math.max(dt, .001); SND2.bx = BOAT.x; SND2.bz = BOAT.z; SND2.bv = _sm2(SND2.bv, Math.min(14, sp), Math.min(1, dt * 3)); }
+    else { SND2.bx = null; SND2.bv = _sm2(SND2.bv, 0, Math.min(1, dt * 3)); }
+    const v = SND2.bv / 14, on = S.boat ? 1 : 0;
+    B.o1.frequency.setTargetAtTime(42 + v * 46, now, .25); B.o2.frequency.setTargetAtTime(21 + v * 23, now, .25); B.lfo.frequency.setTargetAtTime(5.5 + v * 13, now, .3); B.f.frequency.setTargetAtTime(260 + v * 520, now, .3);
+    B.g.gain.setTargetAtTime(on * (.07 + v * .07), now, .3); B.ng.gain.setTargetAtTime(on * v * .16, now, .25); B.nb.frequency.setTargetAtTime(700 + v * 900, now, .3); }
+}
+
+/* ---------------- background music ---------------- */
+const MU = { g: null, dl: null, theme: '', cur: null, next: 0, step: 0, bar: 0, last: 60, nt: 0 };
+const muHz = m => 440 * Math.pow(2, (m - 69) / 12);
+// instruments: (time, midi, duration, velocity, destination)
+const INS = {
+  marimba(t, m, d, v, o) { const f = muHz(m); for (const [r, a, dc] of [[1, 1, .9], [4, .25, .18], [10, .06, .08]]) { const s = AC.createOscillator(), g = AC.createGain(); s.frequency.value = f * r; g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(v * a, t + .006); g.gain.exponentialRampToValueAtTime(.0001, t + dc); s.connect(g); g.connect(o); s.start(t); s.stop(t + dc + .05); } },
+  pluck(t, m, d, v, o) { const f = muHz(m), s = AC.createOscillator(), s2 = AC.createOscillator(), lp = AC.createBiquadFilter(), g = AC.createGain(); s.type = 'sawtooth'; s2.type = 'triangle'; s.frequency.value = f; s2.frequency.value = f * 1.003;
+    lp.type = 'lowpass'; lp.frequency.setValueAtTime(3200, t); lp.frequency.exponentialRampToValueAtTime(500, t + .4); const dc = Math.min(1.6, .5 + d); g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(v * .6, t + .004); g.gain.exponentialRampToValueAtTime(.0001, t + dc);
+    s.connect(lp); s2.connect(lp); lp.connect(g); g.connect(o); s.start(t); s2.start(t); s.stop(t + dc + .05); s2.stop(t + dc + .05); },
+  bell(t, m, d, v, o) { const f = muHz(m); for (const [r, a, dc] of [[1, 1, 2.4], [2.76, .35, 1.2], [5.4, .15, .6], [.5, .2, 1.8]]) { const s = AC.createOscillator(), g = AC.createGain(); s.frequency.value = f * r; g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(v * a * .7, t + .004); g.gain.exponentialRampToValueAtTime(.0001, t + dc); s.connect(g); g.connect(o); s.start(t); s.stop(t + dc + .05); } },
+  piano(t, m, d, v, o) { const f = muHz(m), lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(2400, t); lp.frequency.exponentialRampToValueAtTime(700, t + 1.2); lp.connect(o); const dc = Math.min(2.6, 1 + d);
+    for (const [r, a, ty] of [[1, 1, 'triangle'], [2, .3, 'sine'], [3, .12, 'sine']]) { const s = AC.createOscillator(), g = AC.createGain(); s.type = ty; s.frequency.value = f * r; g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(v * a * .7, t + .005); g.gain.exponentialRampToValueAtTime(.0001, t + dc); s.connect(g); g.connect(lp); s.start(t); s.stop(t + dc + .05); } },
+  accordion(t, m, d, v, o) { const f = muHz(m), lp = AC.createBiquadFilter(), g = AC.createGain(); lp.type = 'lowpass'; lp.frequency.value = 1800; g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(v * .32, t + .05); g.gain.setValueAtTime(v * .3, t + d * .85); g.gain.exponentialRampToValueAtTime(.0001, t + d + .12);
+    for (const k of [1, 1.006, .997]) { const s = AC.createOscillator(); s.type = 'square'; s.frequency.value = f * k; s.connect(lp); s.start(t); s.stop(t + d + .2); } const vb = AC.createOscillator(), vg = AC.createGain(); vb.frequency.value = 5; vg.gain.value = v * .05; vb.connect(vg); vg.connect(g.gain); vb.start(t); vb.stop(t + d + .2); lp.connect(g); g.connect(o); },
+  pad(t, m, d, v, o) { const f = muHz(m), lp = AC.createBiquadFilter(), g = AC.createGain(); lp.type = 'lowpass'; lp.frequency.value = 900; g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(v * .16, t + Math.min(1.2, d * .4)); g.gain.setValueAtTime(v * .16, t + d * .8); g.gain.linearRampToValueAtTime(.0001, t + d + .9);
+    for (const k of [1, 1.004, .996]) { const s = AC.createOscillator(); s.type = 'sawtooth'; s.frequency.value = f * k; s.connect(lp); s.start(t); s.stop(t + d + 1); } lp.connect(g); g.connect(o); },
+  bass(t, m, d, v, o) { const f = muHz(m), s = AC.createOscillator(), lp = AC.createBiquadFilter(), g = AC.createGain(); s.type = 'triangle'; s.frequency.value = f; lp.type = 'lowpass'; lp.frequency.value = 420; const dc = Math.max(.25, d);
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(v * .9, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + dc); s.connect(lp); lp.connect(g); g.connect(o); s.start(t); s.stop(t + dc + .05); },
+  brass(t, m, d, v, o) { const f = muHz(m), s = AC.createOscillator(), lp = AC.createBiquadFilter(), g = AC.createGain(); s.type = 'sawtooth'; s.frequency.value = f; lp.type = 'lowpass'; lp.frequency.setValueAtTime(500, t); lp.frequency.linearRampToValueAtTime(2200, t + .08); lp.frequency.linearRampToValueAtTime(1100, t + d);
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(v * .35, t + .03); g.gain.setValueAtTime(v * .3, t + d * .8); g.gain.exponentialRampToValueAtTime(.0001, t + d + .1); s.connect(lp); lp.connect(g); g.connect(o); s.start(t); s.stop(t + d + .15); },
+  kick(t, m, d, v, o) { const s = AC.createOscillator(), g = AC.createGain(); s.frequency.setValueAtTime(130, t); s.frequency.exponentialRampToValueAtTime(42, t + .18); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + .3); s.connect(g); g.connect(o); s.start(t); s.stop(t + .35); },
+  noise(t, m, d, v, o, f, ty) { const s = AC.createBufferSource(), fl = AC.createBiquadFilter(), g = AC.createGain(); s.buffer = noiseBuf(.4); fl.type = ty || 'highpass'; fl.frequency.value = f || 6000; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + d); s.connect(fl); fl.connect(g); g.connect(o); s.start(t); s.stop(t + d + .05); },
+  hat(t, m, d, v, o) { INS.noise(t, 0, .05, v * .35, o, 7500); }, shaker(t, m, d, v, o) { INS.noise(t, 0, .07, v * .28, o, 5200, 'bandpass'); }, snare(t, m, d, v, o) { INS.noise(t, 0, .16, v * .5, o, 1600); INS.marimba(t, 50, .1, v * .2, o); },
+  ping(t, m, d, v, o) { INS.bell(t, m, d, v * .8, o); }
+};
+// scales and pieces. deg: chord roots as scale steps; bars: how the bass/pad/lead/arp/drums play
+const MSC = { maj: [0, 2, 4, 5, 7, 9, 11], min: [0, 2, 3, 5, 7, 8, 10], dor: [0, 2, 3, 5, 7, 9, 10], mix: [0, 2, 4, 5, 7, 9, 10], phr: [0, 1, 3, 5, 7, 8, 10], hmin: [0, 2, 3, 5, 7, 8, 11], pent: [0, 2, 4, 7, 9] };
+const THEMES = {
+  island: { bpm: 84, root: 60, sc: 'maj', deg: [0, 5, 3, 4], lead: 'marimba', ld: .55, lsteps: [0, 2, 4, 6, 8, 10, 12, 14], bass: 'bass', bsteps: [0, 8], pad: 'pad', perc: { shaker: [2, 6, 10, 14] }, delay: .22 },
+  night: { bpm: 66, root: 57, sc: 'min', deg: [0, 5, 3, 6], lead: 'piano', ld: .3, lsteps: [0, 4, 6, 8, 12], bass: 'bass', bsteps: [0], pad: 'pad', delay: .35 },
+  sea: { bpm: 74, root: 62, sc: 'mix', deg: [0, 6, 3, 0], lead: 'pluck', ld: .45, lsteps: [0, 3, 6, 8, 11, 14], bass: 'bass', bsteps: [0, 10], pad: 'pad', perc: { shaker: [4, 12] }, delay: .3 },
+  calm: { bpm: 76, root: 57, sc: 'min', deg: [0, 5, 2, 6], lead: 'pluck', ld: .35, lsteps: [0, 4, 6, 8, 12, 14], bass: 'bass', bsteps: [0, 8], pad: 'pad', delay: .3 },
+  wild: { bpm: 70, root: 50, sc: 'dor', deg: [0, 6, 5, 6], lead: 'bell', ld: .22, lsteps: [0, 6, 8, 12], bass: 'bass', bsteps: [0, 6, 8], pad: 'pad', perc: { kick: [0, 8] }, delay: .4 },
+  dark: { bpm: 60, root: 52, sc: 'phr', deg: [0, 1, 0, 6], lead: 'bell', ld: .16, lsteps: [0, 8, 12], bass: 'bass', bsteps: [0, 3], pad: 'pad', perc: { kick: [0, 3] }, delay: .45 },
+  dungeon: { bpm: 56, root: 48, sc: 'hmin', deg: [0, 5, 4, 0], lead: 'piano', ld: .22, lsteps: [0, 6, 8, 14], bass: 'bass', bsteps: [0], pad: 'pad', delay: .5 },
+  boss: { bpm: 132, root: 50, sc: 'min', deg: [0, 5, 6, 4], lead: 'brass', ld: .45, lsteps: [0, 3, 6, 8, 12], bass: 'bass', bsteps: [0, 2, 4, 6, 8, 10, 12, 14], arp: 'pluck', perc: { kick: [0, 4, 8, 12], snare: [4, 12], hat: [2, 6, 10, 14] }, delay: .18 },
+  abyss: { bpm: 114, root: 52, sc: 'min', deg: [0, 5, 3, 6], lead: 'bell', ld: .25, lsteps: [0, 8, 10], bass: 'bass', bsteps: [0, 3, 6, 8, 11, 14], arp: 'pluck', perc: { kick: [0, 8], hat: [4, 12] }, pad: 'pad', delay: .25 },
+  gallery: { bpm: 104, root: 65, sc: 'maj', deg: [0, 3, 4, 0], beats: 3, lead: 'accordion', ld: .7, lsteps: [0, 4, 8, 10], bass: 'bass', bsteps: [0], chordHits: [4, 8], delay: .15 },
+  sub: { bpm: 58, root: 45, sc: 'min', deg: [0, 5, 6, 0], lead: 'ping', ld: .18, lsteps: [0, 10], bass: 'bass', bsteps: [0], pad: 'pad', delay: .55 }
+};
+function muTheme() {
+  if (!S.started) return 'island';
+  try { if (typeof boss !== 'undefined' && boss && !boss.dead && Math.hypot(boss.pos.x - player.pos.x, boss.pos.z - player.pos.z) < 40) return 'boss'; } catch (e) { }
+  if (S.dun) { const id = typeof DUN !== 'undefined' ? DUN.id : 0; return id === 9 ? 'abyss' : id === 10 ? 'gallery' : id === 11 ? 'sub' : 'dungeon'; }
+  if (S.boat) return 'sea';
+  if (S.isl) return (typeof DN !== 'undefined' && DN.night > .55) ? 'night' : 'island';
+  const t = typeof tierAt === 'function' ? tierAt(player.pos.x, player.pos.z) : 1; return t <= 3 ? 'calm' : t <= 6 ? 'wild' : 'dark';
+}
+function muInit() { if (MU.g || !AC) return; MU.g = AC.createGain(); MU.g.gain.value = 0; MU.g.connect(ALLG || BUS);
+  const d = AC.createDelay(1.5), fb = AC.createGain(), lp = AC.createBiquadFilter(); d.delayTime.value = .36; fb.gain.value = .32; lp.type = 'lowpass'; lp.frequency.value = 2200; d.connect(lp); lp.connect(fb); fb.connect(d); lp.connect(MU.g); MU.dl = d; }
+function muVol() { return VOL.musOn ? .26 * (VOL.mus == null ? .5 : VOL.mus) : 0; }
+function muBus(th) { const g = AC.createGain(), w = AC.createGain(); g.gain.value = 0; g.connect(MU.g); w.gain.value = th.delay || .2; g.connect(w); w.connect(MU.dl); return g; }
+function muSwitch(k) { const now = AC.currentTime; if (MU.cur) { const old = MU.cur.g; old.gain.cancelScheduledValues(now); old.gain.setTargetAtTime(0, now, .6); setTimeout(() => { try { old.disconnect(); } catch (e) { } }, 4000); }
+  const th = THEMES[k], g = muBus(th); g.gain.setTargetAtTime(1, now + .2, .8); MU.cur = { k, th, g, prev: th.root + 12, bar: 0 }; MU.theme = k; MU.next = now + .25; MU.step = 0; }
+function muNote(sc, root, deg, oct) { const s = MSC[sc], n = s.length, i = ((deg % n) + n) % n, o = Math.floor(deg / n); return root + s[i] + 12 * (o + (oct || 0)); }
+function muSched() { if (MU.next < AC.currentTime - .3) MU.next = AC.currentTime + .05; const C = MU.cur, th = C.th, beats = th.beats || 4, spb = beats * 4, st = 60 / th.bpm / 4, ahead = AC.currentTime + .35;
+  while (MU.next < ahead) { const t = MU.next, i = MU.step % spb, bar = Math.floor(MU.step / spb), dg = th.deg[bar % th.deg.length], o = C.g, ch = [0, 2, 4].map(x => muNote(th.sc, th.root, dg + x));
+    if (i === 0 && th.pad) ch.forEach(m => INS[th.pad](t, m, st * spb, .55, o));
+    if (th.bsteps.includes(i)) INS[th.bass](t, ch[0] - 12, st * (i === 0 ? 4 : 2), .5, o);
+    if (th.chordHits && th.chordHits.includes(i)) ch.forEach(m => INS[th.lead](t, m, st * 2, .22, o));
+    if (th.arp) INS[th.arp](t, ch[i % 3] + 12 + (i % 6 > 2 ? 12 : 0), st, .2, o);
+    if (th.lsteps.includes(i) && Math.random() < th.ld + (i === 0 ? .3 : 0)) {   // the tune: walks the scale near the last note, landing on chord notes on strong beats
+      const s = MSC[th.sc], strong = i % 4 === 0; let best = C.prev, bd = 1e9;
+      for (let dd = -4; dd <= 4; dd++) { const cand = muNote(th.sc, th.root, dg + dd + (strong ? 0 : 0), 1); const isCh = ch.some(c => (c - cand) % 12 === 0); const sc = Math.abs(cand - C.prev) + (strong && !isCh ? 5 : 0) + Math.random() * 3.5; if (cand > th.root + 26 || cand < th.root + 2) continue; if (sc < bd) { bd = sc; best = cand; } }
+      C.prev = best; INS[th.lead](t, best, st * (strong ? 3 : 2), th.lead === 'accordion' ? .55 : .42, o); }
+    if (th.perc) for (const p in th.perc) if (th.perc[p].includes(i) && (p !== 'hat' || Math.random() < .85)) INS[p](t, 0, st, .5, o);
+    if (MU.theme === 'sub' && i === 0 && bar % 2 === 0) INS.ping(t, 93, 1, .35, o);
+    MU.next += st * (th.beats === 3 && i % 2 ? 1.08 : i % 2 ? .96 : 1.04); MU.step++; } }
+let _muT = 0;
+function muTick(dt) { if (!AC || AC.state !== 'running') return; muInit(); const v = muVol(); MU.g.gain.setTargetAtTime(v, AC.currentTime, .5); if (v <= 0) { MU.theme = ''; return; }
+  _muT -= dt; if (_muT <= 0) { _muT = .5; const k = muTheme(); if (k !== MU.theme) { if (k === 'boss' || MU.theme === 'boss' || (MU.last += .5) > 3) { MU.last = 0; muSwitch(k); } } else MU.last = 0; }
+  if (MU.cur) muSched(); }
+// runs on the title screen too (not only in play)
+{ let _lt = performance.now(); setInterval(() => { const n = performance.now(), dt = Math.min(.5, (n - _lt) / 1000); _lt = n; try { muTick(dt); } catch (e) { } }, 100); }
+applyVol = (o => function () { o(); try { if (MU.g && AC) MU.g.gain.setTargetAtTime(muVol(), AC.currentTime, .3); } catch (e) { } })(applyVol);
+renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!box) return;
+  const r = document.createElement('div'); r.className = 'setrow'; r.innerHTML = '<span>' + T2('背景音乐', 'Music') + '</span>'; const op = document.createElement('div'); op.className = 'opts';
+  [[true, T2('开', 'On')], [false, T2('关', 'Off')]].forEach(([k, n]) => { const b = document.createElement('button'); b.className = 'sbtn' + (!!VOL.musOn === k ? ' on' : ''); b.textContent = n; b.addEventListener('click', () => { VOL.musOn = k; audioInit(); applyVol(); renderSettings(); }); op.appendChild(b); });
+  r.appendChild(op); const amb = [...box.querySelectorAll('.setrow')].find(e => /环境音|Ambience/.test(e.textContent)); if (amb) amb.after(r); else box.appendChild(r);
+  const r2 = document.createElement('div'); r2.className = 'setrow'; r2.innerHTML = '<span>' + T2('音乐音量', 'Music volume') + '</span>'; const inp = document.createElement('input'), vb = document.createElement('b');
+  inp.type = 'range'; inp.min = 0; inp.max = 100; inp.value = Math.round((VOL.mus == null ? .5 : VOL.mus) * 100); vb.className = 'val'; vb.textContent = inp.value;
+  inp.addEventListener('input', () => { VOL.mus = inp.value / 100; vb.textContent = inp.value; audioInit(); applyVol(); }); r2.appendChild(inp); r2.appendChild(vb); r.after(r2); } catch (e) { console.warn('music settings', e); } })(renderSettings);
 /* ============ HUD touches ============
    - The task tracker: a little ▲ / ▼ button at its top-right corner folds it. Folded, it shows only the chapter and the task's
      name (no description, reward, marker distance or commission). Remembered on this device.
@@ -19104,4 +19354,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794712852').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794720669').catch(()=>{});</script></body></html>
