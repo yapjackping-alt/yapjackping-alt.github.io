@@ -16842,7 +16842,7 @@ try { const st = document.createElement('style'); st.textContent = '#bkPanel .sn
   fix(); addEventListener('orientationchange', () => setTimeout(fix, 250)); addEventListener('resize', () => setTimeout(fix, 250));
 } catch (e) { } })();
 /* ============ 无尽深渊: a roguelike run, floor after floor (DUNS[9]) ============
-   - Board the 深渊号 at the island pier (Lv.20+, not in an online room). Pick ONE weapon you own; the run uses only that one.
+   - Board the 深渊号 at the island pier (Lv.20+; solo, the public lobby is fine). Pick ONE weapon you own; the run uses only that one.
    - Your real power counts (gear, talents …); the monsters scale with your level and the floor, so a weaker weapon is simply harder.
    - Each floor: one wave in a round arena. Clear it → choose 1 of 3 cards. Every 5th floor a region boss.
      After floors 5, 10, 15 … you may leave with the rewards or keep going (dying only pays up to the last 5th floor you passed).
@@ -16977,7 +16977,7 @@ dunEnv = (o => function () { o(); if (!S.dun || DUN.id !== ABY_ID) return; scene
 
 /* ---- going in, coming out ---- */
 function abyEnter(wp) {
-  if (S.dun || ABY.on) return; if (typeof MP !== 'undefined' && MP.on) { feed(T2('联机房间里不能进无尽深渊', 'Not in an online room'), '#ff9b8a'); return; }
+  if (S.dun || ABY.on) return;
   if (S.level < ABY_MINLV) { feed(T2('无尽深渊要 Lv.' + ABY_MINLV + ' 才能进', 'Needs Lv.' + ABY_MINLV), '#ff9b8a'); return; }
   if (!WEAP[wp] || wLv(wp) <= 0) return;
   ABY.snap = { wp: S.wp, wpp: S.wpPrev, reserve: S.reserve | 0, med: S.med | 0, hp: S.hp, food: S.food, sta: S.sta, mag: S.mag | 0 };
@@ -17272,7 +17272,7 @@ DUNS[ABY_ID] = { nm: '无尽深渊', sh: '无尽深渊', boss: '', cls: ' abym',
 function abyPage() {
   let m = $('abyPageM'); if (m) m.remove(); m = document.createElement('div'); m.id = 'abyPageM'; m.className = 'abym';
   const wk = abyWeek(); if (S.abyss.wk !== wk) { S.abyss.wk = wk; S.abyss.runs = 0; }
-  const lock = S.level < ABY_MINLV ? T2('需要 Lv.' + ABY_MINLV, 'Needs Lv.' + ABY_MINLV) : typeof MP !== 'undefined' && MP.on ? T2('联机房间里不能进', 'Not in an online room') : '';
+  const lock = S.level < ABY_MINLV ? T2('需要 Lv.' + ABY_MINLV, 'Needs Lv.' + ABY_MINLV) : '';
   let sel = W_ORDER.find(id => id === S.wp && wLv(id) > 0) || W_ORDER.find(id => wLv(id) > 0);
   const draw = () => {
     m.innerHTML = '<div class="abyh">' + T2('无尽深渊', 'The Endless Abyss') + '</div><p class="abysub">' + T2('只能带一把武器下去，一层一层往下打，每层选一张卡。死了就结束，卡不带出来。', 'One weapon, floor after floor, a card each floor. Die and it ends; cards stay down there.') + '</p>' +
@@ -17286,37 +17286,190 @@ function abyPage() {
   draw(); document.body.appendChild(m);
 }
 
-/* ---- the 深渊号: a black ship with violet sails and a portal ring, moored along the west side of the pier, bow out to sea ---- */
-const ABS = { rx: -5.8, rz: -84, g: null, ring: null, t: 0 };
+/* ---- the 深渊号: a black ghost galleon moored along the west side of the pier, bow out to sea ----
+   Built the same way as 老钱的商船: a layered hull with a pointed bow, a stern castle, two masts with torn violet sails,
+   rigging, deck cargo (faceted violet crystals with gold edges, chains, an altar), a hooded ferryman 摆渡人 with a lantern
+   staff on the stern deck, a whirlpool rift in the sea ahead of the bow, and a gangplank from the pier. */
+const ABS = { rx: -6.4, rz: -85, g: null, t: 0, fm: null, lan: null, rift: [], motes: [], glow: [], cry: [], sails: [], eyes: [], wins: [] };
 function abyShipBuild() { if (ABS.g || typeof islandG === 'undefined') return;
-  const G = new THREE.Group(); G.position.set(ABS.rx, -.25, ABS.rz); G.rotation.y = Math.PI / 2; islandG.add(G); ABS.g = G;
-  const L = c => new THREE.MeshLambertMaterial({ color: c }), hull = L(0x1a141e), hull2 = L(0x2a2230), trim = L(0x6a4a8a), deck = L(0x3a2e30), glow = new THREE.MeshBasicMaterial({ color: 0xb070ff, fog: false }), sail = new THREE.MeshLambertMaterial({ color: 0x3a1a5a, side: THREE.DoubleSide, emissive: 0x2a0a4a });
-  // hull: a long tapering body, a raised stern, a pointed bow
-  for (let i = 0; i < 7; i++) { const w = 2.6 - Math.abs(i - 3) * .18 - (i > 4 ? (i - 4) * .35 : 0); box(1.5, 1.2, w, i % 2 ? hull : hull2, -4.5 + i * 1.5, .7, 0, G); }
-  box(10.6, .14, 2.3, deck, -.2, 1.35, 0, G); box(2.6, .9, 2.4, hull2, -4.6, 1.85, 0, G); box(2.7, .1, 2.5, deck, -4.6, 2.32, 0, G);
-  const bow = box(1.6, .9, 1.2, hull, 5.6, 1, 0, G); bow.rotation.y = Math.PI / 4;
-  for (const s of [-1, 1]) { box(10.4, .12, .1, trim, -.2, 1.48, s * 1.18, G); box(.1, .5, .1, trim, 2, 1.7, s * 1.18, G); box(.1, .5, .1, trim, -1.5, 1.7, s * 1.18, G); }
-  for (let i = 0; i < 6; i++) box(.5, .06, .02, glow, -3.5 + i * 1.5, .9, 1.31, G), box(.5, .06, .02, glow, -3.5 + i * 1.5, .9, -1.31, G);   // rune strip along the hull
-  // a bone-white figurehead
-  box(.5, .5, .5, L(0xe8e0d0), 6.3, 1.5, 0, G); box(.14, .1, .04, glow, 6.56, 1.55, .12, G); box(.14, .1, .04, glow, 6.56, 1.55, -.12, G);
-  // mast and tattered violet sails
-  box(.22, 7, .22, L(0x2a1e1a), .6, 4.8, 0, G); box(3.2, .14, .14, L(0x2a1e1a), .6, 7.2, 0, G).rotation.x = Math.PI / 2;
-  for (const [y, h, w] of [[5.9, 2.2, 2.9], [3.7, 1.7, 2.4]]) { const s = box(.04, h, w, sail, .75, y, 0, G); for (let k = 0; k < 3; k++) box(.02, .12, .3, glow, .78, y - h / 2 + .4 + k * .5, -.6 + k * .6, G); }
-  box(.04, .9, .5, glow, .76, 8.6, 0, G);   // a pennant
-  // lanterns and the portal ring over the stern
-  for (const [x, z] of [[-5.6, .9], [-5.6, -.9], [5, 0]]) { box(.2, .3, .2, L(0x2a2a30), x, 2.6, z, G); const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(200,140,255,1)', 'rgba(160,80,255,0)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); g.scale.set(1.3, 1.3, 1); g.position.set(x, 2.6, z); G.add(g); }
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.2, .09, 6, 28), new THREE.MeshBasicMaterial({ color: 0xc890ff, fog: false })); ring.position.set(-4.6, 3.8, 0); ring.rotation.y = Math.PI / 2; G.add(ring); ABS.ring = ring;
-  const core = new THREE.Mesh(new THREE.CircleGeometry(1.1, 24), new THREE.MeshBasicMaterial({ color: 0x5a1a9a, transparent: true, opacity: .55, side: THREE.DoubleSide, fog: false })); core.position.copy(ring.position); core.rotation.y = Math.PI / 2; G.add(core); ABS.core = core;
-  // a short gangway from the pier
-  const plank = box(.9, .1, 3, L(0x6a4a30), 0, 1.05, 2.7, G); plank.rotation.x = -.1;   // local +z points at the pier
-  for (const dz of [-4.5, -1.5, 1.5, 4.5]) addCircle(HOME.x + ABS.rx, HOME.z + ABS.rz + dz, 1.5);   // you can't wade through the hull
+  const R = mulberry32(41177), rr = (a, b) => a + R() * (b - a);
+  // palette: tarred black wood, bone, tarnished gold, violet glow
+  const wd = mat(0x2c2430), wdD = mat(0x18131c), wdM = mat(0x221b26), wdL = mat(0x3e3440), wdX = mat(0x342a38);
+  const gold = mat(0xb8913a, { emissive: 0x2a1a00 }), goldB = mat(0xe0b450, { emissive: 0x4a3008 });
+  const vio = new THREE.MeshBasicMaterial({ color: 0xb87aff }), vioD = new THREE.MeshBasicMaterial({ color: 0x7a3ad0 }), win = new THREE.MeshBasicMaterial({ color: 0xc89aff });
+  const bone = mat(0xe4dccb), boneD = mat(0xb8ae98), iron = mat(0x3a3640), ropeM = mat(0x241c22);
+  const sailM = mat(0x3a1a58, { emissive: 0x1c0830 }), sailD = mat(0x2a1044, { emissive: 0x120420 }), sailP = mat(0x4a2a6a, { emissive: 0x200c38 });
+  const robe = mat(0x16121c), robeD = mat(0x0c0a10);
+  const G = new THREE.Group(); G.position.set(ABS.rx, -.25, ABS.rz); G.rotation.order = 'YXZ'; islandG.add(G); ABS.g = G;
+  // ship-local axes: z is the long axis (bow at -z, out to sea; stern at +z, toward the island); +x faces the pier
+  const bx = (w, h, d, m, x, y, z, p, ry, rx, rz) => { const o = box(w, h, d, m, x, y, z, p || G); if (ry) o.rotation.y = ry; if (rx) o.rotation.x = rx; if (rz) o.rotation.z = rz; return o; };
+  const line = (a, b, m, t, par) => { const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], L = Math.hypot(dx, dy, dz) || 1;
+    const o = box(t || .05, t || .05, L, m || ropeM, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, par || G); o.rotation.order = 'YXZ'; o.rotation.y = Math.atan2(dx, dz); o.rotation.x = -Math.asin(dy / L); return o; };
+  const DECK = 1.85, POOP = 3.34;
+
+  /* hull */
+  bx(1.1, .5, 12.6, wdD, 0, .1, .1);
+  bx(3.9, .9, 11.4, wdM, 0, .6, .6);
+  bx(4.8, 1.2, 10.4, wd, 0, 1.15, 1);
+  bx(4.5, .1, 10.2, wdL, 0, 1.8, 1);
+  for (let z = -3.8; z < 6; z += .6) bx(4.5, .02, .04, wdD, 0, 1.86, z);            // deck plank seams
+  bx(4.8, 1.2, .3, wd, 0, 1.15, 6.3); bx(3.9, .9, .3, wdM, 0, .6, 6.3);
+  for (const s of [-1, 1]) {
+    bx(.4, 1.5, 4.7, wd, s * 1.2, 1.15, -6.2, G, s * .54);
+    bx(.18, .14, 4.7, gold, s * 1.2, 2.45, -6.2, G, s * .54);
+    bx(.06, .1, 10.4, wdD, s * 2.42, .9, 1); bx(.06, .1, 10.4, wdD, s * 2.42, 1.35, 1);
+    bx(.05, .07, 10.4, vio, s * 2.44, 1.05, 1);                                        // a violet seam glows along the waterline
+    bx(.1, .12, 10.4, gold, s * 2.43, 1.68, 1);
+    if (s < 0) bx(.2, .16, 10.4, wdD, s * 2.35, 2.45, 1); else { bx(.2, .16, 3.0, wdD, s * 2.35, 2.45, -2.7); bx(.2, .16, 5.6, wdD, s * 2.35, 2.45, 3.4); }   // gunwale (gap at the gangplank)
+    for (const z of [-3.8, -2.4, -1, .6, 2, 3.4]) { bx(.14, .6, .14, wdD, s * 2.35, 2.15, z); bx(.18, .1, .18, gold, s * 2.35, 2.5, z); }
+    // round gun ports with a violet glow inside
+    for (const z of [-2.6, -.6, 1.4, 3.4]) { bx(.06, .44, .44, gold, s * 2.43, 1.2, z); bx(.07, .3, .3, vioD, s * 2.44, 1.2, z); }
+    // carved bone ribs on the hull, like a skeleton showing through
+    for (const z of [-3.4, -1.6, .2, 2.0, 3.8, 5.4]) bx(.08, .9, .16, boneD, s * 2.44, 1.1, z, G, 0, 0, s * .12);
+  }
+  bx(2.7, 1.2, 3.6, wd, 0, 1.15, -5.9); bx(1.8, .9, 3.4, wdM, 0, .6, -6.2); bx(2.4, .1, 3.6, wdL, 0, 1.8, -5.8);
+  bx(2.2, .32, .08, gold, 0, 1.25, 6.5); bx(1.6, .1, .09, vio, 0, 1.25, 6.52);           // name board
+  bx(.2, .2, 3.6, wdD, 0, 2.2, -9.2, G, 0, .25);                                          // bowsprit
+  // figurehead: a bone angel leaning out over the water, wings swept back, eyes lit
+  { const F = new THREE.Group(); F.position.set(0, 1.9, -8.25); F.rotation.x = -.5; G.add(F);
+    bx(.36, .9, .32, bone, 0, 0, 0, F); bx(.44, .3, .36, boneD, 0, -.5, .05, F);
+    bx(.32, .3, .3, bone, 0, .6, -.06, F); bx(.36, .12, .34, boneD, 0, .78, -.02, F);
+    for (const s of [-1, 1]) { bx(.07, .06, .03, vio, s * .08, .62, -.22, F); ABS.eyes.push(F.children[F.children.length - 1]);
+      const W = new THREE.Group(); W.position.set(s * .18, .25, .1); W.rotation.y = s * .5; F.add(W);
+      for (let k = 0; k < 4; k++) bx(.05, .16, .9 - k * .16, k % 2 ? boneD : bone, s * (.04 + k * .02), .3 - k * .2, .45 - k * .03, W); } }
+  // the anchor and its chain
+  { bx(.08, .9, .08, iron, -1.9, .9, -6.9, G, 0, 0, .2); bx(.6, .08, .08, iron, -2.0, .48, -6.9); bx(.08, .25, .08, iron, -2.28, .58, -6.9, G, 0, 0, .5); bx(.08, .25, .08, iron, -1.72, .58, -6.9, G, 0, 0, -.5);
+    for (let k = 0; k < 6; k++) bx(.1, .16, .06, iron, -1.75, 1.4 + k * .16, -6.8 + (k % 2) * .03, G, k % 2 ? Math.PI / 2 : 0); }
+
+  /* stern castle */
+  bx(4.5, 1.35, 3.0, wdX, 0, 2.525, 4.9); bx(4.8, .14, 3.3, wdL, 0, 3.27, 4.9);
+  bx(4.6, .08, .1, gold, 0, 3.2, 3.4);
+  bx(.95, 1.05, .08, wdD, 0, 2.4, 3.36); bx(.75, .85, .02, vioD, 0, 2.35, 3.33); bx(.1, .1, .05, goldB, .3, 2.35, 3.31);
+  for (const x of [-1.5, 1.5]) { bx(.6, .5, .06, gold, x, 2.7, 3.37); ABS.wins.push(bx(.48, .38, .06, win, x, 2.7, 3.35)); bx(.04, .38, .07, wdD, x, 2.7, 3.34); }
+  for (const s of [-1, 1]) { bx(.9, .6, .06, gold, s * 1.2, 2.6, 6.46); ABS.wins.push(bx(.78, .48, .06, win, s * 1.2, 2.6, 6.48)); bx(.04, .48, .07, wdD, s * 1.2, 2.6, 6.5); bx(.14, .55, 3.3, wdD, s * 2.35, 3.65, 4.9); }
+  bx(4.8, .5, .14, wdD, 0, 3.65, 6.55);
+  for (let i = 0; i < 3; i++) bx(1.1, .5 * (i + 1), .4, wdL, -1.6, DECK + .25 * (i + 1), 2.4 + i * .4);
+  for (const s of [-1, 1]) { bx(.1, 1.0, .1, wdD, s * 2.25, POOP + .6, 6.4); const L = bx(.3, .38, .3, vio, s * 2.25, POOP + 1.3, 6.4); ABS.wins.push(L); bx(.36, .06, .36, gold, s * 2.25, POOP + 1.54, 6.4); bx(.36, .06, .36, gold, s * 2.25, POOP + 1.1, 6.4); }
+  // the ship's wheel
+  { const w = new THREE.Mesh(new THREE.TorusGeometry(.42, .05, 6, 16), gold); w.position.set(0, POOP + 1.1, 5.9); G.add(w); bx(.12, .9, .12, wdD, 0, POOP + .45, 6.0);
+    for (let k = 0; k < 4; k++) bx(.04, 1.0, .04, wdD, 0, POOP + 1.1, 5.9, G, 0, 0, k * Math.PI / 4); }
+
+  /* the ferryman 摆渡人: a tall hooded figure on the stern deck, holding a staff with a hanging violet lantern */
+  { const Q = new THREE.Group(); Q.position.set(.9, POOP, 4.7); Q.rotation.y = Math.PI / 2; G.add(Q); ABS.fm = Q;
+    bx(.7, 1.3, .55, robe, 0, .65, 0, Q); bx(.86, .5, .66, robeD, 0, .22, 0, Q);           // robe, wider at the hem
+    for (let k = 0; k < 4; k++) bx(.18, .2 + (k % 2) * .12, .05, robeD, -.3 + k * .2, .05, .32, Q);   // ragged hem
+    bx(.74, .08, .58, gold, 0, .95, 0, Q); bx(.14, .14, .06, goldB, 0, .95, .3, Q);         // sash and clasp
+    bx(.8, .34, .6, robeD, 0, 1.34, 0, Q);                                                   // shoulders / mantle
+    const h = new THREE.Group(); h.position.set(0, 1.72, 0); Q.add(h); ABS.fmH = h;
+    bx(.52, .52, .52, robe, 0, 0, -.02, h); bx(.44, .2, .2, robe, 0, .3, -.12, h); bx(.3, .2, .2, robe, 0, .42, -.22, h);   // hood with a point at the back
+    bx(.38, .36, .06, mat(0x050407), 0, -.04, .25, h);                                       // the dark inside of the hood
+    for (const s of [-1, 1]) { const e = bx(.08, .05, .03, vio, s * .09, .0, .28, h); ABS.eyes.push(e); }
+    const aR = new THREE.Group(); aR.position.set(.42, 1.4, 0); Q.add(aR); bx(.2, .6, .22, robe, 0, -.3, 0, aR); bx(.16, .14, .18, bone, 0, -.64, .02, aR); aR.rotation.x = -.5; ABS.fmA = aR;
+    const aL = new THREE.Group(); aL.position.set(-.42, 1.4, 0); Q.add(aL); bx(.2, .6, .22, robe, 0, -.3, 0, aL); bx(.16, .14, .18, bone, 0, -.64, .02, aL); aL.rotation.z = .12;
+    // the staff (in the right hand) with a crook and a lantern on a chain
+    const st = new THREE.Group(); st.position.set(0, -.66, .08); aR.add(st); st.rotation.x = .5;
+    bx(.07, 2.6, .07, wdD, 0, .6, 0, st); bx(.08, .08, .5, gold, 0, 1.9, .2, st); bx(.07, .4, .07, gold, 0, 1.75, .44, st);
+    const lan = new THREE.Group(); lan.position.set(0, 1.55, .44); st.add(lan); ABS.lan = lan;
+    bx(.03, .25, .03, iron, 0, -.12, 0, lan); bx(.26, .06, .26, gold, 0, -.27, 0, lan); const core = bx(.2, .3, .2, vio, 0, -.45, 0, lan); bx(.26, .05, .26, gold, 0, -.62, 0, lan);
+    for (const [x, z] of [[-.11, -.11], [.11, -.11], [-.11, .11], [.11, .11]]) bx(.03, .34, .03, gold, x, -.45, z, lan);
+    ABS.lanCore = core; Q.scale.set(1.15, 1.15, 1.15); }
+
+  /* deck cargo: crystals with gold edges, chained coffers, an altar with a hovering rune ring */
+  const cryM = new THREE.MeshLambertMaterial({ color: 0x9a5aff, emissive: 0x5a1ab0, emissiveIntensity: .7, flatShading: true, transparent: true, opacity: .92 });
+  const edgeM = new THREE.LineBasicMaterial({ color: 0xe8c060 });
+  const crystal = (x, y, z, h, w, ry, tilt) => { const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.set(tilt || 0, ry || 0, (tilt || 0) * .6); G.add(g);
+    const geo = new THREE.OctahedronGeometry(1, 0); const m = new THREE.Mesh(geo, cryM); m.scale.set(w, h, w); m.position.y = h * .7; g.add(m);
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeM); e.scale.copy(m.scale); e.position.copy(m.position); g.add(e); ABS.cry.push(m); return g; };
+  const cluster = (x, z, k) => { crystal(x, DECK, z, .7 * k, .22 * k, rr(0, 6), 0); crystal(x + .25 * k, DECK, z + .15 * k, .45 * k, .16 * k, rr(0, 6), .4); crystal(x - .22 * k, DECK, z - .1 * k, .4 * k, .14 * k, rr(0, 6), -.45);
+    crystal(x + .05, DECK, z - .28 * k, .3 * k, .12 * k, rr(0, 6), -.3); };
+  cluster(-1.4, -3.4, 1.2); cluster(1.5, -1.8, 1.0); cluster(-1.5, 2.2, .9); cluster(.4, -5.6, .9);
+  // chained coffers
+  const coffer = (x, z, ry, sc) => { const c = new THREE.Group(); c.position.set(x, DECK, z); c.rotation.y = ry; c.scale.set(sc, sc, sc); G.add(c);
+    bx(1.1, .6, .72, wdD, 0, .3, 0, c); bx(1.14, .22, .76, wdM, 0, .7, 0, c); for (const s of [-1, 1]) bx(.12, .84, .78, gold, s * .38, .42, 0, c);
+    bx(1.16, .06, .06, iron, 0, .45, .39, c); bx(.06, .84, .06, iron, 0, .42, .39, c); bx(.2, .22, .06, goldB, 0, .45, .41, c); bx(.5, .05, .5, vioD, 0, .82, 0, c); };
+  coffer(1.6, .8, Math.PI / 2, .9); coffer(-1.6, -1.0, Math.PI / 2 + .1, .85); coffer(1.5, 2.8, Math.PI / 2 - .1, .75);
+  // coiled chains
+  for (const [x, z] of [[1.7, -3.6], [-.9, 3.0]]) for (let k = 0; k < 3; k++) { const t = new THREE.Mesh(new THREE.TorusGeometry(.32 - k * .07, .045, 5, 12), iron); t.rotation.x = Math.PI / 2; t.position.set(x, DECK + .05 + k * .08, z); G.add(t); }
+  // the altar midships (behind the main mast) with a rune ring floating over it
+  { bx(1.3, .3, 1.3, wdD, 0, DECK + .15, 1.2); bx(1.0, .6, 1.0, wdX, 0, DECK + .6, 1.2); bx(1.2, .1, 1.2, gold, 0, DECK + .95, 1.2);
+    const r = new THREE.Mesh(new THREE.TorusGeometry(.55, .04, 6, 28), vio); r.position.set(0, DECK + 1.9, 1.2); G.add(r); ABS.rune = r;
+    const r2 = new THREE.Mesh(new THREE.TorusGeometry(.38, .03, 6, 6), goldB); r2.position.copy(r.position); G.add(r2); ABS.rune2 = r2;
+    ABS.orb = crystal(0, DECK + 1.6, 1.2, .3, .18, 0, 0); }
+
+  /* masts, torn sails, rigging */
+  const MX = 0, MZ = -1.0, FZ = -4.4;
+  bx(.32, 8.6, .32, wdD, MX, DECK + 4.3, MZ); bx(.26, 6.4, .26, wdD, 0, DECK + 3.2, FZ);
+  for (const y of [DECK + 1.2, DECK + 3.4]) bx(.38, .12, .38, gold, MX, y, MZ);
+  bx(1.5, .1, 1.5, wdD, 0, DECK + 7.2, MZ); for (const s of [-1, 1]) { bx(1.5, .5, .06, wdD, 0, DECK + 7.5, MZ + s * .72); bx(.06, .5, 1.5, wdD, s * .72, DECK + 7.5, MZ); bx(1.52, .05, .08, gold, 0, DECK + 7.78, MZ + s * .72); }
+  bx(5.4, .17, .17, wdD, 0, DECK + 6.7, MZ - .35); bx(4.0, .14, .14, wdD, 0, DECK + 5.4, FZ - .3); bx(4.6, .14, .14, wdD, 0, DECK + 3.25, MZ - .35);
+  // main sail: three panels hanging from the yard, each with ragged bottom edges and a few holes
+  const sailPanel = (x, w, top, hgt, z, m, cut) => { const g = new THREE.Group(); g.position.set(x, top, z); G.add(g); ABS.sails.push(g);
+    const n = 4, cw = w / n; for (let i = 0; i < n; i++) { const hh = hgt - (cut ? ((i * 37) % 5) * .14 : 0); bx(cw + .01, hh, .07, m, -w / 2 + cw * (i + .5), -hh / 2, 0, g); }
+    return g; };
+  sailPanel(-1.75, 1.78, DECK + 6.62, 3.3, MZ - .31, sailD, 1); const mid = sailPanel(0, 1.78, DECK + 6.62, 3.5, MZ - .45, sailM, 1); sailPanel(1.75, 1.78, DECK + 6.62, 3.2, MZ - .31, sailD, 1);
+  bx(.5, .4, .08, mat(0x0a0610), -1.4, DECK + 5.0, MZ - .27); bx(.3, .5, .08, mat(0x0a0610), 1.9, DECK + 4.4, MZ - .27);   // holes (dark patches)
+  bx(.7, .6, .08, sailP, -2.0, DECK + 4.1, MZ - .265);                                    // a patch
+  // the abyss eye on the main sail, both faces: a gold ring, a violet iris, a slit pupil
+  for (const f of [-1, 1]) { const zz = MZ - .45 + f * .06;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(.78, .07, 6, 24), goldB); ring.position.set(0, DECK + 4.85, zz); G.add(ring);
+    const iris = new THREE.Mesh(new THREE.CircleGeometry(.62, 24), vio); iris.position.set(0, DECK + 4.85, zz + f * .01); if (f < 0) iris.rotation.y = Math.PI; G.add(iris);
+    bx(.16, .9, .03, mat(0x0a0610), 0, DECK + 4.85, zz + f * .02); for (const s of [-1, 1]) bx(.06, .3, .03, gold, s * .98, DECK + 4.85, zz + f * .015, G, 0, 0, s * .0); }
+  sailPanel(0, 3.4, DECK + 5.32, 2.4, FZ - .3, sailM, 1); bx(.6, .5, .08, sailP, -1.0, DECK + 3.6, FZ - .295);
+  bx(3.4, 1.1, .06, sailD, 0, DECK + 7.35, MZ - .5); bx(3.6, .12, .12, wdD, 0, DECK + 7.95, MZ - .5);
+  // long tattered pennant
+  { const f = new THREE.Group(); f.position.set(0, DECK + 8.5, MZ); G.add(f); for (let k = 0; k < 5; k++) bx(.5, .45 - k * .06, .05, k % 2 ? vioD : sailM, .25 + k * .48, 0, 0, f); ABS.flag = f; }
+  const top = [MX, DECK + 7.4, MZ], ftop = [0, DECK + 6.0, FZ];
+  for (const s of [-1, 1]) { line(top, [s * 2.3, 2.5, -3.6]); line(top, [s * 2.3, 2.5, 1.8]); line(top, [s * 2.3, 2.5, 3.6]); line(ftop, [s * 1.3, 2.5, -6.3]);
+    for (let k = 1; k < 5; k++) { const t = k / 5; line([s * 2.3 * (1 - t * .9), 2.5 + (DECK + 7.4 - 2.5) * t, 1.8 + (MZ - 1.8) * t], [s * 2.3 * (1 - t * .9), 2.5 + (DECK + 7.4 - 2.5) * t, -3.6 + (MZ + 3.6) * t], null, .035); } }   // ratlines
+  line(top, ftop); line(ftop, [0, 2.4, -10.5]);
+  // violet lanterns on the gunwale
+  for (const [x, z] of [[2.35, -3.0], [-2.35, -3.0], [2.35, 3.0], [-2.35, 1.0]]) { bx(.1, 1.0, .1, wdD, x, 2.95, z); bx(.34, .06, .34, gold, x, 3.48, z); ABS.wins.push(bx(.26, .34, .26, vio, x, 3.68, z)); bx(.34, .06, .34, gold, x, 3.88, z); }
+  { const lab = labelSprite(T2('深渊号 · 无尽深渊', 'The Abyss Ship'), '#d8b0ff', 1.15); lab.position.set(0, DECK + 10.6, 0); G.add(lab); }
+
+  /* glow, rising motes, the rift in the sea ahead of the bow */
+  try {
+    const tex = glowTex('rgba(200,140,255,.9)', 'rgba(140,60,255,.3)');
+    for (const [x, y, z, s] of [[0, DECK + 1.9, 1.2, 4.2], [.9, POOP + 2.4, 4.7, 2.6], [-1.4, DECK + .8, -3.4, 3.4], [0, 2.2, -9.4, 3.2]]) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: .5, blending: THREE.AdditiveBlending })); sp.scale.set(s, s, 1); sp.position.set(x, y, z); sp.renderOrder = 5; G.add(sp); ABS.glow.push({ sp, s, ph: rr(0, 6) }); }
+  } catch (e) { }
+  const mm = new THREE.MeshBasicMaterial({ color: 0xd8b0ff, transparent: true, opacity: .8 });
+  for (let i = 0; i < 22; i++) { const m = new THREE.Mesh(geo(.08, .08, .08), mm); G.add(m); ABS.motes.push({ m, x: rr(-2, 2), z: rr(-5.5, 6), ph: rr(0, 1), sp: rr(.15, .35) }); }
+  { const RG = new THREE.Group(); RG.position.set(ABS.rx, .02 - .25 + .25, ABS.rz - 13.5); islandG.add(RG); ABS.riftG = RG;
+    const cols = [0x1a0630, 0x3a1070, 0x6a2ab0, 0xa060ff];
+    cols.forEach((c, i) => { const r0 = .4 + i * .9, m = new THREE.Mesh(new THREE.RingGeometry(r0, r0 + .7, 32, 1, 0, Math.PI * 1.55), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: .75 - i * .12, side: THREE.DoubleSide, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2; m.position.y = -.22 + i * .005; m.renderOrder = 4; RG.add(m); ABS.rift.push({ m, sp: (i % 2 ? -1 : 1) * (1.4 - i * .25) }); });
+    const c = new THREE.Mesh(new THREE.CircleGeometry(.5, 20), new THREE.MeshBasicMaterial({ color: 0x050208 })); c.rotation.x = -Math.PI / 2; c.position.y = -.2; RG.add(c); }
+
+  /* the gangplank from the pier up to the deck (pier edge at x=-1.5 relative to HOME) */
+  { const J = new THREE.Group(); islandG.add(J); const gz = ABS.rz + 1.5, gx0 = -1.5, gx1 = ABS.rx + 2.35, gy0 = .38, gy1 = -.25 + DECK + .05, L = Math.hypot(gx1 - gx0, gy1 - gy0);
+    const gp = bx(L, .1, 1.1, wdL, (gx0 + gx1) / 2, (gy0 + gy1) / 2, gz, J); gp.rotation.z = -Math.atan2(gy1 - gy0, gx0 - gx1);
+    for (let k = 1; k < 5; k++) { const t = k / 5; bx(.08, .06, 1.1, wdD, gx0 + (gx1 - gx0) * t, gy0 + (gy1 - gy0) * t + .06, gz, J); }
+    for (const s of [-1, 1]) { line([gx0, gy0 + .7, gz + s * .55], [gx1, gy1 + .7, gz + s * .55], null, .05, J); bx(.1, .8, .1, wdD, gx0, gy0 + .35, gz + s * .55, J); }
+    bx(.14, 1.8, .14, wdD, -1.7, 1.2, gz - 1.6, J); bx(.34, .06, .34, gold, -1.7, 2.1, gz - 1.6, J); ABS.wins.push(bx(.26, .34, .26, vio, -1.7, 2.3, gz - 1.6, J)); bx(.34, .06, .34, gold, -1.7, 2.5, gz - 1.6, J); }
+  for (const dz of [-6, -3, 0, 3, 6]) addCircle(HOME.x + ABS.rx, HOME.z + ABS.rz + dz, 2.3);   // you can't wade through the hull
 }
-const abyShipNear = () => { try { return S.isl && !S.dun && Math.hypot(player.pos.x - (HOME.x + ABS.rx), player.pos.z - (HOME.z + ABS.rz)) < 8; } catch (e) { return false; } };
+const abyShipNear = () => { try { return S.isl && !S.dun && !S.boat && Math.abs(player.pos.x - (HOME.x + ABS.rx)) < 7.5 && Math.abs(player.pos.z - (HOME.z + ABS.rz + 1)) < 6.5; } catch (e) { return false; } };
 zSpecialTick = (o => function (dt) { o(dt);
   if (!ABS.g) try { abyShipBuild(); } catch (e) { console.warn('aby ship', e); ABS.g = 1; }
-  if (ABS.g && ABS.g.position) { ABS.t += dt; ABS.g.position.y = -.25 + Math.sin(ABS.t * .9) * .06; ABS.g.rotation.z = Math.sin(ABS.t * .6) * .015; if (ABS.ring) ABS.ring.rotation.x += dt * 1.2; if (ABS.core) ABS.core.material.opacity = .45 + Math.sin(ABS.t * 2) * .12; }
+  if (ABS.g && ABS.g.position && S.isl) { const t = (ABS.t += dt), G = ABS.g;
+    G.position.y = -.25 + Math.sin(t * .8) * .07; G.rotation.z = Math.sin(t * .55) * .018; G.rotation.x = Math.sin(t * .4) * .008;
+    ABS.sails.forEach((g, i) => { g.rotation.x = .06 + Math.sin(t * 1.1 + i) * .05; });
+    if (ABS.flag) ABS.flag.children.forEach((c, k) => { c.position.z = Math.sin(t * 3 - k * .8) * .12 * k; c.rotation.y = Math.sin(t * 3 - k * .8) * .3; });
+    if (ABS.rune) { ABS.rune.rotation.y += dt * .9; ABS.rune.rotation.x = Math.sin(t * .7) * .4; ABS.rune2.rotation.y -= dt * 1.3; ABS.rune2.rotation.z = Math.sin(t) * .3; ABS.orb.rotation.y += dt * 1.5; ABS.orb.position.y = DECK_ABY + 1.6 + Math.sin(t * 1.6) * .1; }
+    ABS.rift.forEach(r => { r.m.rotation.z += dt * r.sp; });
+    const pulse = .75 + Math.sin(t * 2.2) * .25; ABS.wins.forEach((w, i) => { w.material.color.setRGB(.55 + .25 * pulse * (1 + Math.sin(t * 3 + i) * .1), .38 + .15 * pulse, 1); });
+    ABS.cry.forEach((c, i) => { c.material.emissiveIntensity = .5 + Math.sin(t * 1.5 + i * .7) * .25; });
+    ABS.glow.forEach(g => { const k = 1 + Math.sin(t * 1.4 + g.ph) * .1; g.sp.scale.set(g.s * k, g.s * k, 1); });
+    ABS.motes.forEach(M => { const p = (M.ph + t * M.sp) % 1; M.m.position.set(M.x + Math.sin(t + M.ph * 9) * .3, 2 + p * 6, M.z); M.m.material.opacity = .8; M.m.scale.setScalar(1 - p * .7); });
+    // the ferryman sways, his lantern swings, and he turns his head to watch you when you come close
+    if (ABS.fm) { const near = abyShipNear(); ABS.fm.position.y = 3.34 + Math.sin(t * 1.2) * .04; if (ABS.lan) { ABS.lan.rotation.x = Math.sin(t * 1.7) * .25; ABS.lan.rotation.z = Math.sin(t * 1.3) * .15; }
+      if (ABS.lanCore) ABS.lanCore.material.color.setRGB(.7 + Math.sin(t * 5) * .1, .45, 1);
+      if (ABS.fmH) { let want = Math.sin(t * .5) * .5; if (near) { const lx = player.pos.x - (HOME.x + ABS.rx + .9), lz = player.pos.z - (HOME.z + ABS.rz + 4.7); want = Math.max(-1, Math.min(1, Math.atan2(lx, lz) - Math.PI / 2)); }
+        ABS.fmH.rotation.y += (want - ABS.fmH.rotation.y) * Math.min(1, dt * 3); }
+      if (ABS.fmA) ABS.fmA.rotation.x = -.5 + Math.sin(t * 1.2) * .05; } }
   const b = $('bAbyss'), on = S.started && !S.dead && abyShipNear(); if (b && (b.style.display === 'block') !== on) b.style.display = on ? 'block' : 'none';
 })(zSpecialTick);
+const DECK_ABY = 1.85;
 (() => { try { const H = $('hud'); if (!H) return; const b = document.createElement('button'); b.className = 'btn2'; b.id = 'bAbyss'; b.textContent = T2('深渊号 · 无尽深渊', 'Abyss Ship · Endless Abyss'); H.appendChild(b);
   b.addEventListener('click', () => { if (!S.started || S.dead || S.paused) return; abyPage(); });
   setTimeout(() => { try { if (typeof KE_LIST !== 'undefined' && !KE_LIST.includes('bAbyss')) KE_LIST.push('bAbyss'); } catch (e) { } }, 0);
@@ -18597,4 +18750,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794701031').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794704863').catch(()=>{});</script></body></html>
