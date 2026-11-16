@@ -18695,14 +18695,14 @@ toggleBuild = (o => function () { const r = o.apply(this, arguments); if (!build
 try { const inMenu = new Set(); B5_TABS.forEach(t => (t[2] || []).forEach(k => inMenu.add(k)));
   for (const r in BPPOOL) BPPOOL[r] = BPPOOL[r].filter(x => typeof x[0] !== 'function' || inMenu.has(x[0]().k)); } catch (e) { console.warn('bp pool', e); }
 /* ============ blueprint machine 2 (owner: "make the draw harder; put junk in; duplicates can be traded for the one you want") ============
-   - Junk (废料) is in the common pool: worthless scraps that give nothing.
+   - Junk (废料) is in the common pool: small piles of upgrade materials (owner: junk = upgrade materials, not broken glass).
    - No more "prefer blueprints you don't have": every blueprint of the rolled grade is equally likely, so you DO get repeats.
    - A repeat becomes 蓝图精华 (blueprint essence): 稀有 1 · 史诗 4 · 传说 12 · 神话 40.
    - 蓝图兑换 tab at the machine: spend essence on ANY blueprint you don't have yet: 稀有 12 · 史诗 40 · 传说 120 · 神话 350.
      That is the safety net: enough repeats always turn into the blueprint you want. */
 const BPX_ESS = { 2: 1, 3: 4, 4: 12, 5: 40 }, BPX_COST = { 2: 12, 3: 40, 4: 120, 5: 350 };
 S.bpe = 0;
-BPPOOL[0].push(['废料：一团废纸', () => { }], ['废料：断掉的齿轮', () => { }], ['废料：生锈的螺丝', () => { }], ['废料：破布条', () => { }], ['废料：碎玻璃渣', () => { }]);
+BPPOOL[0].push(['废料：铁片 ×6', () => gain('metal', 6)], ['废料：火药 ×2', () => gain('powder', 2)], ['废料：电子元件 ×2', () => gain('circuit', 2)], ['废料：精密零件 ×1', () => gain('apart', 1)], ['废料：强化石 ×1', () => gain('estone', 1)]);
 bpDrawOne = function (minR) {
   S.bmp++; let G = BPG[BPG.length - 1];
   if (S.bmp >= BP_PITY) G = BPG[0]; else { let acc = 0; const roll = Math.random(); for (const g of BPG) { acc += g.p; if (roll < acc) { G = g; break; } } }
@@ -21437,4 +21437,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794800178').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794800864').catch(()=>{});</script></body></html>
