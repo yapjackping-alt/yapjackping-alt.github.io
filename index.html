@@ -14385,7 +14385,7 @@ findRegion = (o => function (t, x, z) { if (dunBad(x, z)) { x = 0; z = 0; } retu
    ====================================================================== */
 
 // 价格（遗物币）。一趟副本多出来的收藏品大约能换 20~28 个币，所以 1500 ≈ 55~70 趟副本。想便宜或贵一点，只改这个数字。
-const RELIC_SKIN_PRICE = 1500;
+const RELIC_SKIN_PRICE = 19500;   // owner 16 Nov: half a year at the most a week can give (26 weeks × 750)
 
 WSKINS.moondragon = {
   only: 'sniper', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '苍月龙翼', r: 5, custom: true, relicOnly: true,
@@ -22387,4 +22387,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794843163').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794843788').catch(()=>{});</script></body></html>
