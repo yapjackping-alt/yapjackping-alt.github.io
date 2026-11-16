@@ -12751,7 +12751,7 @@ renderPort = (o => function () { o(); try { const box = $('portList'); if (!box)
   [['reg', '区域'], ['ev', '活动'], ['dun', '副本']].forEach(([k, n]) => { const b = document.createElement('button'); b.className = 'sbtn' + (portTab === k ? ' on' : ''); const c = rows.filter(r => kind(r) === k).length; b.textContent = n + (c ? ' · ' + c : '');
     b.addEventListener('click', () => { portTab = k; renderPort(); }); tabs.appendChild(b); });
   rows.forEach(r => { r.style.display = kind(r) === portTab ? '' : 'none'; }); box.insertBefore(tabs, box.firstChild); } catch (e) { console.warn(e); } })(renderPort);
-try { const st = document.createElement('style'); st.textContent = '.porttabs{position:sticky;top:0;z-index:2;display:flex;gap:6px;justify-content:center;padding:4px 0 8px;background:inherit}.porttabs .sbtn{flex:1;max-width:140px}' +
+try { const st = document.createElement('style'); st.textContent = '.porttabs{position:sticky;top:-1px;z-index:5;display:flex;gap:6px;justify-content:center;padding:6px 0 8px;background:#17121b;box-shadow:0 6px 10px -4px rgba(0,0,0,.6)}.porttabs .sbtn{flex:1;max-width:140px}' +
   '.dunparty{margin:8px 0;padding:8px 10px;border-radius:10px;background:rgba(125,224,255,.08);border:1px solid rgba(125,224,255,.35);display:flex;flex-direction:column;gap:6px}.dunparty small{color:#9fe8ff;font-weight:800;font-size:12px}.dunparty span{font-size:12.5px}.dunpgo{width:100%}';
   document.head.appendChild(st); } catch (e) { }
 
@@ -19127,6 +19127,69 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
   '.pnc i.pnx{background:linear-gradient(135deg,transparent 45%,#ff6a5a 45%,#ff6a5a 55%,transparent 55%),#9a7450}' })); } catch (e) { }
 // in paint mode the piece under your finger glows softly instead of turning red (red looked like it was being painted red)
 setHilite = (o => function (b) { o(b); try { if (PAINT.on && b && b.g) b.g.traverse(q => { if (q.userData && q.userData.m0 && q.material && q.material.emissive) q.material.emissive.setHex(0x2c2c2c); }); } catch (e) { } })(setHilite);
+/* ============ landscape build screen (owner's sketch) + build only on the island ============
+   Landscape, god view:
+   - the view buttons (+ − 转向 视角, storeys, 显示楼上) are one column on the far left, from the bottom up;
+   - next to them an arrow. Closed (state 0) only that ▲ arrow sits at the bottom. Tap it: the categories (地基楼板, 墙, 门窗 …,
+     移动, 油漆, 拆除) open as a column and the arrow moves to the top of that column (state 1). Tap a category: the big panel
+     with the pieces opens on its right and the chosen category is joined to the panel like a folder tab; the others stay
+     visible but are not joined (state 2). The panel's own arrow on its right closes only the panel (back to state 1, the
+     categories stay); the arrow on top closes everything (state 0). The state is remembered.
+   Everywhere: while building, the hammer button is gone and a ✕ in the top-right corner leaves build mode.
+   Building is only possible on the island now: off the island the hammer is hidden and build mode closes. */
+const LBS = { s: 2 }; try { const v = localStorage.getItem('ember_lbs'); if (v != null && /^[012]$/.test(v)) LBS.s = +v; } catch (e) { }
+const lbLand = () => window.innerWidth > window.innerHeight;
+const LBS_CHEV = d => '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="' + ({ up: 'M5 15l7-7 7 7', dn: 'M5 9l7 7 7-7', lf: 'M15 5l-7 7 7 7' })[d] + '" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function lbSet(s) { LBS.s = s; try { localStorage.setItem('ember_lbs', String(s)); } catch (e) { } lbPaint(); try { sfx.pick(); } catch (e) { } }
+function lbPaint() { try {
+  const b = document.body; for (const k of [0, 1, 2]) b.classList.toggle('lb' + k, LBS.s === k);
+  let a = $('lbArr'); if (!a) { a = document.createElement('button'); a.id = 'lbArr'; document.body.appendChild(a);
+    a.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); lbSet(LBS.s ? 0 : 1); }); }
+  const key = LBS.s ? 'dn' : 'up'; if (a._k !== key) { a._k = key; a.innerHTML = LBS_CHEV(key) + '<span>' + (LBS.s ? T2('收起', 'Close') : T2('建造', 'Build')) + '</span>'; }
+  let x = $('lbX'); if (!x) { x = document.createElement('button'); x.id = 'lbX'; x.setAttribute('aria-label', T2('退出建造', 'Leave build mode'));
+    x.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/></svg>';
+    x.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (buildOpen) toggleBuild(); }); document.body.appendChild(x); }
+} catch (e) { } }
+// the panel's own arrow (right side): closes only the panel
+buildCards = (o => function () { const r = o.apply(this, arguments); try { if (buildEl.appendChild && !buildEl.querySelector('#lbFold')) {
+  const f = document.createElement('button'); f.id = 'lbFold'; f.innerHTML = LBS_CHEV('lf'); f.setAttribute('aria-label', T2('收起', 'Fold'));
+  f.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); lbSet(1); }); buildEl.appendChild(f); } } catch (e) { } return r; })(buildCards);
+// choosing a category opens the panel
+try { buildEl.addEventListener('pointerdown', e => { const t = e.target && e.target.closest && e.target.closest('.b5tab'); if (t && lbLand()) setTimeout(() => { if (LBS.s !== 2) lbSet(2); }, 0); }, true); } catch (e) { }
+// the storey column goes from the bottom up: + − 转向 视角, then the storeys (ground lowest), 显示楼上 on top
+gvFlPaint = (o => function () { o(); try { const el = $('gvFl'); if (!el) return; let i = 0;
+  el.querySelectorAll('button,i').forEach(q => { q.style.order = q.dataset && q.dataset.fl != null ? 10 + (+q.dataset.fl) : q.dataset && q.dataset.cut ? 30 : (++i); }); } catch (e) { } })(gvFlPaint);
+// build only on the island
+toggleBuild = (o => function () { if (!buildOpen && !S.isl) { feed(T2('只能在海岛上建造', 'You can only build on the island'), '#ffb27a'); return; } return o.apply(this, arguments); })(toggleBuild);
+setInterval(() => { try {
+  if (buildOpen && !S.isl) toggleBuild();
+  const b = document.body; b.classList.toggle('bOpen', !!buildOpen); b.classList.toggle('noBuild', !S.isl || !S.started);
+  lbPaint();
+} catch (e) { } }, 150);
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+  'body.bOpen #bBuild,body.noBuild #bBuild{display:none!important}' +
+  '#lbX{position:fixed;top:calc(var(--st) + 10px);right:calc(var(--sr) + 10px);z-index:30;width:46px;height:46px;border-radius:14px;border:1px solid rgba(255,255,255,.3);background:rgba(200,60,50,.85);display:none;align-items:center;justify-content:center;padding:0;pointer-events:auto;box-shadow:0 4px 14px rgba(0,0,0,.35)}' +
+  'body.bOpen #lbX{display:flex}#lbArr,#lbFold{display:none}' +
+  '@media (orientation:landscape){' +
+    // the view buttons: one column on the far left, bottom up
+    'body.gvOn #gvFl{top:auto!important;bottom:calc(var(--sb) + 8px)!important;left:calc(var(--sl) + 8px)!important;transform:none!important;flex-direction:column-reverse!important;align-items:stretch!important;width:62px;gap:4px!important}' +
+    'body.gvOn #gvFl button{min-width:0!important;width:62px;height:32px!important;padding:0 4px!important;font-size:12.5px}body.gvOn #gvFl button.cut{font-size:10.5px;height:30px!important}body.gvOn #gvFl i{height:5px!important;width:auto!important}' +
+    // the arrow: at the bottom when closed, on top of the category column when open
+    'body.gvOn #lbArr{display:flex;position:fixed;z-index:12;left:calc(var(--sl) + 78px);width:94px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(255,122,47,.75);color:#fff;font-weight:800;font-size:13px;align-items:center;justify-content:center;gap:2px;padding:0;pointer-events:auto}' +
+    'body.gvOn.lb0 #lbArr{bottom:calc(var(--sb) + 8px)}body.gvOn.lb1 #lbArr,body.gvOn.lb2 #lbArr{top:calc(var(--st) + 8px);background:rgba(20,24,30,.85)}' +
+    // the panel, with the categories as a column hanging off its left side
+    'body.gvOn #build.b5{left:calc(var(--sl) + 78px + 100px)!important;right:calc(var(--sr) + 104px)!important;top:calc(var(--st) + 56px)!important;bottom:calc(var(--sb) + 8px)!important;max-width:none!important;margin:0!important;background:rgba(26,20,30,.95)!important;border-radius:0 14px 14px 14px!important;overflow:visible!important}' +
+    'body.gvOn.lb0 #build.b5{display:none!important}' +
+    'body.gvOn #build.b5 .b5tabs,body.gvOn #build.b5.b5f .b5tabs{display:flex!important;position:absolute;left:-100px;top:-1px;bottom:0;width:100px;flex-direction:column!important;flex-wrap:nowrap!important;gap:4px;overflow-y:auto!important;overflow-x:visible!important;padding:0 0 4px!important;margin:0!important;pointer-events:auto;scrollbar-width:none}' +
+    'body.gvOn #build.b5 .b5tab{flex:0 0 auto!important;width:94px;height:36px!important;padding:0 6px!important;border-radius:10px!important;font-size:13px!important;background:rgba(20,24,30,.94);margin:0!important}' +
+    'body.gvOn.lb2 #build.b5 .b5tab.on{width:101px;border-radius:12px 0 0 12px!important;background:rgba(26,20,30,.95)!important;border-color:rgba(255,178,122,.6)!important;border-right-color:transparent!important;color:#ffb27a!important;position:relative;z-index:2}' +
+    'body.gvOn #build.b5 .b5row,body.gvOn #build.b5.b5f .b5row{display:grid!important;max-height:none!important;flex:1 1 auto;min-height:0}' +
+    'body.gvOn #build.b5 .b5fold{display:none!important}' +
+    'body.gvOn #lbFold{display:flex;position:absolute;right:-32px;top:50%;transform:translateY(-50%);width:32px;height:70px;border-radius:0 12px 12px 0;border:1px solid rgba(255,255,255,.2);border-left:none;background:rgba(26,20,30,.95);align-items:center;justify-content:center;padding:0;pointer-events:auto}' +
+    // state 1: only the category column is left
+    'body.gvOn.lb1 #build.b5{background:transparent!important;border-color:transparent!important;box-shadow:none!important;pointer-events:none!important}' +
+    'body.gvOn.lb1 #build.b5 > *:not(.b5tabs){display:none!important}' +
+  '}' })); } catch (e) { }
 /* ============ build menu: swipe to scroll ============
    The tiles picked themselves on pointerdown, so a swipe that started on a tile picked it, the menu was rebuilt and the
    list jumped back to the top: you could never scroll down (worst in the 地形 tab). Now a tile is picked only on a TAP
@@ -21838,4 +21901,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794828411').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794829669').catch(()=>{});</script></body></html>
