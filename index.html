@@ -16371,8 +16371,8 @@ function qmTarget() {
     case 'stash': return S.isl ? (() => { const b = _qmNear(builds, b => b.hp > 0 && STASH_T[b.type]); return b && { x: b.x, z: b.z, n: T2('储物箱', 'Storage') }; })() : null;
     case 'reach': return S.isl ? QM_PIER() : null;
     case 'dun': return S.isl ? QM_PIER() : null;
-    case 'kill': return main(() => _qmNear(zombies.map(z => ({ x: z.pos.x, z: z.pos.z, z })), o => !o.z.dead && !o.z.animal && !o.z.mirror), T2('丧尸', 'Zombie'));
-    case 'have': return main(() => _qmNear(zombies.map(z => ({ x: z.pos.x, z: z.pos.z, z })), o => !o.z.dead && !o.z.animal && !o.z.mirror), T2('丧尸', 'Zombie'));
+    case 'kill': return main(() => _qmNear(zombies.map(z => ({ x: z.pos.x, z: z.pos.z, zb: z })), o => !o.zb.dead && !o.zb.animal && !o.zb.mirror), T2('丧尸', 'Zombie'));
+    case 'have': return main(() => _qmNear(zombies.map(z => ({ x: z.pos.x, z: z.pos.z, zb: z })), o => !o.zb.dead && !o.zb.animal && !o.zb.mirror), T2('丧尸', 'Zombie'));
     case 'crate': return main(() => _qmNear([...crates.values()], c => !c.open), T2('箱子', 'Crate'));
     case 'mine': return main(() => qmObs(['stone', 'metal'], 90), T2('石头堆 / 废车', 'Stone / wreck'));
     case 'boss': return main(() => { const pcx = Math.floor(player.pos.x / CH), pcz = Math.floor(player.pos.z / CH), L = [];
@@ -21437,4 +21437,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794800864').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794803626').catch(()=>{});</script></body></html>
