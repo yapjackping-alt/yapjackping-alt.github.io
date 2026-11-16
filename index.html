@@ -18412,7 +18412,8 @@ function swn2Tick(dt) {
   let want = false, lvl = null;
   if (ok) { lvl = islWaterLevel(player.pos.x, player.pos.z); if (lvl != null) { const d = lvl - swGround(player.pos.x, player.pos.z); want = SWN.on ? d > .38 : d > .55; } }
   if (want && !SWN.on) { SWN.on = true; SWN.arm = [pm.armR.rotation.clone(), pm.armL.rotation.clone()]; gun.visible = false; burst(player.pos.x, lvl + .2, player.pos.z, 0xbfe8ff, 14, 3); try { if (AC) sfxNoise(.35, .16, 1300, { f1: 300 }); } catch (e) { } }
-  if (!want && SWN.on) { SWN.on = false; pm.g.rotation.x = 0; pm.g.rotation.order = 'XYZ'; pm.body.rotation.z = 0; if (SWN.arm) { pm.armR.rotation.copy(SWN.arm[0]); pm.armL.rotation.copy(SWN.arm[1]); } pm.legL.rotation.set(0, 0, 0); pm.legR.rotation.set(0, 0, 0); gun.visible = true; }
+  if (!want && SWN.on) { SWN.on = false; if (!S.dead) pm.g.rotation.x = 0; pm.g.rotation.order = 'XYZ';   // dying in the water: keep the death pose (it used to stand the body back up)
+    pm.body.rotation.z = 0; if (SWN.arm) { pm.armR.rotation.copy(SWN.arm[0]); pm.armL.rotation.copy(SWN.arm[1]); } pm.legL.rotation.set(0, 0, 0); pm.legR.rotation.set(0, 0, 0); gun.visible = true; }
   if (!SWN.on) return;
   input.fire = false; S.sprint = false;
   const mv = Math.hypot(input.mx || 0, input.mz || 0) > .1 || (typeof keys !== 'undefined' && (keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD)), t = S.t * (mv ? 5 : 2.2);
@@ -18457,7 +18458,12 @@ bodyAudio = (o => function (dt, moving) {
 })(bodyAudio);
 // companions swim too: in deep water they sink to the shoulders and bob, with a ripple now and then (they used to walk on the water)
 function compSwimTick(dt) {
-  if (typeof COMPS === 'undefined' || !S.isl || S.dun) return;
+  if (!S.isl || S.dun) return;
+  // zombies (a raid follows you into the sea) and dogs wade in deep water: sunk to the shoulders and slowed, instead of walking on top of it
+  for (const z of zombies) { if (z.dead || z.removed || !z.pos) continue; const l = islWaterLevel(z.pos.x, z.pos.z); if (l == null) continue; const sc = z.sc || 1;
+    if (l - swGround(z.pos.x, z.pos.z) > .6 * sc) { z.pos.y = l - 1.15 * sc; z.slowT = Math.max(z.slowT || 0, .25); } }
+  if (typeof PETS !== 'undefined') for (const [, P] of PETS) { const g = P.pos || (P.g && P.g.position); if (!g) continue; const l = islWaterLevel(g.x, g.z); if (l != null && l - swGround(g.x, g.z) > .4) g.y = l - .38; }
+  if (typeof COMPS === 'undefined') return;
   for (const [, P] of COMPS) { const p = P.pos; if (!p) continue; const lvl = islWaterLevel(p.x, p.z), deep = lvl != null && lvl - swGround(p.x, p.z) > .5;
     if (deep) { p.y = lvl - .62 + Math.sin(S.t * 2.4 + p.x) * .05; P._sw = (P._sw || 0) - dt; if (P._sw <= 0) { P._sw = rand(.4, .9); burst(p.x + rand(-.2, .2), lvl + .04, p.z + rand(-.2, .2), 0xdff6ff, 2, 1); } } }
 }
@@ -18466,6 +18472,10 @@ petsTick = (o => function (dt) { const r = o(dt); try { compSwimTick(dt); } catc
 treeUnderBuild = (o => function (T) { if (o(T)) return true;
   try { if (S.isl && Math.hypot(T.x - HOME.x, T.z - HOME.z) < ISL_R + 4) { const l = islWaterLevel(T.x, T.z); if (l != null && l - swGround(T.x, T.z) > .2) return true; } } catch (e) { }
   return false; })(treeUnderBuild);
+// no rolling or fishing while you swim (the roll pose fought the swim pose; casting a rod while swimming made no sense)
+rollGo = (o => function () { if (SWN.on) return; return o.apply(this, arguments); })(rollGo);
+petsTick = (o => function (dt) { const r = o(dt); try { const on = SWN.on; if (document.body.classList.contains('swimOn') !== on) document.body.classList.toggle('swimOn', on); } catch (e) { } return r; })(petsTick);
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent: 'body.swimOn #bRoll,body.swimOn #bFish{display:none!important}' })); } catch (e) { }
 /* ============ water round the boats ============
    Every boat on the water (老钱's ship, the 深渊号 submarine, the small boat at the pier, your fishing boat) has soft rings of
    ripples spreading out from its hull. Your fishing boat while it moves leaves a white wake behind it (two lines spreading
@@ -18618,6 +18628,12 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
   '.erMode{display:flex;flex-wrap:wrap;gap:8px;padding:4px 2px 6px;width:100%;grid-column:1/-1;box-sizing:border-box}body.erOn #bPlace{display:none!important}.erMode button{flex:1;min-width:110px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.07);color:#e8eef2;font-weight:800;font-size:15px}.erMode button.on{background:rgba(230,70,60,.55);border-color:#ff9b8a;color:#fff}.erMode .b5tip{width:100%;margin:2px 0 0}' })); } catch (e) { }
 // leaving the 拆除 tab or build mode switches the eraser off
 toggleBuild = (o => function () { const r = o.apply(this, arguments); if (!buildOpen) B5ER.on = false; return r; })(toggleBuild);
+
+/* ---- the blueprint machine only gives pieces you can actually find in the build menu: old pieces that left the menu (the
+   草皮/花草皮/石板路 tiles now painted in 地形, the old 右 triangles) were still in the prize list, so a draw could hand you
+   a blueprint for something you can never place ---- */
+try { const inMenu = new Set(); B5_TABS.forEach(t => (t[2] || []).forEach(k => inMenu.add(k)));
+  for (const r in BPPOOL) BPPOOL[r] = BPPOOL[r].filter(x => typeof x[0] !== 'function' || inMenu.has(x[0]().k)); } catch (e) { console.warn('bp pool', e); }
 /* ============ build menu: swipe to scroll ============
    The tiles picked themselves on pointerdown, so a swipe that started on a tile picked it, the menu was rebuilt and the
    list jumped back to the top: you could never scroll down (worst in the 地形 tab). Now a tile is picked only on a TAP
@@ -21329,4 +21345,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794795785').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794797342').catch(()=>{});</script></body></html>
