@@ -12152,7 +12152,7 @@ const DUNS = { 1: { nm: '圣心医院 · 零号病人', sh: '圣心医院', boss
 const dunD = (id) => DUNS[id == null ? DUN.id : id] || DUNS[1];
 const dunNm = () => dunD().nm;
 const dunTxt = () => dunD().txt();
-const inDunArea = (x, z) => Math.abs(x - DUN.x - 100) < 170 && z - DUN.z > -140 && z - DUN.z < 50;
+const inDunArea = (x, z) => x > -19000 - 8 * 700 - 100 && x < -19000 + 280 && z > -12 * 600 - 200 && z < 60;   // every dungeon slot / instance lane (z_dunsep.js)
 const DUN_TXT = {
   intro: [['老陈', '有情况。我截到一段一直在重复的求救信号，来源是郊区的圣心医院。'], ['林曼医生（信号）', '……这里是圣心医院……我是林曼医生……地下二层……血清……快来……'],
     ['老陈', '血清？如果是真的，这可能是我们翻盘的机会。医院正门被封了，从救护车通道进去。里面没电，靠你的肩灯。小心点。']],
@@ -20802,6 +20802,42 @@ const W_SH_FISH = 8;
   '.qhgun>b{font-size:20px;color:#fff}.qhgun>em{font-style:normal;font-weight:900;color:var(--qc)}.qhgun p{margin:0;font-size:13.5px;color:#e8eef2;line-height:1.5}.qhgun .qhst{color:#9fe8a0}.qhgun .qhhow{color:#ffd27a;font-weight:800}' +
   '.qhpic{width:100%;display:flex;justify-content:center}.qhpic img{max-width:100%;max-height:150px;object-fit:contain}';
   document.head.appendChild(st); } catch (e) { } })();
+/* ============ every dungeon run is its own instance (owner, from the 《留存优化方案》 file of 14 Nov, part F
+   「副本与世界彻底隔离」: "each dungeon must open in a new place, not share one map") ============
+   Before: every dungeon was built at the same spot (x -19000, z 0), and everyone in the same online room who entered the
+   same dungeon was merged into one run (one host, shared doors / boss / zombies) — even strangers in the public lobby,
+   even when you pressed 「单人进入」. Players in other dungeons stood on the same coordinates, so monsters picked them.
+   Now:
+   - Each entry gets an instance id (`DUN.inst`). 「单人进入」, the abyss and the two ships always start a NEW one.
+     「组队进入」 makes one and sends it with the invite; whoever taps 「加入」 joins exactly that instance.
+   - Only players with the same dungeon AND the same instance count as teammates (`DUN.inside`): host election, the
+     shared story state, the zombie snapshots and requests all stay inside the instance.
+   - Each instance is built at its own place: every dungeon has its own z slot (id × -600) and each instance one of 8 x
+     lanes (-19000 - lane × 700) picked from its id, so two runs never overlap in space either.
+   - inDunArea (z_dun.js) covers every slot and lane, so the save / position guards still catch all of them. */
+const DSEP = { next: null, nextT: 0, inv: new Map() };
+const dsepId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+function dsepPlace(inst, id) { let h = 0; for (const c of String(inst)) h = (h * 31 + c.charCodeAt(0)) | 0;
+  DUN.x = -19000 - (Math.abs(h) % 8) * 700; DUN.z = -(Math.max(0, Math.min(12, id | 0))) * 600; }
+// messages about who is inside carry the instance; an invite carries the instance it opens
+dunSend = (o => function (topic, data) {
+  if (topic === 'dunI' && data) { data = Object.assign({}, data);
+    if (data.op === 'inv') { if (!DSEP.next || Date.now() - DSEP.nextT > 30000) { DSEP.next = dsepId(); DSEP.nextT = Date.now(); } data.i = DSEP.next; }
+    else data.i = DUN.inst || ''; }
+  return o(topic, data); })(dunSend);
+onDunI = (o => function (m) { if (!m || m.isMe || !m.data) return o(m); const d = m.data;
+  if (d.op === 'in' || d.op === 'here') { if (!S.dun || !DUN.inst || d.i !== DUN.inst) return; return o(m); }   // another run (or an old game version): not your team
+  if (d.op === 'inv') { if (!d.i) return; DSEP.inv.set(m.peer, String(d.i).slice(0, 24)); const r = o(m);
+    try { const b = document.querySelector('#dunInvM .dunyes'); if (b) b.addEventListener('click', () => { DSEP.next = DSEP.inv.get(m.peer) || null; DSEP.nextT = Date.now(); }, { capture: true }); } catch (e) { }
+    return r; }
+  return o(m); })(onDunI);
+// requests to the host (open a door, take the fuse…) only from teammates in this instance
+onDunA = (o => function (m) { if (m && !m.isMe && !DUN.inside.has(m.peer)) return; return o(m); })(onDunA);
+// entering: pick the instance (invite → that one, otherwise a new one) and its place, before anything is built
+dunEnter = (o => function () { if (S.dun) return o();
+  const fresh = DSEP.next && Date.now() - DSEP.nextT < 30000; DUN.inst = fresh ? DSEP.next : dsepId(); DSEP.next = null;
+  DUN.inside.clear(); DUN.inT.clear(); dsepPlace(DUN.inst, DUN.id); return o(); })(dunEnter);
+dunCleanup = (o => function () { const was = DUN.on; o(); if (was) { DUN.inst = null; DUN.inside.clear(); DUN.inT.clear(); } })(dunCleanup);
 /* ============ 资源商店: buy resources with gems, as many times as you like ============
    Real money only ever buys 晶石 (the Google Play packs); everything here costs 晶石.
    Prices are checked against the island merchant (1000 余烬币 = 50 晶石 here, so 1 晶石 ≈ 20 币): about 1.5× the coin price;
@@ -22060,4 +22096,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794838255').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794839241').catch(()=>{});</script></body></html>
