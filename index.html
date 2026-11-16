@@ -20514,6 +20514,50 @@ const HY_ABY = .9;
     '@media (max-height:460px){.abyc{min-height:170px;padding-top:27px;gap:4px}.abyc .abyic{--isz:40px}.abyc p{font-size:12.5px}.abyc b{font-size:16px}}';
   document.head.appendChild(st);
 } catch (e) { console.warn('aby ui', e); } })();
+/* ============ 无尽深渊 harder (owner: "with strong gear you simply can't die down there, so the coins can be farmed —
+   don't only add life: attack speed and move speed must grow too, each at its own rate; the spitters were shooting at thin
+   air; put every zombie I have into it") ============
+   - Every zombie type in the game can come up: the basic ones, the specials and all ten region zombies (dog, bark, sand,
+     bloat, frost, hook, roll, magma, shade, herald), more kinds the deeper you go.
+   - Per floor n: move speed ×(1 + .014n, max ×1.7), attack speed ×(1 + .02n, max ×2.0), on top of the old life / damage growth.
+   - Your gear no longer makes you untouchable: a monster's life is at least (your weapon's damage per second × a time that
+     grows with the floor), and every hit that lands takes at least a slice of your max life (1.5% + .16% per floor) — armour,
+     cards and shields still help, but never down to nothing.
+   - Aiming: down here the monsters only go for you (they used to pick other online players whose position happened to be
+     near the dungeon area, so spitters and ice throwers fired at empty air), and the spit / ice is thrown where you will be. */
+{ const all = Object.keys(ZT).filter(k => !k.startsWith('_') && ZT[k] && ZT[k].hp && !ZT[k].animal), rz = (typeof RZ !== 'undefined' ? RZ.filter(Boolean) : []).filter(k => ZT[k]);
+  ABY_ZT[0] = ['walker', 'runner', 'crawler', 'spitter', 'dog', 'bark', 'sand'].filter(k => ZT[k]);
+  ABY_ZT[1] = ['walker', 'runner', 'brute', 'spitter', 'bomber', 'shield', 'screamer', 'dog', 'bark', 'sand', 'bloat', 'frost', 'hook', 'roll'].filter(k => ZT[k]);
+  ABY_ZT[2] = [...new Set(['runner', 'brute', 'bomber', 'shield', 'screamer', 'healer', 'spitter', 'crawler', ...rz, ...all.filter(k => ZT[k].n)])]; }
+const abySpdK = () => Math.min(1.7, 1 + .014 * ABY.floor), abyAtkK = () => Math.min(2, 1 + .02 * ABY.floor);
+const abyHitMin = () => .015 + .0016 * ABY.floor;   // share of max life every landed hit takes at least
+function abyHpFloor(z) { let d = 0; try { d = weaponDps(ABY.wp) || 0; } catch (e) { } const n = ABY.floor;
+  return z.boss ? d * (10 + .5 * n) : d * (.6 + .05 * n) * (z.abyE ? 2.5 : 1); }
+const ABYV = { px: 0, pz: 0, vx: 0, vz: 0 };
+zSpecialTick = (o => function (dt) { o(dt); if (!abyOn()) return; try {
+  // your speed, for leading the shots
+  if (dt > 0) { const vx = (player.pos.x - ABYV.px) / dt, vz = (player.pos.z - ABYV.pz) / dt; if (Math.hypot(vx, vz) < 30) { ABYV.vx += (vx - ABYV.vx) * Math.min(1, dt * 8); ABYV.vz += (vz - ABYV.vz) * Math.min(1, dt * 8); } }
+  ABYV.px = player.pos.x; ABYV.pz = player.pos.z;
+  const sk = abySpdK(), ak = abyAtkK();
+  for (const z of new Set([...zombies, ...(boss && boss.aby ? [boss] : [])])) {   // (the boss is usually in zombies too: once only) if (!z || z.dead || z.mirror || !z.aby) continue;
+    if (!z.abyX) { z.abyX = 1;   // once per monster: speed, and life never below what your weapon would melt in a moment
+      if (z.spd) z.spd = z.boss ? z.spd * (1 + (sk - 1) * .5) : Math.min(6.4, z.spd * sk);
+      const f = abyHpFloor(z); if (f > z.max) { const r = z.max > 0 ? z.hp / z.max : 1; z.max = Math.round(f); z.hp = Math.round(f * r); } }
+    // attacks come faster: the cool-downs run down quicker
+    const ex = dt * (ak - 1); if (z.cd > 0) z.cd -= ex; if (z.acd > 0) z.acd -= ex; }
+} catch (e) { console.warn('aby2', e); } })(zSpecialTick);
+// only you are the target down here
+zTarget = (o => function (z) { if (z && z.aby && abyOn()) return { x: player.pos.x, z: player.pos.z, peer: null, d: S.dead ? 1e9 : Math.hypot(player.pos.x - z.pos.x, player.pos.z - z.pos.z) }; return o(z); })(zTarget);
+// spit is thrown where you are going (most of the way)
+spitAt = (o => function (z, x, zz) { if (z && z.aby && abyOn()) { const T = Math.max(.35, Math.hypot(x - z.pos.x, zz - z.pos.z) / 14); x += ABYV.vx * T * .8; zz += ABYV.vz * T * .8; } return o(z, x, zz); })(spitAt);
+// a landed hit always costs a slice of your life, however good the armour
+takeDamage = (o => function (n, src) {
+  if (!abyOn() || !src || !src.aby || S.dead) return o(n, src);
+  const h0 = S.hp, s0 = ABY.shield || 0; const r = o(n, src); if (S.dead || !abyOn() || ABY.result) return r;
+  const lost = (h0 - S.hp) + (s0 - (ABY.shield || 0)), min = S.maxHp * abyHitMin();
+  if (lost > 0 && lost < min) { const extra = min - lost; if (S.hp - extra > 0) S.hp -= extra; else { const iv = S.invT; S.invT = 0; o(S.hp + 1, src); if (S.invT < iv) S.invT = iv; } }
+  return r;
+})(takeDamage);
 /* ============ 走上船：老钱的商船 → 收藏馆，深渊号 → 潜艇舱内 ============
    - Both gangplanks are walkable now. Walk up to the deck end and you are taken inside (a 3D room, built with the dungeon engine
      as DUNS[10] / DUNS[11] at the far-away dungeon spot, so nothing outside can wander in). Walk to the door to come back out
@@ -22015,4 +22059,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794835997').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794837741').catch(()=>{});</script></body></html>
