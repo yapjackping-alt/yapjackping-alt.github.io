@@ -18087,7 +18087,7 @@ function tpWaterMat() { if (_tpWM) return _tpWM;
   const R = mulberry32(31); for (let i = 0; i < 140; i++) { const px = R() * 256, py = R() * 256, w = 6 + R() * 18; x.strokeStyle = 'rgba(255,255,255,' + (.25 + R() * .35) + ')'; x.lineWidth = 1 + R() * 1.4; x.beginPath(); x.moveTo(px - w, py); x.quadraticCurveTo(px, py - 3 - R() * 3, px + w, py); x.stroke();
     for (const [ox, oy] of [[256, 0], [-256, 0], [0, 256], [0, -256]]) { x.beginPath(); x.moveTo(px - w + ox, py + oy); x.quadraticCurveTo(px + ox, py - 4 + oy, px + w + ox, py + oy); x.stroke(); } }
   const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  _tpWM = new THREE.MeshPhongMaterial({ map: t, vertexColors: true, transparent: true, opacity: .84, specular: 0xcff4ff, shininess: 70, depthWrite: false });
+  _tpWM = new THREE.MeshLambertMaterial({ map: t, vertexColors: true, transparent: true, opacity: .84, depthWrite: false });   // no shine: your glowing outfit made a huge white spot on the water
   return _tpWM; }
 function tpWater(floors) {
   const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, idx = new Int32Array(N * N).fill(-1), pos = [], uv = [], ind = [];
@@ -18445,6 +18445,17 @@ bodyAudio = (o => function (dt, moving) {
     try { if (mv) { sfxNoise(.32, .13, 700, { type: 'bandpass', f1: 450, q: .7 }); sfxNoise(.18, .07, 2400, { type: 'bandpass', f1: 1500, q: 1, delay: .12 }); }
       else sfxNoise(.5, .04, 500, { type: 'bandpass', f1: 380, q: .8 }); } catch (e) { } }
 })(bodyAudio);
+// companions swim too: in deep water they sink to the shoulders and bob, with a ripple now and then (they used to walk on the water)
+function compSwimTick(dt) {
+  if (typeof COMPS === 'undefined' || !S.isl || S.dun) return;
+  for (const [, P] of COMPS) { const p = P.pos; if (!p) continue; const lvl = islWaterLevel(p.x, p.z), deep = lvl != null && lvl - swGround(p.x, p.z) > .5;
+    if (deep) { p.y = lvl - .62 + Math.sin(S.t * 2.4 + p.x) * .05; P._sw = (P._sw || 0) - dt; if (P._sw <= 0) { P._sw = rand(.4, .9); burst(p.x + rand(-.2, .2), lvl + .04, p.z + rand(-.2, .2), 0xdff6ff, 2, 1); } } }
+}
+petsTick = (o => function (dt) { const r = o(dt); try { compSwimTick(dt); } catch (e) { } return r; })(petsTick);
+// an island tree standing where you made water (a pond, a river) goes away; it comes back if the water is filled in
+treeUnderBuild = (o => function (T) { if (o(T)) return true;
+  try { if (S.isl && Math.hypot(T.x - HOME.x, T.z - HOME.z) < ISL_R + 4) { const l = islWaterLevel(T.x, T.z); if (l != null && l - swGround(T.x, T.z) > .2) return true; } } catch (e) { }
+  return false; })(treeUnderBuild);
 /* ============ water round the boats ============
    Every boat on the water (老钱's ship, the 深渊号 submarine, the small boat at the pier, your fishing boat) has soft rings of
    ripples spreading out from its hull. Your fishing boat while it moves leaves a white wake behind it (two lines spreading
@@ -21308,4 +21319,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794767933').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794787689').catch(()=>{});</script></body></html>
