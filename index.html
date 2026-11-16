@@ -1002,7 +1002,7 @@ body.chatOn #chatFeed{display:none}#chatFull{display:flex;align-items:center}
   <div id="build"></div>
   <button class="btn2" id="bTrade">与商人交易</button>
   <button class="btn2" id="bBench">使用工作台</button>
-  <button class="btn2" id="bPort">⛵ 坐船出海</button>
+  <button class="btn2" id="bPort"><svg class="ei" viewBox="0 0 24 24" width="1.05em" height="1.05em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.17em"><path d="M3 15h18l-2.5 4.5h-13z" fill="currentColor" stroke="none"/><path d="M12 3v11M12 3l6 9h-6M11 5l-5 7h5"/></svg> 坐船出海</button>
   <div id="act">
     <button class="btn" id="bPlace">放置</button>
     <button class="btn" id="bRot">转向</button>
@@ -1033,7 +1033,7 @@ body.chatOn #chatFeed{display:none}#chatFull{display:flex;align-items:center}
 
 <div class="overlay" id="talents">
   <h2>角色</h2>
-  <div id="charTop"><button class="go ghost" id="bSettings">⚙ 设置</button><button class="go ghost" id="bPartyT">联机<small id="coopTxt"></small></button><button class="go" id="talClose2">继续战斗</button></div>
+  <div id="charTop"><button class="go ghost" id="bSettings"><svg class="ei" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:-.15em"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M5.5 18.5l2.1-2.1M16.4 7.6l2.1-2.1"/><circle cx="12" cy="12" r="6.5"/></svg> 设置</button><button class="go ghost" id="bPartyT">联机<small id="coopTxt"></small></button><button class="go" id="talClose2">继续战斗</button></div>
   <div id="talHead"></div>
   <div id="charStats"></div>
   <div id="talOpenRow"><button class="go" id="bTalTree">天赋<span id="talPtsB"></span></button></div>
@@ -1069,7 +1069,7 @@ body.chatOn #chatFeed{display:none}#chatFull{display:flex;align-items:center}
 </div>
 
 <div class="overlay scroll" id="port">
-  <h2>⛵ 出海 · 选择目的地</h2>
+  <h2><svg class="ei" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.12em"><path d="M3 15h18l-2.5 4.5h-13z" fill="currentColor" stroke="none"/><path d="M12 3v11M12 3l6 9h-6M11 5l-5 7h5"/></svg> 出海 · 选择目的地</h2>
   <div class="snote">选择要降落的区域。区域 1 的怪物是 Lv.1-10，区域 2 是 Lv.11-20，以此类推。地面上随时可以按「回岛」返回。</div>
   <div id="portList" class="slist"></div>
   <div class="btnrow"><button class="go ghost" id="portClose">关闭</button></div>
@@ -6519,7 +6519,7 @@ function clearGround() {
 }
 // a short sea crossing between the island and the mainland: the screen fades to a little sailing scene
 function voyage(text, fn) {
-  const f = $('fade'); f.innerHTML = '<div class="voy"><div class="voyb">⛵</div><div class="voyw"></div><b>' + text + '</b><span>海风吹着，船正在航行……</span></div>'; f.classList.add('on', 'sail'); input.fire = false; sfxNoise(1.6, .12, 500, { type: 'bandpass', q: .6 });
+  const f = $('fade'); f.innerHTML = '<div class="voy"><div class="voyb">' + EI('boat', '1em') + '</div><div class="voyw"></div><b>' + text + '</b><span>海风吹着，船正在航行……</span></div>'; f.classList.add('on', 'sail'); input.fire = false; sfxNoise(1.6, .12, 500, { type: 'bandpass', q: .6 });
   setTimeout(() => { try { fn(); } finally { setTimeout(() => { f.classList.remove('on', 'sail'); setTimeout(() => { if (!f.classList.contains('on')) f.innerHTML = ''; }, 400); }, 200); } }, 1500);
 }
 function fadeThen(fn) {
@@ -8069,7 +8069,7 @@ S.payTok = [];
 window.payPrices = o => { Object.assign(PAY_PRICE, o || {}); try { if ($('mall').classList.contains('show') && mallTab === 'gem') renderMall(); } catch (e) { } };
 window.payDone = (id, tok) => { PAYQ.push([id, tok]); payFlush(); };
 window.payPending = () => feed('付款处理中，Google 确认后晶石会自动到账', '#ffc94a');
-window.payFail = (id, msg) => { feed(msg || '付款没有完成', '#ff9b8a'); if (msg && !/取消/.test(msg)) try { banner('付款没有完成', msg, 5); const L = $('mallList'); if (L && L.prepend) { const d = document.createElement('div'); d.className = 'snote'; d.style.cssText = 'color:#ff9b8a;border:1px solid #ff9b8a;border-radius:10px;padding:8px'; d.textContent = '⚠ ' + msg; L.prepend(d); } } catch (e) { } };   // a big notice, not only the small line
+window.payFail = (id, msg) => { feed(msg || '付款没有完成', '#ff9b8a'); if (msg && !/取消/.test(msg)) try { banner('付款没有完成', msg, 5); const L = $('mallList'); if (L && L.prepend) { const d = document.createElement('div'); d.className = 'snote'; d.style.cssText = 'color:#ff9b8a;border:1px solid #ff9b8a;border-radius:10px;padding:8px'; d.textContent = msg; L.prepend(d); } } catch (e) { } };   // a big notice, not only the small line
 function payFlush() {
   if (!Acct.cur || !PAYQ.length) return;
   while (PAYQ.length) { const [id, tok] = PAYQ.shift(), i = PAY_IDS.indexOf(id);
@@ -8514,7 +8514,7 @@ function renderGuide() {
     for (const [id, n, d] of items) {
       const it = document.createElement('div'); it.className = 'gi'; const ic = document.createElement('div'); ic.className = 'gic';
       if (id === 'stick') { const s = document.createElement('div'); s.className = 'stick'; ic.appendChild(s); }
-      else if (id === 'look') { ic.innerHTML = '<span style="font-size:34px">👆</span>'; }
+      else if (id === 'look') { ic.innerHTML = '<span style="font-size:34px;color:#ffe08a">' + EI('tap', '1em') + '</span>'; }
       else if (id === 'status') ic.innerHTML = '<span class="gfake">Lv.1<i></i></span>';
       else if (id === 'mapwrap') ic.innerHTML = '<span class="gfake gmap">雷达</span>';
       else { const src = $(id); const round = src && src.classList && src.classList.contains('btn');
@@ -8534,7 +8534,7 @@ function renderGuide() {
   document.body.appendChild(ov);
   const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => closePanel('guide')); ov.appendChild(x);
   // the guide button lives in the top-left corner of the character page
-  { const t = $('talents'); if (t && t.appendChild) { const b = document.createElement('button'); b.className = 'ovhelp'; b.id = 'bHelp'; b.innerHTML = '❕<small>按钮指南</small>'; b.setAttribute('aria-label', '按钮指南');
+  { const t = $('talents'); if (t && t.appendChild) { const b = document.createElement('button'); b.className = 'ovhelp'; b.id = 'bHelp'; b.innerHTML = EI('help', '22px') + '<small>按钮指南</small>'; b.setAttribute('aria-label', '按钮指南');
       b.addEventListener('click', () => { closeTalents(); openPanel('guide', renderGuide); }); t.appendChild(b); } }
   // top right: 任务 / 活动 / 商城 fold into a tray behind a round ⬅ button next to the map
   setTimeout(() => { try {
@@ -8736,7 +8736,7 @@ function fpTeach() { S.fpNew = 1; storyTalk([['老陈', T2('还有一招：在�
 stAdvance = (orig => function () { const c0 = S.story.c; orig(); if (c0 === 0 && S.story.c >= 1) try { fpTeach(); } catch (e) { } })(stAdvance);
 setInterval(() => { try {
   const box = $('qbag'); if (!box || !S.started) return; let b = $('bView');
-  if (!b) { b = document.createElement('button'); b.id = 'bView'; b.className = 'bagbtn viewbtn'; b.innerHTML = '<span class="vic">👁</span><small></small>'; box.insertBefore(b, box.firstChild);
+  if (!b) { b = document.createElement('button'); b.id = 'bView'; b.className = 'bagbtn viewbtn'; b.innerHTML = '<span class="vic">' + EI('eye', '1em') + '</span><small></small>'; box.insertBefore(b, box.firstChild);
     b.addEventListener('click', e => { e.stopPropagation(); FP.en = !FP.en; S.fpNew = 0; try { localStorage.setItem('ember_fp', FP.en ? '1' : '0'); } catch (er) { } feed(FP.en ? T2('第一人称：右半屏滑动转头', 'First person: swipe right side to look') : T2('俯视视角', 'Top-down view'), '#7de0ff'); }); }
   const show = fpUnl() && S.isl && !S.dead; b.style.display = show ? '' : 'none'; b.querySelector('small').textContent = FP.en ? T2('俯视', 'Top') : T2('第一人称', '1st'); b.classList.toggle('pulse', !!S.fpNew);
 } catch (e) { } }, 500);
@@ -9381,7 +9381,7 @@ function repairPill() {
     const st = document.createElement('style'); st.textContent = '#repairPill{position:fixed;left:50%;top:calc(var(--st,0px) + 54px);transform:translateX(-50%);z-index:9;display:none;align-items:center;gap:8px;padding:8px 16px;border-radius:12px;border:1.5px solid #ffb07a;background:linear-gradient(180deg,rgba(90,30,14,.92),rgba(40,12,8,.92));color:#ffe0c8;font-weight:800;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.45);animation:rpPulse 1.6s ease-in-out infinite}#repairPill small{font-weight:600;color:#ffc8a8;font-size:11.5px}#repairPill.no small{color:#ff8a7a}@keyframes rpPulse{50%{box-shadow:0 0 18px rgba(255,140,80,.7)}}'; document.head.appendChild(st); }
   if (!n) { b.style.display = 'none'; return; }
   const cost = n * 2, ok = matHave('wood') >= cost, key = n + '|' + ok; b.style.display = 'flex'; b.classList.toggle('no', !ok);
-  if (b._k !== key) { b._k = key; b.innerHTML = '🔨 ' + T2('修复 ' + n + ' 处被破坏的建筑', 'Repair ' + n + ' broken buildings') + ' <small>' + T2('木头 ×' + cost + (ok ? '' : '（不够）'), 'wood ×' + cost + (ok ? '' : ' (not enough)')) + '</small>'; }
+  if (b._k !== key) { b._k = key; b.innerHTML = EI('hammer') + ' ' + T2('修复 ' + n + ' 处被破坏的建筑', 'Repair ' + n + ' broken buildings') + ' <small>' + T2('木头 ×' + cost + (ok ? '' : '（不够）'), 'wood ×' + cost + (ok ? '' : ' (not enough)')) + '</small>'; }
 }
 setInterval(() => { try { repairPill(); } catch (e) { } }, 1000);
 /* ============ 时装补给箱 + 礼包 ============
@@ -9867,7 +9867,7 @@ function fbRender(box, h3, note) {
   hubRow(box, '我：' + R.n + (rk ? ' · 第 ' + rk + ' 名' : ''), (FB.sort === 'lv' ? 'Lv.' + R.lv : R[FB.sort] + ' ' + unit) + ' · 游客账号' + (FB.uid ? ' ' + FB.uid.slice(0, 6) : '（未登录）'), '#7de0ff', '刷新', () => fbLoad(FB.sort), FB.busy);
   const rows = FB.rows[FB.sort];
   if (FB.err) note(fbErrTxt(FB.err));
-  if (rows && rows.length) rows.forEach((r, i) => { const me = r.id === fbDocId(); hubRow(box, (i < 3 ? ['🥇', '🥈', '🥉'][i] : '#' + (i + 1)) + ' ' + cleanName(r.n || '?') + (me ? '（我）' : ''), 'Lv.' + (r.lv | 0) + ' · 战力 ' + (r.cp | 0) + ' · 击杀 ' + (r.k | 0) + (r.w ? ' · 尸潮 ' + r.w + ' 波' : ''), me ? '#7de0ff' : i < 3 ? '#ffc94a' : '#c1a597'); });
+  if (rows && rows.length) rows.forEach((r, i) => { const me = r.id === fbDocId(); hubRow(box, ('#' + (i + 1)) + ' ' + cleanName(r.n || '?') + (me ? '（我）' : ''), 'Lv.' + (r.lv | 0) + ' · 战力 ' + (r.cp | 0) + ' · 击杀 ' + (r.k | 0) + (r.w ? ' · 尸潮 ' + r.w + ' 波' : ''), me ? '#7de0ff' : i < 3 ? '#ffc94a' : '#c1a597'); });
   else if (!FB.err) note(FB.busy ? '排行榜读取中…' : '还没有人上榜，点「刷新」');
   note('每个设备自动有一个游客账号，不用注册。换手机或删掉 App 会换成新账号。');
 }
@@ -9891,7 +9891,7 @@ function loginShow() {
   let o = $('login');
   if (!o) { o = document.createElement('div'); o.className = 'overlay'; o.id = 'login';
     o.innerHTML = '<h2>选择登录方式</h2><div class="lgbox">'
-      + '<button class="lgb" id="lgGuest"><span class="lgi">👤</span><b>游客登录</b><small>不用注册，马上开始。成绩会进全球排行榜</small></button>'
+      + '<button class="lgb" id="lgGuest"><span class="lgi">' + EI('user', '24px') + '</span><b>游客登录</b><small>不用注册，马上开始。成绩会进全球排行榜</small></button>'
       + '<button class="lgb" id="lgGoogle"><span class="lgi lgg">G</span><b>Google 登录</b><small id="lgGTxt"></small></button>'
       + '</div><div class="snote" id="lgNote">以后可以在「选择角色」页面上方切换登录方式</div>';
     document.body.appendChild(o);
@@ -9995,7 +9995,7 @@ function sosSpawn() {
   h.armL.rotation.x = h.armR.rotation.x = -2.6;   // waving for help
   SOS.s = { c, h, x, z, hp: 100, t: 150, req, safe: false, said: false };
   for (let i = 0; i < 3 + Math.min(4, lvTier() >> 1); i++) { const b = (i / 4) * 6.283 + rand(-.4, .4), rr = rand(3, 6); const zb = spawnZombie(Math.random() < .6 ? 'walker' : 'runner', x + Math.cos(b) * rr, z + Math.sin(b) * rr, false); zb.aggro = 60; zb.sosT = 1; }
-  feed('📻 附近有人在求救！（地图上的红色「救」）', '#ff9b8a'); banner('有人在求救', role + ' ' + n + ' 被丧尸围住了，快去救！', 3.5); try { sfxTone(700, 500, .25, .1, 'square'); } catch (e) { }
+  feed('附近有人在求救！（地图上的红色「救」）', '#ff9b8a'); banner('有人在求救', role + ' ' + n + ' 被丧尸围住了，快去救！', 3.5); try { sfxTone(700, 500, .25, .1, 'square'); } catch (e) { }
 }
 function sosEnd(msg, col) { const s = SOS.s; if (!s) return; scene.remove(s.h.g); SOS.s = null; SOS.t = rand(160, 300); if (msg) feed(msg, col || '#c1a597'); recruitBtn(); }
 function sosTick(dt) {
@@ -10080,7 +10080,7 @@ function compCollect() { const d = dateKey(), got = {}; let fixed = 0;
 let _cKey = '';
 function compHud(force) { const b = $('bComp'); if (!b) return; const f = S.comps.filter(c => c.mode === 'follow'), key = S.comps.length + '|' + f.map(c => c.n + Math.round(c.hp / compMax(c) * 10)).join() + '|' + compReady().length;
   if (!force && key === _cKey) return; _cKey = key; b.style.display = S.comps.length ? 'flex' : 'none';
-  b.innerHTML = '<b>👥</b><span>' + (f.length ? f.map(c => c.n).join('·') : '同伴 ×' + S.comps.length) + '</span>' + (compReady().length && S.isl ? '<i class="cdot"></i>' : ''); }
+  b.innerHTML = '<b>' + EI('people') + '</b><span>' + (f.length ? f.map(c => c.n).join('·') : '同伴 ×' + S.comps.length) + '</span>' + (compReady().length && S.isl ? '<i class="cdot"></i>' : ''); }
 function renderComps() {
   const box = $('compList'); if (!box) return; box.innerHTML = '';
   const note = t => { const n = document.createElement('div'); n.className = 'snote'; n.textContent = t; box.appendChild(n); };
@@ -10156,7 +10156,7 @@ buildMesh = (orig => function (type) {
 canAfford = (orig => function (t) { return !bpLocked(t) && orig(t); })(canAfford);
 selectBuild = (orig => function (k) { if (bpLocked(k)) { feed('需要「' + BT[k].name + '」蓝图：' + bpSrc(k), '#ff9b8a'); return; } return orig(k); })(selectBuild);
 buildCards = (orig => function () { orig(); try { buildEl.querySelectorAll('.card').forEach(c => { const k = c.dataset.k; if (!BT[k] || !BT[k].bp) return; c.classList.add('bpc');
-  if (bpLocked(k)) { c.classList.add('bplock'); const sp = c.querySelector('span'); if (sp) sp.textContent = '🔒 需要蓝图 · ' + bpSrc(k); } }); } catch (e) { } })(buildCards);
+  if (bpLocked(k)) { c.classList.add('bplock'); const sp = c.querySelector('span'); if (sp) sp.innerHTML = EI('lock') + ' 需要蓝图 · ' + bpSrc(k); } }); } catch (e) { } })(buildCards);
 let _bpT = 0;
 updateBuilds = (orig => function (dt) { orig(dt); _bpT += dt;
   for (const b of builds) { if (b.broken || b.hp <= 0) continue;
@@ -11737,14 +11737,15 @@ let bpmTab = 'draw';
 function renderBpm() {
   const box = $('bpmList'); if (!box) return; box.innerHTML = '';
   const el2 = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
-  const tabs = el2('div', 'tabs'); [['draw', '蓝图抽奖'], ['tur', '炮塔升级']].forEach(([k, n]) => { const b = el2('button', 'sbtn' + (bpmTab === k ? ' on' : ''), n); b.addEventListener('click', () => { bpmTab = k; renderBpm(); }); tabs.appendChild(b); }); box.appendChild(tabs);
+  const tabs = el2('div', 'tabs'); [['draw', '蓝图抽奖'], ['ex', '蓝图兑换'], ['tur', '炮塔升级']].forEach(([k, n]) => { const b = el2('button', 'sbtn' + (bpmTab === k ? ' on' : ''), n); b.addEventListener('click', () => { bpmTab = k; renderBpm(); }); tabs.appendChild(b); }); box.appendChild(tabs);
   box.appendChild(el2('div', 'bpmhave', svgIcon('bpf') + '<b>' + matHave('bpf') + '</b><span>图纸残页 · 打任何怪物都会掉（每 5 只有机会掉 0-5 张，精英、首领掉更多）</span>'));
+  if (bpmTab === 'ex') { try { bpxRender(box, el2); } catch (e) { console.warn(e); } return; }
   if (bpmTab === 'draw') {
     const hero = el2('div', 'bpmhero');
     hero.innerHTML = '<div class="bpmmach" id="bpmMach"><i class="lamp"></i><div class="scr"><div class="paper">' + svgIcon('bp') + '</div></div><div class="slot"></div></div>' +
       '<div class="bpmtx"><b>蓝图抽奖机</b><span>神话「神话炮塔」· 传说「黄金炮塔」「电网塔」· 史诗白银炮塔、重机枪塔、玻璃墙、吊灯、鱼缸 · 稀有 青铜炮塔、石墙、铁墙等</span>' +
       '<div class="gods">' + BPG.map(G => '<i style="--gc:' + G.c + '">' + G.n + ' ' + (G.p * 100).toFixed(0) + '%</i>').join('') + '</div>' +
-      '<div class="gpity"><u><i style="width:' + Math.round(S.bmp / BP_PITY * 100) + '%"></i></u><span>神话保底 ' + S.bmp + ' / ' + BP_PITY + ' · 十连至少一个史诗 · 重复蓝图换回残页</span></div></div>';
+      '<div class="gpity"><u><i style="width:' + Math.round(S.bmp / BP_PITY * 100) + '%"></i></u><span>神话保底 ' + S.bmp + ' / ' + BP_PITY + ' · 十连至少一个史诗 · 重复的蓝图变成「蓝图精华」，去「蓝图兑换」换你想要的</span></div></div>';
     const r = el2('div', 'gbtns'); [[1, '抽 1 次'], [10, '抽 10 次']].forEach(([n, t]) => { const b = el2('button', 'gbtn' + (n === 10 ? ' ten' : ''), '<b>' + t + '</b><small>' + svgIcon('bpf') + BP_COST[n] + ' 残页</small>'); b.disabled = matHave('bpf') < BP_COST[n]; b.addEventListener('click', () => bpDraw(n)); r.appendChild(b); });
     hero.appendChild(r); box.appendChild(hero);
     box.appendChild(el2('h3', '', '奖池一览 · 已拥有 ' + Object.keys(BPX).filter(k => S.bp[k]).length + ' / ' + Object.keys(BPX).length));
@@ -11756,7 +11757,7 @@ function renderBpm() {
     TG.forEach((G, i) => { const k = G.k, L = tgLv(k), own = !i || S.bp[k], row = el2('div', 'strow tgrow'); row.style.setProperty('--qc', G.c);
       row.innerHTML = '<span class="stic">' + svgIcon('tg' + i) + '</span><span class="stn"><b style="color:' + G.c + '">' + G.n + '炮塔 · Lv.' + L + '</b><small>伤害 ' + Math.round(tgDmg(k)) + ' · 射速 ' + (1 / tgCd(k)).toFixed(1) + '/秒 · 射程 ' + Math.round(tgRg(k)) + ' 米' + (G.n2 > 1 ? ' · 同时打 ' + G.n2 + ' 只' : '') + (i === 4 ? ' · 点燃' : '') + '</small>' +
         (own && L < TG_MAX ? '<small class="attcost">' + costHtml(tgCost(k)) + '</small><small>成功率 ' + Math.round(tgOdds(k) * 100) + '%</small>' : '') + '</span>';
-      const b = el2('button', 'sbtn', !own ? '🔒 未有蓝图' : L >= TG_MAX ? '满级' : '升级'); b.disabled = !own || L >= TG_MAX || !costOk(tgCost(k));
+      const b = el2('button', 'sbtn', !own ? EI('lock') + ' 未有蓝图' : L >= TG_MAX ? '满级' : '升级'); b.disabled = !own || L >= TG_MAX || !costOk(tgCost(k));
       b.addEventListener('click', () => { tgUp(k); renderBpm(); }); row.appendChild(b); box.appendChild(row); });
   }
 }
@@ -11848,10 +11849,10 @@ rwIcon = (o => function (d) {
 } catch (e) { } })();
 
 /* ---- save / load ---- */
-shopSave = (o => function () { const r = o(); try { r.bpm = { tl: S.tlv, tf: S.tfail, m: S.bmp | 0, k: S.bpk | 0, av: S.av, mp5: S.mp5 | 0, af: S.avf | 0 }; } catch (e) { } return r; })(shopSave);
-shopLoad = (o => function (d) { o(d); S.tlv = {}; S.tfail = {}; S.bmp = 0; S.bpk = 0; S.av = []; S.mp5 = 0; S.avf = 0; _bpScan = 1;
+shopSave = (o => function () { const r = o(); try { r.bpm = { tl: S.tlv, tf: S.tfail, m: S.bmp | 0, k: S.bpk | 0, e: S.bpe | 0, av: S.av, mp5: S.mp5 | 0, af: S.avf | 0 }; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.tlv = {}; S.tfail = {}; S.bpe = 0; S.bmp = 0; S.bpk = 0; S.av = []; S.mp5 = 0; S.avf = 0; _bpScan = 1;
   try { const B = d && d.sh && d.sh.bpm; if (B) { for (const g of TG) { const l = B.tl && B.tl[g.k] | 0; if (l > 1) S.tlv[g.k] = clamp(l, 1, TG_MAX); const f = B.tf && B.tf[g.k] | 0; if (f > 0) S.tfail[g.k] = Math.min(f, 10); }
-    S.bmp = clamp(B.m | 0, 0, BP_PITY); S.bpk = clamp(B.k | 0, 0, 4); S.mp5 = clamp(B.mp5 | 0, 0, MPITY); S.avf = Math.max(0, B.af | 0);
+    S.bpe = Math.max(0, B.e | 0); S.bmp = clamp(B.m | 0, 0, BP_PITY); S.bpk = clamp(B.k | 0, 0, 4); S.mp5 = clamp(B.mp5 | 0, 0, MPITY); S.avf = Math.max(0, B.af | 0);
     if (Array.isArray(B.av)) S.av = B.av.filter(x => Array.isArray(x) && ATT_K[x[0]] && ATT_K[x[0]][x[1]] && x[2] >= 0 && x[2] <= 5).slice(-AV_MAX); } } catch (e) { } })(shopLoad);
 /* ============ every region has its own zombie, every boss its own signature skill ============
    Region zombies (one per region, with their own body and their own trick):
@@ -15589,7 +15590,7 @@ function ulLockedFor(el) {
 }
 const ulBuildLock = type => { if (!ulOn()) return null; for (const u of UNLOCK) if (S.level < u[1] && u[4].indexOf(type) >= 0) return u; return null; };      // 这个建筑类型被锁了吗？
 // 建造菜单：选了被锁的建筑，提示并拒绝；菜单重画之后，给被锁的卡片变灰
-try { selectBuild = (o => function (k) { const u = ulBuildLock(k); if (u) { if (Date.now() - UL.toast > 900) { UL.toast = Date.now(); try { feed('🔒 ' + T2('Lv.' + u[1] + ' 解锁：', 'Opens at Lv.' + u[1] + ': ') + u[2], '#ffd060'); } catch (e) { } } return; } return o(k); })(selectBuild); } catch (e) { console.warn('unlock selectBuild', e); }
+try { selectBuild = (o => function (k) { const u = ulBuildLock(k); if (u) { if (Date.now() - UL.toast > 900) { UL.toast = Date.now(); try { feed(T2('Lv.' + u[1] + ' 解锁：', 'Opens at Lv.' + u[1] + ': ') + u[2], '#ffd060'); } catch (e) { } } return; } return o(k); })(selectBuild); } catch (e) { console.warn('unlock selectBuild', e); }
 function ulPaintBuild() { try { const root = document.querySelectorAll ? document.querySelectorAll('#buildEl .card, .card[data-k]') : []; root.forEach(c => { const u = ulBuildLock(c.dataset && c.dataset.k); c.classList.toggle('ulock', !!u); if (u) c.setAttribute('data-ul', 'Lv.' + u[1]); else if (c.removeAttribute) c.removeAttribute('data-ul'); }); } catch (e) { } }
 try { buildCards = (o => function () { const r = o.apply(this, arguments); ulPaintBuild(); return r; })(buildCards); } catch (e) { console.warn('unlock buildCards', e); }
 
@@ -15604,7 +15605,7 @@ shopLoad = (o => function (d) {
 (() => {
   try {
     const hit = e => { const u = ulLockedFor(e.target); if (!u) return; e.stopImmediatePropagation(); e.preventDefault && e.preventDefault();
-      if ((e.type === 'pointerdown' || e.type === 'click') && Date.now() - UL.toast > 900) { UL.toast = Date.now(); try { feed('🔒 ' + T2('Lv.' + u[1] + ' 解锁：', 'Opens at Lv.' + u[1] + ': ') + u[2], '#ffd060'); } catch (er) { } } };
+      if ((e.type === 'pointerdown' || e.type === 'click') && Date.now() - UL.toast > 900) { UL.toast = Date.now(); try { feed(T2('Lv.' + u[1] + ' 解锁：', 'Opens at Lv.' + u[1] + ': ') + u[2], '#ffd060'); } catch (er) { } } };
     ['pointerdown', 'click', 'touchstart', 'mousedown'].forEach(ev => document.addEventListener(ev, hit, { capture: true, passive: false }));
   } catch (e) { console.warn('unlock hook', e); }
 })();
@@ -15629,7 +15630,7 @@ try {
   document.head.appendChild(st);
 } catch (e) { }
 // dungeons: the pier still lists them, but below Lv.12 (new saves) "查看" says when they open
-openDunPage = (o => function () { if (!ulOpen('dungeon')) { feed('🔒 ' + T2('Lv.12 解锁：副本', 'Opens at Lv.12: Dungeons'), '#ffd060'); return; } return o.apply(this, arguments); })(openDunPage);
+openDunPage = (o => function () { if (!ulOpen('dungeon')) { feed(T2('Lv.12 解锁：副本', 'Opens at Lv.12: Dungeons'), '#ffd060'); return; } return o.apply(this, arguments); })(openDunPage);
 /* ============ the tutorial is the main story (Nov 2026) ============
    New players kept saying "I don't know what to do". So:
    1. The prologue (island) and chapter 1 (suburbs) now teach one thing per step, each with a line from Old Chen.
@@ -15798,7 +15799,7 @@ stTrk = (o => function () {
         (st2CommLine() || '<span class="stcomm">▸ ' + T2('现在：在「' + st2Region() + '」打丧尸、开箱子升级，做每日任务', 'Now: fight and open crates in the ' + st2Region() + ', do your daily tasks') + '</span>') +
         '<span class="stxp">' + T2('下一级还差 ', 'Next level: ') + left + ' XP</span>'; return; }
     if (st && st.k === 'lv') { const sp = e.querySelector('span'); if (sp) sp.innerHTML = '▸ ' + st.d + ' <em>' + T2('还差 ', '') + Math.max(0, xpNeed(S.level) - S.xp) + ' XP</em>'; }
-    if (st) e.insertAdjacentHTML('beforeend', '<span class="stxp strw">🎁 ' + stStepRwTxt(stStepRw(S.story.c, S.story.s)) + '</span>');
+    if (st) e.insertAdjacentHTML('beforeend', '<span class="stxp strw">' + EI('gift') + ' ' + stStepRwTxt(stStepRw(S.story.c, S.story.s)) + '</span>');
     const cl = st2CommLine(); if (cl) e.insertAdjacentHTML('beforeend', cl);
   } catch (er) { }
 })(stTrk);
@@ -15893,6 +15894,44 @@ stAdvance = (o => function () { o(); try { stSkinPay(); } catch (e) { } })(stAdv
 stRwTxt = (o => function (R) { let t = o(R); try { const i = STORY.findIndex(C => C.rw === R), a = ST_SKIN[i]; if (a && stSkinOk(a)) t += ' · ' + stSkinName(a); } catch (e) { } return t; })(stRwTxt);
 shopSave = (o => function () { const r = o(); try { if (r.st2) r.st2.sk = ST2.sk; } catch (e) { } return r; })(shopSave);
 shopLoad = (o => function (d) { o(d); ST2.sk = 0; try { const g = d && d.sh && d.sh.st2; if (g) ST2.sk = g.sk | 0; } catch (e) { } setTimeout(() => { try { if (S.started) stSkinPay(); } catch (e) { } }, 3000); })(shopLoad);
+/* ============ longer story chapters 2-10 (owner: "chapters 2-10 are too short") ============
+   Each chapter had 3 steps (go there, one task, a finale). New steps go in BEFORE the finale, each with a line from 老陈.
+   Old saves: storySave now carries a version (5th field = 3); a save without it that is on the finale of one of these
+   chapters is moved forward by the number of new steps, so nobody repeats or skips anything. */
+const ST3_ADD = {
+  2: [{ k: 'search', n: 2, tier: 2, say: T2('哨站的人走得很急，房子里可能还留着东西。去搜两栋。', 'The outpost people left in a hurry. The houses may still hold something. Search two.'), d: T2('在森林或更深处搜索 2 栋建筑', 'Search 2 buildings in the forest or deeper') },
+    { k: 'crate', n: 4, tier: 2, say: T2('林子里散落着补给箱，是空投掉偏了的。能捡就捡。', 'Supply crates lie scattered in the woods: airdrops that missed. Grab what you can.'), d: T2('在森林或更深处打开 4 个箱子', 'Open 4 crates in the forest or deeper') },
+    { k: 'wlv', n: 5, say: T2('外面的丧尸只会越来越硬。回去把武器升一升，至少到 5 级。', 'The zombies only get tougher. Upgrade a weapon, at least to level 5.'), d: T2('把任意一把武器升到 Lv.5', 'Upgrade any weapon to Lv.5') }],
+  3: [{ k: 'kill', n: 25, tier: 3, say: T2('水塔周围全是被叫过去的丧尸，先清外围，别让它们围上来。', 'The tower is ringed by zombies it called in. Clear the outside first, don\'t let them close in.'), d: T2('在荒漠或更深处击败 25 只丧尸', 'Defeat 25 zombies in the desert or deeper') },
+    { k: 'gear', n: 4, say: T2('首领的一击能要你半条命。穿好装备再上，至少 4 件。', 'One hit from the boss can take half your life. Gear up first: at least 4 pieces.'), d: T2('身上穿着 4 件装备', 'Wear 4 pieces of gear') },
+    { k: 'event', n: 1, say: T2('我收到一个空投信号，就在荒漠里。拿到补给再去打首领。', 'I picked up an airdrop signal in the desert. Get the supplies, then go for the boss.'), d: T2('完成 1 个空投或精英事件', 'Finish 1 airdrop or elite event') }],
+  4: [{ k: 'crate', n: 5, tier: 4, say: T2('实验室的人把样本藏在箱子里运走，沼泽里应该还有几箱。', 'The lab people moved samples out in crates. There should be a few left in the swamp.'), d: T2('在沼泽或更深处打开 5 个箱子', 'Open 5 crates in the swamp or deeper') },
+    { k: 'search', n: 3, tier: 4, say: T2('沼泽边的房子以前是采样点，去翻翻有没有记录。', 'The houses by the swamp used to be sampling stations. See if any records are left.'), d: T2('在沼泽或更深处搜索 3 栋建筑', 'Search 3 buildings in the swamp or deeper') },
+    { k: 'event', n: 2, say: T2('精英丧尸身上的血清最浓。去找两次空投或者精英。', 'Elite zombies carry the strongest serum. Find two airdrops or elites.'), d: T2('完成 2 个空投或精英事件', 'Finish 2 airdrop or elite events') }],
+  5: [{ k: 'kill', n: 35, tier: 5, say: T2('雪地里的丧尸冻得很硬，打不动就多打几枪。清出一片地方。', 'The snow zombies are frozen hard. Keep shooting. Clear an area.'), d: T2('在雪原或更深处击败 35 只丧尸', 'Defeat 35 zombies in the snowfield or deeper') },
+    { k: 'crate', n: 5, tier: 5, say: T2('实验室的人撤离时丢下了补给。冷天里，每一箱都是命。', 'The lab staff dropped supplies when they fled. In this cold, every crate is a life.'), d: T2('在雪原或更深处打开 5 个箱子', 'Open 5 crates in the snowfield or deeper') },
+    { k: 'wlv', n: 15, say: T2('守门的东西不好对付。把武器升到 15 级再去。', 'What guards the gate is no joke. Get a weapon to level 15 first.'), d: T2('把任意一把武器升到 Lv.15', 'Upgrade any weapon to Lv.15') }],
+  6: [{ k: 'search', n: 4, tier: 6, say: T2('废城里有工厂的控制室，余烬的运输记录也许还在。搜 4 栋楼。', 'There are factory control rooms in the ruins. The Ember shipping records may still be there. Search 4 buildings.'), d: T2('在废城或更深处搜索 4 栋建筑', 'Search 4 buildings in the ruins or deeper') },
+    { k: 'fish', n: 3, say: T2('城里的东西都被污染了。回岛上钓几条鱼，我们得靠干净的食物撑下去。', 'Everything in the city is tainted. Go home and catch some fish: we need clean food to keep going.'), d: T2('钓到 3 条鱼', 'Catch 3 fish') },
+    { k: 'event', n: 2, say: T2('城里有两股精英在抢地盘，打掉它们，路就通了。', 'Two elite packs are fighting over the city. Break them and the road opens.'), d: T2('完成 2 个空投或精英事件', 'Finish 2 airdrop or elite events') }],
+  7: [{ k: 'kill', n: 45, tier: 7, say: T2('车队要从峡谷里过，路两边全是丧尸。先清一遍。', 'The convoy has to go through the canyon, and both sides are full of zombies. Clear them first.'), d: T2('在峡谷或更深处击败 45 只丧尸', 'Defeat 45 zombies in the canyon or deeper') },
+    { k: 'crate', n: 6, tier: 7, say: T2('之前的车队翻了好几辆，货箱还在石头堆里。', 'Several trucks of the last convoy tipped over. Their cargo is still in the rocks.'), d: T2('在峡谷或更深处打开 6 个箱子', 'Open 6 crates in the canyon or deeper') },
+    { k: 'cook', n: 2, say: T2('车队的人饿了好几天了。回去做两顿饭，我让人来拿。', 'The convoy crew hasn\'t eaten in days. Cook two meals and I\'ll send someone for them.'), d: T2('用锅炉烹饪 2 份食物', 'Cook 2 meals on the stove') }],
+  8: [{ k: 'crate', n: 6, tier: 8, say: T2('熔岩边上有当年的勘探箱，里面有耐热的材料。', 'Old survey crates sit by the lava, with heat-proof materials inside.'), d: T2('在熔火之地或更深处打开 6 个箱子', 'Open 6 crates in the Molten Land or deeper') },
+    { k: 'event', n: 2, say: T2('火里的精英丧尸身上有首领之心的碎片。去找它们。', 'The elite zombies in the fire carry shards of boss hearts. Hunt them.'), d: T2('完成 2 个空投或精英事件', 'Finish 2 airdrop or elite events') },
+    { k: 'boss', n: 1, tier: 8, say: T2('熔火之地的首领守着最大的一颗心。打倒它。', 'The Molten Land\'s boss guards the biggest heart. Bring it down.'), d: T2('在熔火之地或更深处击败 1 个首领', 'Defeat 1 boss in the Molten Land or deeper') }],
+  9: [{ k: 'kill', n: 55, tier: 9, say: T2('影子里的东西看不清，听声音开枪。先清出一条路。', 'You can\'t see what\'s in the shadows. Shoot at the sound. Clear a path first.'), d: T2('在暗影荒原或更深处击败 55 只丧尸', 'Defeat 55 zombies in the Shadow Wastes or deeper') },
+    { k: 'search', n: 4, tier: 9, say: T2('低语是从那些废屋里传出来的。一栋一栋搜。', 'The whispers come from those ruined houses. Search them one by one.'), d: T2('在暗影荒原或更深处搜索 4 栋建筑', 'Search 4 buildings in the Shadow Wastes or deeper') },
+    { k: 'event', n: 3, say: T2('它们在聚集。打散三次，别让它们集合成群。', 'They are gathering. Break them up three times before they become a horde.'), d: T2('完成 3 个空投或精英事件', 'Finish 3 airdrop or elite events') }],
+  10: [{ k: 'crate', n: 8, tier: 10, say: T2('核心周围有小队留下的补给，是我们最后的一批。全拿上。', 'Our team left supplies around the core: the very last of them. Take everything.'), d: T2('在余烬核心打开 8 个箱子', 'Open 8 crates in the Ember Core') },
+    { k: 'event', n: 3, say: T2('核心在召唤精英保护自己。打掉三批，它就没有护卫了。', 'The core is calling elites to guard it. Break three waves and it stands alone.'), d: T2('完成 3 个空投或精英事件', 'Finish 3 airdrop or elite events') },
+    { k: 'have', item: 'heart', n: 3, say: T2('要关掉核心，需要三颗首领之心的能量。准备好就去做最后一战。', 'Shutting down the core takes the power of three boss hearts. When you have them, go for the last fight.'), d: T2('拥有 3 颗首领之心', 'Own 3 Boss Hearts') }]
+};
+const ST3_V = 3;
+for (const c in ST3_ADD) { const C = STORY[c]; if (!C || C._st3) continue; C._st3 = ST3_ADD[c].length; C.steps.splice(C.steps.length - 1, 0, ...ST3_ADD[c]); }
+storySave = (o => function () { const a = o(); a[4] = ST3_V; return a; })(storySave);
+storyLoad = (o => function (a) { o(a);
+  try { if (Array.isArray(a) && (a[4] | 0) < ST3_V) { const C = STORY[S.story.c]; if (C && C._st3 && S.story.s >= C.steps.length - 1 - C._st3) { S.story.s += C._st3; } } } catch (e) { } })(storyLoad);
 /* ============ 老钱的商船 ============
    码头旁边多了一艘老钱的木帆船：甲板上堆满开着的宝箱、金币、金条、宝石。
    栈桥东边接出一条小码头，走到小码头尽头，屏幕下方出现「老钱的船 · 交易」，点它直接打开老钱的交易窗口。
@@ -16117,7 +16156,7 @@ islandTick = (o => function (dt) { o(dt); try { qshipTick(dt); } catch (e) { if 
 
 /* ---------- the trade button ---------- */
 { const H = $('hud'); if (H && H.appendChild) {
-  const b = document.createElement('button'); b.className = 'btn2'; b.id = 'bQship'; b.textContent = T2('💰 老钱的船 · 交易', "💰 Qian's Ship · Trade"); H.appendChild(b);
+  const b = document.createElement('button'); b.className = 'btn2'; b.id = 'bQship'; b.innerHTML = EI('coins') + ' ' + T2('老钱的船 · 交易', "Qian's Ship · Trade"); H.appendChild(b);
   b.addEventListener('click', () => { if (!qshipNear()) return; try { audioInit(); } catch (e) { } QS.talk = S.t + 3;
     try { burst(HOME.x + QS.rx - 4.9, 3.6, HOME.z + QS.rz - .5, 0xffd24a, 14, 2.4); sfx.pick(); } catch (e) { }
     if (typeof openRelic === 'function') openRelic(); });
@@ -18594,6 +18633,27 @@ renderStash = function () {
   '.stq{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.stq span{font-weight:800}.stq input[type=number]{width:84px;font-size:18px;font-weight:900;text-align:center;padding:6px;border-radius:10px;border:2px solid #44535e;background:#0f161b;color:#fff}' +
   '.stq input[type=range]{flex:1;min-width:140px;accent-color:#ffc94a;height:28px}.stqb{display:flex;gap:6px}.stqb button{flex:1}.stfull{color:#ffb4a0!important;font-weight:800}';
   document.head.appendChild(st); } catch (e) { } })();
+/* ============ drawn icons instead of emoji (owner: icons must be drawn, never emoji) ============
+   EI(name) gives a small inline SVG that takes the text colour. A function (hoisted), so early files can use it. */
+function EI(n, sz) {
+  const P = {
+    boat: '<path d="M3 15h18l-2.5 4.5h-13z" fill="currentColor" stroke="none"/><path d="M12 3v11M12 3l6 9h-6M11 5l-5 7h5"/>',
+    hammer: '<path d="M14 4l6 6-2.5 2.5-6-6z" fill="currentColor"/><path d="M12.5 7.5L4 16l2.8 2.8 8.5-8.5"/>',
+    radio: '<rect x="3" y="9" width="18" height="11" rx="2"/><circle cx="9" cy="14.5" r="2.6"/><path d="M15 13h3M15 16h3M7 9l9-5"/>',
+    help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 015 .9c0 1.7-2.5 2.1-2.5 3.8"/><circle cx="12" cy="17" r=".9" fill="currentColor"/>',
+    coins: '<ellipse cx="12" cy="7" rx="7" ry="2.8"/><path d="M5 7v4c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V7M5 11v4c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-4"/>',
+    tap: '<path d="M9 11V5.5a1.6 1.6 0 013.2 0V11M12.2 10V8.6a1.6 1.6 0 013.2 0V11M15.4 10.4a1.6 1.6 0 013.2 0V15a6 6 0 01-6 6h-1a6 6 0 01-4.8-2.4L4 14.7a1.6 1.6 0 012.5-2l2.5 2.4"/>',
+    eye: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/>',
+    save: '<path d="M4 4h12l4 4v12H4z"/><path d="M8 4v5h7V4M7.5 20v-6h9v6"/>',
+    people: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.6 2.7-6 6-6s6 2.4 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.2c3 .3 5.5 2.4 5.5 5.8"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7.5 8-7.5s8 3.1 8 7.5"/>',
+    gift: '<rect x="3.5" y="9" width="17" height="11.5" rx="1.5"/><path d="M2.5 9h19M12 9v11.5M12 9c-1.5-3.5-6-4.5-6-1.8C6 9 12 9 12 9zM12 9c1.5-3.5 6-4.5 6-1.8C18 9 12 9 12 9z"/>',
+    lock: '<rect x="5" y="10.5" width="14" height="10" rx="2" fill="currentColor"/><path d="M8 10.5V7.5a4 4 0 018 0v3"/>',
+    gear: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M5.5 18.5l2.1-2.1M16.4 7.6l2.1-2.1"/><circle cx="12" cy="12" r="6.5"/>'
+  };
+  const s = sz || '1.05em';
+  return '<svg class="ei" viewBox="0 0 24 24" width="' + s + '" height="' + s + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.17em;flex:none" aria-hidden="true">' + (P[n] || '') + '</svg>';
+}
 /* ============ eraser (owner: "a rubber that deletes buildings directly") ============
    拆除 tab has two modes: 点选拆除 (tap a piece, press 拆除, as before) and 橡皮擦: in the top view one finger (or the left
    mouse button) rubs over buildings and everything under the red circle on the storey you are looking at is taken down at
@@ -18634,6 +18694,38 @@ toggleBuild = (o => function () { const r = o.apply(this, arguments); if (!build
    a blueprint for something you can never place ---- */
 try { const inMenu = new Set(); B5_TABS.forEach(t => (t[2] || []).forEach(k => inMenu.add(k)));
   for (const r in BPPOOL) BPPOOL[r] = BPPOOL[r].filter(x => typeof x[0] !== 'function' || inMenu.has(x[0]().k)); } catch (e) { console.warn('bp pool', e); }
+/* ============ blueprint machine 2 (owner: "make the draw harder; put junk in; duplicates can be traded for the one you want") ============
+   - Junk (废料) is in the common pool: worthless scraps that give nothing.
+   - No more "prefer blueprints you don't have": every blueprint of the rolled grade is equally likely, so you DO get repeats.
+   - A repeat becomes 蓝图精华 (blueprint essence): 稀有 1 · 史诗 4 · 传说 12 · 神话 40.
+   - 蓝图兑换 tab at the machine: spend essence on ANY blueprint you don't have yet: 稀有 12 · 史诗 40 · 传说 120 · 神话 350.
+     That is the safety net: enough repeats always turn into the blueprint you want. */
+const BPX_ESS = { 2: 1, 3: 4, 4: 12, 5: 40 }, BPX_COST = { 2: 12, 3: 40, 4: 120, 5: 350 };
+S.bpe = 0;
+BPPOOL[0].push(['废料：一团废纸', () => { }], ['废料：断掉的齿轮', () => { }], ['废料：生锈的螺丝', () => { }], ['废料：破布条', () => { }], ['废料：碎玻璃渣', () => { }]);
+bpDrawOne = function (minR) {
+  S.bmp++; let G = BPG[BPG.length - 1];
+  if (S.bmp >= BP_PITY) G = BPG[0]; else { let acc = 0; const roll = Math.random(); for (const g of BPG) { acc += g.p; if (roll < acc) { G = g; break; } } }
+  if (minR && G.r < minR) G = BPG.find(g => g.r === minR); if (G.r >= 5) S.bmp = 0;
+  const it = pick(BPPOOL[G.r]);
+  if (typeof it[0] === 'function') { const r = it[0](), k = r.k;
+    if (S.bp[k]) { const e = BPX_ESS[G.r] || 1; S.bpe = (S.bpe | 0) + e; return { G, n: '蓝图「' + BPX[k][1] + '」重复 · 精华 +' + e }; }
+    S.bp[k] = 1; try { buildCards(); } catch (e) { } return { G, n: '新蓝图「' + BPX[k][1] + '」' }; }
+  try { it[1](); } catch (e) { console.warn(e); } return { G, n: it[0] };
+};
+function bpxRender(box, el2) {
+  box.appendChild(el2('div', 'bpmhave', svgIcon('bp') + '<b>' + (S.bpe | 0) + '</b><span>蓝图精华 · 抽到重复的蓝图就会变成精华（稀有 1 · 史诗 4 · 传说 12 · 神话 40）。攒够了在这里换任何一张你还没有的蓝图。</span>'));
+  let any = false;
+  BPG.filter(G => G.r >= 2).forEach(G => {
+    const ks = BPPOOL[G.r].filter(x => typeof x[0] === 'function').map(x => x[0]().k).filter(k => !S.bp[k]); if (!ks.length) return; any = true;
+    const cost = BPX_COST[G.r]; box.appendChild(el2('h3', '', '<span style="color:' + G.c + '">' + G.n + '</span> · 每张 ' + cost + ' 精华'));
+    const grid = el2('div', 'bpxg'); ks.forEach(k => { const c = el2('button', 'bpxc', '<b>' + BPX[k][1] + '</b><small>' + cost + ' 精华</small>'); c.style.setProperty('--gc', G.c); c.disabled = (S.bpe | 0) < cost;
+      c.addEventListener('click', () => { if ((S.bpe | 0) < cost || S.bp[k]) return; S.bpe -= cost; S.bp[k] = 1; try { buildCards(); } catch (e) { } feed('换到了蓝图「' + BPX[k][1] + '」，在「建造」里可以造了', '#7ec8ff'); try { sfxTone(500, 1000, .3, .12, 'triangle'); } catch (e) { } saveGame(); renderBpm(); });
+      grid.appendChild(c); }); box.appendChild(grid); });
+  if (!any) box.appendChild(el2('div', 'snote', '所有蓝图你都有了。'));
+}
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+  '.bpxg{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:7px;margin:4px 0 12px}.bpxc{display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 6px;border-radius:12px;border:1px solid var(--gc);background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(0,0,0,.2));color:#f3eadf;font:inherit}.bpxc b{font-size:13px}.bpxc small{font-size:11px;color:var(--gc)}.bpxc:disabled{opacity:.45}' })); } catch (e) { }
 /* ============ build menu: swipe to scroll ============
    The tiles picked themselves on pointerdown, so a swipe that started on a tile picked it, the menu was rebuilt and the
    list jumped back to the top: you could never scroll down (worst in the 地形 tab). Now a tile is picked only on a TAP
@@ -19054,7 +19146,7 @@ function bkPanel() {
   o.querySelector('#bkPick input').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => bkImport(r.result); r.readAsText(f); });
   o.classList.add('show');
 }
-renderChars = (o => function () { o(); try { const box = $('charList'); if (!box) return; const b = document.createElement('button'); b.className = 'sbtn ghostb bkbtn'; b.textContent = T2('💾 备份 / 恢复存档', 'Back up / restore saves'); b.addEventListener('click', bkPanel); box.appendChild(b); } catch (e) { } })(renderChars);
+renderChars = (o => function () { o(); try { const box = $('charList'); if (!box) return; const b = document.createElement('button'); b.className = 'sbtn ghostb bkbtn'; b.innerHTML = EI('save') + ' ' + T2('备份 / 恢复存档', 'Back up / restore saves'); b.addEventListener('click', bkPanel); box.appendChild(b); } catch (e) { } })(renderChars);
 // settings: the same panel, plus the screen numbers (to find the dark strip on some iPhones)
 renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!box) return;
   const r = document.createElement('div'); r.className = 'setrow'; r.innerHTML = '<span>' + T2('存档备份', 'Save backup') + '</span>'; const b = document.createElement('button'); b.className = 'sbtn'; b.textContent = T2('备份 / 恢复', 'Back up / restore'); b.addEventListener('click', bkPanel); r.appendChild(b); box.appendChild(r);
@@ -21010,7 +21102,7 @@ function drawMap(ctx, W, range, big, k) {
   mctx = miniCtx;
 }
 let _regTxt = '';
-function regionHud() { const t = S.isl ? '海岛' : (() => { const tt = tierAt(player.pos.x, player.pos.z); return '区域' + tt + ' ' + biomeOf(tt).s; })() + ' · ' + (DN.label === '夜晚' ? '☾' : '☀') + DN.label; if (t !== _regTxt) { _regTxt = t; $('regTxt').textContent = t; } }
+function regionHud() { const t = S.isl ? '海岛' : (() => { const tt = tierAt(player.pos.x, player.pos.z); return '区域' + tt + ' ' + biomeOf(tt).s; })() + ' · ' + DN.label; if (t !== _regTxt) { _regTxt = t; $('regTxt').textContent = t; } }
 /* the ground layer of the map: region colours with their irregular borders, rivers, streams and seas.
    Sampled on a grid aligned to the world (so it doesn't swim as you walk) and cached until you move a cell. */
 const _terr = {};
@@ -21345,4 +21437,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794797342').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794800178').catch(()=>{});</script></body></html>
