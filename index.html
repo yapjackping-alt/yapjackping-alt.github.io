@@ -20980,7 +20980,8 @@ dz = (o => function (type, x, z, lv, chase) { const zb = o(type, x, z, lv, chase
 // 脆甲: you take 25% more too
 takeDamage = (o => function (n, ...a) { if (dmodOn() && DUN.mod === 'brit' && Number.isFinite(n)) n *= 1.25; return o(n, ...a); })(takeDamage);
 // 无光: the fog closes in
-dunEnv = (o => function () { o(); try { if (dmodOn() && DUN.mod === 'dark' && scene.fog) { scene.fog.near = Math.min(scene.fog.near, 5); scene.fog.far = Math.min(scene.fog.far, 20); } } catch (e) { } })(dunEnv);
+dunEnv = (o => function () { o(); try { if (dmodOn() && DUN.mod === 'dark' && scene.fog) { // fog is measured from the CAMERA: on a phone held upright the camera is far back, a fixed 20 m blacked out the player too
+    const cd = camera.position.distanceTo(player.pos); scene.fog.near = Math.min(scene.fog.near, cd + 1); scene.fog.far = Math.max(cd + 10, Math.min(scene.fog.far, cd + 14)); } } catch (e) { } })(dunEnv);
 // ---- the win: record the tier, pay the bonus and the weekly first clear ----
 function dmodWin(id) { if (!dmodOk(id)) return; const t = DUN.tier | 0, got = [];
   S.dtier[id] = Math.max(S.dtier[id] | 0, t + 1);
@@ -22305,4 +22306,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794840875').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794841359').catch(()=>{});</script></body></html>
