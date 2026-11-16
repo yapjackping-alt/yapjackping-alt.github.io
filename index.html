@@ -15926,6 +15926,69 @@ for (const c in ST3_ADD) { const C = STORY[c]; if (!C || C._st3) continue; C._st
 storySave = (o => function () { const a = o(); a[4] = ST3_V; return a; })(storySave);
 storyLoad = (o => function (a) { o(a);
   try { if (Array.isArray(a) && (a[4] | 0) < ST3_V) { const C = STORY[S.story.c]; if (C && C._st3 && S.story.s >= C.steps.length - 1 - C._st3) { S.story.s += C._st3; } } } catch (e) { } })(storyLoad);
+/* ============ 剧情档案 + 跳过 (《留存优化方案》 part C; owner picked it 16 Nov) ============
+   - The talk box has a 「跳过」 button: it closes the box and drops the lines still waiting in the queue. Nothing is lost:
+     every line is in the archive.
+   - Task book gets a 4th tab 「剧情档案」: every main-story chapter you have reached (intro, the lines of the steps you got to,
+     the ending once it is done) — rebuilt from the STORY table, so old saves get their past chapters too; then one card
+     per dungeon and one for other talks (commissions, events…), recorded as they are said (`S.sarc`, saved r.sarc).
+   - A finished chapter can be claimed once in the archive: 余烬币 100 × (chapter+1) and 5 晶石 (`S.sarcC`).
+   - Combat: the existing stCalm already holds talks back while zombies chase you nearby (doc rule "战斗中不弹").
+   Switch: SARC_ON. */
+const SARC_ON = true;
+const SARC = { story: null, max: 160 };
+S.sarc = S.sarc || {}; S.sarcC = S.sarcC || [];
+function sarcStorySet() { if (SARC.story) return SARC.story; const s = new Set();
+  try { for (const C of STORY) { for (const l of (C.intro || [])) s.add(l[1]); for (const l of (C.end || [])) s.add(l[1]); for (const st of C.steps) if (st.say) s.add(st.say); } } catch (e) { }
+  return (SARC.story = s); }
+storyTalk = (o => function (lines) { o(lines); if (!SARC_ON) return; try {
+  const g = S.dun ? 'd' + (DUN.id | 0) : 'o', st = sarcStorySet(), L = S.sarc[g] = S.sarc[g] || [];
+  for (const l of lines || []) { if (!Array.isArray(l) || typeof l[1] !== 'string') continue; if (g === 'o' && st.has(l[1])) continue;
+    if (L.some(q => q[1] === l[1])) continue; L.push([String(l[0] || ''), l[1]]); if (L.length > SARC.max) L.shift(); }
+} catch (e) { } })(storyTalk);
+// the 跳过 button in the talk box
+(() => { try { const d = $('storyDlg'), box = d && d.querySelector('.sdbox'); if (!box || !SARC_ON) return;
+  const b = document.createElement('button'); b.className = 'sdskip'; b.textContent = T2('跳过', 'Skip');
+  b.addEventListener('click', e => { e.stopPropagation(); STQ.length = 0; stClose(); try { feed(T2('已跳过，可以在 任务书 → 剧情档案 里重看', 'Skipped. Read it again in Task Book → Story log'), '#c9a88a'); } catch (er) { } });
+  box.appendChild(b); } catch (e) { } })();
+// the archive tab
+const sarcEsc = t => String(t).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]);
+const sarcLine = l => '<div class="sarl">' + (l[0] ? '<b>' + sarcEsc(T2(l[0], l[0] === '老陈' ? 'Old Chen' : l[0])) + '</b>' : '') + '<span>' + sarcEsc(l[1]) + '</span></div>';
+function sarcRw(i) { return { coin: 100 * (i + 1), gem: 5 }; }
+function sarcClaim(i) { if (!(i < S.story.c) || S.sarcC.includes(i)) return; S.sarcC.push(i); const R = sarcRw(i);
+  gain('coin', R.coin); addGem(R.gem, T2('剧情档案', 'story log')); try { sfx.build(); } catch (e) { }
+  feed(T2('剧情档案奖励：', 'Story log reward: ') + R.coin + ' ' + T2('余烬币', 'coins') + ' · ' + R.gem + ' ' + T2('晶石', 'gems'), '#ffd27a'); refreshHud(); saveGame(); renderStory(); }
+function sarcRender(box) { box.innerHTML = '';
+  const tip = document.createElement('div'); tip.className = 'snote'; tip.textContent = T2('看过（或跳过）的对话都在这里，点一下展开。读完的章节可以领一次奖励。', 'Every talk you have seen (or skipped) is here. Tap to open. Finished chapters give a reward once.'); box.appendChild(tip);
+  const card = (title, sub, lines, open, foot) => { const d = document.createElement('details'); d.className = 'stcard sarc' + (open ? ' cur' : ' done');
+    d.innerHTML = '<summary class="sth"><b>' + title + '</b><span>' + sub + '</span></summary>' + lines.map(sarcLine).join('') + (foot || ''); box.appendChild(d); return d; };
+  STORY.forEach((C, i) => { if (i > S.story.c || (i === S.story.c && S.story.seen !== i)) return; const done = i < S.story.c;
+    const lines = [...(C.intro || [])]; C.steps.forEach((st, j) => { if (st.say && (done || j < S.story.s)) lines.push(['老陈', st.say]); }); if (done) lines.push(...(C.end || []));
+    const got = S.sarcC.includes(i), R = sarcRw(i);
+    const d = card(chN(i) + ' · ' + C.t, done ? T2('已完成', 'Done') : T2('进行中', 'In progress'), lines, !done,
+      done ? '<div class="str sarrw">' + (got ? T2('档案奖励已领取', 'Reward claimed') : '<button class="sbtn">' + T2('领取档案奖励：', 'Claim: ') + R.coin + ' ' + T2('余烬币', 'coins') + ' · ' + R.gem + ' ' + T2('晶石', 'gems') + '</button>') + '</div>' : '');
+    const b = d.querySelector('.sarrw button'); if (b) b.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); sarcClaim(i); }); });
+  for (const g of Object.keys(S.sarc).filter(k => k[0] === 'd').sort((a, b) => (+a.slice(1)) - (+b.slice(1)))) { const L = S.sarc[g]; if (!L || !L.length) continue;
+    let nm = ''; try { nm = dunD(+g.slice(1)).nm || ''; } catch (e) { } card(T2('副本 · ', 'Dungeon · ') + (nm || g), L.length + T2(' 句', ' lines'), L, false); }
+  if (S.sarc.o && S.sarc.o.length) card(T2('其他对话', 'Other talks'), S.sarc.o.length + T2(' 句', ' lines'), S.sarc.o, false);
+}
+renderStory = (o => function () { if (!SARC_ON) return o.apply(this, arguments);
+  const arc = ST2.book === 'arc'; if (arc) ST2.book = 'story'; let r; try { r = o.apply(this, arguments); } finally { if (arc) ST2.book = 'arc'; }
+  try { const tabs = $('stTabs'), box = $('storyList'); if (tabs && !tabs.querySelector('.sarct')) { const b = document.createElement('button'); b.className = 'sbtn sarct'; b.textContent = T2('剧情档案', 'Story log');
+      const n = STORY.filter((C, i) => i < S.story.c && !S.sarcC.includes(i)).length; if (n) b.textContent += ' · ' + n;
+      b.addEventListener('click', () => { ST2.book = 'arc'; renderStory(); }); tabs.appendChild(b); }
+    if (tabs) tabs.querySelectorAll('.sbtn').forEach(b => { if (b.classList.contains('sarct')) b.classList.toggle('on', arc); else if (arc) b.classList.remove('on'); });
+    if (arc && box) sarcRender(box); } catch (e) { console.warn('sarc', e); }
+  return r; })(renderStory);
+// save / load (per character)
+shopSave = (o => function () { const r = o(); try { r.sarc = { l: S.sarc, c: S.sarcC }; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.sarc = {}; S.sarcC = []; try { const a = d && d.sh && d.sh.sarc; if (a && typeof a === 'object') {
+  if (a.l && typeof a.l === 'object') for (const g of Object.keys(a.l)) { if (!/^(o|d\d{1,2})$/.test(g) || !Array.isArray(a.l[g])) continue; S.sarc[g] = a.l[g].filter(l => Array.isArray(l) && typeof l[1] === 'string').slice(-SARC.max).map(l => [String(l[0] || '').slice(0, 20), l[1].slice(0, 400)]); }
+  if (Array.isArray(a.c)) S.sarcC = a.c.filter(n => Number.isInteger(n) && n >= 0 && n < 40); } } catch (e) { } })(shopLoad);
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+  '#storyDlg .sdbox{padding-bottom:12px}#storyDlg .sdskip{position:absolute;right:10px;top:-34px;height:28px;padding:0 14px;border-radius:14px;border:1px solid rgba(255,176,112,.6);background:rgba(30,18,12,.9);color:#ffd8a8;font-weight:800;font-size:13px}' +
+  '.sarc summary{list-style:none;cursor:pointer}.sarc summary::-webkit-details-marker{display:none}.sarc summary b::before{content:"▸ ";color:#ffc94a}.sarc[open] summary b::before{content:"▾ "}' +
+  '.sarl{font-size:13.5px;line-height:1.55;padding:5px 2px;border-top:1px solid rgba(255,255,255,.06)}.sarl b{color:#ffc94a;margin-right:6px}.sarl span{color:#efe3d4}.sarrw{margin-top:8px}.sarrw .sbtn{width:100%}' })); } catch (e) { }
 /* ============ 老钱的商船 ============
    码头旁边多了一艘老钱的木帆船：甲板上堆满开着的宝箱、金币、金条、宝石。
    栈桥东边接出一条小码头，走到小码头尽头，屏幕下方出现「老钱的船 · 交易」，点它直接打开老钱的交易窗口。
@@ -20838,6 +20901,105 @@ dunEnter = (o => function () { if (S.dun) return o();
   const fresh = DSEP.next && Date.now() - DSEP.nextT < 30000; DUN.inst = fresh ? DSEP.next : dsepId(); DSEP.next = null;
   DUN.inside.clear(); DUN.inT.clear(); dsepPlace(DUN.inst, DUN.id); return o(); })(dunEnter);
 dunCleanup = (o => function () { const was = DUN.on; o(); if (was) { DUN.inst = null; DUN.inside.clear(); DUN.inT.clear(); } })(dunCleanup);
+/* ============ 副本重玩：难度档 + 每周词缀 + 每周首通 (《留存优化方案》 part D; owner picked it 16 Nov) ============
+   Only the four story dungeons (圣心医院 永冬站 方舟站 钻探井 #0). Not the abyss, not the ships.
+   - Difficulty on the dungeon page: 普通 / 困难 / 噩梦. 困难 opens after you have cleared the dungeon once, 噩梦 after a
+     困难 clear (`S.dtier[id]` = highest tier cleared, 0 none / 1 normal / 2 hard / 3 nightmare).
+     困难: monsters +6 levels and life ×1.5 on top; 噩梦: +12 levels and life ×2.2 on top (doc numbers; the level's own
+     life / damage growth comes with the levels). Extra pay at the end (the doc's "loot ×1.6 / ×2.5", given as a bonus
+     on the win so the relic-coin weekly cap is not touched): 困难 coins + 2 强化石, 噩梦 more coins + 4 强化石 + 首领之心.
+   - Weekly affix (changes on Monday 04:00 like the relic week), shown on the page and when you go in. 4 of the doc's 6:
+     脆甲 (you and the monsters both take 25% more), 疾行 (monsters +20% speed, your hits +10%), 尸潮 (each monster
+     spawn has a 50% chance of a second one; every 10 kills heal 10% of your life), 无光 (you see much less far; the end
+     pay is ×1.3). Left out for now: 冰封 (needs an ice floor) and 回声 (needs other bosses' phantoms inside a dungeon).
+     The hidden boss of the doc is not done either.
+   - First clear of each dungeon each week (any tier): +40 遗物币 and 1 腐化晶体.
+   Teams: the invite carries the tier; the host's monsters are what everyone fights. Switch: DMOD_ON. */
+const DMOD_ON = true;
+const DMOD = { sel: {}, next: null, nextT: 0, inv: new Map(), kills: 0, seen: new WeakSet(), dup: false };
+const DT_N = [T2('普通', 'Normal'), T2('困难', 'Hard'), T2('噩梦', 'Nightmare')], DT_LV = [0, 6, 12], DT_HP = [1, 1.5, 2.2];
+const DAFX = [
+  { k: 'brit', n: T2('脆甲', 'Brittle'), d: T2('你和怪物受到的伤害都 +25%', 'You and the monsters both take 25% more damage') },
+  { k: 'fast', n: T2('疾行', 'Haste'), d: T2('怪物移速 +20%，你的伤害 +10%', 'Monsters move 20% faster, your hits +10%') },
+  { k: 'horde', n: T2('尸潮', 'Horde'), d: T2('怪物更多（约 1.5 倍），每杀 10 只回复 10% 生命', 'About 1.5× monsters; every 10 kills heal 10% life') },
+  { k: 'dark', n: T2('无光', 'Lights out'), d: T2('视野变得很短，通关奖励 ×1.3', 'You see much less far; clear pay ×1.3') }];
+const dmodWk = () => Math.floor((Date.now() - 4 * 3600e3) / 604800e3);
+const dmodAfx = () => DAFX[((dmodWk() % DAFX.length) + DAFX.length) % DAFX.length];
+const dmodOk = id => DMOD_ON && id >= 1 && id <= 4;
+const dmodOn = () => !!(S.dun && dmodOk(DUN.id | 0));
+S.dtier = S.dtier || {}; S.dwk = S.dwk || {};
+function dmodCleared(id) { try { return id === 1 ? !!S.dg.first : id === 2 ? !!S.dg2.first : !!dxS(id).first; } catch (e) { return false; } }
+function dmodMax(id) { if (!dmodCleared(id)) return 0; return Math.min(2, Math.max(1, S.dtier[id] | 0)); }   // cleared once → 困难; cleared 困难 (2) → 噩梦
+// ---- the picker on the dungeon page (every dungeon page ends with dunPartyAdd) ----
+dunPartyAdd = (o => function () { o(); try { const id = DUN.id | 0; if (!dmodOk(id)) return; const m = $('dunPageM'), go = m && m.querySelector('.dungo'); if (!go || go.disabled || m.querySelector('.dmodb')) return;
+  const mx = dmodMax(id); if ((DMOD.sel[id] | 0) > mx) DMOD.sel[id] = mx; const A = dmodAfx(), wkDone = S.dwk[id] === dmodWk();
+  const box = document.createElement('div'); box.className = 'dmodb';
+  const paint = () => { const s = DMOD.sel[id] | 0;
+    box.innerHTML = '<small>' + T2('难度', 'Difficulty') + '</small><div class="dmodr">' + DT_N.map((n, i) => '<button data-t="' + i + '" class="sbtn' + (i === s ? ' on' : '') + (i > mx ? ' ghostb' : '') + '"' + (i > mx ? ' disabled' : '') + '>' + n + (i > mx ? ' · ' + (i === 1 ? T2('先通关一次', 'clear once') : T2('先通关困难', 'clear Hard')) : '') + '</button>').join('') + '</div>' +
+      '<p>' + (s ? T2('怪物 +' + DT_LV[s] + ' 级，生命再 ×' + DT_HP[s] + '；通关额外奖励更多', 'Monsters +' + DT_LV[s] + ' levels, life ×' + DT_HP[s] + ' more; bigger clear bonus') : T2('原来的难度', 'The usual difficulty')) + '</p>' +
+      '<p class="dmoda"><b>' + T2('本周词缀：', 'This week: ') + A.n + '</b> ' + A.d + '</p>' +
+      '<p class="dmodw">' + (wkDone ? T2('本周首通奖励已领', 'Weekly first clear: done') : T2('本周首通奖励：遗物币 40 · 腐化晶体 ×1', 'Weekly first clear: 40 relic coins · Crystal ×1')) + '</p>';
+    box.querySelectorAll('button[data-t]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const t = +b.dataset.t; if (t > mx) return; DMOD.sel[id] = t; try { sfx.pick(); } catch (er) { } paint(); })); };
+  paint(); const party = m.querySelector('.dunparty'); go.parentNode.insertBefore(box, party || go);
+} catch (e) { console.warn('dmod page', e); } })(dunPartyAdd);
+// ---- invites carry the tier ----
+dunSend = (o => function (topic, data) { if (topic === 'dunI' && data && data.op === 'inv' && dmodOk(data.d | 0)) { data = Object.assign({}, data, { t: DMOD.sel[data.d | 0] | 0 }); } return o(topic, data); })(dunSend);
+onDunI = (o => function (m) { const d = m && m.data; if (!d || m.isMe || d.op !== 'inv') return o(m);
+  const t = clamp(d.t | 0, 0, 2), r = o(m);
+  try { const b = document.querySelector('#dunInvM .dunyes'); if (b && dmodOk(d.d | 0)) { const p = b.parentNode.parentNode.querySelector('p'); if (p && t) p.insertAdjacentHTML('beforeend', '<br><b style="color:#ff9b6a">' + T2('难度：', 'Difficulty: ') + DT_N[t] + '</b>');
+      b.addEventListener('click', () => { DMOD.next = t; DMOD.nextT = Date.now(); }, { capture: true }); } } catch (e) { }
+  return r; })(onDunI);
+// ---- going in ----
+dunEnter = (o => function () { if (S.dun) return o(); const id = DUN.id | 0;
+  if (dmodOk(id)) { const inv = DMOD.next != null && Date.now() - DMOD.nextT < 30000; DUN.tier = inv ? DMOD.next : Math.min(DMOD.sel[id] | 0, dmodMax(id)); DUN.mod = dmodAfx().k; }
+  else { DUN.tier = 0; DUN.mod = ''; }
+  DMOD.next = null; DMOD.kills = 0; DMOD.seen = new WeakSet();
+  const r = o();
+  if (S.dun && dmodOk(id)) { const A = dmodAfx(); setTimeout(() => { try { if (S.dun) feed(T2('难度：', 'Difficulty: ') + DT_N[DUN.tier | 0] + ' · ' + T2('本周词缀：', 'Affix: ') + A.n + '（' + A.d + '）', '#ffb07a'); } catch (e) { } }, 1500); }
+  return r; })(dunEnter);
+dunCleanup = (o => function () { const was = DUN.on; o(); if (was) { DUN.tier = 0; DUN.mod = ''; } })(dunCleanup);
+// ---- monsters: once each (not the mirrors of a teammate's host: those come with the host's numbers) ----
+function dmodApply(z) { const t = DUN.tier | 0, mod = DUN.mod; let hp = 1, dmg = 1;
+  if (t && (z.lv | 0) >= 1) { const L = z.lv | 0, L2 = L + DT_LV[t]; hp *= lvHp(L2) / lvHp(L) * DT_HP[t]; dmg *= lvDmg(L2) / lvDmg(L); z.lv = L2;
+    try { const old = z.g.children.find(c => c.isSprite && c.material && lvMats && Object.values(lvMats).includes(c.material)); if (old) { const tg = lvTag(L2); tg.position.copy(old.position); z.g.remove(old); z.g.add(tg); } } catch (e) { } }
+  if (mod === 'brit') { hp *= .8; dmg *= 1.25; }
+  if (mod === 'fast') { hp /= 1.1; if (z.spd) z.spd *= 1.2; }
+  if (hp !== 1 && z.max > 0) { const r = z.hp / z.max; z.max = Math.round(z.max * hp); z.hp = Math.max(1, Math.round(z.max * r)); }
+  if (dmg !== 1) z.dmg = (z.dmg || 0) * dmg;
+  if (z === boss) try { el.bossName.textContent = (z.title || '') + ' Lv.' + z.lv; } catch (e) { } }
+zSpecialTick = (o => function (dt) { o(dt); if (!dmodOn()) return; try {
+  for (const z of zombies) { if (!z || z.animal) continue;
+    if (!z.mirror && !z.dead && !z.dmodX) { z.dmodX = 1; dmodApply(z); }
+    if (z.dead && !DMOD.seen.has(z)) { DMOD.seen.add(z); if (DUN.mod === 'horde' && ++DMOD.kills % 10 === 0 && !S.dead) { S.hp = Math.min(S.maxHp, S.hp + S.maxHp * .1); try { feed(T2('尸潮：回复 10% 生命', 'Horde: +10% life'), '#9fe8a0'); refreshHud(); } catch (e) { } } } }
+  if (boss && !boss.mirror && !boss.dead && !boss.dmodX && boss.dun) { boss.dmodX = 1; dmodApply(boss); }
+} catch (e) { console.warn('dmod', e); } })(zSpecialTick);
+// 尸潮: a second monster at the same spot half of the time (only the one who runs the monsters)
+dz = (o => function (type, x, z, lv, chase) { const zb = o(type, x, z, lv, chase);
+  try { if (zb && dmodOn() && DUN.mod === 'horde' && !DMOD.dup && dunAuth() && Math.random() < .5) { DMOD.dup = true; try { o(type, x + .4, z + .3, lv, chase); } finally { DMOD.dup = false; } } } catch (e) { DMOD.dup = false; }
+  return zb; })(dz);
+// 脆甲: you take 25% more too
+takeDamage = (o => function (n, ...a) { if (dmodOn() && DUN.mod === 'brit' && Number.isFinite(n)) n *= 1.25; return o(n, ...a); })(takeDamage);
+// 无光: the fog closes in
+dunEnv = (o => function () { o(); try { if (dmodOn() && DUN.mod === 'dark' && scene.fog) { scene.fog.near = Math.min(scene.fog.near, 5); scene.fog.far = Math.min(scene.fog.far, 20); } } catch (e) { } })(dunEnv);
+// ---- the win: record the tier, pay the bonus and the weekly first clear ----
+function dmodWin(id) { if (!dmodOk(id)) return; const t = DUN.tier | 0, got = [];
+  S.dtier[id] = Math.max(S.dtier[id] | 0, t + 1);
+  const k = DUN.mod === 'dark' ? 1.3 : 1, lv = id === 1 ? 15 : id === 2 ? 25 : id === 3 ? 35 : 45;
+  if (t) { const c = Math.round(lv * (t === 1 ? 40 : 100) * k); gain('coin', c); got.push(c + ' ' + T2('余烬币', 'coins')); gain('estone', t * 2); got.push(T2('强化石 ×', 'Enhance Stone ×') + t * 2); if (t === 2) { gain('heart', 1); got.push(T2('首领之心 ×1', 'Boss Heart ×1')); } }
+  else if (k > 1) { const c = Math.round(lv * 12); gain('coin', c); got.push(c + ' ' + T2('余烬币', 'coins') + '（' + T2('无光', 'Lights out') + '）'); }
+  if (S.dwk[id] !== dmodWk()) { S.dwk[id] = dmodWk(); S.relic = (S.relic | 0) + 40; gain('crystal', 1); got.push(T2('本周首通：遗物币 40 · 腐化晶体 ×1', 'Weekly first clear: 40 relic coins · Crystal ×1')); }
+  if (got.length) setTimeout(() => { try { banner(DT_N[t] + T2(' 通关奖励', ' clear bonus'), got.join(' · '), 4); } catch (e) { } }, 2600);
+  try { refreshHud(); saveGame(); } catch (e) { } }
+const dmodWrapWin = (o, idf) => function (...a) { const st = DUN.st, was = !!(st && st.done), id = idf(a); const r = o.apply(this, a); try { if (S.dun && !was && st && st.done) dmodWin(id); } catch (e) { console.warn('dmod win', e); } return r; };
+dunWin = dmodWrapWin(dunWin, () => 1); d2Win = dmodWrapWin(d2Win, () => 2); dxWin = dmodWrapWin(dxWin, a => a[0] | 0);
+// ---- save / load (per character) ----
+shopSave = (o => function () { const r = o(); try { r.dmod = { t: S.dtier, w: S.dwk }; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.dtier = {}; S.dwk = {}; try { const a = d && d.sh && d.sh.dmod; if (a && typeof a === 'object') for (const id of [1, 2, 3, 4]) {
+  if (a.t && Number.isFinite(+a.t[id])) S.dtier[id] = clamp(a.t[id] | 0, 0, 3); if (a.w && Number.isFinite(+a.w[id])) S.dwk[id] = a.w[id] | 0; } } catch (e) { } })(shopLoad);
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+  '.dmodb{margin:8px 0;padding:8px 10px;border-radius:10px;background:rgba(255,140,90,.08);border:1px solid rgba(255,150,100,.35)}.dmodb small{color:#ffb07a;font-weight:800;font-size:12px}' +
+  '.dmodr{display:flex;gap:6px;margin:6px 0}.dmodr .sbtn{flex:1;font-size:13px;padding:0 6px;min-height:36px}.dmodr .sbtn.on{background:#c0582a;border-color:#ffb07a}' +
+  '.dmodb p{margin:4px 0;font-size:12.5px;line-height:1.5}.dmoda b{color:#ffd27a}.dmodw{opacity:.8}' })); } catch (e) { }
 /* ============ 资源商店: buy resources with gems, as many times as you like ============
    Real money only ever buys 晶石 (the Google Play packs); everything here costs 晶石.
    Prices are checked against the island merchant (1000 余烬币 = 50 晶石 here, so 1 晶石 ≈ 20 币): about 1.5× the coin price;
@@ -21062,6 +21224,53 @@ if (IS_PC) {
     '#eHint kbd{min-width:20px;height:20px;padding:0 4px;box-sizing:border-box;border-radius:5px;background:#ffd27a;color:#2a1004;font:900 12px/20px var(--font-hud,sans-serif);text-align:center}';
     document.head.appendChild(st); } catch (e) { }
 }
+/* ============ 手机性能 (《留存优化方案》 part E; owner picked it 16 Nov) ============
+   - Settings 「性能数字」 开/关: a small line at the top of the screen with FPS, draw calls, triangles and the number of
+     3D objects (meshes) in the scene, for measuring island / regions / dungeons / 4-player rooms.
+   - Settings 「卡顿时自动降画质」 (on by default): when the game runs under 25 FPS for 3 seconds, the 3D picture is drawn with
+     fewer pixels (pixel ratio −0.25 a step, never below 1); when it runs smoothly (over 50 FPS for 10 s) it goes back up step
+     by step, never above the chosen 画质. Shadows and the chosen 画质 setting are not touched; nothing is saved but the switch.
+   Not done from the doc (told the owner): merging the static blocks into big meshes and simplified far-away outfits — they
+   touch collision, paint, hiding storeys and every outfit, the biggest bug risk; worth doing only after the numbers above
+   show where the phone actually struggles. Switch: PERF_ON. */
+const PERF_ON = true;
+const APERF = { show: false, auto: true, n: 0, t0: 0, fps: 60, low: 0, high: 0, cool: 0, pr: null, el: null, objT: 0, objs: 0 };
+try { APERF.show = localStorage.getItem('ember_perf') === '1'; APERF.auto = localStorage.getItem('ember_autopr') !== '0'; } catch (e) { }
+function perfMaxPr() { try { return Math.min(window.devicePixelRatio || 1, QUALITY[gq].pr); } catch (e) { return 1; } }
+function perfSetPr(p) { APERF.pr = p; try { renderer.setPixelRatio(p); resize(); } catch (e) { } }
+function perfLoop(now) { if (!PERF_ON) return;
+  if (!APERF.t0) { APERF.t0 = now; return; } APERF.n++; const el = now - APERF.t0; if (el > 2500) { APERF.t0 = now; APERF.n = 0; return; }   // the game was paused: not a slow frame
+  if (el < 1000) return;
+  APERF.fps = APERF.n * 1000 / el; APERF.n = 0; APERF.t0 = now;
+  const live = typeof S !== 'undefined' && S.started && !S.paused && document.visibilityState === 'visible';
+  // automatic resolution
+  try { const max = perfMaxPr(), cur = APERF.pr != null ? APERF.pr : renderer.getPixelRatio();
+    if (APERF.pr != null && APERF.pr > max) perfSetPr(max);                     // 画质 was lowered in the settings
+    if (APERF.cool > 0) APERF.cool--;
+    else if (!APERF.auto || !live) { APERF.low = APERF.high = 0; if (!APERF.auto && APERF.pr != null && APERF.pr < max) { perfSetPr(max); APERF.pr = null; } }
+    else if (APERF.fps < 25) { APERF.high = 0; if (++APERF.low >= 3 && cur > 1) { perfSetPr(Math.max(1, Math.round((cur - .25) * 4) / 4)); APERF.low = 0; APERF.cool = 4; } }
+    else if (APERF.fps > 50) { APERF.low = 0; if (++APERF.high >= 10 && cur < max) { const p = Math.min(max, Math.round((cur + .25) * 4) / 4); perfSetPr(p); if (p >= max) APERF.pr = null; APERF.high = 0; APERF.cool = 4; } }
+    else { APERF.low = 0; APERF.high = 0; }
+  } catch (e) { }
+  // the numbers
+  if (!APERF.show) { if (APERF.el) APERF.el.style.display = 'none'; return; }
+  if (!APERF.el) { APERF.el = document.createElement('div'); APERF.el.id = 'perfHud'; document.body.appendChild(APERF.el); }
+  try { if (now - APERF.objT > 3000) { APERF.objT = now; let n = 0; scene.traverse(o => { if (o.isMesh && o.visible) n++; }); APERF.objs = n; }
+    const I = renderer.info.render; APERF.el.style.display = '';
+    APERF.el.textContent = 'FPS ' + Math.round(APERF.fps) + ' · ' + T2('绘制', 'calls') + ' ' + I.calls + ' · ' + T2('三角形', 'tris') + ' ' + (I.triangles > 9999 ? Math.round(I.triangles / 1000) + 'k' : I.triangles) + ' · ' + T2('物体', 'meshes') + ' ' + APERF.objs + ' · ' + T2('像素', 'px') + ' ×' + renderer.getPixelRatio().toFixed(2);
+  } catch (e) { } }
+// counted from the game's own frame (a second animation callback is not needed and the test harness only keeps one)
+petsTick = (o => function (dt) { const r = o(dt); try { perfLoop(performance.now()); } catch (e) { } return r; })(petsTick);
+applyQuality = (o => function (q) { const r = o(q); APERF.pr = null; APERF.low = APERF.high = 0; return r; })(applyQuality);
+renderSettings = (o => function () { o(); if (!PERF_ON) return; try { const box = $('setBox'); if (!box) return;
+  const mk = (label, get, set) => { const r = document.createElement('div'); r.className = 'setrow'; r.innerHTML = '<span>' + label + '</span>'; const op = document.createElement('div'); op.className = 'opts';
+    [[true, T2('开', 'On')], [false, T2('关', 'Off')]].forEach(([v, n]) => { const b = document.createElement('button'); b.className = 'sbtn' + (get() === v ? ' on' : ''); b.textContent = n; b.addEventListener('click', () => { set(v); renderSettings(); }); op.appendChild(b); });
+    r.appendChild(op); box.appendChild(r); };
+  mk(T2('卡顿时自动降画质', 'Lower pixels when it lags'), () => APERF.auto, v => { APERF.auto = v; try { localStorage.setItem('ember_autopr', v ? '1' : '0'); } catch (e) { } });
+  mk(T2('性能数字', 'Performance numbers'), () => APERF.show, v => { APERF.show = v; try { localStorage.setItem('ember_perf', v ? '1' : '0'); } catch (e) { } });
+} catch (e) { } })(renderSettings);
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+  '#perfHud{position:fixed;left:50%;top:calc(2px + env(safe-area-inset-top));transform:translateX(-50%);z-index:9500;pointer-events:none;font:700 11px/1.3 ui-monospace,Menlo,monospace;color:#bff7c8;background:rgba(0,0,0,.55);padding:2px 8px;border-radius:8px;white-space:nowrap}' })); } catch (e) { }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -22096,4 +22305,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794839241').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794840875').catch(()=>{});</script></body></html>
