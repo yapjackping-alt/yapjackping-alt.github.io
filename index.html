@@ -19205,8 +19205,8 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
     'body.gvOn #lbArr{display:flex;position:fixed;z-index:12;left:calc(var(--sl) + 62px);width:94px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(255,122,47,.75);color:#fff;font-weight:800;font-size:13px;align-items:center;justify-content:center;gap:2px;padding:0;pointer-events:auto}' +
     'body.gvOn.lb0 #lbArr{bottom:calc(var(--sb) + 8px)}' +
     'body.gvOn.lb1 #lbArr,body.gvOn.lb2 #lbArr,body.gvOn.lb3 #lbArr{top:calc(var(--lbTop, 120px) - 42px);height:43px;background:rgba(26,20,30,.96);border-radius:12px 12px 0 0;border-bottom:none}body.gvOn.lb2 #build.b5{border-radius:0 0 14px 0!important;border-top:none!important}body.gvOn.lb3 #build.b5{border-top:none!important}' +
-    'body.gvOn.lb2 #lbArr{left:calc(var(--sl) + 62px + 100px);width:calc(var(--lbColW) + 18px)}' +
-    'body.gvOn.lb3 #lbArr{left:calc(var(--sl) + 62px + 100px);width:auto;right:calc(var(--sr) + 104px)}' +
+    'body.gvOn.lb2 #lbArr{left:calc(var(--sl) + 62px);width:calc(100px + var(--lbColW) + 18px)}' +
+    'body.gvOn.lb3 #lbArr{left:calc(var(--sl) + 62px);width:auto;right:calc(var(--sr) + 104px)}' +
     // the categories: a fixed column under the arrow
     'body.gvOn #build.b5 .b5tabs,body.gvOn #build.b5.b5f .b5tabs{display:flex!important;position:fixed;left:calc(var(--sl) + 62px);top:var(--lbTop, 120px);bottom:calc(var(--sb) + 8px);width:100px;flex-direction:column!important;flex-wrap:nowrap!important;gap:4px;overflow-y:auto!important;overflow-x:hidden!important;padding:0 0 4px!important;margin:0!important;pointer-events:auto;scrollbar-width:none;touch-action:pan-y;overscroll-behavior:contain;z-index:3}' +
     'body.gvOn #build.b5 .b5tab{flex:0 0 auto!important;width:94px;height:36px!important;padding:0 6px!important;border-radius:10px!important;font-size:13px!important;background:rgba(20,24,30,.94);margin:0!important}' +
@@ -22015,4 +22015,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794835326').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794835997').catch(()=>{});</script></body></html>
