@@ -19201,19 +19201,20 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
     // the 收起 / 建造 arrow: at the bottom when closed; on top of the categories (state 1), over categories + row (state 2) or the whole grid (state 3)
     'body.gvOn #lbArr{display:flex;position:fixed;z-index:12;left:calc(var(--sl) + 62px);width:94px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(255,122,47,.75);color:#fff;font-weight:800;font-size:13px;align-items:center;justify-content:center;gap:2px;padding:0;pointer-events:auto}' +
     'body.gvOn.lb0 #lbArr{bottom:calc(var(--sb) + 8px)}' +
-    'body.gvOn.lb1 #lbArr,body.gvOn.lb2 #lbArr,body.gvOn.lb3 #lbArr{top:calc(var(--lbTop, 120px) - 42px);background:rgba(26,20,30,.96);border-radius:12px 12px 0 0;border-bottom:none}' +
-    'body.gvOn.lb2 #lbArr{width:calc(100px + min(var(--lbRowW), 100vw - var(--sl) - var(--sr) - 62px - 100px - 140px) + 34px)}' +
+    'body.gvOn.lb1 #lbArr,body.gvOn.lb2 #lbArr,body.gvOn.lb3 #lbArr{top:calc(var(--lbTop, 120px) - 42px);background:rgba(26,20,30,.96);border-radius:12px 12px 0 0;border-bottom:none}body.gvOn.lb2 #build.b5{border-radius:0 0 14px 0!important}' +
+    'body.gvOn.lb2 #lbArr{width:calc(100px + var(--lbColW) + 34px)}' +
     'body.gvOn.lb3 #lbArr{width:auto;right:calc(var(--sr) + 104px - 34px)}' +
     // the categories: a fixed column under the arrow
     'body.gvOn #build.b5 .b5tabs,body.gvOn #build.b5.b5f .b5tabs{display:flex!important;position:fixed;left:calc(var(--sl) + 62px);top:var(--lbTop, 120px);bottom:calc(var(--sb) + 8px);width:100px;flex-direction:column!important;flex-wrap:nowrap!important;gap:4px;overflow-y:auto!important;overflow-x:hidden!important;padding:0 0 4px!important;margin:0!important;pointer-events:auto;scrollbar-width:none;touch-action:pan-y;overscroll-behavior:contain;z-index:3}' +
     'body.gvOn #build.b5 .b5tab{flex:0 0 auto!important;width:94px;height:36px!important;padding:0 6px!important;border-radius:10px!important;font-size:13px!important;background:rgba(20,24,30,.94);margin:0!important}' +
     'body.gvOn.lb2 #build.b5 .b5tab.on,body.gvOn.lb3 #build.b5 .b5tab.on{width:100px;border-radius:12px 0 0 12px!important;background:rgba(26,20,30,.96)!important;border-color:rgba(255,178,122,.6)!important;border-right-color:transparent!important;color:#ffb27a!important}' +
     // the panel: state 2 = one row next to the chosen category, state 3 = the big grid from the arrow bar down
-    'body.gvOn{--lbRowW:520px}body.gvOn #build.b5{left:calc(var(--sl) + 62px + 100px)!important;right:auto!important;width:min(var(--lbRowW), calc(100vw - var(--sl) - var(--sr) - 62px - 100px - 140px));top:var(--lbStrip, var(--lbTop, 120px))!important;bottom:auto!important;max-width:none!important;margin:0!important;background:rgba(26,20,30,.96)!important;border-radius:0 14px 14px 14px!important;overflow:visible!important;padding:6px 8px 8px!important}' +
+    'body.gvOn{--lbColW:128px}body.gvOn #build.b5{left:calc(var(--sl) + 62px + 100px)!important;right:auto!important;width:var(--lbColW);top:var(--lbTop, 120px)!important;bottom:calc(var(--sb) + 8px)!important;max-width:none!important;margin:0!important;background:rgba(26,20,30,.96)!important;border-radius:0 14px 14px 14px!important;overflow:visible!important;padding:6px 8px 8px!important}' +
     'body.gvOn.lb3 #build.b5{right:calc(var(--sr) + 104px)!important;width:auto;top:var(--lbTop, 120px)!important;bottom:calc(var(--sb) + 8px)!important;border-radius:0 0 14px 0!important}' +
     'body.gvOn.lb0 #build.b5{display:none!important}' +
     'body.gvOn #build.b5 .b5row,body.gvOn #build.b5.b5f .b5row{display:grid!important;max-height:none!important;min-height:0}' +
-    'body.gvOn.lb2 #build.b5 .b5row{grid-auto-flow:column!important;grid-template-rows:auto!important;grid-template-columns:none!important;grid-auto-columns:78px!important;overflow-x:auto!important;overflow-y:hidden!important;touch-action:pan-x;overscroll-behavior:contain}' +
+    'body.gvOn.lb2 #build.b5 .b5row{grid-auto-flow:row!important;grid-template-columns:1fr!important;overflow-y:auto!important;overflow-x:hidden!important;touch-action:pan-y;overscroll-behavior:contain;flex:1 1 auto}' +
+    'body.gvOn.lb2 #build.b5 .b5info{flex-direction:column!important;align-items:stretch!important;gap:4px!important}body.gvOn.lb2 #build.b5 .b5sel{flex-direction:column;align-items:flex-start;white-space:normal}body.gvOn.lb2 #build.b5 .b5sel span:not(.rhw){display:none}body.gvOn.lb2 #build.b5 .b5sel .rhw{flex-wrap:wrap}body.gvOn.lb2 #build.b5 .smChip{margin:0;height:28px;font-size:12px;justify-content:center}body.gvOn.lb2 #build.b5 .bhave{font-size:11.5px;justify-content:center}' +
     'body.gvOn.lb3 #build.b5 .b5row{flex:1 1 auto}' +
     'body.gvOn #build.b5 .b5fold{display:none!important}' +
     'body.gvOn #lbFold{display:flex;flex-direction:column;gap:4px;position:absolute;right:-34px;top:50%;transform:translateY(-50%);pointer-events:auto}' +
@@ -19250,15 +19251,22 @@ function qfSvg(x) { const E = QF_EXP[x] || QF_EXP.idle;
 }
 const QF = { t: null, x: 'idle', n: 0 };
 function qfInject(m) { try {
-  const bal = m.querySelector('.rlbal'); if (!bal || bal.querySelector('.qface')) return;
+  const bal = m.querySelector('.rlbal'); if (bal && !bal.querySelector('.qface')) {
   const f = document.createElement('button'); f.className = 'qface'; f.setAttribute('aria-label', T2('点老钱去交易', 'Tap 老钱 to trade'));
   f.innerHTML = '<span class="qfs">' + qfSvg(QF.x) + '</span><em>' + T2('点我交易', 'Trade!') + '</em>';
-  f.addEventListener('click', e => { e.stopPropagation(); qfSet(m, 'happy'); try { sfx.pick(); } catch (er) { }
+  f.addEventListener('click', e => { e.stopPropagation(); if (relicPg === 'shop') { qfSet(m, 'wink'); return; } qfSet(m, 'happy'); try { sfx.pick(); } catch (er) { }
     setTimeout(() => { const b = m.querySelector('.rlpg button[data-p="shop"]'); if (b) b.click(); }, 160); });
   bal.appendChild(f);
+  }
+} catch (e) { } try {   // his goods are their own screen now (owner: the 「老钱的货」 tab is gone, tap him instead) with a way back
+  if (relicPg === 'shop' && !m.querySelector('.qfback')) { const bal = m.querySelector('.rlbal'); if (!bal) return; const h = document.createElement('div'); h.className = 'qfback';
+    h.innerHTML = '<button class="sbtn">‹ ' + T2('回到收藏品', 'Back to keepsakes') + '</button><b>' + T2('老钱的货', "Qian's goods") + '</b>';
+    h.querySelector('button').addEventListener('click', () => { const b = m.querySelector('.rlpg button[data-p="sell"]'); if (b) b.click(); });
+    bal.parentNode.insertBefore(h, bal.nextSibling); }
+  const f = m.querySelector('.qface'); if (f) f.classList.toggle('inshop', relicPg === 'shop');
 } catch (e) { } }
 function qfSet(m, x) { QF.x = x; const s = m.querySelector('.qface .qfs'); if (s) { s.innerHTML = qfSvg(x); s.classList.remove('pop'); void s.offsetWidth; s.classList.add('pop'); } }
-openRelic = (o => function () { o(); try { const m = $('relicM'); if (!m) return; qfInject(m); new MutationObserver(() => qfInject(m)).observe(m, { childList: true, subtree: true });
+openRelic = (o => function () { relicPg = 'sell'; o(); try { const m = $('relicM'); if (!m) return; qfInject(m); new MutationObserver(() => qfInject(m)).observe(m, { childList: true, subtree: true });
   clearInterval(QF.t); QF.n = 0;
   QF.t = setInterval(() => { if (!m.isConnected) { clearInterval(QF.t); return; } QF.n++;
     const L = ['idle', 'blink', 'idle', 'wink', 'money', 'idle', 'happy', 'blink', 'wow', 'idle'], x = L[QF.n % L.length]; qfSet(m, x);
@@ -19270,6 +19278,7 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
   '.qface .qfs{display:flex;animation:qfBob 2.4s ease-in-out infinite}.qface .qfs.pop{animation:qfPop .35s ease-out,qfBob 2.4s ease-in-out .35s infinite}' +
   '.qface em{position:absolute;right:66px;top:50%;transform:translateY(-50%) scale(.6);opacity:0;white-space:nowrap;font-style:normal;font-weight:900;font-size:12px;color:#3a2208;background:#ffd98a;padding:4px 9px;border-radius:10px;transition:all .25s;pointer-events:none}' +
   '.qface em::after{content:"";position:absolute;right:-6px;top:50%;margin-top:-5px;border:5px solid transparent;border-left-color:#ffd98a;border-right:none}' +
+  '#relicM .rlpg{display:none!important}.qfback{display:flex;align-items:center;gap:12px;margin:2px 0 10px}.qfback b{font-size:17px;color:#ffd98a}.qfback .sbtn{flex:none;padding:0 14px}.qface.inshop em{display:none}' +
   '.qface.talk em{opacity:1;transform:translateY(-50%) scale(1)}.qface:active{transform:scale(.94)}' +
   '@keyframes qfBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}@keyframes qfPop{0%{transform:scale(.85)}60%{transform:scale(1.12)}100%{transform:scale(1)}}' })); } catch (e) { }
 /* ============ build menu: swipe to scroll ============
@@ -21985,4 +21994,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794832376').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794833169').catch(()=>{});</script></body></html>
