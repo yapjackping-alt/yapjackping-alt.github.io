@@ -18914,6 +18914,78 @@ function bpxRender(box, el2) {
 }
 try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
   '.bpxg{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:7px;margin:4px 0 12px}.bpxc{display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 6px;border-radius:12px;border:1px solid var(--gc);background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(0,0,0,.2));color:#f3eadf;font:inherit}.bpxc b{font-size:13px}.bpxc small{font-size:11px;color:var(--gc)}.bpxc:disabled{opacity:.45}' })); } catch (e) { }
+/* ============ paint (owner: "wallpaper: all black, all white, grey — like paint") ============
+   A 油漆 tool next to 移动 / 拆除 in the build menu: pick a colour, then tap any built piece (wall, floor, roof, furniture…)
+   and it takes that colour; 去掉油漆 gives the piece its own colours back. Free. The paint keeps the light/dark of the
+   original parts (stone blocks, planks) so the piece still shows its shape. Glass, lamps and glowing bits are not painted.
+   Saved as d.paint = [[type, x, z, lv, colour] …]. Under the hood the tool is the 拆除 picker with PAINT.on set. */
+const PAINT = { on: false, c: 0, lastTap: null, cache: new Map(), t: 0 };
+const PAINT_C = [[T2('白色', 'White'), 0xf2f0ea], [T2('浅灰', 'Light grey'), 0xbcbcbc], [T2('灰色', 'Grey'), 0x8a8a8c], [T2('深灰', 'Dark grey'), 0x4a4a4e], [T2('黑色', 'Black'), 0x1c1c20]];
+function _paintMat(base, c) {
+  const key = base.uuid + '|' + c; let m = PAINT.cache.get(key); if (m) return m;
+  m = base.clone(); const b = base.color, lum = .3 * b.r + .59 * b.g + .11 * b.b, k = clamp(.8 + (lum - .45) * .9, .58, 1.18);
+  m.color.setHex(PAINT_C[c][1]).multiplyScalar(k); m.color.r = Math.min(1, m.color.r); m.color.g = Math.min(1, m.color.g); m.color.b = Math.min(1, m.color.b);
+  PAINT.cache.set(key, m); return m;
+}
+function paintApply(b) {
+  if (!b || !b.g) return; const c = b.paint == null ? null : b.paint;
+  b.g.traverse(o => { if (!o.isMesh || o.isSprite) return; const cur = o.userData.p0 || o.material;
+    if (!cur || Array.isArray(cur) || !cur.color || cur.isMeshBasicMaterial || cur.transparent || (cur.emissive && cur.emissive.getHex() > 0x202020)) return;
+    if (!o.userData.p0) o.userData.p0 = o.material;
+    o.material = c == null ? o.userData.p0 : _paintMat(o.userData.p0, c); });
+  b.g.userData.pk = c == null ? 'none' : c;
+}
+function paintPick() { const t = removeTarget(); return t && !t.fix && builds.includes(t) ? t : null; }
+function paintDo(b) {
+  if (!b) { feed(T2('点一下要上色的建筑', 'Tap a piece to paint'), '#ffd27a'); return; }
+  try { clearHilite(); } catch (e) { }
+  b.paint = PAINT.c < 0 ? null : PAINT.c; paintApply(b);
+  try { sfx.pick(); } catch (e) { } burst(b.x, (b.y || 0) + 1, b.z, PAINT.c < 0 ? 0xc9955c : PAINT_C[PAINT.c][1], 6, 3); saveGame();
+}
+// the tool button, the colour row, the menu line
+b5Build = (o => function () {
+  if (B5.tab !== 'paint') { o(); }
+  else { B5.tab = 'remove'; try { o(); } finally { B5.tab = 'paint'; } }
+  try { paintUi(); } catch (e) { }
+})(b5Build);
+function paintUi() {
+  if (B5.tab === 'paint') {
+    const row = buildEl.querySelector('.b5row'); if (row) { row.innerHTML = '';
+      const box = document.createElement('div'); box.className = 'pnRow';
+      box.innerHTML = PAINT_C.map((p, i) => '<button data-c="' + i + '" class="pnc' + (PAINT.c === i ? ' on' : '') + '"><i style="background:#' + p[1].toString(16).padStart(6, '0') + '"></i>' + p[0] + '</button>').join('')
+        + '<button data-c="-1" class="pnc' + (PAINT.c === -1 ? ' on' : '') + '"><i class="pnx"></i>' + T2('去掉油漆', 'Remove paint') + '</button>'
+        + '<p class="b5tip">' + T2('选一个颜色，再点一下墙、地板、屋顶或家具，就会涂上这个颜色。免费。', 'Pick a colour, then tap a wall, floor, roof or furniture to paint it. Free.') + '</p>';
+      box.addEventListener('pointerdown', e => { const bt = e.target.closest('button'); if (!bt) return; e.preventDefault(); e.stopPropagation(); PAINT.c = +bt.dataset.c; try { sfx.pick(); } catch (er) { } buildCards(); });
+      row.appendChild(box); } }
+  const tabs = buildEl.querySelector('.b5tabs'); if (tabs && !tabs.querySelector('[data-tab="paint"]')) {
+    const b = document.createElement('button'); b.className = 'b5tab btool' + (PAINT.on ? ' on' : ''); b.dataset.tab = 'paint'; b.textContent = T2('油漆', 'Paint');
+    b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); selectBuild('remove'); PAINT.on = true; B5.tab = 'paint'; PAINT.lastTap = buildTap; try { B5ER.on = false; } catch (er) { } buildCards(); paintBtn(); });
+    const rm = tabs.querySelector('[data-tab="remove"]'); rm ? tabs.insertBefore(b, rm) : tabs.appendChild(b); }
+}
+selectBuild = (o => function (k) { PAINT.on = false; return o.apply(this, arguments); })(selectBuild);
+function paintBtn() { try { if (PAINT.on && bPlaceEl) bPlaceEl.textContent = T2('上色', 'Paint'); } catch (e) { } }
+refreshBuildCards = (o => function () { o(); try { if (!PAINT.on) return; buildEl.querySelectorAll('.b5tab').forEach(b => b.classList.toggle('on', b.dataset.tab === 'paint')); paintBtn(); } catch (e) { } })(refreshBuildCards);
+b5Info = (o => function () { o(); try { if (!PAINT.on) return; const el = $('b5Sel'); if (!el) return; el._k = '';
+  el.innerHTML = '<b>' + T2('油漆', 'Paint') + '</b><span>' + (PAINT.c < 0 ? T2('去掉油漆：变回原来的颜色', 'Remove paint: back to its own colours') : PAINT_C[PAINT.c][0]) + '</span>'; } catch (e) { } })(b5Info);
+// the 上色 button (and a mouse click in the top view) paints the picked piece
+placeBuild = (o => function () { if (PAINT.on && buildSel === 'remove') { paintDo(paintPick()); return; } return o.apply(this, arguments); })(placeBuild);
+toggleBuild = (o => function () { const r = o.apply(this, arguments); if (!buildOpen) PAINT.on = false; return r; })(toggleBuild);
+// a finger tap paints straight away; painted pieces whose mesh was rebuilt get their colour again
+petsTick = (o => function (dt) { const r = o(dt); try {
+  if (PAINT.on && buildOpen && buildTap && buildTap !== PAINT.lastTap) { PAINT.lastTap = buildTap; const b = paintPick(); if (b) paintDo(b); }
+  PAINT.t -= dt; if (PAINT.t <= 0) { PAINT.t = .5; for (const b of builds) if (b.paint != null && b.g && b.g.userData.pk !== b.paint && !(hilite === b)) paintApply(b); }
+} catch (e) { console.warn('paint', e); } return r; })(petsTick);
+// save / load
+serialize = (o => function () { const d = o(); try { const L = builds.filter(b => b.paint != null && b.hp > 0).map(b => [b.type, Math.round(b.x * 100) / 100, Math.round(b.z * 100) / 100, b.lv | 0, b.paint]); if (L.length) d.paint = L; } catch (e) { } return d; })(serialize);
+applySave = (o => function (d) { const r = o(d); try { if (d && Array.isArray(d.paint)) for (const [t, x, z, lv, c] of d.paint) { if (!PAINT_C[c]) continue;
+    const b = builds.find(q => q.type === t && (q.lv | 0) === lv && Math.abs(q.x - x) < .03 && Math.abs(q.z - z) < .03 && q.paint == null); if (b) { b.paint = c; paintApply(b); } } } catch (e) { console.warn('paint load', e); } return r; })(applySave);
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+  '.pnRow{display:flex;flex-wrap:wrap;gap:8px;padding:4px 2px 6px;width:100%;grid-column:1/-1;box-sizing:border-box}.pnRow .b5tip{width:100%;margin:2px 0 0}' +
+  '.pnc{display:flex;align-items:center;gap:7px;height:42px;padding:0 12px;border-radius:12px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.07);color:#e8eef2;font-weight:800;font-size:14px}' +
+  '.pnc.on{border-color:#ffb060;background:rgba(255,160,80,.25);box-shadow:0 0 0 2px rgba(255,176,96,.5) inset}.pnc i{width:22px;height:22px;border-radius:6px;border:1px solid rgba(255,255,255,.5);display:inline-block}' +
+  '.pnc i.pnx{background:linear-gradient(135deg,transparent 45%,#ff6a5a 45%,#ff6a5a 55%,transparent 55%),#9a7450}' })); } catch (e) { }
+// in paint mode the piece under your finger glows softly instead of turning red (red looked like it was being painted red)
+setHilite = (o => function (b) { o(b); try { if (PAINT.on && b && b.g) b.g.traverse(q => { if (q.userData && q.userData.m0 && q.material && q.material.emissive) q.material.emissive.setHex(0x2c2c2c); }); } catch (e) { } })(setHilite);
 /* ============ build menu: swipe to scroll ============
    The tiles picked themselves on pointerdown, so a swipe that started on a tile picked it, the menu was rebuilt and the
    list jumped back to the top: you could never scroll down (worst in the 地形 tab). Now a tile is picked only on a TAP
@@ -21625,4 +21697,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794823243').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794824452').catch(()=>{});</script></body></html>
