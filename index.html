@@ -18914,13 +18914,114 @@ function bpxRender(box, el2) {
 }
 try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
   '.bpxg{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:7px;margin:4px 0 12px}.bpxc{display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 6px;border-radius:12px;border:1px solid var(--gc);background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(0,0,0,.2));color:#f3eadf;font:inherit}.bpxc b{font-size:13px}.bpxc small{font-size:11px;color:var(--gc)}.bpxc:disabled{opacity:.45}' })); } catch (e) { }
+/* ============ 光面石 (owner: "a new material: flat, smooth polished stone, for everything — walls, half / low walls,
+   floors, upper floors… design them all") ============
+   A 光面石 switch in the build menu's info line. When it is on, every structural piece you place (foundations, all walls of
+   every height and width, windows, door frames, upper floors, raised floors, slope / arc / round walls, gables, stairs,
+   ramps, triangle floors, roofs) is built in smooth pale stone instead of wood / rough stone. It is the same piece (it snaps,
+   stacks and walks exactly the same), only its look, price and strength change: it costs stone (metal) instead of wood and
+   is 1.5× as strong. Glass pieces, doors and ladders stay as they are.
+   The flat pieces get their own clean geometry (one smooth slab with a thin trim line); the shaped ones keep their shape
+   with every part in polished stone. Saved as d.smooth = [[type, x, z, lv] …]. */
+const SMOOTH = { on: false };
+const SMM = {
+  a: new THREE.MeshPhongMaterial({ color: 0xdedad2, shininess: 26, specular: 0x1c1c1c, flatShading: true }),
+  b: new THREE.MeshPhongMaterial({ color: 0xbdb8ae, shininess: 20, specular: 0x141414, flatShading: true }),
+  c: new THREE.MeshPhongMaterial({ color: 0x8f8a82, shininess: 14, specular: 0x101010, flatShading: true })
+};
+const SM_NO = ['gwall', 'hgwall', 'qgwall', 'hgw', 'qgw', 'door', 'ladder'];
+const smOk = t => !!(t && BT[t] && BT[t].cat === 'st' && !SM_NO.includes(t) && !(typeof GL2_H !== 'undefined' && GL2_H[t]));
+const smCost = c => ({ metal: (c.wood | 0) + (c.metal | 0) + 2 });
+
+function _smWall(g, x0, x1, H, opt) {   // a smooth wall slab from x0 to x1, with a plinth and a cap
+  const w = x1 - x0, cx = (x0 + x1) / 2;
+  box(w, H, .3, SMM.a, cx, H / 2, 0, g);
+  if (!(opt && opt.noPlinth)) box(w + .02, .1, .33, SMM.b, cx, .05, 0, g);
+  box(w + .04, .06, .34, SMM.b, cx, H - .03, 0, g);
+}
+function _smProfile(g, P, depth) {   // a flat outline (x, y points) made solid, centred on z
+  const sh = new THREE.Shape(); sh.moveTo(P[0][0], P[0][1]); for (let i = 1; i < P.length; i++) sh.lineTo(P[i][0], P[i][1]); sh.lineTo(P[0][0], P[0][1]);
+  const m = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: false }), SMM.a); m.position.z = -depth / 2; g.add(m); return m;
+}
+// clean geometry for the flat pieces; null = keep the piece's own shape and only change its materials
+function smMesh(type) {
+  const g = new THREE.Group(), H = WALL_H;
+  if (type === 'fnd' || type === 'sfnd') { box(3, .2, 3, SMM.a, 0, .105, 0, g); box(3.02, .06, 3.02, SMM.c, 0, .03, 0, g);
+    for (const d of [-.75, .75]) { box(.01, .002, 2.96, SMM.b, d, .206, 0, g); box(2.96, .002, .01, SMM.b, 0, .206, d, g); } return g; }   // faint joints: large slabs
+  if (type === 'upfl') { box(3, .2, 3, SMM.a, 0, UPY - .055, 0, g); box(3.02, .05, 3.02, SMM.c, 0, UPY - .17, 0, g);
+    for (const d of [-.75, .75]) { box(.01, .002, 2.96, SMM.b, d, UPY + .046, 0, g); box(2.96, .002, .01, SMM.b, 0, UPY + .046, d, g); } return g; }
+  if (type === 'wwall' || type === 'swall' || type === 'iwall') { _smWall(g, -1.5, 1.5, H); return g; }
+  if (type === 'hwall' || type === 'qwall') { _smWall(g, -1.5, 1.5, type === 'hwall' ? H / 2 : H / 4); return g; }
+  if (typeof SWALL !== 'undefined' && SWALL[type]) { const W = SWALL[type][0]; _smWall(g, -W / 2, W / 2, H); return g; }
+  if (type === 'window' || type === 'swin') {
+    box(3, 1.0, .3, SMM.a, 0, .5, 0, g); box(3, H - 2.0, .3, SMM.a, 0, 2.0 + (H - 2.0) / 2, 0, g);
+    box(.55, 1.0, .3, SMM.a, -1.225, 1.5, 0, g); box(.55, 1.0, .3, SMM.a, 1.225, 1.5, 0, g);
+    box(2.0, .07, .38, SMM.b, 0, 1.0, 0, g); box(3.02, .1, .33, SMM.b, 0, .05, 0, g); box(3.04, .06, .34, SMM.b, 0, H - .03, 0, g);
+    box(.05, 1, .06, SMM.c, 0, 1.5, 0, g); box(1.9, .05, .06, SMM.c, 0, 1.5, 0, g);
+    box(1.88, .94, .03, new THREE.MeshLambertMaterial({ color: 0xa8d8f0, transparent: true, opacity: .35 }), 0, 1.5, 0, g); return g; }
+  if (type === 'dframe') { _smWall(g, -1.5, -.66, H); _smWall(g, .66, 1.5, H); box(1.32, H - 2.25, .3, SMM.a, 0, 2.25 + (H - 2.25) / 2, 0, g);
+    box(1.44, .08, .36, SMM.b, 0, 2.25, 0, g); for (const x of [-.68, .68]) box(.06, 2.25, .36, SMM.b, x, 1.125, 0, g); return g; }
+  if (typeof SLOPES !== 'undefined' && SLOPES[type]) { const [SH, arc] = SLOPES[type], P = [[-1.5, 0]]; for (let i = 0; i <= 16; i++) { const x = -1.5 + 3 * i / 16; P.push([x, Math.max(.04, slopeH(SH, arc, x))]); } P.push([1.5, 0]);
+    _smProfile(g, P, .3); box(3.02, .1, .33, SMM.b, 0, .05, 0, g); return g; }
+  if (typeof GABLES !== 'undefined' && GABLES[type]) { const GH = GABLES[type]; _smProfile(g, [[-1.5, 0], [0, GH], [1.5, 0]], .3); box(3.02, .1, .33, SMM.b, 0, .05, 0, g); return g; }
+  return null;
+}
+// put a piece (or the ghost) in polished stone
+function smApply(g, type) {
+  if (!g) return; const m = smMesh(type);
+  if (m) { for (const c of g.children.slice()) { if (c.isLight) continue; g.remove(c); } while (m.children.length) g.add(m.children[0]); }
+  else g.traverse(o => { if (!o.isMesh || o.isSprite) return; const cur = o.material; if (!cur || Array.isArray(cur) || !cur.color || cur.isMeshBasicMaterial || cur.transparent) return;
+    const c = cur.color, lum = .3 * c.r + .59 * c.g + .11 * c.b; o.material = lum < .28 ? SMM.b : SMM.a; });
+  g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  g.userData.smooth = 1;
+}
+function smBuild(b) { if (!b || !b.g || b.g.userData.smooth) return; smApply(b.g, b.type); }
+
+// the switch in the info line
+function smChip() { try {
+  const info = buildEl.querySelector('.b5info'); if (!info) return; let c = info.querySelector('#smChip');
+  if (!c) { c = document.createElement('button'); c.id = 'smChip'; c.className = 'smChip'; info.insertBefore(c, info.querySelector('#bHave'));
+    c.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); SMOOTH.on = !SMOOTH.on; try { sfx.pick(); } catch (er) { }
+      if (buildSel && smOk(buildSel)) selectBuild(buildSel); buildCards(); }); }
+  const show = !!(buildSel && smOk(buildSel)) && !(typeof PAINT !== 'undefined' && PAINT.on);
+  c.style.display = show ? '' : 'none'; c.classList.toggle('on', SMOOTH.on);
+  c.innerHTML = '<i></i>' + T2('光面石', 'Polished stone');
+} catch (e) { } }
+refreshBuildCards = (o => function () { o(); smChip(); })(refreshBuildCards);
+// tile prices follow the switch
+b5Cost = (o => function (k) { if (!SMOOTH.on || !smOk(k)) return o(k); const T = BT[k], c0 = T.cost; T.cost = smCost(c0); try { return o(k); } finally { T.cost = c0; } })(b5Cost);
+// the ghost shows the stone too
+selectBuild = (o => function (k) { const r = o.apply(this, arguments);
+  try { if (SMOOTH.on && smOk(k) && ghost) { smApply(ghost, k); ghost.traverse(q => { if (q.material && !q.isSprite && !q.isLight && q.material.clone) { q.material = q.material.clone(); q.material.transparent = true; q.material.opacity = .55; } }); } } catch (e) { console.warn('sm ghost', e); }
+  return r; })(selectBuild);
+// placing: stone price, and the new piece is turned into polished stone; taking one down refunds stone
+placeBuild = (o => function () {
+  const k = buildSel;
+  if (k === 'remove' && !(typeof PAINT !== 'undefined' && PAINT.on)) { const t = removeTarget(); if (t && t.sm && BT[t.type]) { const T = BT[t.type], c0 = T.cost; T.cost = smCost(c0); try { return o.apply(this, arguments); } finally { T.cost = c0; } } return o.apply(this, arguments); }
+  if (!SMOOTH.on || !smOk(k)) return o.apply(this, arguments);
+  const T = BT[k], c0 = T.cost, n = builds.length; T.cost = smCost(c0); let r;
+  try { r = o.apply(this, arguments); } finally { T.cost = c0; }
+  if (builds.length > n) { for (const b of builds.slice(n)) if (b.type === k) { b.sm = 1; b.max = Math.round(b.max * 1.5); b.hp = b.max; smBuild(b); } try { saveGame(); } catch (e) { } }
+  return r;
+})(placeBuild);
+// moving a piece keeps its stone (and its paint)
+movePlace = (o => function () { const m = MV.o, sm = m && m.sm, pt = m && m.paint, n = builds.length; const r = o.apply(this, arguments);
+  try { if (m && !MV.o && !m.fix && (sm || pt != null)) { const nb = builds[builds.length - 1]; if (nb && nb !== m && nb.type === m.type) { if (sm) { nb.sm = 1; nb.max = Math.round(nb.max * 1.5); smBuild(nb); } if (pt != null) { nb.paint = pt; if (typeof paintApply === 'function') paintApply(nb); } saveGame(); } } } catch (e) { }
+  return r; })(movePlace);
+// save / load
+serialize = (o => function () { const d = o(); try { const L = builds.filter(b => b.sm && b.hp > 0).map(b => [b.type, Math.round(b.x * 100) / 100, Math.round(b.z * 100) / 100, b.lv | 0]); if (L.length) d.smooth = L; } catch (e) { } return d; })(serialize);
+applySave = (o => function (d) { const r = o(d); try { if (d && Array.isArray(d.smooth)) for (const [t, x, z, lv] of d.smooth) {
+    const b = builds.find(q => q.type === t && (q.lv | 0) === lv && Math.abs(q.x - x) < .03 && Math.abs(q.z - z) < .03 && !q.sm); if (b) { b.sm = 1; b.max = Math.round(BT[t].hp * 1.5); smBuild(b); } } } catch (e) { console.warn('smooth load', e); } return r; })(applySave);
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+  '.smChip{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 11px;margin:0 6px;border-radius:11px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.07);color:#e8eef2;font-weight:800;font-size:13px;white-space:nowrap;flex:none}' +
+  '.smChip i{width:16px;height:16px;border-radius:4px;background:linear-gradient(135deg,#f2efe8,#bdb8ae);border:1px solid rgba(255,255,255,.6)}.smChip.on{border-color:#ffd27a;background:rgba(255,210,122,.25);color:#fff3d6}' })); } catch (e) { }
 /* ============ paint (owner: "wallpaper: all black, all white, grey — like paint") ============
    A 油漆 tool next to 移动 / 拆除 in the build menu: pick a colour, then tap any built piece (wall, floor, roof, furniture…)
    and it takes that colour; 去掉油漆 gives the piece its own colours back. Free. The paint keeps the light/dark of the
    original parts (stone blocks, planks) so the piece still shows its shape. Glass, lamps and glowing bits are not painted.
    Saved as d.paint = [[type, x, z, lv, colour] …]. Under the hood the tool is the 拆除 picker with PAINT.on set. */
 const PAINT = { on: false, c: 0, lastTap: null, cache: new Map(), t: 0 };
-const PAINT_C = [[T2('白色', 'White'), 0xf2f0ea], [T2('浅灰', 'Light grey'), 0xbcbcbc], [T2('灰色', 'Grey'), 0x8a8a8c], [T2('深灰', 'Dark grey'), 0x4a4a4e], [T2('黑色', 'Black'), 0x1c1c20]];
+const PAINT_C = [[T2('白色', 'White'), 0xf2f0ea], [T2('浅灰', 'Light grey'), 0xbcbcbc], [T2('灰色', 'Grey'), 0x8a8a8c], [T2('深灰', 'Dark grey'), 0x4a4a4e], [T2('黑色', 'Black'), 0x1c1c20], [T2('米色', 'Beige'), 0xe6d8b8], [T2('木色', 'Wood'), 0xa07448], [T2('蓝色', 'Blue'), 0x4a78b0]];
 function _paintMat(base, c) {
   const key = base.uuid + '|' + c; let m = PAINT.cache.get(key); if (m) return m;
   m = base.clone(); const b = base.color, lum = .3 * b.r + .59 * b.g + .11 * b.b, k = clamp(.8 + (lum - .45) * .9, .58, 1.18);
@@ -21697,4 +21798,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794824452').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794826286').catch(()=>{});</script></body></html>
