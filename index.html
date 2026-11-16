@@ -1215,7 +1215,13 @@ const pick = arr => arr[Math.floor(RNG() * arr.length)];
 const HOME = { x: 0, z: -60000 };
 
 const canvas = $('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+// if the phone refuses a new 3D context (it can happen right after a reload while the old page still holds its own),
+// say so instead of leaving a blank screen, and offer to try again
+const renderer = (() => { try { return new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); } catch (e) {
+  try { const d = document.createElement('div'); d.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#140a10;color:#f3e6d6;font:600 16px/1.6 sans-serif;text-align:center;padding:24px';
+    d.innerHTML = '<b style="font-size:20px;color:#ffb070">画面没能启动</b><span>手机暂时没有空出 3D 画面。<br>等两秒再按下面的按钮；还不行的话，把游戏完全关掉再打开。</span><button style="font:800 17px sans-serif;padding:12px 28px;border-radius:14px;border:0;background:#ff9a4a;color:#2a1208">重新载入</button>';
+    d.querySelector('button').onclick = () => { try { location.reload(); } catch (er) { } }; document.body.appendChild(d); } catch (er) { }
+  throw e; } })();
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setClearColor(0x2a1a28);
 const scene = new THREE.Scene();
@@ -21331,6 +21337,22 @@ traitDmg = (o => function (z, d, crit) { let r = o.apply(this, arguments); try {
 // 技能冷却
 wsCast = (o => function () { const id = S.wp, b = S.wsCd[id]; const r = o.apply(this, arguments); try { const k = gafx('cdr');
   if (k && S.wsCd[id] !== b && S.wsCd[id] > S.t) S.wsCd[id] = S.t + (S.wsCd[id] - S.t) * (1 - k); } catch (e) { } return r; })(wsCast);
+/* ============ 切换角色 stuck on a blank screen (owner, iPhone home-screen app, 16 Nov) ============
+   切换角色 saves and reloads the page. The game keeps several 3D drawing contexts alive (the world, the bag figure, the
+   shop preview, the tile pictures, the companion figure). On an iPhone a reload can start the new page before the old
+   one has given its contexts back; the new page then gets no 3D context and stops on the blank loading colour.
+   Now every 3D context is handed back before the reload (and whenever the page is closed), and if the phone still
+   refuses, a_world.js shows a 「重新载入」 screen instead of a blank one. */
+function glFreeAll() {
+  const L = []; try { L.push(renderer); } catch (e) { } try { L.push(DOLL.R, SKPV.R, TH.R, CG.R); } catch (e) { }
+  for (const r of L) { if (!r) continue; try { r.render = () => { }; } catch (e) { } try { r.dispose(); } catch (e) { } try { r.forceContextLoss && r.forceContextLoss(); } catch (e) { } }
+}
+try { window.addEventListener('pagehide', e => { if (!e.persisted) glFreeAll(); }); } catch (e) { }   // not when the page is only put aside to come back (persisted)
+// same steps as before (save, at most 2.5 s), then give the contexts back, wait a moment, reload
+switchChar = async function () { window._swc = 1; try { banner('正在保存……', '马上回到选择角色', 2); } catch (e) { }
+  try { await Promise.race([flushSave(), new Promise(r => setTimeout(r, 2500))]); } catch (e) { } try { localStorage.removeItem('ember_live'); } catch (e) { }
+  glFreeAll(); await new Promise(r => setTimeout(r, 250));
+  try { location.reload(); } catch (e) { } setTimeout(() => { try { banner('没能自动重开', '请把游戏完全关掉，再重新打开', 6); } catch (e) { } }, 3000); };
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -22365,4 +22387,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794842571').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794843163').catch(()=>{});</script></body></html>
