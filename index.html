@@ -21272,6 +21272,17 @@ renderSettings = (o => function () { o(); if (!PERF_ON) return; try { const box 
 } catch (e) { } })(renderSettings);
 try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
   '#perfHud{position:fixed;left:50%;top:calc(2px + env(safe-area-inset-top));transform:translateX(-50%);z-index:9500;pointer-events:none;font:700 11px/1.3 ui-monospace,Menlo,monospace;color:#bff7c8;background:rgba(0,0,0,.55);padding:2px 8px;border-radius:8px;white-space:nowrap}' })); } catch (e) { }
+/* ============ no sideways drift (owner, again 16 Nov: "the same bug happens in many places") ============
+   Windows that scroll up/down (task book, bag, storage, map, vaults, dungeon pages, cards…) were a few pixels wider inside
+   than the screen (padding / 100% widths), so on a phone held upright a swipe also slid the whole page left and right.
+   One rule for every up/down scroller: no sideways scrolling and no sideways bounce. Rows that are MEANT to scroll sideways
+   (the build menu) are not in this list. */
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+  '.overlay,.scroll,#talents,.abym,.abyrows,.bagmain,.bagright,.baggrid,.bpop,.dsng,.dunmb,.ginfobox,.rlg,.rlshop,.stkcard,.wtlist,#chatLog,#stashList .stcol' +
+  '{overflow-x:hidden!important;overscroll-behavior-x:none}' +
+  // the cause: lists sized in screen widths (e.g. #storyList 96vw) inside a window with 20 px padding are wider than the
+  // room they have on an upright phone. Nothing inside a window may be wider than the window.
+  '.overlay>:not(canvas){max-width:100%;box-sizing:border-box}' })); } catch (e) { }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -22306,4 +22317,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794841359').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794841659').catch(()=>{});</script></body></html>
