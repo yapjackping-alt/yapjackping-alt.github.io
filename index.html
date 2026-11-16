@@ -18161,7 +18161,7 @@ petsTick = (o => function (dt) { const r = o(dt); if (!TER.down) TPAINT.L = null
 /* ---- waterfalls fall all the way down: placed up high (on a hill or a raised floor), the water keeps falling from the
    front of its pool to the ground below, with foam where it lands ---- */
 function wfExt(b) {
-  const g = b.g; if (!g) return; const big = b.type === 'wfall', w = big ? 2.4 : 1.4, c = Math.cos(b.rot), s = Math.sin(b.rot), fz = .05, base = g.position.y;
+  const g = b.g; if (!g) return; const big = b.type === 'wfall', w = big ? 2.4 : 1.4, sh0 = big ? 3.4 : 1.9, c = Math.cos(b.rot), s = Math.sin(b.rot), fz = -.15, base = g.position.y;
   const at = (lz, lx) => terH(b.x + (lx || 0) * c + lz * s, b.z - (lx || 0) * s + lz * c);   // ground at a spot given in the piece's own frame (+z = the way the water falls)
   // owner: the water must go all the way down. From the lip it falls straight down to the ground in front, then keeps running
   // down the slope as a cascade for as long as the ground keeps dropping (up to 8 m out), and splashes at the very bottom.
@@ -18179,8 +18179,8 @@ function wfExt(b) {
   if (skirt >= .25) { const rk = new THREE.Mesh(facet(new THREE.CylinderGeometry(1, 1.12, 1, 7, 1)), gmat(0x6a645c)); rk.scale.set(hw * 1.05, skirt + .3, hd * .75); rk.position.set(0, -(skirt + .3) / 2 + .02, -hd * .8 - .1); rk.castShadow = rk.receiveShadow = true; e.add(rk); }   // behind the water, so the water falls past it
   g.add(e); g.userData.ext = e; if (drop < .5) return;
   // one strip through the points: straight down first, then along the slope
-  const pos = [], uv = [], idx = [], hw2 = w * .36; let v = 0;
-  pts.forEach(([z, y], i) => { if (i) v += Math.hypot(z - pts[i - 1][0], y - pts[i - 1][1]) / 2; const yl = y - base; pos.push(-hw2, yl, z + .03, hw2, yl, z + .03); uv.push(0, v, 1, v); if (i) { const a = (i - 1) * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); } });
+  const pos = [], uv = [], idx = [], hw2 = w * .35; let v = 0; pts[0] = [fz, base + .05];   // owner saw a line + water going UP: the strip now sits in the sheet's own plane, overlaps its bottom and scrolls the same way
+  pts.forEach(([z, y], i) => { if (i) v += Math.hypot(z - pts[i - 1][0], y - pts[i - 1][1]) / sh0; const yl = y - base, zz = z + (i ? .002 : 0); pos.push(-hw2, yl, zz, hw2, yl, zz); uv.push(0, -v, 1, -v); if (i) { const a = (i - 1) * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); } });
   const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); gg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); gg.setIndex(idx); gg.computeVertexNormals();
   const sh = new THREE.Mesh(gg, W.fall); sh.userData.noCast = 1; sh.material.side = THREE.DoubleSide; e.add(sh);
   const [ez, ey] = pts[pts.length - 1], R = mulberry32(7);
@@ -21431,4 +21431,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794811292').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794822558').catch(()=>{});</script></body></html>
