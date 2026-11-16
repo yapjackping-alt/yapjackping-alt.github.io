@@ -20521,8 +20521,9 @@ const HY_ABY = .9;
      bloat, frost, hook, roll, magma, shade, herald), more kinds the deeper you go.
    - Per floor n: move speed ×(1 + .014n, max ×1.7), attack speed ×(1 + .02n, max ×2.0), on top of the old life / damage growth.
    - Your gear no longer makes you untouchable: a monster's life is at least (your weapon's damage per second × a time that
-     grows with the floor), and every hit that lands takes at least a slice of your max life (1.5% + .16% per floor) — armour,
-     cards and shields still help, but never down to nothing.
+     grows with the floor), and its damage grows faster with the floor (×(1 + .012n) on top). Owner: NO hits that take a
+     share of your life — that was unfair (you hit them with numbers, they would hit you with percentages); skill and the
+     cards you pick decide how deep you get.
    - Aiming: down here the monsters only go for you (they used to pick other online players whose position happened to be
      near the dungeon area, so spitters and ice throwers fired at empty air), and the spit / ice is thrown where you will be. */
 { const all = Object.keys(ZT).filter(k => !k.startsWith('_') && ZT[k] && ZT[k].hp && !ZT[k].animal), rz = (typeof RZ !== 'undefined' ? RZ.filter(Boolean) : []).filter(k => ZT[k]);
@@ -20530,7 +20531,6 @@ const HY_ABY = .9;
   ABY_ZT[1] = ['walker', 'runner', 'brute', 'spitter', 'bomber', 'shield', 'screamer', 'dog', 'bark', 'sand', 'bloat', 'frost', 'hook', 'roll'].filter(k => ZT[k]);
   ABY_ZT[2] = [...new Set(['runner', 'brute', 'bomber', 'shield', 'screamer', 'healer', 'spitter', 'crawler', ...rz, ...all.filter(k => ZT[k].n)])]; }
 const abySpdK = () => Math.min(1.7, 1 + .014 * ABY.floor), abyAtkK = () => Math.min(2, 1 + .02 * ABY.floor);
-const abyHitMin = () => .015 + .0016 * ABY.floor;   // share of max life every landed hit takes at least
 function abyHpFloor(z) { let d = 0; try { d = weaponDps(ABY.wp) || 0; } catch (e) { } const n = ABY.floor;
   return z.boss ? d * (10 + .5 * n) : d * (.6 + .05 * n) * (z.abyE ? 2.5 : 1); }
 const ABYV = { px: 0, pz: 0, vx: 0, vz: 0 };
@@ -20541,23 +20541,24 @@ zSpecialTick = (o => function (dt) { o(dt); if (!abyOn()) return; try {
   const sk = abySpdK(), ak = abyAtkK();
   for (const z of new Set([...zombies, ...(boss && boss.aby ? [boss] : [])])) {   // (the boss is usually in zombies too: once only) if (!z || z.dead || z.mirror || !z.aby) continue;
     if (!z.abyX) { z.abyX = 1;   // once per monster: speed, and life never below what your weapon would melt in a moment
+      z.dmg = (z.dmg || 0) * (1 + .012 * ABY.floor);
       if (z.spd) z.spd = z.boss ? z.spd * (1 + (sk - 1) * .5) : Math.min(6.4, z.spd * sk);
       const f = abyHpFloor(z); if (f > z.max) { const r = z.max > 0 ? z.hp / z.max : 1; z.max = Math.round(f); z.hp = Math.round(f * r); } }
     // attacks come faster: the cool-downs run down quicker
     const ex = dt * (ak - 1); if (z.cd > 0) z.cd -= ex; if (z.acd > 0) z.acd -= ex; }
 } catch (e) { console.warn('aby2', e); } })(zSpecialTick);
-// only you are the target down here
-zTarget = (o => function (z) { if (z && z.aby && abyOn()) return { x: player.pos.x, z: player.pos.z, peer: null, d: S.dead ? 1e9 : Math.hypot(player.pos.x - z.pos.x, player.pos.z - z.pos.z) }; return o(z); })(zTarget);
+// inside a dungeon a monster only goes for you and the teammates who are really in this same dungeon (every dungeon is built
+// at the same far-away spot, so online players in OTHER dungeons were picked as targets: the spitters shot at empty air)
+const _dunPeerOk = peer => !!(typeof DUN !== 'undefined' && DUN.inside && DUN.inside.has(peer)) && !(typeof abyOn === 'function' && abyOn());
+zTarget = (o => function (z) { if (!S.dun || !z) return o(z);
+  let best = { x: player.pos.x, z: player.pos.z, peer: null, d: S.dead ? 1e9 : Math.hypot(player.pos.x - z.pos.x, player.pos.z - z.pos.z) };
+  if (COOP.host === MP.me) for (const [peer, ob] of MP.others) { if (ob.isl || ob.dead || !_dunPeerOk(peer)) continue; const d = Math.hypot(ob.tx - z.pos.x, ob.tz - z.pos.z); if (d < best.d) best = { x: ob.tx, z: ob.tz, peer, d }; }
+  return best; })(zTarget);
+nearestPlayerDist = (o => function (z) { if (!S.dun || !z) return o(z); let d = Math.hypot(player.pos.x - z.pos.x, player.pos.z - z.pos.z);
+  if (COOP.host === MP.me) for (const [peer, ob] of MP.others) if (!ob.isl && _dunPeerOk(peer)) d = Math.min(d, Math.hypot(ob.tx - z.pos.x, ob.tz - z.pos.z)); return d; })(nearestPlayerDist);
 // spit is thrown where you are going (most of the way)
 spitAt = (o => function (z, x, zz) { if (z && z.aby && abyOn()) { const T = Math.max(.35, Math.hypot(x - z.pos.x, zz - z.pos.z) / 14); x += ABYV.vx * T * .8; zz += ABYV.vz * T * .8; } return o(z, x, zz); })(spitAt);
-// a landed hit always costs a slice of your life, however good the armour
-takeDamage = (o => function (n, src) {
-  if (!abyOn() || !src || !src.aby || S.dead) return o(n, src);
-  const h0 = S.hp, s0 = ABY.shield || 0; const r = o(n, src); if (S.dead || !abyOn() || ABY.result) return r;
-  const lost = (h0 - S.hp) + (s0 - (ABY.shield || 0)), min = S.maxHp * abyHitMin();
-  if (lost > 0 && lost < min) { const extra = min - lost; if (S.hp - extra > 0) S.hp -= extra; else { const iv = S.invT; S.invT = 0; o(S.hp + 1, src); if (S.invT < iv) S.invT = iv; } }
-  return r;
-})(takeDamage);
+
 /* ============ 走上船：老钱的商船 → 收藏馆，深渊号 → 潜艇舱内 ============
    - Both gangplanks are walkable now. Walk up to the deck end and you are taken inside (a 3D room, built with the dungeon engine
      as DUNS[10] / DUNS[11] at the far-away dungeon spot, so nothing outside can wander in). Walk to the door to come back out
@@ -22059,4 +22060,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794837741').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794838255').catch(()=>{});</script></body></html>
