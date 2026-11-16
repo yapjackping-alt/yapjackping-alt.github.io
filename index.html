@@ -19155,12 +19155,15 @@ function lbPaint() { try {
 // the arrows on the right of the row / grid: ‹ closes (row → categories only, grid → one row), › opens the big grid
 buildCards = (o => function () { const r = o.apply(this, arguments); try { if (buildEl.appendChild && !buildEl.querySelector('#lbFold')) {
   const w = document.createElement('div'); w.id = 'lbFold';
-  w.innerHTML = '<button data-a="close" aria-label="' + T2('收起', 'Close') + '">' + LBS_CHEV('lf') + '</button><button data-a="big" aria-label="' + T2('展开', 'Open') + '">' + LBS_CHEV('rt') + '</button>';
+  w.innerHTML = '<button data-a="big" aria-label="' + T2('展开', 'Open') + '">' + LBS_CHEV('rt') + '</button><button data-a="close" aria-label="' + T2('收起', 'Close') + '">' + LBS_CHEV('lf') + '</button>';   // owner: › on top, ‹ under it
   w.addEventListener('pointerdown', e => { const b = e.target.closest && e.target.closest('button'); if (!b) return; e.preventDefault(); e.stopPropagation();
     if (b.dataset.a === 'big') lbSet(3); else lbSet(LBS.s === 3 ? 2 : 1); setTimeout(lbStrip, 0); });
   buildEl.appendChild(w); } lbStrip(); } catch (e) { } return r; })(buildCards);
 // choosing a category (a TAP, see z_bscroll) opens its row
-try { buildEl.addEventListener('pointerdown', e => { if (typeof B5SC === 'undefined' || !B5SC.pass) return; const t = e.target && e.target.closest && e.target.closest('.b5tab'); if (t && lbLand()) setTimeout(() => { if (LBS.s < 2) lbSet(2); lbStrip(); }, 0); }, true); } catch (e) { }
+try { buildEl.addEventListener('pointerdown', e => { if (typeof B5SC === 'undefined' || !B5SC.pass || !lbLand()) return; const t = e.target && e.target.closest && e.target.closest('.b5tab');
+  if (t) setTimeout(() => { if (LBS.s < 2) lbSet(2); lbStrip(); }, 0);
+  else if (LBS.s === 3 && e.target.closest && e.target.closest('.b5t')) setTimeout(() => lbSet(2), 0);   // picking a piece in the big grid folds it back to the column (owner)
+}, true); } catch (e) { }
 // the one-row strip sits next to the chosen category (kept inside the column's height)
 function lbStrip() { try { if (!GV.on || !lbLand()) return; const tab = buildEl.querySelector('.b5tab.on'), top0 = parseFloat(getComputedStyle(document.body).getPropertyValue('--lbTop')) || 120;
   const h = LBS.s === 2 ? (buildEl.offsetHeight || 150) : 0, bot = window.innerHeight - 8 - (parseFloat(getComputedStyle(document.body).getPropertyValue('--sb')) || 0);
@@ -19201,9 +19204,9 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
     // the 收起 / 建造 arrow: at the bottom when closed; on top of the categories (state 1), over categories + row (state 2) or the whole grid (state 3)
     'body.gvOn #lbArr{display:flex;position:fixed;z-index:12;left:calc(var(--sl) + 62px);width:94px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(255,122,47,.75);color:#fff;font-weight:800;font-size:13px;align-items:center;justify-content:center;gap:2px;padding:0;pointer-events:auto}' +
     'body.gvOn.lb0 #lbArr{bottom:calc(var(--sb) + 8px)}' +
-    'body.gvOn.lb1 #lbArr,body.gvOn.lb2 #lbArr,body.gvOn.lb3 #lbArr{top:calc(var(--lbTop, 120px) - 42px);background:rgba(26,20,30,.96);border-radius:12px 12px 0 0;border-bottom:none}body.gvOn.lb2 #build.b5{border-radius:0 0 14px 0!important}' +
-    'body.gvOn.lb2 #lbArr{width:calc(100px + var(--lbColW) + 34px)}' +
-    'body.gvOn.lb3 #lbArr{width:auto;right:calc(var(--sr) + 104px - 34px)}' +
+    'body.gvOn.lb1 #lbArr,body.gvOn.lb2 #lbArr,body.gvOn.lb3 #lbArr{top:calc(var(--lbTop, 120px) - 42px);height:43px;background:rgba(26,20,30,.96);border-radius:12px 12px 0 0;border-bottom:none}body.gvOn.lb2 #build.b5{border-radius:0 0 14px 0!important;border-top:none!important}body.gvOn.lb3 #build.b5{border-top:none!important}' +
+    'body.gvOn.lb2 #lbArr{left:calc(var(--sl) + 62px + 100px);width:calc(var(--lbColW) + 18px)}' +
+    'body.gvOn.lb3 #lbArr{left:calc(var(--sl) + 62px + 100px);width:auto;right:calc(var(--sr) + 104px)}' +
     // the categories: a fixed column under the arrow
     'body.gvOn #build.b5 .b5tabs,body.gvOn #build.b5.b5f .b5tabs{display:flex!important;position:fixed;left:calc(var(--sl) + 62px);top:var(--lbTop, 120px);bottom:calc(var(--sb) + 8px);width:100px;flex-direction:column!important;flex-wrap:nowrap!important;gap:4px;overflow-y:auto!important;overflow-x:hidden!important;padding:0 0 4px!important;margin:0!important;pointer-events:auto;scrollbar-width:none;touch-action:pan-y;overscroll-behavior:contain;z-index:3}' +
     'body.gvOn #build.b5 .b5tab{flex:0 0 auto!important;width:94px;height:36px!important;padding:0 6px!important;border-radius:10px!important;font-size:13px!important;background:rgba(20,24,30,.94);margin:0!important}' +
@@ -19281,6 +19284,24 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
   '#relicM .rlpg{display:none!important}.qfback{display:flex;align-items:center;gap:12px;margin:2px 0 10px}.qfback b{font-size:17px;color:#ffd98a}.qfback .sbtn{flex:none;padding:0 14px}.qface.inshop em{display:none}' +
   '.qface.talk em{opacity:1;transform:translateY(-50%) scale(1)}.qface:active{transform:scale(.94)}' +
   '@keyframes qfBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}@keyframes qfPop{0%{transform:scale(.85)}60%{transform:scale(1.12)}100%{transform:scale(1)}}' })); } catch (e) { }
+// his goods used to be a small box that scrolled on its own inside the window (max 48% of the screen): on a phone the swipe got
+// stuck in it and you could not reach the lower goods. Now the whole window scrolls as one page.
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent: '#relicM .rlshop{max-height:none!important;overflow:visible!important}#relicM .dunmb{-webkit-overflow-scrolling:touch;overscroll-behavior:contain}' })); } catch (e) { }
+// …and the swipe itself is done here: on the phone a swipe that started low in the window (on the goods) did not move it at
+// all. The finger now drags the window directly (with a little glide when you let go); a drag never counts as a tap.
+function qfDragScroll(m) { if (m._qfd) return; m._qfd = 1;   // on the overlay: the window inside is rebuilt on every page change
+  let d = null, v = 0, raf = 0, box = null; const B = () => m.querySelector('.dunmb');
+  m.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') return; box = B(); if (!box) return; cancelAnimationFrame(raf); d = { y: e.clientY, y0: e.clientY, t: performance.now(), moved: false, id: e.pointerId }; v = 0; }, true);
+  m.addEventListener('pointermove', e => { if (!d || !box || e.pointerId !== d.id) return; const dy = e.clientY - d.y, now = performance.now();
+    if (!d.moved && Math.abs(e.clientY - d.y0) > 8) d.moved = true;
+    if (d.moved) { box.scrollTop -= dy; v = -dy / Math.max(8, now - d.t); e.preventDefault(); } d.y = e.clientY; d.t = now; }, { capture: true, passive: false });
+  const up = e => { if (!d || e.pointerId !== d.id) return; const was = d.moved; d = null;
+    if (was) { const stop = ev => { ev.stopPropagation(); ev.preventDefault(); }; m.addEventListener('click', stop, { capture: true, once: true }); setTimeout(() => m.removeEventListener('click', stop, true), 350);
+      const glide = () => { if (Math.abs(v) < .02) return; box.scrollTop += v * 16; v *= .93; raf = requestAnimationFrame(glide); }; raf = requestAnimationFrame(glide); } };
+  m.addEventListener('pointerup', up, true); m.addEventListener('pointercancel', up, true);
+}
+openRelic = (o => function () { o(); try { const m = $('relicM'); if (m) qfDragScroll(m); } catch (e) { } })(openRelic);
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent: '#relicM .dunmb{touch-action:none}' })); } catch (e) { }
 /* ============ build menu: swipe to scroll ============
    The tiles picked themselves on pointerdown, so a swipe that started on a tile picked it, the menu was rebuilt and the
    list jumped back to the top: you could never scroll down (worst in the 地形 tab). Now a tile is picked only on a TAP
@@ -21994,4 +22015,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794833169').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794835326').catch(()=>{});</script></body></html>
