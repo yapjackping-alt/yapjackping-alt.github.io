@@ -10798,7 +10798,7 @@ function swimOut() {
     const x = t.x + dx * (TK_S / 2 + .7), z = t.z + dz * (TK_S / 2 + .7), d = Math.hypot(x - player.pos.x, z - player.pos.z); if (d < bd) { bd = d; best = { x, z }; } }
   for (const o of SW.obs) o.open = false; SW.obs = []; SW.b = null;
   if (best) { player.pos.x = best.x; player.pos.z = best.z; }
-  pm.g.rotation.x = 0; pm.body.rotation.z = 0; if (SW.arm) { pm.armR.rotation.copy(SW.arm[0]); pm.armL.rotation.copy(SW.arm[1]); } pm.legL.rotation.set(0, 0, 0); pm.legR.rotation.set(0, 0, 0); gun.visible = true;
+  pm.g.rotation.x = 0; pm.g.rotation.order = 'XYZ'; pm.body.rotation.z = 0; if (SW.arm) { pm.armR.rotation.copy(SW.arm[0]); pm.armL.rotation.copy(SW.arm[1]); } pm.legL.rotation.set(0, 0, 0); pm.legR.rotation.set(0, 0, 0); gun.visible = true;
   burst(player.pos.x, 1, player.pos.z, 0xbfe8ff, 10, 3); feed('爬出了鱼缸，浑身湿透', '#7de0ff'); swimBtn();
 }
 function swimTick(dt) {
@@ -10811,14 +10811,14 @@ function swimTick(dt) {
     if (!SW.b) { const b = tankCell(player.pos.x, player.pos.z, S.fl | 0, .45); if (b && !S.fall) swimIn(b); }
     return;
   }
-  const b = SW.b; if (S.dead || !builds.includes(b) || b.hp <= 0) { SW.b = null; for (const o of SW.obs) o.open = false; SW.obs = []; pm.g.rotation.x = 0; gun.visible = true; swimBtn(); return; }
+  const b = SW.b; if (S.dead || !builds.includes(b) || b.hp <= 0) { SW.b = null; for (const o of SW.obs) o.open = false; SW.obs = []; pm.g.rotation.x = 0; pm.g.rotation.order = 'XYZ'; gun.visible = true; swimBtn(); return; }
   // stay inside the joined tanks
   if (!tankCell(player.pos.x, player.pos.z, b.lv | 0, .35)) { if (tankCell(player.pos.x, SW.pz, b.lv | 0, .35)) player.pos.z = SW.pz; else if (tankCell(SW.px, player.pos.z, b.lv | 0, .35)) player.pos.x = SW.px; else { player.pos.x = SW.px; player.pos.z = SW.pz; } }
   const mv = Math.hypot(player.pos.x - SW.px, player.pos.z - SW.pz) / Math.max(dt, .001); SW.px = player.pos.x; SW.pz = player.pos.z;
   // slow in water
   input.fire = false; S.sprint = false;
   const t = S.t * (mv > .5 ? 5 : 2.2), y = (b.y || 0) + TK_H * .55 + Math.sin(S.t * 2) * .08;
-  pm.g.position.y = y; pm.g.rotation.x = mv > .5 ? 1.3 : .35; pm.body.rotation.z = Math.sin(t * .5) * .12;
+  pm.g.position.y = y; pm.g.rotation.order = 'YXZ'; pm.g.rotation.x = mv > .5 ? 1.3 : .35;   // YXZ: lean forward along the facing (XYZ leaned sideways) pm.body.rotation.z = Math.sin(t * .5) * .12;
   pm.armR.rotation.set(-Math.PI + Math.sin(t) * 1.6, 0, -.2); pm.armL.rotation.set(-Math.PI - Math.sin(t) * 1.6, 0, .2);
   pm.legL.rotation.x = Math.sin(t * 2) * .45; pm.legR.rotation.x = -Math.sin(t * 2) * .45; pm.body.position.y = 0;
   SW.bt -= dt; if (SW.bt <= 0) { SW.bt = rand(.25, .6); burst(player.pos.x + rand(-.3, .3), y + 1.2, player.pos.z + rand(-.3, .3), 0xdff6ff, 2, 1.2); }
@@ -18395,7 +18395,7 @@ applySave = (o => function (d) { const r = o(d); try { const L = d && d.ter && d
 /* ============ swimming in your own ponds and rivers (owner: "in water the character should swim, not stand on it") ============
    On the island, where painted water (水池 / 圈池塘) or a drawn river is deeper than about half a metre, you swim: body
    flat at the surface, arm strokes and kicks, slower, no shooting; walk out where it gets shallow. */
-const SWN = { on: false, y: 0, bt: 0, arm: null };
+const SWN = { on: false, y: 0, bt: 0, arm: null, lean: 0 };
 // the sea round the island: water at -0.3 past the beach (owner: no more invisible wall, swim out into the sea)
 const SWN_SEA = ISL_R + 45;
 function swGround(x, z) { const r = Math.hypot(x - HOME.x, z - HOME.z); if (r > ISL_R + 16) return -6; return terBase(r) + (TER.any ? terD(x, z) : 0); }
@@ -18412,14 +18412,24 @@ function swn2Tick(dt) {
   let want = false, lvl = null;
   if (ok) { lvl = islWaterLevel(player.pos.x, player.pos.z); if (lvl != null) { const d = lvl - swGround(player.pos.x, player.pos.z); want = SWN.on ? d > .38 : d > .55; } }
   if (want && !SWN.on) { SWN.on = true; SWN.arm = [pm.armR.rotation.clone(), pm.armL.rotation.clone()]; gun.visible = false; burst(player.pos.x, lvl + .2, player.pos.z, 0xbfe8ff, 14, 3); try { if (AC) sfxNoise(.35, .16, 1300, { f1: 300 }); } catch (e) { } }
-  if (!want && SWN.on) { SWN.on = false; pm.g.rotation.x = 0; pm.body.rotation.z = 0; if (SWN.arm) { pm.armR.rotation.copy(SWN.arm[0]); pm.armL.rotation.copy(SWN.arm[1]); } pm.legL.rotation.set(0, 0, 0); pm.legR.rotation.set(0, 0, 0); gun.visible = true; }
+  if (!want && SWN.on) { SWN.on = false; pm.g.rotation.x = 0; pm.g.rotation.order = 'XYZ'; pm.body.rotation.z = 0; if (SWN.arm) { pm.armR.rotation.copy(SWN.arm[0]); pm.armL.rotation.copy(SWN.arm[1]); } pm.legL.rotation.set(0, 0, 0); pm.legR.rotation.set(0, 0, 0); gun.visible = true; }
   if (!SWN.on) return;
   input.fire = false; S.sprint = false;
   const mv = Math.hypot(input.mx || 0, input.mz || 0) > .1 || (typeof keys !== 'undefined' && (keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD)), t = S.t * (mv ? 5 : 2.2);
-  SWN.lvl = lvl; SWN.y = lvl - .62 + Math.sin(S.t * 2) * .06;   // terOff puts the body here (the camera follows)
-  pm.g.rotation.x = mv ? 1.25 : .35; pm.body.rotation.z = Math.sin(t * .5) * .12;
-  pm.armR.rotation.set(-Math.PI + Math.sin(t) * 1.6, 0, -.2); pm.armL.rotation.set(-Math.PI - Math.sin(t) * 1.6, 0, .2);
-  pm.legL.rotation.x = Math.sin(t * 2) * .45; pm.legR.rotation.x = -Math.sin(t * 2) * .45;
+  // owner: lie FLAT on the water, head first in the way you swim (crawl): the tilt must turn with the facing, so the rotation
+  // order is Y (facing) first, then X (lean forward) — with the default order the body leaned sideways and looked upright from above
+  pm.g.rotation.order = 'YXZ'; SWN.lvl = lvl;
+  if (mv) { SWN.lean += (1.42 - (SWN.lean || 0)) * Math.min(1, dt * 6);
+    const a = S.t * 5.2;   // arms go round like a windmill, one after the other; quick small kicks
+    pm.armR.rotation.set(-(a % 6.283), 0, -.15); pm.armL.rotation.set(-((a + Math.PI) % 6.283), 0, .15);
+    pm.legL.rotation.set(Math.sin(S.t * 14) * .35, 0, 0); pm.legR.rotation.set(-Math.sin(S.t * 14) * .35, 0, 0);
+    pm.body.rotation.z = Math.sin(a) * .18;   // the body rolls a little with each stroke
+    SWN.y = lvl - .32 + Math.sin(S.t * 3) * .03; }
+  else { SWN.lean += (.22 - (SWN.lean || 0)) * Math.min(1, dt * 4);   // treading water: upright, head out, arms sculling at the sides
+    pm.armR.rotation.set(-.35 + Math.sin(S.t * 3) * .25, 0, -1.05 + Math.sin(S.t * 3) * .2); pm.armL.rotation.set(-.35 - Math.sin(S.t * 3) * .25, 0, 1.05 - Math.sin(S.t * 3) * .2);
+    pm.legL.rotation.set(Math.sin(S.t * 4) * .4, 0, 0); pm.legR.rotation.set(-Math.sin(S.t * 4) * .4, 0, 0); pm.body.rotation.z = 0;
+    SWN.y = lvl - 1.12 + Math.sin(S.t * 2) * .05; }
+  pm.g.rotation.x = SWN.lean;
   SWN.bt -= dt; if (SWN.bt <= 0) { SWN.bt = rand(.25, .6); burst(player.pos.x + rand(-.3, .3), lvl + .05, player.pos.z + rand(-.3, .3), 0xdff6ff, 2, 1.2); }
 }
 petsTick = (o => function (dt) { const r = o(dt); try { swn2Tick(dt); } catch (e) { } return r; })(petsTick);
@@ -21319,4 +21329,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794787689').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794789394').catch(()=>{});</script></body></html>
