@@ -20916,6 +20916,7 @@ dunCleanup = (o => function () { const was = DUN.on; o(); if (was) { DUN.inst = 
    - First clear of each dungeon each week (any tier): +40 遗物币 and 1 腐化晶体.
    Teams: the invite carries the tier; the host's monsters are what everyone fights. Switch: DMOD_ON. */
 const DMOD_ON = true;
+const DMOD_AFX = false;   // owner 16 Nov: no weekly affixes (无光 etc.) — kept in the code, switched off
 const DMOD = { sel: {}, next: null, nextT: 0, inv: new Map(), kills: 0, seen: new WeakSet(), dup: false };
 const DT_N = [T2('普通', 'Normal'), T2('困难', 'Hard'), T2('噩梦', 'Nightmare')], DT_LV = [0, 6, 12], DT_HP = [1, 1.5, 2.2];
 const DAFX = [
@@ -20935,10 +20936,10 @@ dunPartyAdd = (o => function () { o(); try { const id = DUN.id | 0; if (!dmodOk(
   const mx = dmodMax(id); if ((DMOD.sel[id] | 0) > mx) DMOD.sel[id] = mx; const A = dmodAfx(), wkDone = S.dwk[id] === dmodWk();
   const box = document.createElement('div'); box.className = 'dmodb';
   const paint = () => { const s = DMOD.sel[id] | 0;
-    box.innerHTML = '<small>' + T2('难度', 'Difficulty') + '</small><div class="dmodr">' + DT_N.map((n, i) => '<button data-t="' + i + '" class="sbtn' + (i === s ? ' on' : '') + (i > mx ? ' ghostb' : '') + '"' + (i > mx ? ' disabled' : '') + '>' + n + (i > mx ? ' · ' + (i === 1 ? T2('先通关一次', 'clear once') : T2('先通关困难', 'clear Hard')) : '') + '</button>').join('') + '</div>' +
+    box.innerHTML = '<small>' + T2('难度', 'Difficulty') + '</small><div class="dmodr">' + DT_N.map((n, i) => '<button data-t="' + i + '" class="sbtn' + (i === s ? ' on' : '') + (i > mx ? ' ghostb' : '') + '"' + (i > mx ? ' disabled' : '') + '>' + n + (i > mx ? '<small>' + (i === 1 ? T2('先通关一次', 'clear once') : T2('先通关困难', 'clear Hard')) + '</small>' : '') + '</button>').join('') + '</div>' +
       '<p>' + (s ? T2('怪物 +' + DT_LV[s] + ' 级，生命再 ×' + DT_HP[s] + '；通关额外奖励更多', 'Monsters +' + DT_LV[s] + ' levels, life ×' + DT_HP[s] + ' more; bigger clear bonus') : T2('原来的难度', 'The usual difficulty')) + '</p>' +
-      '<p class="dmoda"><b>' + T2('本周词缀：', 'This week: ') + A.n + '</b> ' + A.d + '</p>' +
-      '<p class="dmodw">' + (wkDone ? T2('本周首通奖励已领', 'Weekly first clear: done') : T2('本周首通奖励：遗物币 40 · 腐化晶体 ×1', 'Weekly first clear: 40 relic coins · Crystal ×1')) + '</p>';
+      (DMOD_AFX ? '<p class="dmoda"><b>' + T2('本周词缀：', 'This week: ') + A.n + '</b> ' + A.d + '</p>' : '') +
+      '<p class="dmodw">' + (wkDone ? T2('本周首通奖励已领', 'Weekly first clear: done') : T2('本周首通奖励：腐化晶体 ×1 · 强化石 ×2', 'Weekly first clear: Crystal ×1 · Enhance Stone ×2')) + '</p>';
     box.querySelectorAll('button[data-t]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const t = +b.dataset.t; if (t > mx) return; DMOD.sel[id] = t; try { sfx.pick(); } catch (er) { } paint(); })); };
   paint(); const party = m.querySelector('.dunparty'); go.parentNode.insertBefore(box, party || go);
 } catch (e) { console.warn('dmod page', e); } })(dunPartyAdd);
@@ -20951,11 +20952,11 @@ onDunI = (o => function (m) { const d = m && m.data; if (!d || m.isMe || d.op !=
   return r; })(onDunI);
 // ---- going in ----
 dunEnter = (o => function () { if (S.dun) return o(); const id = DUN.id | 0;
-  if (dmodOk(id)) { const inv = DMOD.next != null && Date.now() - DMOD.nextT < 30000; DUN.tier = inv ? DMOD.next : Math.min(DMOD.sel[id] | 0, dmodMax(id)); DUN.mod = dmodAfx().k; }
+  if (dmodOk(id)) { const inv = DMOD.next != null && Date.now() - DMOD.nextT < 30000; DUN.tier = inv ? DMOD.next : Math.min(DMOD.sel[id] | 0, dmodMax(id)); DUN.mod = DMOD_AFX ? dmodAfx().k : ''; }
   else { DUN.tier = 0; DUN.mod = ''; }
   DMOD.next = null; DMOD.kills = 0; DMOD.seen = new WeakSet();
   const r = o();
-  if (S.dun && dmodOk(id)) { const A = dmodAfx(); setTimeout(() => { try { if (S.dun) feed(T2('难度：', 'Difficulty: ') + DT_N[DUN.tier | 0] + ' · ' + T2('本周词缀：', 'Affix: ') + A.n + '（' + A.d + '）', '#ffb07a'); } catch (e) { } }, 1500); }
+  if (S.dun && dmodOk(id)) { const A = dmodAfx(); setTimeout(() => { try { if (S.dun) feed(T2('难度：', 'Difficulty: ') + DT_N[DUN.tier | 0] + (DMOD_AFX ? ' · ' + T2('本周词缀：', 'Affix: ') + A.n + '（' + A.d + '）' : ''), '#ffb07a'); } catch (e) { } }, 1500); }
   return r; })(dunEnter);
 dunCleanup = (o => function () { const was = DUN.on; o(); if (was) { DUN.tier = 0; DUN.mod = ''; } })(dunCleanup);
 // ---- monsters: once each (not the mirrors of a teammate's host: those come with the host's numbers) ----
@@ -20988,7 +20989,7 @@ function dmodWin(id) { if (!dmodOk(id)) return; const t = DUN.tier | 0, got = []
   const k = DUN.mod === 'dark' ? 1.3 : 1, lv = id === 1 ? 15 : id === 2 ? 25 : id === 3 ? 35 : 45;
   if (t) { const c = Math.round(lv * (t === 1 ? 40 : 100) * k); gain('coin', c); got.push(c + ' ' + T2('余烬币', 'coins')); gain('estone', t * 2); got.push(T2('强化石 ×', 'Enhance Stone ×') + t * 2); if (t === 2) { gain('heart', 1); got.push(T2('首领之心 ×1', 'Boss Heart ×1')); } }
   else if (k > 1) { const c = Math.round(lv * 12); gain('coin', c); got.push(c + ' ' + T2('余烬币', 'coins') + '（' + T2('无光', 'Lights out') + '）'); }
-  if (S.dwk[id] !== dmodWk()) { S.dwk[id] = dmodWk(); S.relic = (S.relic | 0) + 40; gain('crystal', 1); got.push(T2('本周首通：遗物币 40 · 腐化晶体 ×1', 'Weekly first clear: 40 relic coins · Crystal ×1')); }
+  if (S.dwk[id] !== dmodWk()) { S.dwk[id] = dmodWk(); gain('crystal', 1); gain('estone', 2); got.push(T2('本周首通：腐化晶体 ×1 · 强化石 ×2', 'Weekly first clear: Crystal ×1 · Enhance Stone ×2')); }
   if (got.length) setTimeout(() => { try { banner(DT_N[t] + T2(' 通关奖励', ' clear bonus'), got.join(' · '), 4); } catch (e) { } }, 2600);
   try { refreshHud(); saveGame(); } catch (e) { } }
 const dmodWrapWin = (o, idf) => function (...a) { const st = DUN.st, was = !!(st && st.done), id = idf(a); const r = o.apply(this, a); try { if (S.dun && !was && st && st.done) dmodWin(id); } catch (e) { console.warn('dmod win', e); } return r; };
@@ -20999,7 +21000,7 @@ shopLoad = (o => function (d) { o(d); S.dtier = {}; S.dwk = {}; try { const a = 
   if (a.t && Number.isFinite(+a.t[id])) S.dtier[id] = clamp(a.t[id] | 0, 0, 3); if (a.w && Number.isFinite(+a.w[id])) S.dwk[id] = a.w[id] | 0; } } catch (e) { } })(shopLoad);
 try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
   '.dmodb{margin:8px 0;padding:8px 10px;border-radius:10px;background:rgba(255,140,90,.08);border:1px solid rgba(255,150,100,.35)}.dmodb small{color:#ffb07a;font-weight:800;font-size:12px}' +
-  '.dmodr{display:flex;gap:6px;margin:6px 0}.dmodr .sbtn{flex:1;font-size:13px;padding:0 6px;min-height:36px}.dmodr .sbtn.on{background:#c0582a;border-color:#ffb07a}' +
+  '.dmodr{display:flex;gap:6px;margin:6px 0}.dmodr .sbtn{flex:1;min-width:0;font-size:13px;padding:2px 4px;min-height:40px;line-height:1.2;white-space:normal}.dmodr .sbtn small{display:block;font-size:10.5px;font-weight:600;opacity:.8}.dmodr .sbtn.on{background:#c0582a;border-color:#ffb07a}' +
   '.dmodb p{margin:4px 0;font-size:12.5px;line-height:1.5}.dmoda b{color:#ffd27a}.dmodw{opacity:.8}' })); } catch (e) { }
 /* ============ 资源商店: buy resources with gems, as many times as you like ============
    Real money only ever buys 晶石 (the Google Play packs); everything here costs 晶石.
@@ -21283,6 +21284,53 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
   // the cause: lists sized in screen widths (e.g. #storyList 96vw) inside a window with 20 px padding are wider than the
   // room they have on an upright phone. Nothing inside a window may be wider than the window.
   '.overlay>:not(canvas){max-width:100%;box-sizing:border-box}' })); } catch (e) { }
+/* ============ more 洗练 lines on gear (owner 16 Nov: "more stats to reroll: stamina max, stamina recovery, get hungry
+   slower, dodge… look for yourself") ============
+   New affix lines, added at the END of the AFX table so every old piece keeps exactly the lines it has (a line is stored
+   as index × 1000 + roll). New gear and every 洗练 can now land on them too. 体力 (stamina max) was already a line.
+   - 体力恢复   stamina refills faster            (+6–15% a line, cap 60%)
+   - 饱腹       you get hungry more slowly         (+5–12%, cap 50%)
+   - 闪避       chance to dodge a hit completely   (+1–2.5%, cap 20%; on top of the 闪避 talent)
+   - 医疗包回复 medkits heal more                  (+6–15%, cap 80%)
+   - 采集收获   more wood / metal from chopping and mining (+5–12%, cap 80%)
+   - 首领伤害   more damage to bosses              (+3–7%, cap 60%)
+   - 技能冷却   weapon skill cools down faster     (+2–5%, cap 30%)
+   (ranges are for a line on a plain piece; better quality multiplies them like every other line, ×1.1 … ×1.8)
+   Switch: GAFX_ON. */
+const GAFX_ON = true;
+if (GAFX_ON) {
+  AFX.push({ k: 'staRegen', n: '体力恢复', lo: .06, hi: .15, pct: 1 }, { k: 'full', n: '饱腹', lo: .05, hi: .12, pct: 1 }, { k: 'dodge', n: '闪避', lo: .01, hi: .025, pct: 1 },
+    { k: 'heal', n: '医疗包回复', lo: .06, hi: .15, pct: 1 }, { k: 'gather', n: '采集收获', lo: .05, hi: .12, pct: 1 }, { k: 'bossDmg', n: '首领伤害', lo: .03, hi: .07, pct: 1 },
+    { k: 'cdr', n: '技能冷却', lo: .02, hi: .05, pct: 1 });
+  Object.assign(GCAP, { staRegen: .6, full: .5, dodge: .2, heal: .8, gather: .8, bossDmg: .6, cdr: .3 });
+}
+// every affix stat needs a name in GSTAT_N: the trading list prints all of a piece's stats with it and used to break on
+// pieces with lines like 暴击伤害 / 攻击速度 (only the base stats had names)
+for (const A of AFX) if (!GSTAT_N[A.k]) GSTAT_N[A.k] = [A.n, v => '+' + (A.pct ? pc1(v) : A.dec ? v.toFixed(2) : Math.round(v))];
+const gafx = k => GAFX_ON ? Math.max(0, Math.min(GCAP[k] || 1, gst(k) || 0)) : 0;
+// 体力恢复: the same refill the game gives (f_systems.js), a bit more of it
+petsTick = (o => function (dt) { const r = o(dt); try { const k = gafx('staRegen');
+  if (k && S.started && !S.paused && !S.dead && S.staCd <= 0 && S.sta < S.maxSta) S.sta = Math.min(S.maxSta, S.sta + 14 * staRegMul() * k * dt);
+} catch (e) { } return r; })(petsTick);
+// 饱腹: give back part of what hunger just took
+foodTick = (o => function (dt) { const f0 = S.food; const r = o(dt); try { const k = gafx('full'); if (k && S.food < f0) S.food = f0 - (f0 - S.food) * (1 - k); } catch (e) { } return r; })(foodTick);
+// 闪避
+takeDamage = (o => function (n, src) { try { const k = gafx('dodge');
+  if (k && !S.dead && !(S.invT > 0) && n > 0 && Math.random() < k) { burst(player.pos.x, 1.4, player.pos.z, 0xbfe6ff, 6, 4); feed(T2('闪避！', 'Dodged!'), '#bfe6ff'); return; } } catch (e) { }
+  return o.apply(this, arguments); })(takeDamage);
+// 医疗包回复
+useMed = (o => function () { const h0 = S.hp, m0 = S.med; const r = o.apply(this, arguments); try { const k = gafx('heal');
+  if (k && S.med < m0 && S.hp > h0) { const add = Math.round(medHeal() * k); S.hp = Math.min(S.maxHp, S.hp + add); if (add > 0) feed('+' + add + T2(' 生命（医疗包回复）', ' life (medkit bonus)'), '#ff8a8a'); refreshHud(); } } catch (e) { } return r; })(useMed);
+// 采集收获: only wood / metal that comes from chopping and mining (not rewards)
+let _gafxG = 0;
+gatherTick = (o => function (dt) { _gafxG++; try { return o.apply(this, arguments); } finally { _gafxG--; } })(gatherTick);
+felledTick = (o => function (dt) { _gafxG++; try { return o.apply(this, arguments); } finally { _gafxG--; } })(felledTick);
+gain = (o => function (type, n) { try { if (_gafxG > 0 && (type === 'wood' || type === 'metal') && n > 0) { const k = gafx('gather'); if (k) n = n * (1 + k); } } catch (e) { } return o.apply(this, [type, n].concat([].slice.call(arguments, 2))); })(gain);
+// 首领伤害: in the player's own damage roll (traitDmg, like the 猎手 trait), so turrets / teammates' hits are not touched
+traitDmg = (o => function (z, d, crit) { let r = o.apply(this, arguments); try { if (z && (z.boss || z === boss)) { const k = gafx('bossDmg'); if (k) r *= 1 + k; } } catch (e) { } return r; })(traitDmg);
+// 技能冷却
+wsCast = (o => function () { const id = S.wp, b = S.wsCd[id]; const r = o.apply(this, arguments); try { const k = gafx('cdr');
+  if (k && S.wsCd[id] !== b && S.wsCd[id] > S.t) S.wsCd[id] = S.t + (S.wsCd[id] - S.t) * (1 - k); } catch (e) { } return r; })(wsCast);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -22317,4 +22365,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794841659').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794842571').catch(()=>{});</script></body></html>
