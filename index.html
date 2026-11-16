@@ -19157,14 +19157,29 @@ buildCards = (o => function () { const r = o.apply(this, arguments); try { if (b
 // choosing a category opens the panel
 try { buildEl.addEventListener('pointerdown', e => { const t = e.target && e.target.closest && e.target.closest('.b5tab'); if (t && lbLand()) setTimeout(() => { if (LBS.s !== 2) lbSet(2); }, 0); }, true); } catch (e) { }
 // the storey column goes from the bottom up: + − 转向 视角, then the storeys (ground lowest), 显示楼上 on top
+const LBS_IC = {   // drawn in the same plain white strokes as + and −
+  in: '<path d="M12 5v14M5 12h14"/>', out: '<path d="M5 12h14"/>',
+  rot: '<path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19.5 4.5v4h-4"/>',
+  tilt: '<path d="M4 19h16"/><path d="M4 19L15 6"/><path d="M10 19a6 6 0 0 0-1.9-4.4"/>'
+};
+const lbsIco = (k, rot) => '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="' + (rot ? 'transform:rotate(' + rot + 'deg)' : '') + '"><g fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">' + LBS_IC[k] + '</g></svg>';
 gvFlPaint = (o => function () { o(); try { const el = $('gvFl'); if (!el) return; let i = 0;
-  el.querySelectorAll('button,i').forEach(q => { q.style.order = q.dataset && q.dataset.fl != null ? 10 + (+q.dataset.fl) : q.dataset && q.dataset.cut ? 30 : (++i); }); } catch (e) { } })(gvFlPaint);
+  el.querySelectorAll('button,i').forEach(q => { const d = q.dataset || {};
+    q.style.order = d.fl != null ? 10 + (+d.fl) : d.cut ? 30 : (++i);
+    if (q._ic) return;
+    if (d.z) { q.innerHTML = lbsIco(d.z === 'in' ? 'in' : 'out'); q.setAttribute('aria-label', d.z === 'in' ? T2('放大', 'Zoom in') : T2('缩小', 'Zoom out')); q._ic = 1; }
+    else if (d.rot) { q.innerHTML = lbsIco('rot'); q.setAttribute('aria-label', T2('转向', 'Turn')); q._ic = 1; }
+    else if (d.tilt) { const P = typeof GV !== 'undefined' ? GV.pitch : 1; q.innerHTML = lbsIco('tilt', Math.abs(P - .55) < .05 ? 18 : Math.abs(P - 1.42) < .05 ? -22 : 0); q.setAttribute('aria-label', T2('视角', 'View')); q._ic = 1; }
+    else if (d.cut) { q.innerHTML = (GV.cut ? T2('显示<br>楼上', 'Show<br>above') : T2('隐藏<br>楼上', 'Hide<br>above')); q._ic = 1; } });
+  // the category column / panel never reach higher than this column (its top is measured)
+  lbsMeasure(); } catch (e) { } })(gvFlPaint);
+function lbsMeasure() { try { const el = $('gvFl'); if (!el || !GV.on) return; const r = el.getBoundingClientRect(); if (r.height > 20) document.body.style.setProperty('--lbTop', Math.round(r.top) + 'px'); } catch (e) { } }
 // build only on the island
 toggleBuild = (o => function () { if (!buildOpen && !S.isl) { feed(T2('只能在海岛上建造', 'You can only build on the island'), '#ffb27a'); return; } return o.apply(this, arguments); })(toggleBuild);
 setInterval(() => { try {
   if (buildOpen && !S.isl) toggleBuild();
   const b = document.body; b.classList.toggle('bOpen', !!buildOpen); b.classList.toggle('noBuild', !S.isl || !S.started);
-  lbPaint();
+  lbPaint(); lbsMeasure();
 } catch (e) { } }, 150);
 try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
   'body.bOpen #bBuild,body.noBuild #bBuild{display:none!important}' +
@@ -19172,13 +19187,14 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
   'body.bOpen #lbX{display:flex}#lbArr,#lbFold{display:none}' +
   '@media (orientation:landscape){' +
     // the view buttons: one column on the far left, bottom up
-    'body.gvOn #gvFl{top:auto!important;bottom:calc(var(--sb) + 8px)!important;left:calc(var(--sl) + 8px)!important;transform:none!important;flex-direction:column-reverse!important;align-items:stretch!important;width:62px;gap:4px!important}' +
-    'body.gvOn #gvFl button{min-width:0!important;width:62px;height:32px!important;padding:0 4px!important;font-size:12.5px}body.gvOn #gvFl button.cut{font-size:10.5px;height:30px!important}body.gvOn #gvFl i{height:5px!important;width:auto!important}' +
+    'body.gvOn #gvFl{top:auto!important;bottom:calc(var(--sb) + 8px)!important;left:calc(var(--sl) + 8px)!important;transform:none!important;flex-direction:column-reverse!important;align-items:stretch!important;width:46px;gap:4px!important}' +
+    'body.gvOn #gvFl button{min-width:0!important;width:46px;height:38px!important;padding:0!important;font-size:12px;display:flex;align-items:center;justify-content:center;border-radius:11px!important}body.gvOn #gvFl button[data-fl]{height:32px!important}body.gvOn #gvFl button.cut{font-size:10px;line-height:1.15;height:34px!important}body.gvOn #gvFl i{height:4px!important;width:auto!important}' +
     // the arrow: at the bottom when closed, on top of the category column when open
-    'body.gvOn #lbArr{display:flex;position:fixed;z-index:12;left:calc(var(--sl) + 78px);width:94px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(255,122,47,.75);color:#fff;font-weight:800;font-size:13px;align-items:center;justify-content:center;gap:2px;padding:0;pointer-events:auto}' +
-    'body.gvOn.lb0 #lbArr{bottom:calc(var(--sb) + 8px)}body.gvOn.lb1 #lbArr,body.gvOn.lb2 #lbArr{top:calc(var(--st) + 8px);background:rgba(20,24,30,.85)}' +
+    'body.gvOn #lbArr{display:flex;position:fixed;z-index:12;left:calc(var(--sl) + 62px);width:94px;height:38px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(255,122,47,.75);color:#fff;font-weight:800;font-size:13px;align-items:center;justify-content:center;gap:2px;padding:0;pointer-events:auto}' +
+    'body.gvOn.lb0 #lbArr{bottom:calc(var(--sb) + 8px)}body.gvOn.lb1 #lbArr,body.gvOn.lb2 #lbArr{top:calc(var(--lbTop, 120px) - 44px);background:rgba(20,24,30,.9)}' +
+    'body.gvOn.lb2 #lbArr{left:calc(var(--sl) + 62px + 100px);right:calc(var(--sr) + 104px);width:auto;border-radius:12px 12px 4px 4px}' +
     // the panel, with the categories as a column hanging off its left side
-    'body.gvOn #build.b5{left:calc(var(--sl) + 78px + 100px)!important;right:calc(var(--sr) + 104px)!important;top:calc(var(--st) + 56px)!important;bottom:calc(var(--sb) + 8px)!important;max-width:none!important;margin:0!important;background:rgba(26,20,30,.95)!important;border-radius:0 14px 14px 14px!important;overflow:visible!important}' +
+    'body.gvOn #build.b5{left:calc(var(--sl) + 62px + 100px)!important;right:calc(var(--sr) + 104px)!important;top:var(--lbTop, calc(var(--st) + 56px))!important;bottom:calc(var(--sb) + 8px)!important;max-width:none!important;margin:0!important;background:rgba(26,20,30,.95)!important;border-radius:0 14px 14px 14px!important;overflow:visible!important}' +
     'body.gvOn.lb0 #build.b5{display:none!important}' +
     'body.gvOn #build.b5 .b5tabs,body.gvOn #build.b5.b5f .b5tabs{display:flex!important;position:absolute;left:-100px;top:-1px;bottom:0;width:100px;flex-direction:column!important;flex-wrap:nowrap!important;gap:4px;overflow-y:auto!important;overflow-x:visible!important;padding:0 0 4px!important;margin:0!important;pointer-events:auto;scrollbar-width:none}' +
     'body.gvOn #build.b5 .b5tab{flex:0 0 auto!important;width:94px;height:36px!important;padding:0 6px!important;border-radius:10px!important;font-size:13px!important;background:rgba(20,24,30,.94);margin:0!important}' +
@@ -21901,4 +21917,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794829669').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794831171').catch(()=>{});</script></body></html>
