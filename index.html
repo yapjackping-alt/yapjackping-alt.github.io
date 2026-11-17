@@ -21337,6 +21337,129 @@ traitDmg = (o => function (z, d, crit) { let r = o.apply(this, arguments); try {
 // 技能冷却
 wsCast = (o => function () { const id = S.wp, b = S.wsCd[id]; const r = o.apply(this, arguments); try { const k = gafx('cdr');
   if (k && S.wsCd[id] !== b && S.wsCd[id] > S.t) S.wsCd[id] = S.t + (S.wsCd[id] - S.t) * (1 - k); } catch (e) { } return r; })(wsCast);
+/* ============ gear screen 3 + full character numbers (owner 17 Nov: "changing gear or rerolling is too hard; the
+   character page should show all the player's numbers: damage, attack speed, move speed…") ============
+   Gear (tap a slot in the bag; the direction the owner picked):
+   - top: the piece you wear, with its lines; every 「可洗」 line has its own reroll button on the right (the price is
+     written once above the lines); at the bottom of the card two small buttons: 强化 and 脱下.
+   - below: the other pieces of the same slot in your bag as small tiles (border = quality, ▲/▼ = score against the
+     worn piece). Tap a tile → the two pieces side by side, every stat with green ▲ / red ▼, and a big 「穿上」 plus 分解.
+   Character numbers: a 「属性」 button next to 「天赋」 on the 角色 page opens a page of final numbers in four groups
+   (攻击 / 生存 / 行动 / 收益) plus records; ‹ 返回角色 goes back. Weapons in the bag are unchanged. Switch: G3_ON. */
+const G3_ON = true;
+const G3 = { cmp: null, slot: '' };
+const G3_RR = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 3v5h5"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 21v-5h-5"/></svg>';
+const g3Esc = t => String(t).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]);
+// re-draw the bag but keep the popup where it was scrolled (a reroll used to jump back to the top)
+function g3Re() { let st = 0; try { const p = document.querySelector('#bagDetail .bpop'); st = p ? p.scrollTop : 0; } catch (e) { } renderBag(); try { const p = document.querySelector('#bagDetail .bpop'); if (p) p.scrollTop = st; } catch (e) { } }
+function g3Lines(it, own) {   // the affix lines; own = the worn piece (gets reroll buttons)
+  const L = afxLocked(it), c = rerollCost(it), ok = S.coin >= c.coin && matHave('estone') >= c.estone;
+  return afxLines(it).map((code, i) => '<div class="g3ln' + (i < L ? ' lk' : '') + '"><i>' + (i < L ? '固定' : '可洗') + '</i><span>' + g3Esc(afxTxt(it, code)) + '</span>' +
+    (own && i >= L ? '<button class="g3rr" data-l="' + i + '"' + (ok ? '' : ' disabled') + ' aria-label="洗练这一条">' + G3_RR + '</button>' : '') + '</div>').join('');
+}
+function g3Base(it) { const o = gStats(it, 'base');
+  return (gSlot(it) === 'pack' ? '<span class="gst">背包格子 <b>+' + (PACK_CAP[it[1]] + Math.floor((it[7] || 0) / 5)) + '</b></span>' : '') + Object.keys(o).map(k => '<span class="gst">' + GSTAT_N[k][0] + ' <b>' + GSTAT_N[k][1](o[k]) + '</b></span>').join(''); }
+// only the special trait (gearTraitHtml also prints the lines, which are drawn below with their reroll buttons)
+function g3Trait(it) { const T = it[8] >= 0 && TRAITS[it[8]]; return T ? '<div class="gtr" style="--tc:' + T.c + '"><b>【' + T.n + '】</b><span>' + T.d(TRAIT_QP[it[1]]) + '</span></div>' : ''; }
+function g3Dur(it) { if (it[1] === 6) return '<div class="g3dt" style="color:#16e0a8">不朽：永不损坏 · 等级永远最高 · 所有词条都能洗练</div>';
+  const d = gDur(it), left = GREP_MAX - gRep(it); return '<div class="gdur"><i style="width:' + d + '%;background:' + (d > 50 ? '#8fe05a' : d > 20 ? '#ffd24a' : '#ff5a4a') + '"></i></div><div class="g3dt">耐久 ' + Math.ceil(d) + '% · 还能修理 ' + left + ' 次</div>'; }
+function g3Head(it, tag) { const Q = GQ[it[1]]; return '<div class="gtop"><b style="color:' + Q.c + '">' + Q.n + ' · ' + g3Esc(gName(it)) + '</b><span>Lv.' + it[2] + ' · 评分 ' + gScore(it) + (tag || '') + '</span></div>'; }
+function g3Render(box, slot, name) {
+  const cur = S.gear[slot], d = document.createElement('div'); d.className = 'dtl g3';
+  let h = '<div class="nm" style="font-size:18px;font-weight:900">' + name + '</div>';
+  if (cur) { const Q = GQ[cur[1]], c = rerollCost(cur), lines = afxLines(cur).length, canRr = lines > afxLocked(cur);
+    h += '<div class="gcard g3cur" style="--qc:' + Q.c + '">' + g3Head(cur, ' · 穿着中') + '<div class="gsts">' + g3Base(cur) + '</div><div class="gtrs">' + g3Trait(cur) + '</div>' +
+      (canRr ? '<div class="g3cost">洗练一条：<b class="' + (S.coin >= c.coin ? '' : 'no') + '">' + c.coin + ' 币</b>' + (c.estone ? ' + <b class="' + (matHave('estone') >= c.estone ? '' : 'no') + '">强化石 ' + c.estone + '</b>（有 ' + matHave('estone') + '）' : '') + ' · 点右边的按钮洗那一条</div>' : '') +
+      g3Lines(cur, true) + g3Dur(cur) + '<div class="g3acts"><span class="g3enh"></span><button class="sbtn ghostb g3off">脱下</button></div></div>';
+  } else h += '<p class="dd">这个部位还没有装备。打丧尸会掉落，越深的区域越容易出好品质，首领必掉。</p>';
+  const mine = S.ginv.map((it, i) => [it, i]).filter(([it]) => gSlot(it) === slot).sort((a, b) => gScore(b[0]) - gScore(a[0]));
+  if (G3.cmp != null && !mine.some(([, i]) => i === G3.cmp)) G3.cmp = null;
+  if (G3.cmp != null) h += g3Cmp(cur, S.ginv[G3.cmp]);
+  h += '<div class="snote">' + (mine.length ? '背包里的' + name + '（' + mine.length + ' 件）· 点一件和身上的比一比' : '背包里没有别的' + name + '。') + '</div>';
+  if (mine.length) { const svg = (GEAR.find(g => g[0] === slot) || [])[2] || '';
+    h += '<div class="g3grid">' + mine.map(([it, i]) => { const Q = GQ[it[1]], df = gScore(it) - (cur ? gScore(cur) : 0);
+      return '<button class="g3t' + (i === G3.cmp ? ' on' : '') + '" data-i="' + i + '" style="--qc:' + Q.c + '"><svg viewBox="0 0 24 24" fill="' + Q.c + '" aria-hidden="true"><path d="' + svg + '"/></svg><b>' + Q.n + '</b><small>Lv.' + it[2] + (it[7] ? ' +' + it[7] : '') + '</small><em class="' + (df > 0 ? 'gup' : df < 0 ? 'gdn' : '') + '">' + (df > 0 ? '▲' + df : df < 0 ? '▼' + (-df) : '=') + '</em></button>'; }).join('') + '</div>'; }
+  { const sn = gearStat('setN') || 0; h += '<div class="snote">套装：同一地区 4 件 → 伤害 +8%、减伤 +4%；6 件 → 再加生命 +60、暴击 +4%。现在最多 ' + sn + ' 件同套' + (sn >= 6 ? '（6 件套生效）' : sn >= 4 ? '（4 件套生效）' : '') + '。</div>'; }
+  const low = S.ginv.filter(it => it[1] <= 1).length;
+  d.innerHTML = h;
+  if (low) { const b = document.createElement('button'); b.className = 'sbtn ghostb'; b.textContent = '一键分解所有普通和特级装备（' + low + ' 件）';
+    b.addEventListener('click', () => { for (let i = S.ginv.length - 1; i >= 0; i--) if (S.ginv[i][1] <= 1) scrapGear(i); G3.cmp = null; renderBag(); }); d.appendChild(b); }
+  // wiring
+  if (cur) { const e = d.querySelector('.g3enh'); if (e) { const b = enhBtn(cur); b.classList.add('g3eb'); e.replaceWith(b); }
+    d.querySelector('.g3off').addEventListener('click', () => { unequipGear(slot); renderBag(); });
+    d.querySelectorAll('.g3cur .g3rr').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); if (rerollAffix(cur, +b.dataset.l)) g3Re(); })); }
+  d.querySelectorAll('.g3t').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.i; G3.cmp = G3.cmp === i ? null : i; try { sfx.pick(); } catch (er) { } g3Re(); }));
+  const cw = d.querySelector('.g3cmp'); if (cw) { const i = G3.cmp, it = S.ginv[i];
+    cw.querySelector('.g3wear').addEventListener('click', () => { G3.cmp = null; equipGear(i); try { sfx.pick(); } catch (er) { } renderBag(); });
+    cw.querySelector('.g3scrap').addEventListener('click', () => { G3.cmp = null; scrapGear(i); renderBag(); });
+    cw.querySelector('.g3x').addEventListener('click', () => { G3.cmp = null; g3Re(); });
+    const eh = cw.querySelector('.g3enh2'); if (eh) eh.replaceWith(Object.assign(enhBtn(it), { className: 'sbtn ghostb g3eb' })); }
+  box.appendChild(d);
+}
+// two pieces side by side: every stat of either piece, the better side marked
+function g3Cmp(a, b) {
+  const A = a ? gStats(a, true) : {}, B = gStats(b, true), keys = [...new Set([...Object.keys(A), ...Object.keys(B)])].filter(k => GSTAT_N[k]);
+  const fm = (k, v) => v == null ? '<span class="g3no">—</span>' : GSTAT_N[k][1](v);
+  const rows = keys.map(k => { const x = A[k], y = B[k], up = (y || 0) > (x || 0) + 1e-9, dn = (y || 0) < (x || 0) - 1e-9;
+    return '<div class="g3r"><i>' + GSTAT_N[k][0] + '</i><span>' + fm(k, x) + '</span><span class="' + (up ? 'gup' : dn ? 'gdn' : '') + '">' + fm(k, y) + (up ? ' ▲' : dn ? ' ▼' : '') + '</span></div>'; }).join('');
+  const tr = it => { try { return it && it[8] >= 0 && TRAITS[it[8]] ? '【' + TRAITS[it[8]].n + '】' : '—'; } catch (e) { return '—'; } };
+  const Qa = a ? GQ[a[1]] : null, Qb = GQ[b[1]], df = gScore(b) - (a ? gScore(a) : 0);
+  return '<div class="g3cmp"><div class="g3ch"><b>对比</b><button class="g3x" aria-label="关闭对比">✕</button></div>' +
+    '<div class="g3r g3hd"><i></i><span style="color:' + (Qa ? Qa.c : '#999') + '">身上' + (a ? '<small>' + Qa.n + ' Lv.' + a[2] + (a[7] ? ' +' + a[7] : '') + '</small>' : '<small>没有</small>') + '</span><span style="color:' + Qb.c + '">这件<small>' + Qb.n + ' Lv.' + b[2] + (b[7] ? ' +' + b[7] : '') + '</small></span></div>' +
+    '<div class="g3r"><i>评分</i><span>' + (a ? gScore(a) : '—') + '</span><span class="' + (df > 0 ? 'gup' : df < 0 ? 'gdn' : '') + '">' + gScore(b) + (df > 0 ? ' ▲' : df < 0 ? ' ▼' : '') + '</span></div>' +
+    rows + '<div class="g3r"><i>特性</i><span>' + tr(a) + '</span><span>' + tr(b) + '</span></div>' +
+    '<div class="g3r"><i>耐久</i><span>' + (a ? (a[1] === 6 ? '不朽' : Math.ceil(gDur(a)) + '%') : '—') + '</span><span>' + (b[1] === 6 ? '不朽' : Math.ceil(gDur(b)) + '%') + '</span></div>' +
+    '<button class="go g3wear">穿上这件</button><div class="g3acts"><span class="g3enh2"></span><button class="sbtn ghostb g3scrap">分解 +' + gScrap(b) + ' 币</button></div></div>';
+}
+gearDetail = (o => function (box) { if (!G3_ON || !bagSel || bagSel[0] !== 'g') return o.apply(this, arguments);
+  try { const g = GEAR.find(x => 'g:' + x[0] === bagSel) || GEAR[0]; if (G3.slot !== g[0]) { G3.slot = g[0]; G3.cmp = null; } g3Render(box, g[0], g[1]); }
+  catch (e) { console.warn('gear3', e); return o.apply(this, arguments); } })(gearDetail);
+
+/* ---- 属性 page on the 角色 window ---- */
+function g3Num(f, d) { try { const v = f(); return v == null || (typeof v === 'number' && !Number.isFinite(v)) ? d : v; } catch (e) { return d; } }
+const g3P = v => (Math.round(v * 1000) / 10) + '%';
+function g3StatGroups() { const W = curW(), melee = W.cls === 'melee', g = k => g3Num(() => gst(k), 0), t = k => g3Num(() => ts(k), 0);
+  const def = Math.min(.7, t('armor') + g('def')), dodge = Math.min(1, t('dodge') + g3Num(() => gafx('dodge'), 0)), regen = t('regen') + g('regen');
+  return [
+    ['攻击', [['当前武器', wName(S.wp) + ' Lv.' + wLv(S.wp)], ['每下伤害', Math.round(g3Num(() => weaponDmg(), 0)) + (W.pel > 1 ? ' × ' + W.pel + ' 颗' : '')],
+      ['每秒伤害（估算）', Math.round(g3Num(() => weaponDps(S.wp), 0))], [melee ? '每秒挥砍' : '每秒射击', g3Num(() => (1 / fireInterval()).toFixed(2), '—')],
+      ['暴击率', g3P(g3Num(() => critChance(), 0))], ['暴击伤害', '×' + g3Num(() => critMul().toFixed(2), '—')],
+      [melee ? '近战伤害加成' : '枪械伤害加成', '+' + g3P(melee ? t('melee') + g('melee') : g('gun'))], ['首领伤害', '+' + g3P(g3Num(() => gafx('bossDmg'), 0))],
+      ...(melee ? [] : [['弹匣', g3Num(() => magSizeNow(), '—')], ['换弹时间', g3Num(() => reloadTime().toFixed(2), '—') + ' 秒']]),
+      ['攻击距离', g3Num(() => rangeNow(), '—') + ' 米'], ['技能冷却缩短', g3P(g3Num(() => gafx('cdr'), 0))]]],
+    ['生存', [['生命上限', g3Num(() => maxHpNow(), '—')], ['受到伤害减少', g3P(def)], ['闪避几率', g3P(dodge)], ['每秒回血', regen.toFixed(2)],
+      ['医疗包回复', Math.round(g3Num(() => medHeal() * (1 + gafx('heal')), 0))]]],
+    ['行动', [['移动速度', g3Num(() => moveSpeed().toFixed(2), '—') + ' 米/秒'], ['体力上限', g3Num(() => maxStaNow(), '—')], ['体力恢复', '+' + g3P(g3Num(() => gafx('staRegen'), 0))],
+      ['饥饿变慢', g3P(g3Num(() => gafx('full'), 0))], ['饱食', Math.round(S.food || 0) + ' / 100']]],
+    ['收益', [['经验加成', '+' + g3P(t('xp') + g('xp'))], ['余烬币加成', '+' + g3P(t('coin') + g('coin'))], ['采集收获', '+' + g3P(g3Num(() => lootMul() - 1, 0) + g3Num(() => gafx('gather'), 0))]]],
+    ['记录', [['等级', S.level], ['战力', g3Num(() => combatPower(), '—')], ['击败丧尸', S.kills || 0], ['击败首领', S.bossKills || 0], ['连杀纪录', S.bestStreak || 0]]]];
+}
+function g3StatsRender() { let w = $('g3Stats'); if (!w) { w = document.createElement('div'); w.id = 'g3Stats'; talEl.appendChild(w); }
+  w.innerHTML = '<button class="go ghost g3back">‹ 返回角色</button><p class="snote">下面都是算好之后的最终数字（等级、天赋、装备、武器、称号、食物效果都已经加进去）。</p>' +
+    g3StatGroups().map(([n, L]) => '<div class="g3grp"><h4>' + n + '</h4><div class="g3sg">' + L.map(x => '<div><i>' + x[0] + '</i><b>' + x[1] + '</b></div>').join('') + '</div></div>').join('');
+  w.querySelector('.g3back').addEventListener('click', () => { talEl.classList.remove('g3st'); renderTalents(); talEl.scrollTop = 0; });
+}
+renderTalents = (o => function () { const r = o.apply(this, arguments); if (!G3_ON) return r; try {
+  const row = $('talOpenRow'); if (row && !row.querySelector('.g3sb')) { const b = document.createElement('button'); b.className = 'go ghost g3sb'; b.textContent = '属性';
+    b.addEventListener('click', () => { talEl.classList.remove('tree'); talEl.classList.add('g3st'); g3StatsRender(); talEl.scrollTop = 0; try { sfx.pick(); } catch (er) { } }); row.appendChild(b); }
+  if (talEl.classList.contains('g3st')) g3StatsRender();
+} catch (e) { console.warn('g3 stats', e); } return r; })(renderTalents);
+try { $('bTalTree').addEventListener('click', () => talEl.classList.remove('g3st')); } catch (e) { }
+openTalents = (o => function () { try { talEl.classList.remove('g3st'); } catch (e) { } return o.apply(this, arguments); })(openTalents);
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+  '.g3 .gcard{margin:6px 0}.g3ln{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:14px}.g3ln i{font-style:normal;font-size:11px;font-weight:800;padding:2px 6px;border-radius:6px;background:#3a64c8;color:#fff;flex:none}.g3ln.lk i{background:#8a6a2a}' +
+  '.g3ln span{flex:1;min-width:0}.g3rr{flex:none;width:34px;height:30px;border-radius:9px;border:1px solid rgba(160,190,255,.55);background:rgba(90,130,230,.25);color:#cfe0ff;display:flex;align-items:center;justify-content:center;padding:0}.g3rr:disabled{opacity:.35}.g3rr:active{transform:scale(.92)}' +
+  '.g3cost{font-size:12.5px;color:#c9b8a8;margin:8px 0 2px}.g3cost b{color:#ffd27a}.g3cost b.no{color:#ff8a7a}.g3dt{font-size:12px;opacity:.75;margin-top:2px}' +
+  '.g3acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}.g3acts>*{flex:1 1 140px;min-width:0}.g3eb{white-space:normal;font-size:12.5px;line-height:1.3}' +
+  '.g3grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:8px;margin:6px 0 10px}.g3t{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:12px;border:2px solid var(--qc);background:rgba(255,255,255,.05);color:#eee;font-size:12px}' +
+  '.g3t svg{width:26px;height:26px}.g3t b{color:var(--qc);font-size:12.5px}.g3t small{opacity:.8}.g3t em{font-style:normal;font-weight:900}.g3t.on{background:rgba(255,200,120,.18);box-shadow:0 0 0 2px #ffd27a}' +
+  '.g3cmp{margin:8px 0;padding:10px;border-radius:14px;border:1.5px solid #ffd27a;background:rgba(40,30,20,.6)}.g3ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}.g3ch b{color:#ffd27a;font-size:15px}' +
+  '.g3x{width:32px;height:32px;border-radius:9px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#eee}' +
+  '.g3r{display:grid;grid-template-columns:minmax(64px,1fr) 1fr 1fr;gap:6px;padding:4px 2px;border-top:1px solid rgba(255,255,255,.07);font-size:13px}.g3r i{font-style:normal;color:#b9a99a}.g3r span{text-align:right}.g3hd span{font-weight:900}.g3hd small{display:block;font-size:11px;font-weight:600;opacity:.85}.g3no{opacity:.4}' +
+  '.g3r .gup{color:#7fe07a}.g3r .gdn{color:#ff8a7a}.g3wear{width:100%;margin-top:10px;font-size:16px;padding:12px}' +
+  '#talents.g3st>*:not(h2):not(#g3Stats):not(.ovx){display:none!important}#talents:not(.g3st) #g3Stats{display:none}#g3Stats{width:min(760px,100%);display:flex;flex-direction:column;gap:10px}' +
+  '.g3grp h4{margin:4px 0 6px;color:#ffb070;font-size:15px}.g3sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px}.g3sg div{display:flex;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid var(--line);font-size:13px}.g3sg i{font-style:normal;color:var(--dim)}.g3sg b{color:var(--ink)}' +
+  '#g3Stats .g3back{align-self:flex-start}' })); } catch (e) { }
 /* ============ 切换角色 stuck on a blank screen (owner, iPhone home-screen app, 16 Nov) ============
    切换角色 saves and reloads the page. The game keeps several 3D drawing contexts alive (the world, the bag figure, the
    shop preview, the tile pictures, the companion figure). On an iPhone a reload can start the new page before the old
@@ -22387,4 +22510,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794843788').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794902630').catch(()=>{});</script></body></html>
