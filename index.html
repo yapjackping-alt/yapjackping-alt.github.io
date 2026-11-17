@@ -18466,22 +18466,38 @@ applySave = (o => function (d) {
 // water that ended up UNDER the ground of its own pond (old strokes that kept digging deeper) is lifted back up: each
 // joined pond gets one level, at least .45 m over its lowest ground; ponds that look fine are left alone
 function tpFixLevels() { const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, seen = new Uint8Array(N * N); let fixed = 0, dug = false;
+  const gx = i => HOME.x + i * TER_S - TER_O, gz = j => HOME.z + j * TER_S - TER_O, gH = k => terH(gx(k % N), gz((k / N) | 0));
+  // ground under a building is never dug (it left a farm plot floating over a hole, owner 17 Nov)
+  const B = builds.filter(b => b.hp > 0 && !(b.lv | 0) && BT[b.type] && !terLoose(b));
+  const locked = k => { const x = gx(k % N), z = gz((k / N) | 0); for (const b of B) { const T = BT[b.type], hw = Math.max(T.hw || .5, T.hd || .5) + .9; if (Math.abs(x - b.x) < hw && Math.abs(z - b.z) < hw) return true; } return false; };
   for (let s0 = 0; s0 < N * N; s0++) { if (P[s0] !== 4 || seen[s0]) continue; const reg = [s0]; seen[s0] = 1;
     for (let q = 0; q < reg.length; q++) { const k = reg[q], i = k % N, j = (k / N) | 0;   // 8 neighbours: ponds touching only at a corner are one pond too
       for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if ((!di && !dj) || ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const kk = jj * N + ii; if (P[kk] === 4 && !seen[kk]) { seen[kk] = 1; reg.push(kk); } } }
     // one joined pond = one water level (owner 17 Nov, video: ponds painted on ground of different heights met in a stepped
-    // dry line, because a cell whose corners differ too much is not drawn). The LOWEST level wins and the higher part's floor
-    // is dug down under it, so the whole pond has water and nothing floats above a lower bank.
+    // dry line, because a cell whose corners differ too much is not drawn). The LOWEST level wins…
     let hi = -1e9, lo = 1e9; for (const k of reg) { hi = Math.max(hi, WL[k]); lo = Math.min(lo, WL[k]); }
-    if (hi - lo > .01) { for (const k of reg) { WL[k] = lo; const i = k % N, j = (k / N) | 0, lx = i * TER_S - TER_O, lz = j * TER_S - TER_O, b = terBase(Math.hypot(lx, lz));
-        if (b + TER.h[k] > lo - .35) { TER.h[k] = Math.max(TER_MIN, lo - .45 - b); dug = true; TER.any = true; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii >= 0 && jj >= 0 && ii < N && jj < N) terVert(ii, jj); } } }
+    // …and never above the lowest bank round it (owner 17 Nov: water, its stones and a farm plot floated in the air — an
+    // older fix had lifted a pond to its highest part, over the lower banks)
+    let bank = 1e9; for (const k of reg) { const i = k % N, j = (k / N) | 0;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const kk = jj * N + ii; if (P[kk] !== 4) bank = Math.min(bank, gH(kk)); } }
+    let L = lo; if (bank < 1e8 && L > bank - .1) L = bank - .15;
+    if (hi - L > .01 || lo - L > .01) { for (const k of reg) { WL[k] = L; if (locked(k)) continue; const i = k % N, j = (k / N) | 0, b = terBase(Math.hypot(i * TER_S - TER_O, j * TER_S - TER_O));
+        if (b + TER.h[k] > L - .3) { TER.h[k] = Math.max(TER_MIN, L - .45 - b); dug = true; TER.any = true; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii >= 0 && jj >= 0 && ii < N && jj < N) terVert(ii, jj); } } }
       fixed++; }
-    let mx = -1e9, mn = 1e9; for (const k of reg) { const i = k % N, j = (k / N) | 0; mx = Math.max(mx, WL[k]); mn = Math.min(mn, terH(HOME.x + i * TER_S - TER_O, HOME.z + j * TER_S - TER_O)); }
-    if (mx < mn + .2) { const L = mn + .45; for (const k of reg) WL[k] = L; fixed++; } }
+    // water under its own floor (the bottom limit was reached): lift it just over the floor
+    let mn = 1e9; for (const k of reg) if (!locked(k)) mn = Math.min(mn, gH(k));
+    if (mn < 1e8 && WL[reg[0]] < mn + .15) { const L2 = mn + .3; for (const k of reg) WL[k] = L2; fixed++; } }
   if (dug) { try { terMeshDone(true); TER.dirty = 1; TER.any = true; } catch (e) { } }
   if (fixed) TPAINT.dirty = true; return fixed; }
+// the ground under a building put back up to the building's base where an older pond fix had dug it away
+function tpGroundUnderBuilds() { const N = TER_N; let ch = false;
+  for (const b of builds) { if (!(b.hp > 0) || (b.lv | 0) || !BT[b.type] || terLoose(b) || !(b.gy > -50)) continue; const T = BT[b.type], hw = (T.hw || .5) - .1, hd = (T.hd || .5) - .1;
+    const i0 = Math.ceil((b.x - hw - HOME.x + TER_O) / TER_S), i1 = Math.floor((b.x + hw - HOME.x + TER_O) / TER_S), j0 = Math.ceil((b.z - hd - HOME.z + TER_O) / TER_S), j1 = Math.floor((b.z + hd - HOME.z + TER_O) / TER_S);
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { if (i < 1 || j < 1 || i >= N - 1 || j >= N - 1) continue; const k = j * N + i, base = terBase(Math.hypot(i * TER_S - TER_O, j * TER_S - TER_O));
+      if (base + TER.h[k] < b.gy - .25) { TER.h[k] = Math.min(TER_MAX, b.gy - .02 - base); ch = true; TER.any = true; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) terVert(i + di, j + dj); } } }
+  if (ch) { try { terMeshDone(true); TER.dirty = 1; } catch (e) { } TPAINT.dirty = true; } return ch; }
 petsTick = (o => function (dt) { const r = o(dt); if (!TER.down) { if (TPAINT.L != null) { try { tpFixLevels(); } catch (e) { } } TPAINT.L = null; } return r; })(petsTick);
-applySave = (o => function (d) { const r = o(d); try { tpFixLevels(); } catch (e) { } return r; })(applySave);
+applySave = (o => function (d) { const r = o(d); try { tpGroundUnderBuilds(); } catch (e) { console.warn('tp ground', e); } try { tpFixLevels(); } catch (e) { console.warn('tp levels', e); } return r; })(applySave);
 
 /* ---- waterfalls fall all the way down: placed up high (on a hill or a raised floor), the water keeps falling from the
    front of its pool to the ground below, with foam where it lands ---- */
@@ -22538,4 +22554,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794921591').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794928163').catch(()=>{});</script></body></html>
