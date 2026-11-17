@@ -18429,21 +18429,37 @@ function tpWaterMat() { if (_tpWM) return _tpWM;
   const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping;
   _tpWM = new THREE.MeshLambertMaterial({ map: t, vertexColors: true, transparent: true, opacity: .84, depthWrite: false });   // no shine: your glowing outfit made a huge white spot on the water
   return _tpWM; }
+/* the water surface, way 2 (owner 17 Nov: "think of another way"): every joined pond is ONE flat sheet at its own level,
+   laid over its painted points AND one ring of points round them. Where the bank is higher than the water the ground simply
+   hides the sheet, so the shore is where the ground meets the water — no cells are left out any more (the old per-corner
+   heights dropped any cell whose corners differed, which drew the stepped dry lines), and tpFixLevels keeps every bank
+   point at least a little over the water so the sheet never hangs in the air. */
 function tpWater(floors) {
-  const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, idx = new Int32Array(N * N).fill(-1), pos = [], uv = [], ind = [];
-  const vh = k => { if (P[k] === 4) return WL[k]; const i = k % N, j = (k / N) | 0; let m = -1e9;
-    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const kk = (j + dj) * N + i + di; if (kk >= 0 && kk < N * N && P[kk] === 4) m = Math.max(m, WL[kk]); }
-    const x = HOME.x + i * TER_S - TER_O, z = HOME.z + j * TER_S - TER_O, g = terH(x, z); return g < m ? g - .03 : m; };
-  const col = [], cDeep = new THREE.Color(0x1f86ad), cShal = new THREE.Color(0x6fd3cf), _c = new THREE.Color();
-  // shallow turquoise at the shore, deeper blue where water is all round (a point's 8 neighbours)
+  const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, reg = new Int32Array(N * N).fill(-1), lvl = [], pos = [], uv = [], ind = [], col = [];
+  // regions (8 neighbours) and their level
+  let nR = 0; for (let s0 = 0; s0 < N * N; s0++) { if (P[s0] !== 4 || reg[s0] >= 0) continue; const q = [s0]; reg[s0] = nR; let lo = 1e9;
+    for (let t = 0; t < q.length; t++) { const k = q[t], i = k % N, j = (k / N) | 0; lo = Math.min(lo, WL[k]);
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const kk = jj * N + ii; if (P[kk] === 4 && reg[kk] < 0) { reg[kk] = nR; q.push(kk); } } }
+    lvl.push(lo); nR++; }
+  // which pond a grid point belongs to: its own, or (for a point next to water) the neighbouring pond with the lowest level
+  const own = new Int32Array(N * N).fill(-1);
+  for (let k = 0; k < N * N; k++) { if (reg[k] >= 0) { own[k] = reg[k]; continue; } const i = k % N, j = (k / N) | 0; let best = -1;
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const r = reg[jj * N + ii]; if (r >= 0 && (best < 0 || lvl[r] < lvl[best])) best = r; }
+    own[k] = best; }
+  const cDeep = new THREE.Color(0x1f86ad), cShal = new THREE.Color(0x6fd3cf), _c = new THREE.Color();
   const depthK = k => { if (P[k] !== 4) return 0; const i = k % N, j = (k / N) | 0; let n = 0; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const kk = (j + dj) * N + i + di; if (kk >= 0 && kk < N * N && P[kk] === 4) n++; } return Math.max(0, (n - 4) / 5); };
-  const V = k => { if (idx[k] >= 0) return idx[k]; const i = k % N, j = (k / N) | 0, x = HOME.x + i * TER_S - TER_O, z = HOME.z + j * TER_S - TER_O; idx[k] = pos.length / 3; pos.push(x, vh(k), z); uv.push(x / 4, z / 4); _c.copy(cShal).lerp(cDeep, depthK(k)); col.push(_c.r, _c.g, _c.b); return idx[k]; };
+  const vmap = new Map(); const V = (k, r) => { const key = k * 64 + (r & 63); let v = vmap.get(key); if (v != null) return v; const i = k % N, j = (k / N) | 0, x = HOME.x + i * TER_S - TER_O, z = HOME.z + j * TER_S - TER_O;
+    v = pos.length / 3; vmap.set(key, v); pos.push(x, lvl[r], z); uv.push(x / 4, z / 4); _c.copy(cShal).lerp(cDeep, depthK(k)); col.push(_c.r, _c.g, _c.b); return v; };
   for (let j = 0; j < N - 1; j++) for (let i = 0; i < N - 1; i++) { const a = j * N + i, b = a + 1, c = a + N, d = c + 1;
-    if (P[a] !== 4 && P[b] !== 4 && P[c] !== 4 && P[d] !== 4) continue;
+    if (P[a] !== 4 && P[b] !== 4 && P[c] !== 4 && P[d] !== 4) continue;   // at least one painted point: the cell belongs to a pond
+    const r = [a, b, c, d].map(k => own[k]).find(x => x >= 0); if (r == null) continue;
     const cx = HOME.x + (i + .5) * TER_S - TER_O, cz = HOME.z + (j + .5) * TER_S - TER_O; if (floors.some(f => Math.abs(f.x - cx) < 1.6 && Math.abs(f.z - cz) < 1.6)) continue;
-    // a cell whose corners differ a lot in height would be a steep sheet of water (looked like a white wall): leave it out
-    { const hs = [a, b, c, d].map(vh); if (Math.max(...hs) - Math.min(...hs) > .3) continue; }
-    const A = V(a), B = V(b), C = V(c), D = V(d); ind.push(A, C, B, B, C, D); }
+    const A = V(a, r), B = V(b, r), C = V(c, r), D = V(d, r); ind.push(A, C, B, B, C, D); }
+  // the cells round the painted ones too: a ring one point wide, so the sheet reaches into the bank
+  for (let j = 0; j < N - 1; j++) for (let i = 0; i < N - 1; i++) { const a = j * N + i, b = a + 1, c = a + N, d = c + 1;
+    if (P[a] === 4 || P[b] === 4 || P[c] === 4 || P[d] === 4) continue; if (![a, b, c, d].every(k => own[k] >= 0)) continue; const r = own[a];
+    const cx = HOME.x + (i + .5) * TER_S - TER_O, cz = HOME.z + (j + .5) * TER_S - TER_O; if (floors.some(f => Math.abs(f.x - cx) < 1.6 && Math.abs(f.z - cz) < 1.6)) continue;
+    const A = V(a, r), B = V(b, r), C = V(c, r), D = V(d, r); ind.push(A, C, B, B, C, D); }
   let m = TPAINT.wm; if (!m) { m = new THREE.Mesh(new THREE.BufferGeometry(), tpWaterMat()); m.userData.noCast = 1; m.receiveShadow = true; m.renderOrder = 2; m.frustumCulled = false; scene.add(m); TPAINT.wm = m; }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setIndex(ind); g.computeVertexNormals();
   m.geometry.dispose(); m.geometry = g; m.visible = S.isl && !S.dun && ind.length > 0;
@@ -18486,8 +18502,13 @@ function tpFixLevels() { const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, seen = n
       fixed++; }
     // water under its own floor (the bottom limit was reached): lift it just over the floor
     let mn = 1e9; for (const k of reg) if (!locked(k)) mn = Math.min(mn, gH(k));
-    if (mn < 1e8 && WL[reg[0]] < mn + .15) { const L2 = mn + .3; for (const k of reg) WL[k] = L2; fixed++; } }
-  if (dug) { try { terMeshDone(true); TER.dirty = 1; TER.any = true; } catch (e) { } }
+    if (mn < 1e8 && WL[reg[0]] < mn + .15) { const L2 = mn + .3; for (const k of reg) WL[k] = L2; fixed++; }
+    // every bank point (next to the pond, not painted) at least a little over the water, so the flat sheet never hangs over
+    // lower ground; a building's ground is left alone
+    { const LW = WL[reg[0]]; for (const k of reg) { const i = k % N, j = (k / N) | 0;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii < 1 || jj < 1 || ii >= N - 1 || jj >= N - 1) continue; const kk = jj * N + ii; if (P[kk] === 4 || locked(kk)) continue;
+        const b = terBase(Math.hypot(ii * TER_S - TER_O, jj * TER_S - TER_O)); if (b + TER.h[kk] < LW + .08) { TER.h[kk] = Math.min(TER_MAX, LW + .12 - b); dug = true; TER.any = true; for (let y = -1; y <= 1; y++) for (let x = -1; x <= 1; x++) terVert(ii + x, jj + y); } } } } }
+  if (dug) { try { terMeshDone(true); TER.dirty = 1; TER.any = true; } catch (e) { } TPAINT.dirty = true; }
   if (fixed) TPAINT.dirty = true; return fixed; }
 // the ground under a building put back up to the building's base where an older pond fix had dug it away
 function tpGroundUnderBuilds() { const N = TER_N; let ch = false;
@@ -22555,4 +22576,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794928903').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794929972').catch(()=>{});</script></body></html>
