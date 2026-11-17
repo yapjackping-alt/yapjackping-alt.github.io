@@ -18465,17 +18465,20 @@ applySave = (o => function (d) {
 // a new stroke of water starts a new level
 // water that ended up UNDER the ground of its own pond (old strokes that kept digging deeper) is lifted back up: each
 // joined pond gets one level, at least .45 m over its lowest ground; ponds that look fine are left alone
-function tpFixLevels() { const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, seen = new Uint8Array(N * N); let fixed = 0;
+function tpFixLevels() { const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, seen = new Uint8Array(N * N); let fixed = 0, dug = false;
   for (let s0 = 0; s0 < N * N; s0++) { if (P[s0] !== 4 || seen[s0]) continue; const reg = [s0]; seen[s0] = 1;
-    for (let q = 0; q < reg.length; q++) { const k = reg[q], i = k % N, j = (k / N) | 0;
-      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const kk = jj * N + ii; if (P[kk] === 4 && !seen[kk]) { seen[kk] = 1; reg.push(kk); } } }
-    // one joined pond = one water level (owner 17 Nov: two parts at different levels left a stepped brown strip with no
-    // water between them, because a cell whose corners differ too much is not drawn). The highest level wins: it covers
-    // every dug floor of the pond (a lower one could leave the deeper half dry).
+    for (let q = 0; q < reg.length; q++) { const k = reg[q], i = k % N, j = (k / N) | 0;   // 8 neighbours: ponds touching only at a corner are one pond too
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if ((!di && !dj) || ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const kk = jj * N + ii; if (P[kk] === 4 && !seen[kk]) { seen[kk] = 1; reg.push(kk); } } }
+    // one joined pond = one water level (owner 17 Nov, video: ponds painted on ground of different heights met in a stepped
+    // dry line, because a cell whose corners differ too much is not drawn). The LOWEST level wins and the higher part's floor
+    // is dug down under it, so the whole pond has water and nothing floats above a lower bank.
     let hi = -1e9, lo = 1e9; for (const k of reg) { hi = Math.max(hi, WL[k]); lo = Math.min(lo, WL[k]); }
-    if (hi - lo > .01) { for (const k of reg) WL[k] = hi; fixed++; }
+    if (hi - lo > .01) { for (const k of reg) { WL[k] = lo; const i = k % N, j = (k / N) | 0, lx = i * TER_S - TER_O, lz = j * TER_S - TER_O, b = terBase(Math.hypot(lx, lz));
+        if (b + TER.h[k] > lo - .35) { TER.h[k] = Math.max(TER_MIN, lo - .45 - b); dug = true; TER.any = true; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii >= 0 && jj >= 0 && ii < N && jj < N) terVert(ii, jj); } } }
+      fixed++; }
     let mx = -1e9, mn = 1e9; for (const k of reg) { const i = k % N, j = (k / N) | 0; mx = Math.max(mx, WL[k]); mn = Math.min(mn, terH(HOME.x + i * TER_S - TER_O, HOME.z + j * TER_S - TER_O)); }
     if (mx < mn + .2) { const L = mn + .45; for (const k of reg) WL[k] = L; fixed++; } }
+  if (dug) { try { terMeshDone(true); TER.dirty = 1; TER.any = true; } catch (e) { } }
   if (fixed) TPAINT.dirty = true; return fixed; }
 petsTick = (o => function (dt) { const r = o(dt); if (!TER.down) { if (TPAINT.L != null) { try { tpFixLevels(); } catch (e) { } } TPAINT.L = null; } return r; })(petsTick);
 applySave = (o => function (d) { const r = o(d); try { tpFixLevels(); } catch (e) { } return r; })(applySave);
@@ -22535,4 +22538,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794913754').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794921591').catch(()=>{});</script></body></html>
