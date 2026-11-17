@@ -17432,14 +17432,15 @@ BT.trisr = { name: '石三角·右', cat: 'st', k: 'free', cost: { wood: 1, meta
 // One tile each; the 左 / 右 buttons in the menu line pick the direction (the 右 one is its own piece, id + '_m').
 const TRI2 = {}, MIRR = {};
 for (const [m, mn, cs] of [['w', '木', [{ wood: 2 }, { wood: 1 }, { wood: 3 }]], ['s', '石', [{ wood: 1, metal: 2 }, { metal: 1 }, { wood: 1, metal: 3 }]]])
-  for (const [arc, sz, tag, nm, ci] of [[0, .5, 'n', '三角窄', 0], [0, .25, 'nn', '三角窄窄', 1], [1, 1, 'f', '弧形地板', 2], [1, .5, 'n', '弧形窄地板', 0], [1, .25, 'nn', '弧形窄窄地板', 1]]) {
-    const id = (arc ? 'arc' : 'tri') + m + tag;
-    for (const r of [0, 1]) { const k = r ? id + '_m' : id; TRI[k] = [m, r, sz, arc]; TRI2[k] = 1;
-      BT[k] = { name: mn + nm + (r ? '·右' : ''), cat: 'st', k: 'free', cost: cs[ci], hp: m === 's' ? 260 : 140, hw: 1.5, hd: 1.5, ob: [], desc: (arc ? '弧形墙' : (sz > .3 ? '半斜坡墙' : '矮斜坡墙')) + '放倒的形状，' + (m === 's' ? '石头' : '木头') + '地板。上面「左 / 右」换方向' }; }
-    MIRR[id] = id + '_m'; MIRR[id + '_m'] = id; }
+  for (const [arc, sz, tag, nm, ci] of [[0, .5, 'n', '三角窄', 0], [0, .25, 'nn', '三角窄窄', 1], [1, 1, 'f', '弧形地板', 2], [1, .5, 'n', '弧形窄地板', 0], [1, .25, 'nn', '弧形窄窄地板', 1], [2, .5, 'n', '窄地板', 0], [2, .25, 'nn', '窄窄地板', 1]]) {
+    const id = (arc === 2 ? 'rec' : arc ? 'arc' : 'tri') + m + tag;
+    for (const r of (arc === 2 ? [0] : [0, 1])) { const k = r ? id + '_m' : id; TRI[k] = [m, r, sz, arc]; TRI2[k] = 1;
+      BT[k] = { name: mn + nm + (r ? '·右' : ''), cat: 'st', k: 'free', cost: cs[ci], hp: m === 's' ? 260 : 140, hw: 1.5, hd: 1.5, ob: [], desc: arc === 2 ? (sz > .3 ? '半格宽' : '四分之一格宽') + '的长条' + (m === 's' ? '石头' : '木头') + '地板（长 3 米），可以并排放。「转向」转方向' : (arc ? '弧形墙' : (sz > .3 ? '半斜坡墙' : '矮斜坡墙')) + '放倒的形状，' + (m === 's' ? '石头' : '木头') + '地板。上面「左 / 右」换方向' }; }
+    if (arc !== 2) { MIRR[id] = id + '_m'; MIRR[id + '_m'] = id; } }
 function triPts(t) {
   const [m, right, sz, arc] = TRI[t], sz2 = sz == null ? 1 : sz, sx = right ? -1 : 1, P = [];
-  if (!arc) P.push([-1.5 * sx, -1.5 + 3 * sz2], [-1.5 * sx, -1.5], [1.5 * sx, -1.5]);
+  if (arc === 2) P.push([-1.5, -1.5], [1.5, -1.5], [1.5, -1.5 + 3 * sz2], [-1.5, -1.5 + 3 * sz2]);   // narrow straight floor (owner 17 Nov: 'there is no narrow floor')
+  else if (!arc) P.push([-1.5 * sx, -1.5 + 3 * sz2], [-1.5 * sx, -1.5], [1.5 * sx, -1.5]);
   else { P.push([-1.5 * sx, -1.5]); for (let i = 0; i <= 14; i++) { const u = i / 14, x = -1.5 + 3 * u; P.push([x * sx, -1.5 + 3 * sz2 * Math.sqrt(Math.max(0, 1 - u * u))]); } }
   return P;
 }
@@ -19184,6 +19185,51 @@ applySave = (o => function (d) { const r = o(d); try { if (d && Array.isArray(d.
 try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
   '.smChip{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 11px;margin:0 6px;border-radius:11px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.07);color:#e8eef2;font-weight:800;font-size:13px;white-space:nowrap;flex:none}' +
   '.smChip i{width:16px;height:16px;border-radius:4px;background:linear-gradient(135deg,#f2efe8,#bdb8ae);border:1px solid rgba(255,255,255,.6)}.smChip.on{border-color:#ffd27a;background:rgba(255,210,122,.25);color:#fff3d6}' })); } catch (e) { }
+/* ============ one level for a whole house on uneven ground (owner 17 Nov: "the 2F floor slabs are one high one low, and the
+   ground-floor walls should be as high as the 2F floor") ============
+   Without a foundation every wall / 二楼楼板 / roof took the ground height at its own centre, so on sculpted ground the
+   pieces of one house ended at different heights. Now the ground-storey walls, doors, frames, 楼板 and roofs that touch each
+   other (centres ≤ 3.05 m apart) are one house and all sit at the height of its highest piece; the storeys above follow their
+   楼板. Where a wall now stands over lower ground, a stone footing fills the gap down to the ground (no floating walls).
+   Nothing is ever lowered. Runs on load and every 1.5 s on the island (cheap); a new piece next to a house is placed at the
+   house's height straight away. Switch: HSE_ON. */
+const HSE_ON = true;
+const HSE = { t: 0 };
+const hseIs = b => { const T = BT[b.type]; return !!T && T.cat === 'st' && (T.k === 'edge' || T.k === 'door' || T.k === 'upper') && !(b.lv | 0) && b.hp > 0; };
+const hseTypeIs = t => { const T = BT[t]; return !!T && T.cat === 'st' && (T.k === 'edge' || T.k === 'door' || T.k === 'upper'); };
+baseGy = (o => function (x, z, type, lv) { let g = o.apply(this, arguments);
+  try { if (!HSE_ON || !TER.any || (lv | 0) || !hseTypeIs(type)) return g;
+    // the higher end of the wall / slab, not only its centre
+    for (const [dx, dz] of [[1.4, 0], [-1.4, 0], [0, 1.4], [0, -1.4]]) g = Math.max(g, tBase(x + dx, z + dz, 0));
+    for (const b of builds) if (hseIs(b) && Math.abs(b.x - x) < 3.06 && Math.abs(b.z - z) < 3.06 && Math.hypot(b.x - x, b.z - z) < 3.06) g = Math.max(g, b.gy || 0);
+  } catch (e) { } return g; })(baseGy);
+function hseMove(b, g) { b.gy = g; b._top = null; if (b.g) b.g.position.y = bY(b); }
+function hseSettle() {
+  if (!HSE_ON || typeof TER === 'undefined' || !TER.any) return 0; let n = 0;
+  const P = builds.filter(hseIs);
+  for (let it = 0; it < 12; it++) { let ch = false;
+    for (const b of P) { let m = b.gy || 0; for (const q of P) if (q !== b && Math.abs(q.x - b.x) < 3.06 && Math.abs(q.z - b.z) < 3.06 && (q.gy || 0) > m + .01 && Math.hypot(q.x - b.x, q.z - b.z) < 3.06) m = q.gy || 0;
+      if (m > (b.gy || 0) + .01) { hseMove(b, m); ch = true; n++; } }
+    if (!ch) break; }
+  // the storeys above stand on their 楼板
+  for (const b of builds) { if (!((b.lv | 0) > 0) || b.hp <= 0 || !b.g) continue; const g = tBase(b.x, b.z, b.lv | 0); if (Math.abs(g - (b.gy || 0)) > .01) { hseMove(b, g); n++; } }
+  return n;
+}
+// a stone footing under a wall that stands over lower ground
+function hseSkirts() {
+  for (const b of builds) { if (!b.g || b.hp <= 0) continue; const T = BT[b.type]; const sk = b.g.userData.hsk;
+    let h = 0;
+    if (HSE_ON && TER.any && T && T.cat === 'st' && T.k === 'edge' && !(b.lv | 0) && !(b.dy | 0) && !b.diagL) {
+      const L = typeof edgeLen === 'function' ? edgeLen(b.type) : 3, c = Math.cos(b.rot || 0), s = Math.sin(b.rot || 0); let low = 1e9;
+      for (const u of [-.48, 0, .48]) low = Math.min(low, tBase(b.x + u * L * c, b.z - u * L * s, 0));
+      h = (b.gy || 0) - low; if (h < .06) h = 0;
+      if (h && (!sk || Math.abs(b.g.userData.hskH - h) > .03)) { if (sk) { b.g.remove(sk); sk.geometry.dispose(); }
+        const m = new THREE.Mesh(new THREE.BoxGeometry(L - .04, h + .06, .3), stone2); m.position.y = -h / 2 + .03; m.castShadow = m.receiveShadow = true; m.userData.hskOwn = 1;
+        b.g.add(m); b.g.userData.hsk = m; b.g.userData.hskH = h; try { if (b.paint != null) paintApply(b); } catch (e) { } continue; } }
+    if (!h && sk) { b.g.remove(sk); sk.geometry.dispose(); b.g.userData.hsk = null; } }
+}
+applySave = (o => function (d) { const r = o.apply(this, arguments); try { hseSettle(); hseSkirts(); } catch (e) { console.warn('house', e); } return r; })(applySave);
+petsTick = (o => function (dt) { const r = o(dt); try { HSE.t -= dt; if (HSE.t <= 0) { HSE.t = 1.5; if (S.started && S.isl) { hseSettle(); hseSkirts(); } } } catch (e) { } return r; })(petsTick);
 /* ============ paint (owner: "wallpaper: all black, all white, grey — like paint") ============
    A 油漆 tool next to 移动 / 拆除 in the build menu: pick a colour, then tap any built piece (wall, floor, roof, furniture…)
    and it takes that colour; 去掉油漆 gives the piece its own colours back. Free. The paint keeps the light/dark of the
@@ -19209,7 +19255,7 @@ function paintPick() { const t = removeTarget(); return t && !t.fix && builds.in
 function paintDo(b) {
   if (!b) { feed(T2('点一下要上色的建筑', 'Tap a piece to paint'), '#ffd27a'); return; }
   try { clearHilite(); } catch (e) { }
-  b.paint = PAINT.c < 0 ? null : PAINT.c; paintApply(b);
+  PAINT.doneT = performance.now(); b.paint = PAINT.c < 0 ? null : PAINT.c; paintApply(b);
   try { sfx.pick(); } catch (e) { } burst(b.x, (b.y || 0) + 1, b.z, PAINT.c < 0 ? 0xc9955c : PAINT_C[PAINT.c][1], 6, 3); saveGame();
 }
 // the tool button, the colour row, the menu line
@@ -19240,9 +19286,16 @@ b5Info = (o => function () { o(); try { if (!PAINT.on) return; const el = $('b5S
 // the 上色 button (and a mouse click in the top view) paints the picked piece
 placeBuild = (o => function () { if (PAINT.on && buildSel === 'remove') { paintDo(paintPick()); return; } return o.apply(this, arguments); })(placeBuild);
 toggleBuild = (o => function () { const r = o.apply(this, arguments); if (!buildOpen) PAINT.on = false; return r; })(toggleBuild);
-// a finger tap paints straight away; painted pieces whose mesh was rebuilt get their colour again
+// only a real TAP paints (owner 17 Nov: sliding the finger / moving the mouse painted everything it passed over): finger
+// down and up again within 12 px and 600 ms, one finger only; a mouse click that already painted through placeBuild is not painted twice
+const PTAP = { d: null, multi: false };
+canvas.addEventListener('pointerdown', e => { if (!PAINT.on) return; if (PTAP.d) { PTAP.multi = true; return; } if (e.pointerType === 'mouse' && e.button !== 0) return; PTAP.d = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() }; PTAP.multi = false; }, true);
+window.addEventListener('pointerup', e => { const d = PTAP.d; if (!d || d.id !== e.pointerId) return; PTAP.d = null;
+  if (PAINT.on && !PTAP.multi && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 12 && performance.now() - d.t < 600) PAINT.tap = 1; }, true);
+window.addEventListener('pointercancel', e => { if (PTAP.d && PTAP.d.id === e.pointerId) PTAP.d = null; }, true);
+// a finger tap paints; painted pieces whose mesh was rebuilt get their colour again
 petsTick = (o => function (dt) { const r = o(dt); try {
-  if (PAINT.on && buildOpen && buildTap && buildTap !== PAINT.lastTap) { PAINT.lastTap = buildTap; const b = paintPick(); if (b) paintDo(b); }
+  if (PAINT.on && buildOpen && PAINT.tap) { PAINT.tap = 0; if (performance.now() - (PAINT.doneT || 0) > 300) { const b = paintPick(); if (b) paintDo(b); } }
   PAINT.t -= dt; if (PAINT.t <= 0) { PAINT.t = .5; for (const b of builds) if (b.paint != null && b.g && b.g.userData.pk !== b.paint && !(hilite === b)) paintApply(b); }
 } catch (e) { console.warn('paint', e); } return r; })(petsTick);
 // save / load
@@ -21109,7 +21162,7 @@ renderMall = (o => function () {
     $('mall').classList.remove('gpage');
     while (tabs.nextSibling) { if (tabs.nextSibling.classList && tabs.nextSibling.classList.contains('testn')) { box.appendChild(tabs.nextSibling); break; } tabs.nextSibling.remove(); }
     const hd = document.createElement('div'); hd.className = 'gshead';
-    hd.innerHTML = '<div><b>' + T2('资源商店', 'Resource Shop') + '</b><small>' + T2('用晶石直接买，可以无限次购买 · 买之前再点一次确认', 'Buy with gems, no limit · tap twice to confirm') + '</small></div><span class="gsbal">' + skPrice(S.gem | 0) + '</span>';
+    hd.innerHTML = '<div><b>' + T2('资源商店', 'Resource Shop') + '</b><small>' + T2('用晶石直接买，买几次都可以（遗物币每周限 5 份）· 买之前再点一次确认', 'Buy with gems as often as you like (relic coins: 5 packs a week) · tap twice to confirm') + '</small></div><span class="gsbal">' + skPrice(S.gem | 0) + '</span>';
     box.appendChild(hd);
     for (const sh of ['c', 'm', 'b', 'r']) { const [title, col] = GS_SHELF[sh];
       const t = document.createElement('div'); t.className = 'gsst'; t.style.setProperty('--sc', col); t.innerHTML = '<i></i>' + title; box.appendChild(t);
@@ -22576,4 +22629,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794929972').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794931124').catch(()=>{});</script></body></html>
