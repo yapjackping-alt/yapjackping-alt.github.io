@@ -21160,7 +21160,8 @@ renderMall = (o => function () {
     tb.addEventListener('click', () => { mallTab = 'res'; renderMall(); }); tabs.insertBefore(tb, tabs.lastChild);
     if (mallTab !== 'res') return;
     $('mall').classList.remove('gpage');
-    while (tabs.nextSibling) { if (tabs.nextSibling.classList && tabs.nextSibling.classList.contains('testn')) { box.appendChild(tabs.nextSibling); break; } tabs.nextSibling.remove(); }
+    // everything the base shop drew under the tabs goes (the 晶石 packs used to stay here: the old loop stopped at the test note, which comes first)
+    let tn = null; while (tabs.nextSibling) { const e = tabs.nextSibling; if (e.classList && e.classList.contains('testn')) tn = e; e.remove(); }
     const hd = document.createElement('div'); hd.className = 'gshead';
     hd.innerHTML = '<div><b>' + T2('资源商店', 'Resource Shop') + '</b><small>' + T2('用晶石直接买，买几次都可以（遗物币每周限 5 份）· 买之前再点一次确认', 'Buy with gems as often as you like (relic coins: 5 packs a week) · tap twice to confirm') + '</small></div><span class="gsbal">' + skPrice(S.gem | 0) + '</span>';
     box.appendChild(hd);
@@ -21173,6 +21174,7 @@ renderMall = (o => function () {
           '<button class="sbtn gs1">' + skPrice(p) + '</button><button class="sbtn ghostb gs10">' + T2('10 份 · ', '×10 · ') + (p * 10) + '</button>';
         c.querySelector('.gs1').addEventListener('click', e => gsBuy(i, 1, e.currentTarget)); c.querySelector('.gs10').addEventListener('click', e => gsBuy(i, 10, e.currentTarget)); g.appendChild(c); });
       box.appendChild(g); }
+    if (tn) box.appendChild(tn);
     const n2 = document.createElement('div'); n2.className = 'snote'; n2.textContent = T2('价格按海岛商人的价钱算（1000 余烬币 = 50 晶石），用晶石买大约贵 1.5 倍，图的是方便。首领印记、收藏品、不朽装备不卖，只能自己打出来。', 'Priced against the island merchant (1000 coins = 50 gems); gems cost about 1.5× more, for convenience. Boss seals, collectibles and immortal gear are never sold.'); box.appendChild(n2);
   } catch (e) { console.warn('gem shop', e); }
 })(renderMall);
@@ -22629,4 +22631,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794931124').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794931684').catch(()=>{});</script></body></html>
