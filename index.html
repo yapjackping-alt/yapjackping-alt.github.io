@@ -18469,6 +18469,11 @@ function tpFixLevels() { const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, seen = n
   for (let s0 = 0; s0 < N * N; s0++) { if (P[s0] !== 4 || seen[s0]) continue; const reg = [s0]; seen[s0] = 1;
     for (let q = 0; q < reg.length; q++) { const k = reg[q], i = k % N, j = (k / N) | 0;
       for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const kk = jj * N + ii; if (P[kk] === 4 && !seen[kk]) { seen[kk] = 1; reg.push(kk); } } }
+    // one joined pond = one water level (owner 17 Nov: two parts at different levels left a stepped brown strip with no
+    // water between them, because a cell whose corners differ too much is not drawn). The highest level wins: it covers
+    // every dug floor of the pond (a lower one could leave the deeper half dry).
+    let hi = -1e9, lo = 1e9; for (const k of reg) { hi = Math.max(hi, WL[k]); lo = Math.min(lo, WL[k]); }
+    if (hi - lo > .01) { for (const k of reg) WL[k] = hi; fixed++; }
     let mx = -1e9, mn = 1e9; for (const k of reg) { const i = k % N, j = (k / N) | 0; mx = Math.max(mx, WL[k]); mn = Math.min(mn, terH(HOME.x + i * TER_S - TER_O, HOME.z + j * TER_S - TER_O)); }
     if (mx < mn + .2) { const L = mn + .45; for (const k of reg) WL[k] = L; fixed++; } }
   if (fixed) TPAINT.dirty = true; return fixed; }
@@ -18794,7 +18799,8 @@ islandTick = (o => function (dt) { const px = player.pos.x, pz = player.pos.z, r
     if (!onPier && !S.boat && d > ISL_R + 9 && S.isl && !S.dun) { const k = d > SWN_SEA ? SWN_SEA / d : 1; player.pos.x = HOME.x + dx * k; player.pos.z = HOME.z + dz * k; } } catch (e) { }
   return r; })(islandTick);
 // first person in the water: no gun in your hands, the eyes just above the surface
-fpvTick = (o => function (dt) { const r = o(dt); if (SWN.on && FPV.g) FPV.g.visible = false; return r; })(fpvTick);
+fpvTick = (o => function (dt) { const r = o(dt); if (FPV.g && (SWN.on || (typeof buildOpen !== 'undefined' && buildOpen) || (typeof GV !== 'undefined' && GV.on))) FPV.g.visible = false; return r; })(fpvTick);   // no first-person gun while swimming or building (owner 17 Nov: the gun showed in the build view)
+toggleBuild = (o => function () { const r = o.apply(this, arguments); try { if (buildOpen && typeof FPV !== 'undefined' && FPV.g) FPV.g.visible = false; } catch (e) { } return r; })(toggleBuild);   // the game loop may not tick fpvTick while the build view is open
 staRingTick = (o => function (dt) { const r = o(dt);
   try { if (SWN.on && typeof fpOn === 'function' && fpOn()) { camera.position.y = SWN.lvl + .24 + Math.sin(S.t * 2.2) * .05; if (camera.updateMatrixWorld) camera.updateMatrixWorld(); } } catch (e) { }
   return r; })(staRingTick);
@@ -22529,4 +22535,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794913168').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794913754').catch(()=>{});</script></body></html>
