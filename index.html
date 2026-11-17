@@ -21059,7 +21059,8 @@ const GSHOP = [
   ['coin', 1000, 50, 'c'], ['relic', 100, 150, 'c'],
   ['wood', 100, 10, 'm'], ['stone', 100, 8, 'm'], ['metal', 100, 30, 'm'], ['powder', 20, 16, 'm'], ['circuit', 10, 20, 'm'],
   ['ammo', 100, 20, 'b'], ['med', 10, 18, 'b'], ['estone', 10, 60, 'b'],
-  ['steel', 5, 40, 'r'], ['serum', 5, 50, 'r'], ['crystal', 1, 60, 'r'], ['heart', 1, 90, 'r'], ['core', 1, 105, 'r']
+  ['bpf', 10, 40, 'r'], ['steel', 5, 40, 'r'],   // 图纸残页: 10 = one blueprint draw, priced like one outfit draw (40 晶石); the owner wants the draw to stay hard
+   ['serum', 5, 50, 'r'], ['crystal', 1, 60, 'r'], ['heart', 1, 90, 'r'], ['core', 1, 105, 'r']
 ];
 const GS_SHELF = { c: [T2('货币', 'Currency'), '#ffd27a'], m: [T2('建材', 'Building materials'), '#9fd8a0'], b: [T2('战斗补给', 'Combat supplies'), '#7de0ff'], r: [T2('稀有材料', 'Rare materials'), '#d89bff'] };
 const GS_RELIC_WEEK = 5;   // relic coins are the dungeon currency: at most 5 packs (500) a week with gems
@@ -22554,4 +22555,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794928163').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794928903').catch(()=>{});</script></body></html>
