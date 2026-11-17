@@ -18482,6 +18482,7 @@ applySave = (o => function (d) {
 // a new stroke of water starts a new level
 // water that ended up UNDER the ground of its own pond (old strokes that kept digging deeper) is lifted back up: each
 // joined pond gets one level, at least .45 m over its lowest ground; ponds that look fine are left alone
+const TP_SEA = -0.3, TP_SEA_R = ISL_R - 4;   // the sea plane's height, and how far out it starts to show under dug ground (its hole ends at ISL_R-1.5)
 function tpFixLevels() { const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, seen = new Uint8Array(N * N); let fixed = 0, dug = false;
   const gx = i => HOME.x + i * TER_S - TER_O, gz = j => HOME.z + j * TER_S - TER_O, gH = k => terH(gx(k % N), gz((k / N) | 0));
   // ground under a building is never dug (it left a farm plot floating over a hole, owner 17 Nov)
@@ -18498,7 +18499,11 @@ function tpFixLevels() { const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, seen = n
     let bank = 1e9; for (const k of reg) { const i = k % N, j = (k / N) | 0;
       for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const kk = jj * N + ii; if (P[kk] !== 4) bank = Math.min(bank, gH(kk)); } }
     let L = lo; if (bank < 1e8 && L > bank - .1) L = bank - .15;
-    if (hi - L > .01 || lo - L > .01) { for (const k of reg) { WL[k] = L; if (locked(k)) continue; const i = k % N, j = (k / N) | 0, b = terBase(Math.hypot(i * TER_S - TER_O, j * TER_S - TER_O));
+    // a pond that reaches the beach (where the sea is drawn under the ground) never sits under the sea: it lies just over the
+    // sea's surface, so the two waters don't cut through each other (owner 17 Nov: 'the sea is high, my pond clips with it')
+    let nearSea = false; for (const k of reg) if (Math.hypot((k % N) * TER_S - TER_O, ((k / N) | 0) * TER_S - TER_O) > TP_SEA_R) { nearSea = true; break; }
+    if (nearSea && L < TP_SEA + .1) L = TP_SEA + .1;
+    if (hi - L > .01 || Math.abs(lo - L) > .01) { for (const k of reg) { WL[k] = L; if (locked(k)) continue; const i = k % N, j = (k / N) | 0, b = terBase(Math.hypot(i * TER_S - TER_O, j * TER_S - TER_O));
         if (b + TER.h[k] > L - .3) { TER.h[k] = Math.max(TER_MIN, L - .45 - b); dug = true; TER.any = true; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii >= 0 && jj >= 0 && ii < N && jj < N) terVert(ii, jj); } } }
       fixed++; }
     // water under its own floor (the bottom limit was reached): lift it just over the floor
@@ -18710,6 +18715,8 @@ function trivFinishRiver(c) {
   const rev = lv[0] < lv[n - 1]; if (rev) lv.reverse(); for (let i = 1; i < n; i++) lv[i] = Math.min(lv[i], lv[i - 1]); if (rev) lv.reverse();
   // a short smoothing so the surface has no kinks
   for (let it = 0; it < 2; it++) { const L = lv.slice(); for (let i = 1; i < n - 1; i++) lv[i] = Math.min(L[i], (L[i - 1] + L[i] * 2 + L[i + 1]) / 4); }
+  // where the river reaches the beach it ends at the sea's level, not under it (the two waters clipped)
+  for (let i = 0; i < n; i++) if (Math.hypot(s[i * 2], s[i * 2 + 1]) > TP_SEA_R && lv[i] < TP_SEA + .1) lv[i] = TP_SEA + .1;
   trivDig(s, lv, c.w);
   TRIV.list.push({ w: c.w, p: c.p.slice(), l: lv.map(v => Math.round(v * 100) / 100) }); TRIV.dirty = true;
   try { TPATH.dirty = true; TPAINT.dirty = true; } catch (e) { }
@@ -22631,4 +22638,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794931684').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794931955').catch(()=>{});</script></body></html>
