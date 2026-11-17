@@ -21352,6 +21352,10 @@ const G3_RR = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" strok
 const g3Esc = t => String(t).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]);
 // re-draw the bag but keep the popup where it was scrolled (a reroll used to jump back to the top)
 function g3Re() { let st = 0; try { const p = document.querySelector('#bagDetail .bpop'); st = p ? p.scrollTop : 0; } catch (e) { } renderBag(); try { const p = document.querySelector('#bagDetail .bpop'); if (p) p.scrollTop = st; } catch (e) { } }
+// the game's 强化 button with a short two-line label (the long one ran into 脱下 on the phone)
+function g3Enh(it) { const b = enhBtn(it); b.className = 'sbtn ghostb g3eb'; const e = it[7] || 0;
+  if (e < 15) { const c = enhCost(it); b.innerHTML = '<b>强化 +' + e + ' → +' + (e + 1) + '</b><small>成功率 ' + Math.round(enhRate(it) * 100) + '% · 强化石 ' + c.estone + ' · ' + c.coin + ' 币</small>'; }
+  return b; }
 function g3Lines(it, own) {   // the affix lines; own = the worn piece (gets reroll buttons)
   const L = afxLocked(it), c = rerollCost(it), ok = S.coin >= c.coin && matHave('estone') >= c.estone;
   return afxLines(it).map((code, i) => '<div class="g3ln' + (i < L ? ' lk' : '') + '"><i>' + (i < L ? '固定' : '可洗') + '</i><span>' + g3Esc(afxTxt(it, code)) + '</span>' +
@@ -21385,7 +21389,7 @@ function g3Render(box, slot, name) {
   if (low) { const b = document.createElement('button'); b.className = 'sbtn ghostb'; b.textContent = '一键分解所有普通和特级装备（' + low + ' 件）';
     b.addEventListener('click', () => { for (let i = S.ginv.length - 1; i >= 0; i--) if (S.ginv[i][1] <= 1) scrapGear(i); G3.cmp = null; renderBag(); }); d.appendChild(b); }
   // wiring
-  if (cur) { const e = d.querySelector('.g3enh'); if (e) { const b = enhBtn(cur); b.classList.add('g3eb'); e.replaceWith(b); }
+  if (cur) { const e = d.querySelector('.g3enh'); if (e) { e.replaceWith(g3Enh(cur)); }
     d.querySelector('.g3off').addEventListener('click', () => { unequipGear(slot); renderBag(); });
     d.querySelectorAll('.g3cur .g3rr').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); if (rerollAffix(cur, +b.dataset.l)) g3Re(); })); }
   d.querySelectorAll('.g3t').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.i; G3.cmp = G3.cmp === i ? null : i; try { sfx.pick(); } catch (er) { } g3Re(); }));
@@ -21393,7 +21397,7 @@ function g3Render(box, slot, name) {
     cw.querySelector('.g3wear').addEventListener('click', () => { G3.cmp = null; equipGear(i); try { sfx.pick(); } catch (er) { } renderBag(); });
     cw.querySelector('.g3scrap').addEventListener('click', () => { G3.cmp = null; scrapGear(i); renderBag(); });
     cw.querySelector('.g3x').addEventListener('click', () => { G3.cmp = null; g3Re(); });
-    const eh = cw.querySelector('.g3enh2'); if (eh) eh.replaceWith(Object.assign(enhBtn(it), { className: 'sbtn ghostb g3eb' })); }
+    const eh = cw.querySelector('.g3enh2'); if (eh) eh.replaceWith(g3Enh(it)); }
   box.appendChild(d);
 }
 // two pieces side by side: every stat of either piece, the better side marked
@@ -21450,7 +21454,8 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
   '.g3 .gcard{margin:6px 0}.g3ln{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:14px}.g3ln i{font-style:normal;font-size:11px;font-weight:800;padding:2px 6px;border-radius:6px;background:#3a64c8;color:#fff;flex:none}.g3ln.lk i{background:#8a6a2a}' +
   '.g3ln span{flex:1;min-width:0}.g3rr{flex:none;width:34px;height:30px;border-radius:9px;border:1px solid rgba(160,190,255,.55);background:rgba(90,130,230,.25);color:#cfe0ff;display:flex;align-items:center;justify-content:center;padding:0}.g3rr:disabled{opacity:.35}.g3rr:active{transform:scale(.92)}' +
   '.g3cost{font-size:12.5px;color:#c9b8a8;margin:8px 0 2px}.g3cost b{color:#ffd27a}.g3cost b.no{color:#ff8a7a}.g3dt{font-size:12px;opacity:.75;margin-top:2px}' +
-  '.g3acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}.g3acts>*{flex:1 1 140px;min-width:0}.g3eb{white-space:normal;font-size:12.5px;line-height:1.3}' +
+  '.g3acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:stretch}.g3acts>*{flex:1 1 140px;min-width:0}.g3acts .sbtn{height:auto!important;min-height:44px;white-space:normal!important;overflow:hidden}' +
+  '.g3eb{flex:2 1 180px!important;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 8px;line-height:1.25}.g3eb b{font-size:14px}.g3eb small{font-size:11px;font-weight:600;opacity:.85}' +
   '.g3grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:8px;margin:6px 0 10px}.g3t{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:12px;border:2px solid var(--qc);background:rgba(255,255,255,.05);color:#eee;font-size:12px}' +
   '.g3t svg{width:26px;height:26px}.g3t b{color:var(--qc);font-size:12.5px}.g3t small{opacity:.8}.g3t em{font-style:normal;font-weight:900}.g3t.on{background:rgba(255,200,120,.18);box-shadow:0 0 0 2px #ffd27a}' +
   '.g3cmp{margin:8px 0;padding:10px;border-radius:14px;border:1.5px solid #ffd27a;background:rgba(40,30,20,.6)}.g3ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}.g3ch b{color:#ffd27a;font-size:15px}' +
@@ -22510,4 +22515,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794902630').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794904480').catch(()=>{});</script></body></html>
