@@ -18348,10 +18348,14 @@ terBrush = (o => function (dt) {
   const a = buildAnchor; if (!a) return; const R = TER_SIZES[TER.size] || 4.2, N = TER_N, v = TP_TYPE[TER.tool];
   // water digs a pond: it keeps away from buildings like the terrain brushes; the water surface is level, at the height where the stroke began
   TER.near = v === 4 ? builds.filter(b => b.hp > 0 && !terLoose(b) && !(b.lv | 0) && Math.abs(b.x - a.x) < R + 5 && Math.abs(b.z - a.z) < R + 5) : [];
-  if (v === 4 && TPAINT.L == null) { TPAINT.L = terH(a.x, a.z) - .15;
-    // starting on or next to a pond: keep that pond's level, so the two join without a step
-    const ci = Math.round((a.x - HOME.x + TER_O) / TER_S), cj = Math.round((a.z - HOME.z + TER_O) / TER_S); let bd = 1e9;
-    for (let dj = -3; dj <= 3; dj++) for (let di = -3; di <= 3; di++) { const i = ci + di, j = cj + dj; if (i < 0 || j < 0 || i >= N || j >= N) continue; const k = j * N + i; if (TPAINT.p[k] === 4 && di * di + dj * dj < bd) { bd = di * di + dj * dj; TPAINT.L = TPAINT.wl[k]; } } } let dug = false;
+  if (v === 4 && TPAINT.L == null) {
+    // the level comes from the ground as it was before any digging: a stroke started inside an old bowl used to take the
+    // dug floor as its level and dig 0.7 m deeper each time, until the floor hit the bottom and the water sat under it
+    // (owner 17 Nov: "painting water bugs out"). Dug ground (below its natural height) counts as natural height.
+    const ci = Math.round((a.x - HOME.x + TER_O) / TER_S), cj = Math.round((a.z - HOME.z + TER_O) / TER_S), k0 = clamp(cj, 0, N - 1) * N + clamp(ci, 0, N - 1);
+    TPAINT.L = (TER.h[k0] < 0 ? terBase(Math.hypot(a.x - HOME.x, a.z - HOME.z)) : terH(a.x, a.z)) - .15; let bd = 1e9;
+    // starting on or near a pond (up to 8 points away): keep that pond's level, so the two join without a step
+    for (let dj = -8; dj <= 8; dj++) for (let di = -8; di <= 8; di++) { const i = ci + di, j = cj + dj; if (i < 0 || j < 0 || i >= N || j >= N) continue; const k = j * N + i; if (TPAINT.p[k] === 4 && di * di + dj * dj < bd) { bd = di * di + dj * dj; TPAINT.L = TPAINT.wl[k]; } } } let dug = false;
   const RR = v === 4 ? R * 1.2 : R;
   const i0 = Math.max(1, Math.floor((a.x - HOME.x + TER_O - RR) / TER_S)), i1 = Math.min(N - 2, Math.ceil((a.x - HOME.x + TER_O + RR) / TER_S)), j0 = Math.max(1, Math.floor((a.z - HOME.z + TER_O - RR) / TER_S)), j1 = Math.min(N - 2, Math.ceil((a.z - HOME.z + TER_O + RR) / TER_S));
   let ch = false;
@@ -18459,7 +18463,17 @@ applySave = (o => function (d) {
   const r = o(d); TPAINT.dirty = true; TPAINT.t = 0; return r; })(applySave);
 
 // a new stroke of water starts a new level
-petsTick = (o => function (dt) { const r = o(dt); if (!TER.down) TPAINT.L = null; return r; })(petsTick);
+// water that ended up UNDER the ground of its own pond (old strokes that kept digging deeper) is lifted back up: each
+// joined pond gets one level, at least .45 m over its lowest ground; ponds that look fine are left alone
+function tpFixLevels() { const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, seen = new Uint8Array(N * N); let fixed = 0;
+  for (let s0 = 0; s0 < N * N; s0++) { if (P[s0] !== 4 || seen[s0]) continue; const reg = [s0]; seen[s0] = 1;
+    for (let q = 0; q < reg.length; q++) { const k = reg[q], i = k % N, j = (k / N) | 0;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const kk = jj * N + ii; if (P[kk] === 4 && !seen[kk]) { seen[kk] = 1; reg.push(kk); } } }
+    let mx = -1e9, mn = 1e9; for (const k of reg) { const i = k % N, j = (k / N) | 0; mx = Math.max(mx, WL[k]); mn = Math.min(mn, terH(HOME.x + i * TER_S - TER_O, HOME.z + j * TER_S - TER_O)); }
+    if (mx < mn + .2) { const L = mn + .45; for (const k of reg) WL[k] = L; fixed++; } }
+  if (fixed) TPAINT.dirty = true; return fixed; }
+petsTick = (o => function (dt) { const r = o(dt); if (!TER.down) { if (TPAINT.L != null) { try { tpFixLevels(); } catch (e) { } } TPAINT.L = null; } return r; })(petsTick);
+applySave = (o => function (d) { const r = o(d); try { tpFixLevels(); } catch (e) { } return r; })(applySave);
 
 /* ---- waterfalls fall all the way down: placed up high (on a hill or a raised floor), the water keeps falling from the
    front of its pool to the ground below, with foam where it lands ---- */
@@ -22515,4 +22529,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794904480').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794913168').catch(()=>{});</script></body></html>
