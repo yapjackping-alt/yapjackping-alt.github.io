@@ -18418,8 +18418,9 @@ applySave = (o => function (d) { const r = o(d); try { terLandFix(true); } catch
 try { for (const c of islandG.children) { const p = c.geometry && c.geometry.parameters; if (!p || p.width !== 1600 || !c.material) continue;
   const m = c.material; m.onBeforeCompile = sh => { sh.uniforms.uHoleR = { value: ISL_R - 1.5 };
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vLocXY;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvLocXY = position.xy;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vLocXY;\nuniform float uHoleR;').replace('void main() {', 'void main() {\nif (length(vLocXY) < uHoleR) discard;'); };
-  m.customProgramCacheKey = () => 'oceanHole'; m.needsUpdate = true; } } catch (e) { console.warn('ocean hole', e); }
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vLocXY;\nuniform float uHoleR;').replace('void main() {', 'void main() {\nif (length(vLocXY) < uHoleR - 2.5) discard;')
+      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\ngl_FragColor.a *= smoothstep(uHoleR - 2.5, uHoleR, length(vLocXY));'); };   // soft edge: a pond open to the sea fades into it (owner 19 Nov)
+  m.customProgramCacheKey = () => 'oceanHole2'; m.needsUpdate = true; } } catch (e) { console.warn('ocean hole', e); }
 
 /* ---- while sculpting: height lines on (see terInit) and a small label at the brush with the height there (0 = normal ground) ---- */
 petsTick = (o => function (dt) { const r = o(dt); try {
@@ -18537,19 +18538,22 @@ function tpWaterMat() { if (_tpWM) return _tpWM;
   // waves from the sea roll into a pond that is joined to it (owner 18 Nov): white bands moving inward along md, fading out
   // about 16 m in; ponds that don't touch the sea have md 999 and stay calm
   _tpWM.onBeforeCompile = sh => { sh.uniforms.uT = { value: 0 }; _tpWM.userData.sh = sh;
-    sh.vertexShader = 'attribute float md;\nvarying float vMd;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvMd = md;');
-    sh.fragmentShader = 'uniform float uT;\nvarying float vMd;\n' + sh.fragmentShader.replace('#include <dithering_fragment>', '#include <dithering_fragment>\n' +
+    sh.uniforms.uC = { value: new THREE.Vector2(HOME.x, HOME.z) }; sh.uniforms.uR = { value: ISL_R };
+    sh.vertexShader = 'attribute float md;\nvarying float vMd;\nvarying vec2 vWp;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvMd = md; vWp = (modelMatrix * vec4(position, 1.0)).xz;');
+    sh.fragmentShader = 'uniform float uT;\nuniform vec2 uC;\nuniform float uR;\nvarying float vMd;\nvarying vec2 vWp;\n' + sh.fragmentShader.replace('#include <dithering_fragment>', '#include <dithering_fragment>\n' +
+      'gl_FragColor.a *= 1.0 - smoothstep(uR - 3.5, uR + 1.5, length(vWp - uC));' +   // over the sea plane the pond fades into the sea (no double layer, no edge)
+
       'if (vMd < 20.0) { float s = vMd - uT * 1.6 + sin(vUv.x * 2.6) * .45 + sin(vUv.y * 2.1 + 1.3) * .45; float f = fract(s / 6.5);' +
       ' float band = smoothstep(.0, .06, f) * (1.0 - smoothstep(.06, .2, f)); float foam = band * clamp(1.0 - vMd / 16.0, 0.0, 1.0) * .8;' +
-      ' gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(1.0), foam); gl_FragColor.a = max(gl_FragColor.a, foam); }'); };
-  _tpWM.customProgramCacheKey = () => 'tpwave1';
+      ' gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(1.0), foam); gl_FragColor.a = max(gl_FragColor.a * mix(.74, 1.0, clamp(vMd / 10.0, 0.0, 1.0)), foam); }'); };   // near the mouth as see-through as the sea (.62)
+  _tpWM.customProgramCacheKey = () => 'tpwave3';
   return _tpWM; }
 /* the water surface, way 2 (owner 17 Nov: "think of another way"): every joined pond is ONE flat sheet at its own level,
    laid over its painted points AND one ring of points round them. Where the bank is higher than the water the ground simply
    hides the sheet, so the shore is where the ground meets the water — no cells are left out any more (the old per-corner
    heights dropped any cell whose corners differed, which drew the stepped dry lines), and tpFixLevels keeps every bank
    point at least a little over the water so the sheet never hangs in the air. */
-const TP_SEA = -0.3, TP_SEA_R = ISL_R - 4;   // the sea plane's height, and how far out it starts to show under dug ground (its hole ends at ISL_R-1.5)
+const TP_SEA = -0.3, TP_SEA_R = ISL_R - 4; let TP_SEA_C = 0x44a7c6;   // pond colour at the sea mouth (sea plane 0x3a9ab8 under the pond's pale ripple map)   // the sea plane's height, and how far out it starts to show under dug ground (its hole ends at ISL_R-1.5)
 /* ponds that reach the sea: region of every water point, which regions touch the sea, and how far each point is from the
    sea along the water (md, metres). Used for the waves that roll into such a pond and for fish swimming out to sea. */
 function tpField() { const N = TER_N, P = TPAINT.p, reg = new Int32Array(N * N).fill(-1), md = new Float32Array(N * N).fill(1e9), sea = [];
@@ -18576,7 +18580,7 @@ function tpWater(floors) {
     own[k] = best; }
   const cDeep = new THREE.Color(0x1f86ad), cShal = new THREE.Color(0x6fd3cf), _c = new THREE.Color();
   // near the beach the pond's colour fades into the sea's (owner 18 Nov: a pond joined to the sea showed a hard colour line)
-  const cSea = new THREE.Color(0x48857e);
+  const cSea = new THREE.Color(TP_SEA_C);
   const depthK = k => { if (P[k] !== 4) return 0; const i = k % N, j = (k / N) | 0; let n = 0; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const kk = (j + dj) * N + i + di; if (kk >= 0 && kk < N * N && P[kk] === 4) n++; } return Math.max(0, (n - 4) / 5); };
   const F = tpField(), mdA = [];
   const mdOf = k => { if (P[k] === 4) return Math.min(999, F.md[k]); const i = k % N, j = (k / N) | 0; let m = 999; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const kk = jj * N + ii; if (P[kk] === 4 && F.md[kk] < 999) m = Math.min(m, F.md[kk] + TER_S); } return m; };
@@ -18614,7 +18618,7 @@ applySave = (o => function (d) {
 // a new stroke of water starts a new level
 // water that ended up UNDER the ground of its own pond (old strokes that kept digging deeper) is lifted back up: each
 // joined pond gets one level, at least .45 m over its lowest ground; ponds that look fine are left alone
-function tpFixLevels() { const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, seen = new Uint8Array(N * N); let fixed = 0, dug = false;
+function tpFixLevels() { const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, seen = new Uint8Array(N * N); let fixed = 0, dug = false, chgSea = false;
   const gx = i => HOME.x + i * TER_S - TER_O, gz = j => HOME.z + j * TER_S - TER_O, gH = k => terH(gx(k % N), gz((k / N) | 0));
   // ground under a building is never dug (it left a farm plot floating over a hole, owner 17 Nov)
   const B = builds.filter(b => b.hp > 0 && !(b.lv | 0) && BT[b.type] && !terLoose(b));
@@ -18633,6 +18637,19 @@ function tpFixLevels() { const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, seen = n
     if (L < need) L = need;
     let nearSea = false; for (const k of reg) if (Math.hypot((k % N) * TER_S - TER_O, ((k / N) | 0) * TER_S - TER_O) > TP_SEA_R) { nearSea = true; break; }
     if (nearSea && L < TP_SEA + .1) L = TP_SEA + .1;
+    // a pond that reaches the beach is OPEN to the sea (owner 19 Nov: 'strange mud in the middle' — the beach between the pond
+    // and the sea stayed above the water, and the bank fix below even raised it into a ridge). Every water point on the
+    // seaward side cuts a channel straight out: dug under the sea's level until the natural sea floor is deep enough, painted
+    // as water up to where the sea plane begins (ISL_R-1.5), plain dug sea floor beyond it so the sea itself shows there.
+    if (nearSea) { const sv = TER.near; TER.near = B; const add = [];
+      for (const k of reg.slice()) { const i0 = k % N, j0 = (k / N) | 0, x0 = i0 * TER_S - TER_O, z0 = j0 * TER_S - TER_O, r0 = Math.hypot(x0, z0); if (r0 <= TP_SEA_R) continue;
+        const ux = x0 / r0, uz = z0 / r0;
+        for (let d = .75; r0 + d <= ISL_R + 13; d += .75) { const x = x0 + ux * d, z = z0 + uz * d, ii = Math.round((x + TER_O) / TER_S), jj = Math.round((z + TER_O) / TER_S); if (ii < 1 || jj < 1 || ii >= N - 1 || jj >= N - 1) break;
+          const kk = jj * N + ii, rr = Math.hypot(ii * TER_S - TER_O, jj * TER_S - TER_O), b = terBase(rr); if (b < TP_SEA - .55) break;
+          if (P[kk] === 4) continue; const lw = terLockW(gx(ii), gz(jj)); if (lw <= 0 || locked(kk)) break;
+          const want = (rr < ISL_R + 2.5 ? L : TP_SEA) - .5; if (b + TER.h[kk] > want) { TER.h[kk] = Math.max(TER_MIN, TER.h[kk] - (b + TER.h[kk] - want) * lw); dug = true; TER.any = true; for (let y = -1; y <= 1; y++) for (let xx = -1; xx <= 1; xx++) terVert(ii + xx, jj + y); }
+          if (rr < ISL_R + 2.5 && lw > 0) { P[kk] = 4; WL[kk] = L; seen[kk] = 1; add.push(kk); chgSea = true; } } }
+      for (const k of add) reg.push(k); TER.near = sv; }
     let chg = false; for (const k of reg) { if (Math.abs(WL[k] - L) > .001) { WL[k] = L; chg = true; } if (locked(k)) continue; const i = k % N, j = (k / N) | 0, b = terBase(Math.hypot(i * TER_S - TER_O, j * TER_S - TER_O));
       // the floor under the water: at least .45 under the surface (deeper old floors stay)
       if (b + TER.h[k] > L - .3) { TER.h[k] = Math.max(TER_MIN, L - .45 - b); dug = true; TER.any = true; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii >= 0 && jj >= 0 && ii < N && jj < N) terVert(ii, jj); } } }
@@ -18641,9 +18658,10 @@ function tpFixLevels() { const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, seen = n
     // lower ground; a building's ground is left alone
     { const LW = WL[reg[0]]; for (const k of reg) { const i = k % N, j = (k / N) | 0;
       for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii < 1 || jj < 1 || ii >= N - 1 || jj >= N - 1) continue; const kk = jj * N + ii; if (P[kk] === 4 || locked(kk)) continue;
+        if (nearSea && Math.hypot(ii * TER_S - TER_O, jj * TER_S - TER_O) > ISL_R - 2.5) continue;   // the sea side stays open
         const b = terBase(Math.hypot(ii * TER_S - TER_O, jj * TER_S - TER_O)); if (b + TER.h[kk] < LW + .08) { TER.h[kk] = Math.min(TER_MAX, LW + .12 - b); dug = true; TER.any = true; for (let y = -1; y <= 1; y++) for (let x = -1; x <= 1; x++) terVert(ii + x, jj + y); } } } } }
   if (dug) { try { terMeshDone(true); TER.dirty = 1; TER.any = true; } catch (e) { } TPAINT.dirty = true; }
-  if (fixed) TPAINT.dirty = true; return fixed; }
+  if (fixed || chgSea) TPAINT.dirty = true; return fixed + (chgSea ? 1 : 0); }
 // the ground under a building put back up to the building's base where an older pond fix had dug it away
 function tpGroundUnderBuilds() { const N = TER_N; let ch = false;
   for (const b of builds) { if (!(b.hp > 0) || (b.lv | 0) || !BT[b.type] || terLoose(b) || !(b.gy > -50)) continue; const T = BT[b.type], hw = (T.hw || .5) - .1, hd = (T.hd || .5) - .1;
@@ -18819,7 +18837,7 @@ Object.assign(TER_IC, {
 const trivTool = () => TER.tool === 'river' || TER.tool === 'pond_draw';
 
 // flowing water: the pond water look, its own copy of the ripple texture so it can slide along the river
-function trivMat() { if (TRIV.mat) return TRIV.mat; const b = tpWaterMat(), m = b.clone(); m.map = b.map.clone(); m.map.needsUpdate = true; m.map.wrapS = m.map.wrapT = THREE.RepeatWrapping; TRIV.mat = m; return m; }
+function trivMat() { if (TRIV.mat) return TRIV.mat; const b = tpWaterMat(), ud = b.userData; b.userData = {}; const m = b.clone(); b.userData = ud; m.map = b.map.clone(); m.map.needsUpdate = true; m.map.wrapS = m.map.wrapT = THREE.RepeatWrapping; TRIV.mat = m; return m; }
 
 // ---- digging ----
 function trivNear(minx, maxx, minz, maxz) { TER.near = builds.filter(b => b.hp > 0 && !terLoose(b) && !(b.lv | 0) && b.x > minx - 6 && b.x < maxx + 6 && b.z > minz - 6 && b.z < maxz + 6); }
@@ -18878,13 +18896,25 @@ function trivFinishPond(c) {
 
 // ---- the water ribbon of each river ----
 function trivMesh(r) {
-  const s = tpathSpline(r.p), n = s.length / 2; if (n < 2) return null; const lv = r.l || [], w = r.w / 2 + .9, pos = [], uv = [], col = [], idx = [];
+  const s = tpathSpline(r.p), n = s.length / 2; if (n < 2) return null; const lv = r.l || [], w = r.w / 2 + .9, wMin = r.w / 2 * .75, pos = [], uv = [], col = [], idx = [];
   const cD = new THREE.Color(0x1f86ad), cS = new THREE.Color(0x6fd3cf), c = new THREE.Color(); let v = 0;
-  for (let i = 0; i < n; i++) { const x = s[i * 2], z = s[i * 2 + 1], ia = Math.max(0, i - 1), ib = Math.min(n - 1, i + 1); let dx = s[ib * 2] - s[ia * 2], dz = s[ib * 2 + 1] - s[ia * 2 + 1]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
-    if (i) v += Math.hypot(x - s[i * 2 - 2], z - s[i * 2 - 1]) / 4; const y = lv[Math.min(lv.length - 1, i)] != null ? lv[Math.min(lv.length - 1, i)] : terH(HOME.x + x, HOME.z + z) + .3;
-    // where the bank on one side is lower than the water (a river running along a slope), that side stays narrow instead of spreading over the grass
-    const side = sd => { const ex = HOME.x + x - dz * w * sd, ez = HOME.z + z + dx * w * sd; return terH(ex, ez) < y - .02 ? r.w / 2 * .75 : w; }, wl = side(-1), wr = side(1);
-    for (let q = 0; q <= 4; q++) { const f = q / 4 * 2 - 1, ww = f < 0 ? wl : wr; pos.push(HOME.x + x - dz * ww * f, y, HOME.z + z + dx * ww * f); uv.push(f * w / 4, v); c.copy(cS).lerp(cD, 1 - Math.abs(f)); col.push(c.r, c.g, c.b); } }
+  // per sample: direction, level, and how wide each side may go. Owner 19 Nov 'the river has a texture problem': each side used
+  // to jump between full width and narrow (bank lower than the water or not), so the edges were a saw of rectangles and the
+  // folded quads drew darker/lighter blocks. Now each side stops where the bank rises over the water (scanned outward),
+  // the widths are smoothed along the river, and on a bend no side is wider than the bend's radius (the inner side used to
+  // fold over itself and show as a double layer).
+  const D = [], Y = [], WL = [], WR = [];
+  for (let i = 0; i < n; i++) { const ia = Math.max(0, i - 1), ib = Math.min(n - 1, i + 1); let dx = s[ib * 2] - s[ia * 2], dz = s[ib * 2 + 1] - s[ia * 2 + 1]; const l = Math.hypot(dx, dz) || 1; D.push(dx / l, dz / l);
+    const k = Math.min(lv.length - 1, i); Y.push(lv[k] != null ? lv[k] : terH(HOME.x + s[i * 2], HOME.z + s[i * 2 + 1]) + .3); }
+  for (let i = 0; i < n; i++) { const x = HOME.x + s[i * 2], z = HOME.z + s[i * 2 + 1], dx = D[i * 2], dz = D[i * 2 + 1], y = Y[i];
+    const side = sd => { for (let d = wMin * .6; d <= w + .001; d += .25) if (terH(x - dz * d * sd, z + dx * d * sd) >= y) return Math.min(w, Math.max(wMin, d + .35)); return wMin; };
+    WL.push(side(-1)); WR.push(side(1)); }
+  for (let it = 0; it < 3; it++) for (const A of [WL, WR]) { const B = A.slice(); for (let i = 1; i < n - 1; i++) A[i] = (B[i - 1] + B[i] * 2 + B[i + 1]) / 4; }
+  for (let i = 1; i < n - 1; i++) { const ax = D[i * 2 - 2], az = D[i * 2 - 1], bx = D[i * 2 + 2], bz = D[i * 2 + 3], cr = ax * bz - az * bx, ang = Math.acos(Math.max(-1, Math.min(1, ax * bx + az * bz))), ds = Math.hypot(s[i * 2 + 2] - s[i * 2 - 2], s[i * 2 + 3] - s[i * 2 - 1]) / 2;
+    if (ang > .01) { const R = ds / ang * .95; if (cr > 0) WR[i] = Math.min(WR[i], Math.max(.3, R)); else WL[i] = Math.min(WL[i], Math.max(.3, R)); } }
+  for (let i = 0; i < n; i++) { const x = s[i * 2], z = s[i * 2 + 1], dx = D[i * 2], dz = D[i * 2 + 1], y = Y[i];
+    if (i) v += Math.hypot(x - s[i * 2 - 2], z - s[i * 2 - 1]) / 4;
+    for (let q = 0; q <= 4; q++) { const f = q / 4 * 2 - 1, ww = f < 0 ? WL[i] : WR[i]; pos.push(HOME.x + x - dz * ww * f, y, HOME.z + z + dx * ww * f); uv.push(f * ww / 4, v); c.copy(cS).lerp(cD, 1 - Math.abs(f)); col.push(c.r, c.g, c.b); } }
   for (let i = 0; i < n - 1; i++) for (let q = 0; q < 4; q++) { const a = i * 5 + q, b = a + 1, cc = a + 5, d = cc + 1; idx.push(a, b, cc, b, d, cc); }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setIndex(idx); g.computeVertexNormals();
   const m = new THREE.Mesh(g, trivMat()); m.renderOrder = 2; m.userData.noCast = 1; m.receiveShadow = true; return m;
@@ -22653,19 +22683,22 @@ const J9_EL = [
   { n: '木', c: 0x3ad86a }, { n: '土', c: 0xd8a040 }, { n: '金', c: 0xffe27a }, { n: '合', c: 0xffffff }];
 WSKINS.jian9 = { only: 'rifle', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%，还有九把元素飞剑', n: '九霄剑阵', r: 5, custom: true,
   base: 0x1c5a40, mid: 0x3ad88a, acc: 0xe8c060, glow: 0x7affc0, tr: 0x7affc0, tr2: 0xe8c060,
-  d: '翠玉色的步枪，枪口下挂着一柄玉剑刺刀。身后九把翠玉飞剑排成剑阵缓缓旋转，每把剑各带一种属性：水、火、雷、毒、冰、木、土、金，第九把「合」集万法于一身。开枪时飞剑从身后飞到枪前，绕枪一圈后随子弹一同射出，命中时剑鸣「锵」的一声；九剑射尽后要重新凝聚，九把全部聚齐才能再出剑。' };
+  d: '翠玉色的步枪，枪口下挂着一柄玉剑刺刀。身后九把飞剑排成剑阵缓缓旋转，每把剑各带一种属性、剑身就是那种属性的颜色：水、火、雷、毒、冰、木、土、金，第九把「合」集万法于一身。开枪时飞剑从身后飞到枪前，绕枪一圈后随子弹一同射出，命中时剑鸣「锵」的一声；九剑射尽后要重新凝聚，九把全部聚齐才能再出剑。' };
 const J9 = { n: 9, mode: 'ready', t: 0, step: 0, g: null, sw: [], fl: [] };
 const J9_GAP = [2, 1, .5, .25, .25, .25, .25, .25, .25];   // owner 18 Nov (2nd): 2 s, 1 s, 0.5 s, then 0.25 s each
 /* ---- one flying sword, tip along +z: blade (extruded outline), ridge, guard, grip, pommel, tassel ---- */
 const J9G = {};
-function j9Mats(i) { if (J9G['m' + i]) return J9G['m' + i]; const c = J9_EL[i].c;
-  return (J9G['m' + i] = { jade: new THREE.MeshLambertMaterial({ color: 0x3ad88a, emissive: 0x0e4a2c, flatShading: true }), jade2: new THREE.MeshLambertMaterial({ color: 0x8affc8, emissive: 0x1a6a40, flatShading: true }),
+// owner 19 Nov: every sword is coloured by its element, not all jade: [blade, blade glow, ridge, ridge glow]; the gun's bayonet stays jade
+const J9_BL = [[0x3a8cff, 0x0c2c6e, 0x9fd0ff, 0x1c4a9a], [0xff5a1e, 0x5a1400, 0xffc070, 0x8a3008], [0x9a6aff, 0x2c1468, 0xd8c4ff, 0x4a2a9a], [0x84d42a, 0x264c06, 0xd4ff8a, 0x3e7010],
+  [0xa8ecff, 0x2a5a72, 0xffffff, 0x5a9ab8], [0x2fc860, 0x0a4a1e, 0x9affb8, 0x1a7a3a], [0xc8862e, 0x4a2a08, 0xffd890, 0x7a4a14], [0xffd24a, 0x5a3e06, 0xfff2b0, 0x8a6a14], [0xf2eeff, 0x4a3e6a, 0xffffff, 0x8a7ab0]];
+function j9Mats(i, jd) { const key = 'm' + i + (jd ? 'j' : ''); if (J9G[key]) return J9G[key]; const c = J9_EL[i].c, B = jd ? [0x3ad88a, 0x0e4a2c, 0x8affc8, 0x1a6a40] : J9_BL[i];
+  return (J9G[key] = { jade: new THREE.MeshLambertMaterial({ color: B[0], emissive: B[1], flatShading: true }), jade2: new THREE.MeshLambertMaterial({ color: B[2], emissive: B[3], flatShading: true }),
     gold: new THREE.MeshLambertMaterial({ color: 0xe8c060, emissive: 0x4a3008, flatShading: true }), el: new THREE.MeshBasicMaterial({ color: c }), elT: new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: .45, depthWrite: false, blending: THREE.AdditiveBlending }),
     grip: new THREE.MeshLambertMaterial({ color: 0x2a3a30, flatShading: true }), tas: new THREE.MeshLambertMaterial({ color: i === 8 ? 0xffd27a : c, flatShading: true }) }); }
 function j9Blade() { if (J9G.blade) return J9G.blade; const L = .62, w = .045, sh = new THREE.Shape(); sh.moveTo(-w, 0); sh.lineTo(w, 0); sh.lineTo(w * .85, L * .82); sh.lineTo(0, L); sh.lineTo(-w * .85, L * .82); sh.lineTo(-w, 0);
   let g; try { g = new THREE.ExtrudeGeometry(sh, { depth: .012, bevelEnabled: true, bevelThickness: .006, bevelSize: .004, bevelSegments: 1 }); g.translate(0, 0, -.006); g.rotateX(Math.PI / 2); } catch (e) { g = new THREE.BoxGeometry(.09, .02, .62); g.translate(0, 0, .31); }
   return (J9G.blade = g); }
-function j9Sword(i, sc) { const M = j9Mats(i), g = new THREE.Group(), add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
+function j9Sword(i, sc, jd) { const M = j9Mats(i, jd), g = new THREE.Group(), add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
   const bl = new THREE.Mesh(j9Blade(), M.jade); g.add(bl);                                                         // blade (tip at +z)
   add(new THREE.BoxGeometry(.012, .026, .5), M.jade2, 0, 0, .27);                                                   // the ridge down the middle
   add(new THREE.BoxGeometry(.008, .03, .46), M.el, 0, 0, .27).scale.set(1, .35, 1);                                // element light along the ridge
@@ -22679,7 +22712,7 @@ function j9Sword(i, sc) { const M = j9Mats(i), g = new THREE.Group(), add = (geo
 /* ---- the rifle itself: jade with gold, a jade sword bayonet under the barrel ---- */
 buildWeapon = (orig => function (id, t, skin) { const g = orig(id, t, skin), k = skin !== undefined ? skin : (S.wsk && S.wsk[id]);
   if (k === 'jian9' && id === 'rifle') try { const bb = new THREE.Box3().setFromObject(g), sz = new THREE.Vector3(), ct = new THREE.Vector3(); bb.getSize(sz); bb.getCenter(ct);
-    const bay = j9Sword(8, .75); bay.position.set(ct.x, bb.min.y + sz.y * .25, bb.min.z + sz.z * .62); g.add(bay);
+    const bay = j9Sword(8, .75, true); bay.position.set(ct.x, bb.min.y + sz.y * .25, bb.min.z + sz.z * .62); g.add(bay);
     const M = j9Mats(8); for (let i = 0; i < 3; i++) { const r = new THREE.Mesh(new THREE.TorusGeometry(Math.max(sz.x, sz.y) * .32 + .015, .008, 5, 8), M.gold); r.position.set(ct.x, ct.y + sz.y * .1, bb.min.z + sz.z * (.78 + i * .07)); g.add(r); }
     for (const sd of [-1, 1]) for (let i = 0; i < 3; i++) { const c = new THREE.Mesh(new THREE.OctahedronGeometry(sz.y * .16), M.gold); c.position.set(ct.x + sd * (sz.x * .5 + .008), ct.y + sz.y * (i % 2 ? .12 : -.05), bb.min.z + sz.z * (.3 + i * .12)); c.scale.set(.25, .6, 1.8); g.add(c);
       const e = new THREE.Mesh(new THREE.OctahedronGeometry(sz.y * .06), j9Mats(i * 3).el); e.position.set(ct.x + sd * (sz.x * .5 + .014), c.position.y, c.position.z); g.add(e); }   // gold cloud fins with element gems
@@ -23966,4 +23999,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795017889').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795019981').catch(()=>{});</script></body></html>
