@@ -22713,7 +22713,8 @@ const _j9a = new THREE.Vector3(), _j9b = new THREE.Vector3(), _j9c = new THREE.V
 // sword basis: local z (tip) = t, local y (the blade's flat normal) = n made square to t
 function j9Orient(o, tx, ty, tz, nx, ny, nz) { try { _j9c.set(tx, ty, tz).normalize(); _j9b.set(nx, ny, nz); _j9b.addScaledVector(_j9c, -_j9b.dot(_j9c)).normalize(); _j9a.crossVectors(_j9b, _j9c);
   _j9m.makeBasis(_j9a, _j9b, _j9c); o.quaternion.setFromRotationMatrix(_j9m); } catch (e) { } }
-function j9Form(i) { try { const s = J9.sw[i]; const PY = (typeof playerY === 'function' && playerY()) || 0, x = player.pos.x - Math.sin(player.face || 0) * .62, z = player.pos.z - Math.cos(player.face || 0) * .62;
+function j9Form(i) { if (!j9On() || S.dead) return;   // still gathers while another weapon is in hand, but silently and unseen (owner: no sparks/sounds then)
+  try { const s = J9.sw[i]; const PY = (typeof playerY === 'function' && playerY()) || 0, x = player.pos.x - Math.sin(player.face || 0) * .62, z = player.pos.z - Math.cos(player.face || 0) * .62;
     burst(x, 1.55 + PY, z, J9_EL[i].c, 12, 3); burst(x, 1.55 + PY, z, 0x8affc8, 6, 2); fxRing(x, z, .2, 1.4, .45, J9_EL[i].c, .8, 1.5 + PY); } catch (e) { } try { j9Snd.form(i); } catch (e) { } }
 petsTick = (o => function (dt) { const r = o(dt); try { j9Tick(dt); } catch (e) { } return r; })(petsTick);
 /* ---- firing: a sword joins each shot while a volley lasts ---- */
@@ -22778,6 +22779,22 @@ const j9Snd = {
 try { WSK_GUN.jian9 = { fire() { sfxTone(1800, 1500, .08, .015, 'sine', { delay: .03 }); }, hit() { } }; } catch (e) { }
 // owner's code: the skin at once (hash only)
 try { RDM[1408983399] = { id: 'jian9', n: '九霄剑阵', f() { if (S.wskOwn.includes('jian9:rifle')) { feed('已经有「九霄剑阵」了', '#ff9b8a'); return false; } giveWSkin('jian9', 'rifle'); return true; } }; } catch (e) { }
+
+/* each sword's damage written out in the skin's description (owner 18 Nov), with the numbers for your rifle right now */
+try { const D0 = WSKINS.jian9.d; Object.defineProperty(WSKINS.jian9, 'd', { configurable: true, enumerable: true, get() {
+  let w = 0; try { w = weaponDmg('rifle'); } catch (e) { } const n = p => w ? '（约 ' + Math.round(w * p) + '）' : '';
+  return D0 + '\n【每把剑的伤害】（以步枪一发子弹的伤害为 100%）' +
+    '\n水剑：200%' + n(2) + '，湿透 3 秒（受到的伤害 +12%）并减速' +
+    '\n火剑：200%' + n(2) + '，再燃烧 3 秒，每秒 50%' + n(.5) +
+    '\n雷剑：200%' + n(2) + '，闪电再连锁 2 只怪，每只 100%' + n(1) +
+    '\n毒剑：200%' + n(2) + '，中毒 4 秒，每秒 40%' + n(.4) +
+    '\n冰剑：200%' + n(2) + '，冰冻 2 秒（非常慢）' +
+    '\n木剑：200%' + n(2) + '，回复你 3% 生命，缠住怪物 1 秒' +
+    '\n土剑：200%' + n(2) + '，震开 2.5 米内的怪，每只再受 80%' + n(.8) +
+    '\n金剑：破甲 320%' + n(3.2) +
+    '\n合剑：320%' + n(3.2) + '，同时发动以上全部效果，再加 3.5 米剑光爆炸，每只 160%' + n(1.6) +
+    '\n（火、潮汐、雷电、毒素伤害等洗练词条会加强对应的剑）'; } }); } catch (e) { }
+try { const st = document.createElement('style'); st.textContent = '.sktx p,.skpvt p{white-space:pre-line}'; document.head.appendChild(st); } catch (e) { }
 /* ============ 深渊商店: spend 深渊币 with the diver of the 深渊号 (owner 18 Nov: "add a trade system to the abyss") ============
    Opened from the abyss page (button 深渊商店 next to 下潜). The trader is the brass-helmet diver who stands on the sub.
    Tabs: 升级材料 (now) · 皮肤 (empty: the owner will hand over skin code later, then they go in ABYSHOP_SKINS).
@@ -23949,4 +23966,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795017404').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795017889').catch(()=>{});</script></body></html>
