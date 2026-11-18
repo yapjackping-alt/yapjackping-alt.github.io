@@ -18431,12 +18431,34 @@ function tpWaterMat() { if (_tpWM) return _tpWM;
     for (const [ox, oy] of [[256, 0], [-256, 0], [0, 256], [0, -256]]) { x.beginPath(); x.moveTo(px - w + ox, py + oy); x.quadraticCurveTo(px + ox, py - 4 + oy, px + w + ox, py + oy); x.stroke(); } }
   const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping;
   _tpWM = new THREE.MeshLambertMaterial({ map: t, vertexColors: true, transparent: true, opacity: .84, depthWrite: false });   // no shine: your glowing outfit made a huge white spot on the water
+  // waves from the sea roll into a pond that is joined to it (owner 18 Nov): white bands moving inward along md, fading out
+  // about 16 m in; ponds that don't touch the sea have md 999 and stay calm
+  _tpWM.onBeforeCompile = sh => { sh.uniforms.uT = { value: 0 }; _tpWM.userData.sh = sh;
+    sh.vertexShader = 'attribute float md;\nvarying float vMd;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvMd = md;');
+    sh.fragmentShader = 'uniform float uT;\nvarying float vMd;\n' + sh.fragmentShader.replace('#include <dithering_fragment>', '#include <dithering_fragment>\n' +
+      'if (vMd < 20.0) { float s = vMd - uT * 1.6 + sin(vUv.x * 2.6) * .45 + sin(vUv.y * 2.1 + 1.3) * .45; float f = fract(s / 6.5);' +
+      ' float band = smoothstep(.0, .06, f) * (1.0 - smoothstep(.06, .2, f)); float foam = band * clamp(1.0 - vMd / 16.0, 0.0, 1.0) * .8;' +
+      ' gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(1.0), foam); gl_FragColor.a = max(gl_FragColor.a, foam); }'); };
+  _tpWM.customProgramCacheKey = () => 'tpwave1';
   return _tpWM; }
 /* the water surface, way 2 (owner 17 Nov: "think of another way"): every joined pond is ONE flat sheet at its own level,
    laid over its painted points AND one ring of points round them. Where the bank is higher than the water the ground simply
    hides the sheet, so the shore is where the ground meets the water — no cells are left out any more (the old per-corner
    heights dropped any cell whose corners differed, which drew the stepped dry lines), and tpFixLevels keeps every bank
    point at least a little over the water so the sheet never hangs in the air. */
+const TP_SEA = -0.3, TP_SEA_R = ISL_R - 4;   // the sea plane's height, and how far out it starts to show under dug ground (its hole ends at ISL_R-1.5)
+/* ponds that reach the sea: region of every water point, which regions touch the sea, and how far each point is from the
+   sea along the water (md, metres). Used for the waves that roll into such a pond and for fish swimming out to sea. */
+function tpField() { const N = TER_N, P = TPAINT.p, reg = new Int32Array(N * N).fill(-1), md = new Float32Array(N * N).fill(1e9), sea = [];
+  const rOf = k => Math.hypot((k % N) * TER_S - TER_O, ((k / N) | 0) * TER_S - TER_O); let nR = 0; const q = [];
+  for (let s0 = 0; s0 < N * N; s0++) { if (P[s0] !== 4 || reg[s0] >= 0) continue; const Q = [s0]; reg[s0] = nR; let isSea = false;
+    for (let t = 0; t < Q.length; t++) { const k = Q[t], i = k % N, j = (k / N) | 0; if (rOf(k) > TP_SEA_R) { isSea = true; md[k] = 0; q.push(k); }
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const kk = jj * N + ii; if (P[kk] === 4 && reg[kk] < 0) { reg[kk] = nR; Q.push(kk); } } }
+    sea.push(isSea); nR++; }
+  for (let t = 0; t < q.length; t++) { const k = q[t], i = k % N, j = (k / N) | 0;
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { if (!di && !dj) continue; const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const kk = jj * N + ii;
+      if (P[kk] !== 4) continue; const nd = md[k] + TER_S * (di && dj ? 1.414 : 1); if (nd < md[kk] - .01) { md[kk] = nd; q.push(kk); } } }
+  return (TPAINT.fld = { reg, md, sea, n: nR }); }
 function tpWater(floors) {
   const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, reg = new Int32Array(N * N).fill(-1), lvl = [], pos = [], uv = [], ind = [], col = [];
   // regions (8 neighbours) and their level
@@ -18450,9 +18472,13 @@ function tpWater(floors) {
     for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const r = reg[jj * N + ii]; if (r >= 0 && (best < 0 || lvl[r] < lvl[best])) best = r; }
     own[k] = best; }
   const cDeep = new THREE.Color(0x1f86ad), cShal = new THREE.Color(0x6fd3cf), _c = new THREE.Color();
+  // near the beach the pond's colour fades into the sea's (owner 18 Nov: a pond joined to the sea showed a hard colour line)
+  const cSea = new THREE.Color(0x48857e);
   const depthK = k => { if (P[k] !== 4) return 0; const i = k % N, j = (k / N) | 0; let n = 0; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const kk = (j + dj) * N + i + di; if (kk >= 0 && kk < N * N && P[kk] === 4) n++; } return Math.max(0, (n - 4) / 5); };
+  const F = tpField(), mdA = [];
+  const mdOf = k => { if (P[k] === 4) return Math.min(999, F.md[k]); const i = k % N, j = (k / N) | 0; let m = 999; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const kk = jj * N + ii; if (P[kk] === 4 && F.md[kk] < 999) m = Math.min(m, F.md[kk] + TER_S); } return m; };
   const vmap = new Map(); const V = (k, r) => { const key = k * 64 + (r & 63); let v = vmap.get(key); if (v != null) return v; const i = k % N, j = (k / N) | 0, x = HOME.x + i * TER_S - TER_O, z = HOME.z + j * TER_S - TER_O;
-    v = pos.length / 3; vmap.set(key, v); pos.push(x, lvl[r], z); uv.push(x / 4, z / 4); _c.copy(cShal).lerp(cDeep, depthK(k)); col.push(_c.r, _c.g, _c.b); return v; };
+    v = pos.length / 3; vmap.set(key, v); pos.push(x, lvl[r], z); uv.push(x / 4, z / 4); _c.copy(cShal).lerp(cDeep, depthK(k)); { const sr = (Math.hypot(x - HOME.x, z - HOME.z) - (ISL_R - 16)) / 12; if (sr > 0) _c.lerp(cSea, Math.min(1, sr)); } col.push(_c.r, _c.g, _c.b); mdA.push(mdOf(k)); return v; };
   for (let j = 0; j < N - 1; j++) for (let i = 0; i < N - 1; i++) { const a = j * N + i, b = a + 1, c = a + N, d = c + 1;
     if (P[a] !== 4 && P[b] !== 4 && P[c] !== 4 && P[d] !== 4) continue;   // at least one painted point: the cell belongs to a pond
     const r = [a, b, c, d].map(k => own[k]).find(x => x >= 0); if (r == null) continue;
@@ -18464,11 +18490,12 @@ function tpWater(floors) {
     const cx = HOME.x + (i + .5) * TER_S - TER_O, cz = HOME.z + (j + .5) * TER_S - TER_O; if (floors.some(f => Math.abs(f.x - cx) < 1.6 && Math.abs(f.z - cz) < 1.6)) continue;
     const A = V(a, r), B = V(b, r), C = V(c, r), D = V(d, r); ind.push(A, C, B, B, C, D); }
   let m = TPAINT.wm; if (!m) { m = new THREE.Mesh(new THREE.BufferGeometry(), tpWaterMat()); m.userData.noCast = 1; m.receiveShadow = true; m.renderOrder = 2; m.frustumCulled = false; scene.add(m); TPAINT.wm = m; }
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setIndex(ind); g.computeVertexNormals();
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('md', new THREE.Float32BufferAttribute(mdA, 1)); g.setIndex(ind); g.computeVertexNormals();
   m.geometry.dispose(); m.geometry = g; m.visible = S.isl && !S.dun && ind.length > 0;
 }
 petsTick = (o => function (dt) { const r = o(dt); try {
   if (_tpWM && _tpWM.map) { _tpWM.map.offset.x += dt * .025; _tpWM.map.offset.y += dt * .012; }
+  if (_tpWM && _tpWM.userData.sh) _tpWM.userData.sh.uniforms.uT.value = (_tpWM.userData.sh.uniforms.uT.value + dt) % 1000;
   TPAINT.t -= dt; if (TPAINT.dirty && TPAINT.t <= 0) { TPAINT.t = .35; TPAINT.dirty = false; tpRebuild(); }
   if (TPAINT.meshes) { const on = S.isl && !S.dun; for (const m in TPAINT.meshes) TPAINT.meshes[m].visible = on; if (TPAINT.wm) TPAINT.wm.visible = on; }
 } catch (e) { console.warn('tpaint', e); } return r; })(petsTick);
@@ -18484,7 +18511,6 @@ applySave = (o => function (d) {
 // a new stroke of water starts a new level
 // water that ended up UNDER the ground of its own pond (old strokes that kept digging deeper) is lifted back up: each
 // joined pond gets one level, at least .45 m over its lowest ground; ponds that look fine are left alone
-const TP_SEA = -0.3, TP_SEA_R = ISL_R - 4;   // the sea plane's height, and how far out it starts to show under dug ground (its hole ends at ISL_R-1.5)
 function tpFixLevels() { const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, seen = new Uint8Array(N * N); let fixed = 0, dug = false;
   const gx = i => HOME.x + i * TER_S - TER_O, gz = j => HOME.z + j * TER_S - TER_O, gH = k => terH(gx(k % N), gz((k / N) | 0));
   // ground under a building is never dug (it left a farm plot floating over a hole, owner 17 Nov)
@@ -21630,6 +21656,99 @@ switchChar = async function () { window._swc = 1; try { banner('正在保存…�
   try { await Promise.race([flushSave(), new Promise(r => setTimeout(r, 2500))]); } catch (e) { } try { localStorage.removeItem('ember_live'); } catch (e) { }
   glFreeAll(); await new Promise(r => setTimeout(r, 250));
   try { location.reload(); } catch (e) { } setTimeout(() => { try { banner('没能自动重开', '请把游戏完全关掉，再重新打开', 6); } catch (e) { } }, 3000); };
+/* ============ fish in your own pond (owner 18 Nov) ============
+   Walk up to water you painted on the island → button 「池塘」: put fish from the bag into that pond or take them out again.
+   They swim around under the surface. A pond that is joined to the sea: now and then a fish swims off along the water to the
+   sea (owner: "it may run away, but you may still see it in the sea") — it then swims in the sea near where it left for about
+   ten minutes before it is gone. If the water under a fish is removed, the fish goes back to the bag.
+   Saved as r.pfish [[id, x, z] …] (x/z relative to HOME). Up to PF_CAP fish in all ponds. Switch: PF_ON. */
+const PF_ON = true, PF_CAP = 40;
+const PF = { objs: new Map(), sea: [], near: -1, sel: -1, t: 0, escT: 0 };
+S.pfish = S.pfish || [];
+const pfIdx = (x, z) => { const N = TER_N, i = Math.round((x + TER_O) / TER_S), j = Math.round((z + TER_O) / TER_S); return i < 0 || j < 0 || i >= N || j >= N ? -1 : j * N + i; };
+const pfXZ = k => [(k % TER_N) * TER_S - TER_O, ((k / TER_N) | 0) * TER_S - TER_O];
+function pfFld() { return TPAINT.fld || tpField(); }
+// the painted water point a fish (or the player) is at: the nearest one within a cell
+function pfPt(x, z) { const N = TER_N, i0 = Math.round((x + TER_O) / TER_S), j0 = Math.round((z + TER_O) / TER_S); let best = -1, bd = 1e9;
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const i = i0 + di, j = j0 + dj; if (i < 0 || j < 0 || i >= N || j >= N) continue; const k = j * N + i; if (TPAINT.p[k] !== 4) continue;
+    const [px, pz] = pfXZ(k), d = Math.hypot(px - x, pz - z); if (d < bd) { bd = d; best = k; } } return best; }
+function pfRegionOf(x, z) { const k = pfPt(x, z); return k < 0 ? -1 : pfFld().reg[k]; }
+// a random water point of region r within rad metres of (x, z)
+function pfRandPt(r, x, z, rad) { const F = pfFld(), N = TER_N; for (let t = 0; t < 24; t++) { const k = pfIdx(x + rand(-rad, rad), z + rand(-rad, rad)); if (k >= 0 && TPAINT.p[k] === 4 && F.reg[k] === r) return k; } return pfPt(x, z); }
+function pfNearPond() { if (!PF_ON || !S.isl || S.dun || !TER.any) return -1; const x = player.pos.x - HOME.x, z = player.pos.z - HOME.z;
+  for (const rr of [0, 1.5, 2.6]) for (const [a, b] of rr ? [[rr, 0], [-rr, 0], [0, rr], [0, -rr]] : [[0, 0]]) { const r = pfRegionOf(x + a, z + b); if (r >= 0) return r; } return -1; }
+function pfObj(f) { let o = PF.objs.get(f); if (o) return o; const F = FISH_BY[f.id]; if (!F) return null; const L = Math.min(.8, Math.max(.36, F.len * .7)), g = pfShow(fishModel(F, L)); scene.add(g);
+  o = { g, L, tx: f.x, tz: f.z, t: 0, sp: rand(.4, .8) }; PF.objs.set(f, o); return o; }
+// drawn after the water (which doesn't write depth), a little faded: under a solid-looking water surface the fish were invisible
+function pfShow(g) { g.traverse(o => { if (o.isMesh) { o.renderOrder = 3; if (o.material && !o.material.userData.pfC) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = .78; o.material.userData.pfC = 1; } } }); return g; }
+function pfDrop(f) { const o = PF.objs.get(f); if (o) { scene.remove(o.g); PF.objs.delete(f); } }
+function pfLevelAt(x, z) { try { const l = islWaterLevel(HOME.x + x, HOME.z + z); return l == null ? null : l; } catch (e) { return null; } }
+function pfTick(dt) {
+  if (!PF_ON) return; const on = S.isl && !S.dun && S.started; PF.rt = on ? (PF.rt || 0) + dt : 0; const ready = PF.rt > 3;   // a moment after arriving, so the water is surely loaded
+  const F = TER.any ? pfFld() : null; let back = 0;
+  PF.escT -= dt; const escRoll = PF.escT <= 0; if (escRoll) PF.escT = 30;
+  for (const f of S.pfish.slice()) {
+    const k = F ? pfPt(f.x, f.z) : -1;
+    if (k < 0 && !f.esc) { if (on && ready) { pfDrop(f); S.pfish.splice(S.pfish.indexOf(f), 1); gain(fk(f.id), 1); back++; } continue; }   // its water is gone
+    if (!on || Math.hypot(HOME.x + f.x - player.pos.x, HOME.z + f.z - player.pos.z) > 70) { pfDrop(f); continue; }
+    const o = pfObj(f); if (!o) continue; const reg = k >= 0 ? F.reg[k] : -1;
+    if (escRoll && !f.esc && reg >= 0 && F.sea[reg] && Math.random() < .08) f.esc = 1;   // a pond joined to the sea: sometimes a fish heads out
+    o.t -= dt;
+    if (f.esc) {   // follow the water down to the sea: step to the neighbour point closer to it, then straight out
+      if (o.t <= 0 || Math.hypot(o.tx - f.x, o.tz - f.z) < .3) { o.t = 3; let nk = -1, nd = k >= 0 ? F.md[k] : 0; const N = TER_N;
+        if (k >= 0) { const i = k % N, j = (k / N) | 0; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const kk = jj * N + ii; if (TPAINT.p[kk] === 4 && F.md[kk] < nd - .01) { nd = F.md[kk]; nk = kk; } } }
+        if (nk >= 0) [o.tx, o.tz] = pfXZ(nk); else { const r = Math.hypot(f.x, f.z) || 1; o.tx = f.x / r * (ISL_R + 8); o.tz = f.z / r * (ISL_R + 8); } }
+      if (Math.hypot(f.x, f.z) > ISL_R + 3) { pfDrop(f); S.pfish.splice(S.pfish.indexOf(f), 1); const Fi = FISH_BY[f.id];
+        PF.sea.push({ id: f.id, x: f.x, z: f.z, tx: f.x, tz: f.z, t: 0, life: 600, cx: f.x, cz: f.z });
+        try { feed(T2('一条' + (Fi ? Fi.n : '鱼') + '从池塘游进了大海', 'A ' + (Fi ? Fi.n : 'fish') + ' swam out of your pond into the sea'), '#7de0ff'); } catch (e) { } try { saveGame(); } catch (e) { } continue; }
+    } else if (o.t <= 0 || Math.hypot(o.tx - f.x, o.tz - f.z) < .2) { o.t = rand(2, 5); const nk = pfRandPt(reg, f.x, f.z, 5); if (nk >= 0) { [o.tx, o.tz] = pfXZ(nk); o.tx += rand(-.5, .5); o.tz += rand(-.5, .5); } }
+    const dx = o.tx - f.x, dz = o.tz - f.z, d = Math.hypot(dx, dz) || 1, v = Math.min(d, (f.esc ? 1.4 : o.sp) * dt);
+    const nx = f.x + dx / d * v, nz = f.z + dz / d * v; if (f.esc || pfPt(nx, nz) >= 0) { f.x = nx; f.z = nz; } else o.t = 0;
+    const lv = pfLevelAt(f.x, f.z), gr = terH(HOME.x + f.x, HOME.z + f.z); let y = lv != null ? lv - .16 : gr + .1; if (lv != null && lv - gr < .3) y = Math.max(gr + .06, lv - .1);
+    o.g.position.set(HOME.x + f.x, y, HOME.z + f.z); const want = Math.atan2(dx, dz); let a = want - o.g.rotation.y; a = Math.atan2(Math.sin(a), Math.cos(a)); o.g.rotation.y += a * Math.min(1, dt * 4); o.g.rotation.z = Math.sin(S.t * 6 + o.sp * 10) * .08; }
+  if (back) { try { feed(T2('池塘的水没了，' + back + ' 条鱼回到了背包', 'The pond water is gone: ' + back + ' fish went back to your bag'), '#7de0ff'); saveGame(); } catch (e) { } }
+  // fish that swam out: they stay near where they left for a while, under the sea surface
+  for (const s of PF.sea.slice()) { s.life -= dt; if (s.life <= 0 || !on) { if (s.g) { scene.remove(s.g); s.g = null; } if (s.life <= 0) PF.sea.splice(PF.sea.indexOf(s), 1); continue; }
+    if (!s.g) { const Fi = FISH_BY[s.id]; if (!Fi) { PF.sea.splice(PF.sea.indexOf(s), 1); continue; } s.g = pfShow(fishModel(Fi, Math.min(.8, Math.max(.36, Fi.len * .7)))); scene.add(s.g); }
+    s.t -= dt; if (s.t <= 0 || Math.hypot(s.tx - s.x, s.tz - s.z) < .3) { s.t = rand(3, 7); const a0 = Math.atan2(s.cz, s.cx) + rand(-.25, .25), r = ISL_R + rand(6, 22); s.tx = Math.cos(a0) * r; s.tz = Math.sin(a0) * r; }
+    const dx = s.tx - s.x, dz = s.tz - s.z, d = Math.hypot(dx, dz) || 1, v = Math.min(d, .9 * dt); s.x += dx / d * v; s.z += dz / d * v;
+    s.g.position.set(HOME.x + s.x, -.48, HOME.z + s.z); const want = Math.atan2(dx, dz); let a = want - s.g.rotation.y; a = Math.atan2(Math.sin(a), Math.cos(a)); s.g.rotation.y += a * Math.min(1, dt * 3); }
+  // the walk-up button
+  PF.t -= dt; if (PF.t <= 0) { PF.t = .3; PF.near = (typeof buildOpen !== 'undefined' && buildOpen) || (typeof FI !== 'undefined' && FI.st) || (typeof SWN !== 'undefined' && SWN.on) ? -1 : pfNearPond();
+    const b = $('bPondF'); if (b) b.style.display = PF.near >= 0 && !S.dead ? 'block' : 'none'; }
+}
+petsTick = (o => function (dt) { const r = o(dt); try { pfTick(dt); } catch (e) { console.warn('pondfish', e); } return r; })(petsTick);
+function pfOpen() { if (PF.near < 0) return; PF.sel = PF.near; PF.sx = player.pos.x - HOME.x; PF.sz = player.pos.z - HOME.z; try { audioInit(); } catch (e) { } openPanel('pondf', renderPondF); }
+function renderPondF() {
+  const box = $('pondfList'); if (!box) return; box.innerHTML = ''; const F = pfFld(), r = PF.sel; if (r < 0) { closePanel('pondf'); return; }
+  const mine = S.pfish.filter(f => { const k = pfPt(f.x, f.z); return k >= 0 && F.reg[k] === r && !f.esc; });
+  const hd = document.createElement('div'); hd.className = 'snote';
+  hd.textContent = T2('这个池塘养了 ' + mine.length + ' 条鱼（所有池塘一共最多 ' + PF_CAP + ' 条，现在 ' + S.pfish.length + ' 条）。', 'This pond has ' + mine.length + ' fish (up to ' + PF_CAP + ' in all ponds, now ' + S.pfish.length + ').') +
+    (F.sea[r] ? T2('这个池塘连着大海：鱼有可能顺着水游出去，游出去后会在附近的海里待一阵子。', ' This pond is joined to the sea: fish may swim out, and stay in the sea nearby for a while.') : '');
+  box.appendChild(hd);
+  const h3 = t => { const h = document.createElement('h3'); h.textContent = t; box.appendChild(h); };
+  const row = (f, sub, btn, fn, dis) => { const R = shopRow(f.n + sub, FISH_R[f.r][0], FISH_R[f.r][1]); const ic = document.createElement('span'); ic.className = 'ckic'; ic.innerHTML = svgIcon(fk(f.id)); R.insertBefore(ic, R.firstChild);
+    const bt = document.createElement('button'); bt.className = 'sbtn'; bt.textContent = btn; bt.disabled = !!dis; bt.addEventListener('click', fn); R.appendChild(bt); box.appendChild(R); };
+  h3(T2('池塘里的鱼', 'Fish in this pond'));
+  if (!mine.length) { const n = document.createElement('div'); n.className = 'snote'; n.textContent = T2('还没有鱼', 'No fish yet'); box.appendChild(n); }
+  mine.forEach(f => { const Fi = FISH_BY[f.id]; if (!Fi) return; row(Fi, '', T2('捞出来', 'Take out'), () => { const i = S.pfish.indexOf(f); if (i < 0) return; pfDrop(f); S.pfish.splice(i, 1); gain(fk(f.id), 1); renderPondF(); saveGame(); }); });
+  h3(T2('背包里的鱼', 'Fish in your bag'));
+  const have = FISH.filter(f => (S.inv[fk(f.id)] || 0) > 0);
+  if (!have.length) { const n = document.createElement('div'); n.className = 'snote'; n.textContent = T2('背包里没有鱼。去码头、海边、池塘、河边或者坐船出海钓鱼吧。', 'No fish in your bag. Go fishing at the pier, the shore, a pond, a river or out at sea.'); box.appendChild(n); }
+  have.forEach(Fi => row(Fi, ' ×' + S.inv[fk(Fi.id)], T2('放进去', 'Put in'), () => { if (S.pfish.length >= PF_CAP || !(S.inv[fk(Fi.id)] > 0)) return;
+    const k = pfRandPt(r, PF.sx, PF.sz, 3); if (k < 0) return; const [x, z] = pfXZ(k); matAdd(fk(Fi.id), -1); S.pfish.push({ id: Fi.id, x: x + rand(-.4, .4), z: z + rand(-.4, .4) }); try { sfx.pick(); } catch (e) { } renderPondF(); saveGame(); }, S.pfish.length >= PF_CAP));
+}
+shopSave = (o => function () { const r = o(); try { r.pfish = S.pfish.filter(f => !f.esc).map(f => [f.id, Math.round(f.x * 10) / 10, Math.round(f.z * 10) / 10]); } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); for (const f of S.pfish || []) pfDrop(f); S.pfish = []; PF.sea.forEach(s => { if (s.g) scene.remove(s.g); }); PF.sea = [];
+  try { const a = d && d.sh && d.sh.pfish; if (Array.isArray(a)) for (const e of a) if (Array.isArray(e) && FISH_BY[e[0]] && isFinite(e[1]) && isFinite(e[2])) S.pfish.push({ id: e[0], x: +e[1], z: +e[2] }); } catch (e) { } })(shopLoad);
+{ const H = $('hud'); if (H && H.appendChild && document.createElement) {
+  const t = document.createElement('button'); t.className = 'btn2'; t.id = 'bPondF'; t.textContent = T2('池塘', 'Pond'); H.appendChild(t); t.addEventListener('click', pfOpen);
+  const o = document.createElement('div'); o.className = 'overlay scroll'; o.id = 'pondf'; o.innerHTML = '<h2>' + T2('池塘养鱼', 'Pond fish') + '</h2><div id="pondfList" class="slist"></div>';
+  const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => closePanel('pondf')); o.appendChild(x); document.body.appendChild(o);
+  try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+    '#bPondF{position:absolute;right:calc(var(--sr) + 214px);bottom:calc(var(--sb) + 104px);display:none;font-size:15px;min-width:76px;border-color:#9fe8ff;background:rgba(20,60,90,.88);color:#e8faff}' +
+    '@media (orientation:portrait){#bPondF{right:calc(var(--sr) + 14px);bottom:calc(var(--sb) + 312px)}}body.gvOn #bPondF,body.bOpen #bPondF{display:none!important}' })); } catch (e) { } } }
+try { if (typeof KE_LIST !== 'undefined' && Array.isArray(KE_LIST) && !KE_LIST.includes('bPondF')) KE_LIST.push('bPondF'); } catch (e) { }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -22664,4 +22783,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794976096').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794989093').catch(()=>{});</script></body></html>
