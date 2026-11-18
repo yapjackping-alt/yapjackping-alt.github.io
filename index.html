@@ -22635,6 +22635,142 @@ function mwAuraTick(dt) { if (typeof scene === 'undefined' || !player) return; M
   MW.ring.material.color.setHex(K.tr || K.glow); MW.ring.position.set(px, PY + .05, pz); MW.ring.rotation.z = MW.t * .8; MW.ring.material.opacity = .4 + .15 * Math.sin(MW.t * 3);
   MW.motes.forEach((m, i) => { const a = MW.t * 1.8 + i * Math.PI; m.material.color.setHex(i ? (K.tr2 || 0xffffff) : (K.tr || K.glow)); m.position.set(px + Math.cos(a) * .7, PY + 1.1 + Math.sin(MW.t * 2 + i) * .3, pz + Math.sin(a) * .7); m.rotation.y = MW.t * 3; }); }
 petsTick = (o => function (dt) { const r = o(dt); if (MWSK_ON) try { mwAuraTick(dt); } catch (e) { } return r; })(petsTick);
+/* ============ 神话步枪皮肤「九霄剑阵」 (owner 18 Nov: 修仙, green jade flying swords) ============
+   - Nine jade flying swords (blade tip + guard + grip + pommel + tassel = "有头有尾") float in a turning ring behind your back.
+     Each sword carries one element, in firing order: 水 火 雷 毒 冰 木 土 金, and the 9th 「合」 joins all of them.
+   - Firing with all nine gathered starts a volley: every shot calls one sword — it flies from behind you to the gun, circles the
+     gun once, lines up with the barrel and flies out with the bullet; where it strikes, a clear "锵/中" sword ring sounds and its
+     element takes hold. When all nine are gone the rifle fires normally (its own plain jade shot).
+   - Regathering after the 9th: 3 s → the 1st sword forms and floats alone, then 2.5 s, 2.0, 1.5, 1.0, 0.5, 0.25, 0.25, 0.25 for the
+     rest, each with a deep resonant sound. Only when all nine have gathered can a new volley be fired.
+   - Elements (sword hit = 2× weapon damage, element parts scale with the 洗练 element lines via elMul):
+       水 soak (+12% damage taken, slowed)   火 burns 3 s      雷 chains to 2 more      毒 poisons 4 s       冰 frozen (very slow 2 s)
+       木 heals you 3% life + roots          土 quake: knock back + hurt in 2.5 m       金 armour-breaking ×1.6 damage
+       合 all of the above at once + a 3.5 m sword-light burst
+   Owner's redeem code gives it (hash only); where it is sold is up to the owner. */
+const J9_EL = [
+  { n: '水', c: 0x4aa8ff }, { n: '火', c: 0xff6a2a }, { n: '雷', c: 0xb08aff }, { n: '毒', c: 0x9ae03a }, { n: '冰', c: 0xbff4ff },
+  { n: '木', c: 0x3ad86a }, { n: '土', c: 0xd8a040 }, { n: '金', c: 0xffe27a }, { n: '合', c: 0xffffff }];
+WSKINS.jian9 = { only: 'rifle', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%，还有九把元素飞剑', n: '九霄剑阵', r: 5, custom: true,
+  base: 0x1c5a40, mid: 0x3ad88a, acc: 0xe8c060, glow: 0x7affc0, tr: 0x7affc0, tr2: 0xe8c060,
+  d: '翠玉色的步枪，枪口下挂着一柄玉剑刺刀。身后九把翠玉飞剑排成剑阵缓缓旋转，每把剑各带一种属性：水、火、雷、毒、冰、木、土、金，第九把「合」集万法于一身。开枪时飞剑从身后飞到枪前，绕枪一圈后随子弹一同射出，命中时剑鸣「锵」的一声；九剑射尽后要重新凝聚，九把全部聚齐才能再出剑。' };
+const J9 = { n: 9, mode: 'ready', t: 0, step: 0, g: null, sw: [], fl: [] };
+const J9_GAP = [3, 2.5, 2, 1.5, 1, .5, .25, .25, .25];
+/* ---- one flying sword, tip along +z: blade (extruded outline), ridge, guard, grip, pommel, tassel ---- */
+const J9G = {};
+function j9Mats(i) { if (J9G['m' + i]) return J9G['m' + i]; const c = J9_EL[i].c;
+  return (J9G['m' + i] = { jade: new THREE.MeshLambertMaterial({ color: 0x3ad88a, emissive: 0x0e4a2c, flatShading: true }), jade2: new THREE.MeshLambertMaterial({ color: 0x8affc8, emissive: 0x1a6a40, flatShading: true }),
+    gold: new THREE.MeshLambertMaterial({ color: 0xe8c060, emissive: 0x4a3008, flatShading: true }), el: new THREE.MeshBasicMaterial({ color: c }), elT: new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: .45, depthWrite: false, blending: THREE.AdditiveBlending }),
+    grip: new THREE.MeshLambertMaterial({ color: 0x2a3a30, flatShading: true }), tas: new THREE.MeshLambertMaterial({ color: i === 8 ? 0xffd27a : c, flatShading: true }) }); }
+function j9Blade() { if (J9G.blade) return J9G.blade; const L = .62, w = .045, sh = new THREE.Shape(); sh.moveTo(-w, 0); sh.lineTo(w, 0); sh.lineTo(w * .85, L * .82); sh.lineTo(0, L); sh.lineTo(-w * .85, L * .82); sh.lineTo(-w, 0);
+  let g; try { g = new THREE.ExtrudeGeometry(sh, { depth: .012, bevelEnabled: true, bevelThickness: .006, bevelSize: .004, bevelSegments: 1 }); g.translate(0, 0, -.006); g.rotateX(Math.PI / 2); } catch (e) { g = new THREE.BoxGeometry(.09, .02, .62); g.translate(0, 0, .31); }
+  return (J9G.blade = g); }
+function j9Sword(i, sc) { const M = j9Mats(i), g = new THREE.Group(), add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
+  const bl = new THREE.Mesh(j9Blade(), M.jade); g.add(bl);                                                         // blade (tip at +z)
+  add(new THREE.BoxGeometry(.012, .026, .5), M.jade2, 0, 0, .27);                                                   // the ridge down the middle
+  add(new THREE.BoxGeometry(.008, .03, .46), M.el, 0, 0, .27).scale.set(1, .35, 1);                                // element light along the ridge
+  const gd = add(new THREE.BoxGeometry(.2, .035, .045), M.gold, 0, 0, -.01); add(new THREE.OctahedronGeometry(.03), M.el, 0, .025, -.01).scale.y = 1.4;   // guard + element gem
+  for (const s of [-1, 1]) add(new THREE.ConeGeometry(.02, .06, 4), M.gold, s * .11, 0, .01).rotation.z = -s * Math.PI / 2;
+  add(new THREE.CylinderGeometry(.018, .02, .15, 6), M.grip, 0, 0, -.1).rotation.x = Math.PI / 2;                    // grip
+  add(new THREE.OctahedronGeometry(.03), M.gold, 0, 0, -.19);                                                       // pommel
+  const t1 = add(new THREE.ConeGeometry(.022, .1, 5), M.tas, 0, 0, -.26); t1.rotation.x = -Math.PI / 2; t1.userData.tas = 1;   // tassel (the tail)
+  const glow = add(new THREE.BoxGeometry(.13, .01, .66), M.elT, 0, 0, .26); glow.userData.glow = 1;
+  g.scale.setScalar(sc || 1); return g; }
+/* ---- the rifle itself: jade with gold, a jade sword bayonet under the barrel ---- */
+buildWeapon = (orig => function (id, t, skin) { const g = orig(id, t, skin), k = skin !== undefined ? skin : (S.wsk && S.wsk[id]);
+  if (k === 'jian9' && id === 'rifle') try { const bb = new THREE.Box3().setFromObject(g), sz = new THREE.Vector3(), ct = new THREE.Vector3(); bb.getSize(sz); bb.getCenter(ct);
+    const bay = j9Sword(8, .75); bay.position.set(ct.x, bb.min.y + sz.y * .25, bb.min.z + sz.z * .62); g.add(bay);
+    const M = j9Mats(8); for (let i = 0; i < 3; i++) { const r = new THREE.Mesh(new THREE.TorusGeometry(Math.max(sz.x, sz.y) * .32 + .015, .008, 5, 8), M.gold); r.position.set(ct.x, ct.y + sz.y * .1, bb.min.z + sz.z * (.78 + i * .07)); g.add(r); }
+    for (const sd of [-1, 1]) for (let i = 0; i < 3; i++) { const c = new THREE.Mesh(new THREE.OctahedronGeometry(sz.y * .16), M.gold); c.position.set(ct.x + sd * (sz.x * .5 + .008), ct.y + sz.y * (i % 2 ? .12 : -.05), bb.min.z + sz.z * (.3 + i * .12)); c.scale.set(.25, .6, 1.8); g.add(c);
+      const e = new THREE.Mesh(new THREE.OctahedronGeometry(sz.y * .06), j9Mats(i * 3).el); e.position.set(ct.x + sd * (sz.x * .5 + .014), c.position.y, c.position.z); g.add(e); }   // gold cloud fins with element gems
+    // previews / icons only: three little swords drift round the gun (in the world the real sword ring is behind you)
+    const mini = []; for (let i = 0; i < 3; i++) { const s = j9Sword(i * 3, .5); g.add(s); mini.push(s); }
+    const host = mini[0].children[0]; host.onBeforeRender = () => { let o = g; while (o.parent) o = o.parent; const inWorld = typeof scene !== 'undefined' && o === scene, T = performance.now() / 1000;
+      mini.forEach((s, i) => { const a = T * .9 + i * 2.09; s.position.set(ct.x + Math.cos(a) * (sz.y * 1.2 + .18), ct.y + sz.y * 1.1 + Math.sin(a) * .08, ct.z + Math.sin(a) * sz.z * .4); s.rotation.set(-1.2, a, 0); s.scale.setScalar(inWorld ? .001 : .5); }); };
+  } catch (e) { console.warn('jian9', e); }
+  return g; })(buildWeapon);
+/* ---- the ring of swords behind you ---- */
+const j9On = () => { try { return S.wp === 'rifle' && S.wsk && S.wsk.rifle === 'jian9'; } catch (e) { return false; } };
+function j9Ring() { if (J9.g || typeof scene === 'undefined') return; J9.g = new THREE.Group(); scene.add(J9.g);
+  for (let i = 0; i < 9; i++) { const s = j9Sword(i, 1.15); J9.g.add(s); J9.sw.push(s); } }
+function j9Tick(dt) { if (typeof scene === 'undefined' || !player) return; j9Ring();
+  // regather after a volley: 3, 2.5, 2 … 0.25 s per sword
+  if (J9.mode === 'regen') { J9.t += dt; if (J9.t >= J9_GAP[J9.n]) { J9.t = 0; J9.n++; j9Form(J9.n - 1); if (J9.n >= 9) { J9.mode = 'ready'; try { banner('九剑归位', '剑阵已就绪', 1.6); } catch (e) { } } } }
+  const on = j9On() && !S.dead && !(typeof buildOpen !== 'undefined' && buildOpen) && pm && pm.g && pm.g.visible;
+  J9.g.visible = on; if (!on) return;
+  const T = performance.now() / 1000, f = player.face || 0, fx = Math.sin(f), fz = Math.cos(f), PY = (typeof playerY === 'function' && playerY()) || 0;
+  const cx = player.pos.x - fx * .62, cz = player.pos.z - fz * .62, cy = 1.55 + PY;
+  // swords that are present (the first n) sit on the ring evenly; the rest are hidden (gone or still gathering)
+  J9.sw.forEach((s, i) => { const away = J9.fl.some(q => q.i === i);
+    const vis = (J9.mode === 'volley' ? i >= 9 - J9.n : i < J9.n) && !away; s.visible = vis; if (!vis) return;
+    const a = T * .7 + i / 9 * 6.283, r = .98, lx = Math.cos(a) * r, ly = Math.sin(a) * r;
+    // ring in the plane behind the back (right = (fz, -fx)), each sword pointing outward like a halo, bobbing a little
+    s.position.set(cx + fz * lx, cy + ly + Math.sin(T * 2 + i) * .03, cz - fx * lx);
+    s.lookAt(cx + fz * lx * 2, cy + ly * 2, cz - fx * lx * 2);
+    s.children.forEach(c => { if (c.userData.glow) c.material.opacity = .3 + .2 * Math.sin(T * 3 + i); if (c.userData.tas) c.rotation.z = Math.sin(T * 4 + i) * .4; }); }); }
+function j9Form(i) { try { const s = J9.sw[i]; const PY = (typeof playerY === 'function' && playerY()) || 0, x = player.pos.x - Math.sin(player.face || 0) * .62, z = player.pos.z - Math.cos(player.face || 0) * .62;
+    burst(x, 1.55 + PY, z, J9_EL[i].c, 12, 3); burst(x, 1.55 + PY, z, 0x8affc8, 6, 2); fxRing(x, z, .2, 1.4, .45, J9_EL[i].c, .8, 1.5 + PY); } catch (e) { } try { j9Snd.form(i); } catch (e) { } }
+petsTick = (o => function (dt) { const r = o(dt); try { j9Tick(dt); } catch (e) { } return r; })(petsTick);
+/* ---- firing: a sword joins each shot while a volley lasts ---- */
+mythShot = (orig => function (K, ox, oz, dx, dz, end, hit, fm, pel) {
+  if (!K || K.key !== 'jian9') return orig.apply(this, arguments);
+  const PY = (typeof playerY === 'function' && playerY()) || 0, sx = fm ? fm.x : ox, sy = fm ? fm.y : 1.55 + PY, sz = fm ? fm.z : oz, ex = ox + dx * end, ey = 1.45 + PY, ez = oz + dz * end;
+  if (J9.mode === 'ready' && J9.n === 9) J9.mode = 'volley';
+  if (J9.mode === 'volley' && J9.n > 0) { const i = 9 - J9.n; J9.n--; if (!J9.n) { J9.mode = 'regen'; J9.t = 0; } j9Launch(i, sx, sy, sz, dx, dz, ex, ey, ez, hit); return; }
+  j9Plain(sx, sy, sz, ex, ey, ez, hit); })(mythShot);
+// plain shot (no sword): a thin jade line and a small leaf-green spark where it lands
+function j9Plain(sx, sy, sz, ex, ey, ez, hit) { const F = fxGeo(), len = Math.hypot(ex - sx, ey - sy, ez - sz);
+  fxPiece(F.box, 0x7affc0, (sx + ex) / 2, (sy + ey) / 2, (sz + ez) / 2, .14, (k, m) => { m.lookAt(ex, ey, ez); m.scale.set(.03, .03, len); m.material.opacity = .9 * (1 - k); });
+  if (hit) { fxPiece(F.ico, 0xcfffe8, ex, ey, ez, .16, (k, m) => { m.scale.setScalar(.4 + k); m.material.opacity = 1 - k; }); for (let i = 0; i < 3; i++) fxSpark(ex, ey, ez, i ? 0x3ad88a : 0xe8c060, { sp: 2, life: .3, s: 1.6 }); } }
+function j9Launch(i, mx, my, mz, dx, dz, ex, ey, ez, hit) {
+  const s0 = J9.sw[i], st = new THREE.Vector3(); s0.getWorldPosition(st); const sw = j9Sword(i, 1.15); sw.traverse(o => { o.frustumCulled = false; }); scene.add(sw);
+  const q = { i, t0: performance.now() }; J9.fl.push(q);
+  // the monster it will strike: the one nearest where the bullet ended
+  let tgt = null; if (hit) { let bd = 1.8; for (const z of zombies) { if (z.dead) continue; const d = Math.hypot(z.pos.x - ex, z.pos.z - ez); if (d < bd) { bd = d; tgt = z; } } }
+  const len = Math.hypot(ex - mx, ez - mz), tFly = Math.max(.08, Math.min(.3, len / 70)), T1 = .12, T2 = .26, T3 = .3, tot = T3 + tFly, ang = Math.atan2(dx, dz);
+  try { j9Snd.launch(i); } catch (e) { }
+  sw.children[0].onBeforeRender = () => { const k = (performance.now() - q.t0) / 1000;
+    if (k < T1) { const f = k / T1, e = f * f * (3 - 2 * f); sw.position.set(st.x + (mx - st.x) * e, st.y + (my - st.y) * e + Math.sin(f * Math.PI) * .4, st.z + (mz - st.z) * e); sw.lookAt(mx + dx, my, mz + dz); }
+    else if (k < T2) { const f = (k - T1) / (T2 - T1), a = f * 6.283, r = .42 * (1 - f * .6);   // one quick circle round the gun
+      sw.position.set(mx + Math.cos(ang) * Math.cos(a) * r, my + Math.sin(a) * r, mz - Math.sin(ang) * Math.cos(a) * r); sw.lookAt(mx + dx * 2, my, mz + dz * 2); sw.rotateZ(a); }
+    else if (k < T3) { sw.position.set(mx, my, mz); sw.lookAt(mx + dx, my, mz + dz); }   // lined up with the barrel
+    else { const f = Math.min(1, (k - T3) / tFly); sw.position.set(mx + (ex - mx) * f, my + (ey - my) * f, mz + (ez - mz) * f); sw.lookAt(ex + dx, ey, ez + dz);
+      if (Math.random() < .5) burst(sw.position.x, sw.position.y, sw.position.z, J9_EL[i].c, 1, .4); } };
+  setTimeout(() => { try { scene.remove(sw); } catch (e) { } J9.fl = J9.fl.filter(x => x !== q); try { j9Hit(i, tgt, ex, ey, ez); } catch (e) { } }, tot * 1000 + 20);
+}
+/* ---- where a sword strikes ---- */
+function j9Hit(i, z, x, y, zz) { const F = fxGeo(), c = J9_EL[i].c, big = i === 8;
+  fxPiece(F.ico, 0xffffff, x, y, zz, .15, (k, m) => { m.scale.setScalar(.5 + k * 1.6); m.material.opacity = 1 - k; });
+  fxPiece(F.ring, c, x, y, zz, .4, (k, m) => { faceCam(m); m.scale.setScalar(1 + k * (big ? 6 : 3.4)); m.material.opacity = .95 * (1 - k); });
+  for (let n = 0; n < (big ? 12 : 6); n++) { const a = n / (big ? 12 : 6) * 6.283; fxStreak(x, y, zz, Math.cos(a) * 5, 1 + Math.random() * 2, Math.sin(a) * 5, n % 2 ? c : 0x8affc8, .35, .04); }
+  try { j9Snd.hit(i); } catch (e) { }
+  if (!z || z.dead) return; const base = weaponDmg('rifle') * 2, M = el => (typeof elMul === 'function' ? elMul(el) : 1);
+  const fx = { water() { z.wetT = S.t + 3; z.wetK = Math.max(z.wetK || 0, .12 * M('water')); z.slowT = Math.max(z.slowT || 0, 1.5); },
+    fire() { z.burnD = Math.max(z.burnT > 0 ? (z.burnD || 0) : 0, base * .25); z.burnT = 3; },
+    thun() { let from = z; const done = new Set([z]); for (let n = 0; n < 2; n++) { let b = null, bd = 6; for (const o of zombies) { if (o.dead || done.has(o) || o.animal) continue; const d = Math.hypot(o.pos.x - from.pos.x, o.pos.z - from.pos.z); if (d < bd) { bd = d; b = o; } }
+        if (!b) break; done.add(b); tracer(from.pos.x, 1.3, from.pos.z, b.pos.x, 1.3, b.pos.z, 0xb08aff); hurtZombie(b, base * .5 * M('thun'), 0, 0); from = b; } },
+    pois() { z.g2pT = Math.max(z.g2pT || 0, 4); z.g2pD = Math.max(z.g2pD || 0, base * .2); },
+    ice() { z.slowT = Math.max(z.slowT || 0, 2); z.frzT = S.t + 2; },
+    wood() { if (!S.dead) S.hp = Math.min(S.maxHp, S.hp + S.maxHp * .03); z.slowT = Math.max(z.slowT || 0, 1); try { burst(player.pos.x, 1.2, player.pos.z, 0x3ad86a, 6, 2); } catch (e) { } },
+    earth() { for (const o of zombies) { if (o.dead || o.animal || o.boss) continue; const ex = o.pos.x - x, ez = o.pos.z - zz, d = Math.hypot(ex, ez); if (d < 2.5) { o.knx = ex / (d || 1) * 6; o.knz = ez / (d || 1) * 6; if (o !== z) hurtZombie(o, base * .4, 0, 0); } }
+      fxRing(x, zz, .3, 2.6, .4, 0xd8a040, .8); } };
+  const order = ['water', 'fire', 'thun', 'pois', 'ice', 'wood', 'earth'];
+  let dmg = base; if (i === 7) dmg *= 1.6; if (i === 8) dmg *= 1.6;
+  hurtZombie(z, dmg, 0, 0);
+  if (i < 7) fx[order[i]](); else if (i === 8) { order.forEach(k => { try { fx[k](); } catch (e) { } });
+    for (const o of zombies) { if (o.dead || o === z || o.animal) continue; if (Math.hypot(o.pos.x - x, o.pos.z - zz) < 3.5) hurtZombie(o, base * .8, 0, 0); }
+    fxPiece(F.ico, 0xcfffe8, x, y, zz, .6, (k, m) => { m.scale.setScalar(2 + k * 7); m.material.opacity = .5 * (1 - k); }); }
+}
+/* ---- sounds: a whistling launch, the sword's ring "锵/中" on a hit, a deep resonant gathering ---- */
+const j9Snd = {
+  launch(i) { sfxTone(900 + i * 60, 2400 + i * 80, .14, .035, 'sine'); sfxNoise(.12, .04, 3000, { type: 'bandpass', q: 2 }); },
+  hit(i) { const f = 520 + (i % 4) * 40; sfxTone(f, f * .98, .7, .09, 'sine'); sfxTone(f * 2.76, f * 2.7, .45, .05, 'sine'); sfxTone(f * 5.4, f * 5.3, .25, .025, 'sine'); sfxNoise(.03, .08, 4500, { type: 'highpass' }); },
+  form(i) { sfxTone(70, 62, 1.1, .16, 'sine'); sfxTone(140, 132, .9, .07, 'triangle', { delay: .03 }); sfxTone(330 + i * 22, 330 + i * 22, 1.0, .05, 'sine', { delay: .05, vib: 4, vibD: 6 }); sfxNoise(.5, .05, 400, { f1: 120, delay: .02 }); }
+};
+// melee-like layer for the skin's own fire/hit sounds (guns keep their real gunshot)
+try { WSK_GUN.jian9 = { fire() { sfxTone(1800, 1500, .08, .015, 'sine', { delay: .03 }); }, hit() { } }; } catch (e) { }
+// owner's code: the skin at once (hash only)
+try { RDM[1408983399] = { id: 'jian9', n: '九霄剑阵', f() { if (S.wskOwn.includes('jian9:rifle')) { feed('已经有「九霄剑阵」了', '#ff9b8a'); return false; } giveWSkin('jian9', 'rifle'); return true; } }; } catch (e) { }
 /* ============ 深渊商店: spend 深渊币 with the diver of the 深渊号 (owner 18 Nov: "add a trade system to the abyss") ============
    Opened from the abyss page (button 深渊商店 next to 下潜). The trader is the brass-helmet diver who stands on the sub.
    Tabs: 升级材料 (now) · 皮肤 (empty: the owner will hand over skin code later, then they go in ABYSHOP_SKINS).
@@ -23806,4 +23942,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795015825').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795016902').catch(()=>{});</script></body></html>
