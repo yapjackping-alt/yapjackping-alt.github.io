@@ -21844,16 +21844,41 @@ g3Enh = (o => function (it) { const b = o.apply(this, arguments); if (!ELUCK_ON 
   row.querySelector('.g3lm').addEventListener('click', e => { e.stopPropagation(); set(n - 1); });
   row.querySelector('.g3lp').addEventListener('click', e => { e.stopPropagation(); set(n + 1); });
   w.appendChild(row); return w; })(g3Enh);
+/* ---- 失败抵消石 (owner 18 Nov: "now that there's a luck item, shouldn't there be a lock stone?"): from +10 a failed enhance
+   drops the piece one level; with the switch on and a stone in the bag the level stays and one stone is used up. Nothing is used
+   on a success or below +10 (where a fail never drops). Gem resource shop, ELOCK_PRICE. ---- */
+const ELOCK_PRICE = 80;
+ELK.lock = false; try { ELK.lock = localStorage.getItem('ember_elock') === '1'; } catch (e) { }
+MAT.elock = { n: '失败抵消石', c: '#9fd8ff', r: 3 };
+if (!('elock' in S.inv)) S.inv.elock = 0;
+try { ITEMS.elock = { n: '失败抵消石', r: 3, cat: 'rare', d: '刻着锁的蓝色石头。强化失败时护住装备，不让等级掉下去。', use: '装备 +10 以上强化失败会掉 1 级；强化按钮下面打开「失败抵消石」，失败时等级不掉，用掉 1 颗（成功不消耗）。', src: '资源商店（稀有材料）' }; } catch (e) { }
+try { if (Array.isArray(GSHOP)) GSHOP.push(['elock', 1, ELOCK_PRICE, 'r']); } catch (e) { }
+enhance = (o => function (it) { const on = ELUCK_ON && ELK.lock && it && (it[7] || 0) >= 10 && (it[7] || 0) < 15 && matHave('elock') > 0; if (!on) return o.apply(this, arguments);
+  const lv = it[7] || 0; const r = o.apply(this, arguments);
+  if ((it[7] || 0) < lv) { it[7] = lv; matAdd('elock', -1); try { _gTot = null; gearChanged(); } catch (e) { } try { feed('失败抵消石抵消了这次失败，等级还是 +' + lv + '（还有 ' + matHave('elock') + ' 颗）', '#9fd8ff'); } catch (e) { } }
+  return r; })(enhance);
+g3Enh = (o => function (it) { const w = o.apply(this, arguments); const e = it[7] || 0; if (!ELUCK_ON || e < 10 || e >= 15) return w;
+  const have = matHave('elock'), on = ELK.lock && have > 0, t = document.createElement('button'); t.className = 'g3lock' + (on ? ' on' : ''); t.disabled = !have;
+  t.innerHTML = '<i></i>失败抵消石：失败不掉级<small>' + (have ? '（有 ' + have + ' 颗' + (on ? ' · 失败才用 1 颗' : '') + '）' : '（没有，资源商店有卖）') + '</small>';
+  t.addEventListener('click', e2 => { e2.stopPropagation(); ELK.lock = !ELK.lock; try { localStorage.setItem('ember_elock', ELK.lock ? '1' : '0'); } catch (er) { } try { g3Re(); } catch (er) { renderBag(); } });
+  if (w.classList && w.classList.contains('g3ebw')) w.appendChild(t); else { const d = document.createElement('div'); d.className = 'g3ebw'; d.appendChild(w); d.appendChild(t); return d; }
+  return w; })(g3Enh);
 // icon: a gold tag with a four-leaf clover
 (function () { try { if (typeof ICON_URL === 'undefined' || !document.createElement) return; const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext && c.getContext('2d'); if (!g || !g.fillRect) return;
   g.translate(48, 48); g.rotate(-.15); g.fillStyle = '#c98a1c'; g.fillRect(-24, -32, 48, 64); g.fillStyle = '#ffd56a'; g.fillRect(-20, -28, 40, 56); g.fillStyle = '#e7a92a'; g.fillRect(-20, 18, 40, 10);
   g.fillStyle = '#2f9a4a'; for (const [x, y] of [[-7, -7], [7, -7], [-7, 7], [7, 7]]) { g.beginPath(); g.arc(x, y - 4, 8, 0, Math.PI * 2); g.fill(); }
   g.fillStyle = '#1f6e33'; g.fillRect(-1.5, 2, 3, 16); g.fillStyle = '#fff6c8'; g.beginPath(); g.arc(0, -4, 3, 0, Math.PI * 2); g.fill();
   ICON_URL.eluck = c.toDataURL('image/png'); } catch (e) { } })();
+(function () { try { if (typeof ICON_URL === 'undefined' || !document.createElement) return; const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext && c.getContext('2d'); if (!g || !g.fillRect) return;
+  g.translate(48, 50); g.fillStyle = '#2f6fa8'; g.beginPath(); g.moveTo(0, -36); g.lineTo(32, -12); g.lineTo(22, 30); g.lineTo(-22, 30); g.lineTo(-32, -12); g.closePath(); g.fill();
+  g.fillStyle = '#7ec8ff'; g.beginPath(); g.moveTo(0, -30); g.lineTo(24, -10); g.lineTo(0, -2); g.lineTo(-24, -10); g.closePath(); g.fill();
+  g.strokeStyle = '#eaf6ff'; g.lineWidth = 5; g.beginPath(); g.arc(0, 4, 8, Math.PI, 0); g.stroke(); g.fillStyle = '#eaf6ff'; g.fillRect(-12, 4, 24, 16); g.fillStyle = '#2f6fa8'; g.fillRect(-2, 9, 4, 7);
+  ICON_URL.elock = c.toDataURL('image/png'); } catch (e) { } })();
 try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
   '.g3ebw{flex:2 1 180px!important;display:flex;flex-direction:column;gap:6px;min-width:0}.g3ebw .g3eb{width:100%;flex:none!important}' +
   '.g3luck{display:flex;align-items:center;justify-content:center;gap:8px;min-height:38px;border-radius:10px;border:1.5px solid rgba(255,210,122,.45);background:rgba(255,210,122,.08);color:#ffe2a6;font-weight:800;font-size:13px;padding:4px 8px}' +
   '.g3luck button{width:32px;height:30px;border-radius:8px;border:1px solid rgba(255,210,122,.6);background:rgba(255,210,122,.15);color:#ffe2a6;font-size:18px;font-weight:900;line-height:1;padding:0}.g3luck button:disabled{opacity:.35}' +
+  '.g3lock{display:flex;align-items:center;justify-content:center;gap:6px;min-height:36px;border-radius:10px;border:1.5px solid rgba(159,216,255,.45);background:rgba(159,216,255,.08);color:#d6eeff;font-weight:800;font-size:13px;padding:4px 8px;flex-wrap:wrap}.g3lock i{width:16px;height:16px;border-radius:4px;border:2px solid #9fd8ff;flex:none}.g3lock.on{background:rgba(159,216,255,.2);border-color:#9fd8ff}.g3lock.on i{background:#9fd8ff;box-shadow:inset 0 0 0 2px #12283a}.g3lock small{font-weight:600;opacity:.75}.g3lock:disabled{opacity:.5}' +
   '.g3luck b{min-width:18px;text-align:center;font-size:15px;color:#fff}.g3luck em{font-style:normal;color:#ffd27a;min-width:52px}.g3luck small{font-weight:600;opacity:.7}' })); } catch (e) { }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
@@ -22889,4 +22914,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794996629').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794996885').catch(()=>{});</script></body></html>
