@@ -5016,19 +5016,19 @@ function nearMerchant() { return merch.on && merch.near ? 'wild' : homeM.near ? 
 
 /* ---- trade window ---- */
 const SHOP_BUY = [
-  { n: '医疗包', d: '恢复 50 生命', p: 40, f() { S.med++; } },
-  { n: '弹药 ×30', d: '一盒通用弹药', p: 15, f() { S.reserve += 30; } },
-  { n: '弹药 ×120', d: '批发更划算', p: 52, f() { S.reserve += 120; } },
-  { n: '木头 ×20', d: '建造材料', p: 50, f() { matAdd('wood', 20); }, c: MAT.wood.c },
+  { n: '医疗包', d: '恢复 50 生命', p: 48, f() { S.med++; } },
+  { n: '弹药 ×30', d: '一盒通用弹药', p: 160, f() { S.reserve += 30; } },
+  { n: '弹药 ×120', d: '批发更划算', p: 630, f() { S.reserve += 120; } },
+  { n: '木头 ×20', d: '建造材料', p: 55, f() { matAdd('wood', 20); }, c: MAT.wood.c },
   { n: '石头 ×20', d: '建造、武器升级材料', p: 60, f() { matAdd('stone', 20); }, c: '#a8a8b0' },
-  { n: '铁片 ×10', d: '建造与武器升级', p: 70, f() { matAdd('metal', 10); }, c: MAT.metal.c },
-  { n: '火药 ×5', d: '武器升级材料', p: 60, f() { matAdd('powder', 5); }, c: MAT.powder.c },
-  { n: '电子元件 ×3', d: '武器升级材料', p: 100, f() { matAdd('circuit', 3); }, c: MAT.circuit.c },
+  { n: '铁片 ×10', d: '建造与武器升级', p: 80, f() { matAdd('metal', 10); }, c: MAT.metal.c },
+  { n: '火药 ×5', d: '武器升级材料', p: 105, f() { matAdd('powder', 5); }, c: MAT.powder.c },
+  { n: '电子元件 ×3', d: '武器升级材料', p: 160, f() { matAdd('circuit', 3); }, c: MAT.circuit.c },
   { n: '洗点药剂', d: '返还全部天赋点，重新规划天赋树', p: 800, f() { treeReset(); }, c: '#7de0ff' },
   { n: '精钢锭', d: '稀有 · 只有流浪商人有货', p: 260, f() { matAdd('steel', 1); }, c: MAT.steel.c, wild: 1 },
   { n: '变异血清', d: '稀有 · 只有流浪商人有货', p: 320, f() { matAdd('serum', 1); }, c: MAT.serum.c, wild: 1 },
-  { n: '腐化晶体', d: '史诗 · 只有流浪商人有货', p: 1100, f() { matAdd('crystal', 1); }, c: MAT.crystal.c, wild: 1 },
-  { n: '终焉核心', d: '史诗 · 只有流浪商人有货，可重置天赋', p: 1800, f() { S.core++; }, c: MAT.core.c, wild: 1 }
+  { n: '腐化晶体', d: '史诗 · 只有流浪商人有货', p: 1560, f() { matAdd('crystal', 1); }, c: MAT.crystal.c, wild: 1 },
+  { n: '终焉核心', d: '史诗 · 只有流浪商人有货，可重置天赋', p: 2730, f() { S.core++; }, c: MAT.core.c, wild: 1 }
 ];
 const SELL_PRICE = { wood: 1, metal: 3, powder: 8, circuit: 12, steel: 50, serum: 60, crystal: 210, core: 350, venom: 260, plate: 220, shade: 360, magma: 390 };
 const CRAFT = [
@@ -5827,7 +5827,8 @@ function villageTick(dt) {
 const _vSeen = new Set(); function DN_seen(v) { if (_vSeen.has(v.id)) return false; _vSeen.add(v.id); return true; }
 
 /* ---- each villager's offers: what they sell, what they buy, at their own prices (new every day) ---- */
-const VIL_SELL = [['med', 1, 40, '医疗包'], ['ammo', 30, 15, '弹药 ×30'], ['wood', 10, 22, '木头 ×10'], ['metal', 6, 26, '铁片 ×6'], ['powder', 2, 34, '火药 ×2'], ['circuit', 1, 44, '电子元件'], ['steel', 1, 170, '精钢锭'], ['serum', 1, 210, '变异血清'], ['gear', 1, 0, '装备']];
+// prices (owner 18 Nov): even the most generous villager (×0.6) never sells below the 晶石 price of the same thing (1 晶石 = 20 币)
+const VIL_SELL = [['med', 1, 66, '医疗包'], ['ammo', 30, 220, '弹药 ×30'], ['wood', 10, 37, '木头 ×10'], ['metal', 6, 66, '铁片 ×6'], ['powder', 2, 59, '火药 ×2'], ['circuit', 1, 74, '电子元件'], ['steel', 1, 294, '精钢锭'], ['serum', 1, 367, '变异血清'], ['gear', 1, 0, '装备']];
 const VIL_BUY = ['wood', 'metal', 'powder', 'circuit', 'steel', 'serum', 'crystal'];
 function vilOffers(v) {
   const day = Math.floor(Date.now() / 86400000), R = mulberry32(v.seed ^ (day * 2654435761)), m = v.mood, mul = () => m[1] + R() * (m[2] - m[1]);
@@ -21195,7 +21196,7 @@ const GSHOP = [
   // [item, amount per pack, price in gems, shelf]   priced against the island merchant: 1000 余烬币 = 50 晶石, so 1 晶石 ≈ 20 币,
   // and every pack costs about 1.5× what the same thing costs in coins (buying with gems is the convenient way, not the cheap way)
   ['coin', 1000, 50, 'c'], ['relic', 100, 150, 'c'],
-  ['wood', 100, 10, 'm'], ['stone', 100, 8, 'm'], ['metal', 100, 30, 'm'], ['powder', 20, 16, 'm'], ['circuit', 10, 20, 'm'],
+  ['wood', 100, 10, 'm'], ['stone', 100, 10, 'm'], ['metal', 100, 30, 'm'], ['powder', 20, 16, 'm'], ['circuit', 10, 20, 'm'],
   ['ammo', 100, 20, 'b'], ['med', 10, 18, 'b'], ['estone', 10, 60, 'b'],
   ['bpf', 10, 40, 'r'], ['steel', 5, 40, 'r'],   // 图纸残页: 10 = one blueprint draw, priced like one outfit draw (40 晶石); the owner wants the draw to stay hard
    ['serum', 5, 50, 'r'], ['crystal', 1, 60, 'r'], ['heart', 1, 90, 'r'], ['core', 1, 105, 'r']
@@ -21864,13 +21865,16 @@ g3Enh = (o => function (it) { const w = o.apply(this, arguments); const e = it[7
   if (w.classList && w.classList.contains('g3ebw')) w.appendChild(t); else { const d = document.createElement('div'); d.className = 'g3ebw'; d.appendChild(w); d.appendChild(t); return d; }
   return w; })(g3Enh);
 /* ---- drops (owner 18 Nov: "give the luck charm a way to get it, hard to get, but not as hard as the fail stone") ----
-   rolled with every gear drop roll (any kill that can drop gear; nothing inside the abyss):
+   rolled with every gear drop roll (any kill that can drop gear; nothing inside the abyss), × the region factor (region 1 ×0.3 … 10 ×1.5):
      boss: 幸运符 25% · 抵消石 6%    elite: 3% · 0.5%    others: 0.15% · 0.02% */
 const ELK_DROP = { boss: [.25, .06], elite: [.03, .005], norm: [.0015, .0002] };
 gearDropFor = (o => function (z) { const r = o.apply(this, arguments);
   try { if (!ELUCK_ON || !z || (typeof abyOn === 'function' && abyOn())) return r; const t = ELK_DROP[z.boss ? 'boss' : z.elite ? 'elite' : 'norm'];
-    if (Math.random() < t[0]) { gain('eluck', 1); feed('掉落：强化幸运符 ×1', '#ffd27a'); }
-    if (Math.random() < t[1]) { gain('elock', 1); feed('掉落：失败抵消石 ×1！', '#9fd8ff'); try { if (!z.boss) banner('失败抵消石！', '很少见的掉落', 2.4); } catch (e) { } } } catch (e) { }
+    // by region (owner 18 Nov: low bosses drop less, high ones more), like every other drop that grows with the monster's level:
+    // region 1 ×0.3 … region 10 ×1.5 (region = monster level / 10)
+    const tier = Math.max(1, Math.min(10, Math.ceil((z.lv || 1) / 10))), tm = .3 + 1.2 * (tier - 1) / 9;
+    if (Math.random() < t[0] * tm) { gain('eluck', 1); feed('掉落：强化幸运符 ×1', '#ffd27a'); }
+    if (Math.random() < t[1] * tm) { gain('elock', 1); feed('掉落：失败抵消石 ×1！', '#9fd8ff'); try { if (!z.boss) banner('失败抵消石！', '很少见的掉落', 2.4); } catch (e) { } } } catch (e) { }
   return r; })(gearDropFor);
 // icon: a gold tag with a four-leaf clover
 (function () { try { if (typeof ICON_URL === 'undefined' || !document.createElement) return; const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext && c.getContext('2d'); if (!g || !g.fillRect) return;
@@ -21889,6 +21893,27 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
   '.g3luck button{width:32px;height:30px;border-radius:8px;border:1px solid rgba(255,210,122,.6);background:rgba(255,210,122,.15);color:#ffe2a6;font-size:18px;font-weight:900;line-height:1;padding:0}.g3luck button:disabled{opacity:.35}' +
   '.g3lock{display:flex;align-items:center;justify-content:center;gap:6px;min-height:36px;border-radius:10px;border:1.5px solid rgba(159,216,255,.45);background:rgba(159,216,255,.08);color:#d6eeff;font-weight:800;font-size:13px;padding:4px 8px;flex-wrap:wrap}.g3lock i{width:16px;height:16px;border-radius:4px;border:2px solid #9fd8ff;flex:none}.g3lock.on{background:rgba(159,216,255,.2);border-color:#9fd8ff}.g3lock.on i{background:#9fd8ff;box-shadow:inset 0 0 0 2px #12283a}.g3lock small{font-weight:600;opacity:.75}.g3lock:disabled{opacity:.5}' +
   '.g3luck b{min-width:18px;text-align:center;font-size:15px;color:#fff}.g3luck em{font-style:normal;color:#ffd27a;min-width:52px}.g3luck small{font-weight:600;opacity:.7}' })); } catch (e) { }
+/* ============ one price rule for every trade (owner 18 Nov) ============
+   Exchange rates: 1 晶石 = 20 余烬币 (resource shop: 1000 币 for 50 晶石); 1 遗物币 = 1.5 晶石 = 30 余烬币 (100 for 150 晶石).
+   The 晶石 resource shop (GSHOP) is the reference price of every item. Rules, checked here at start-up:
+   - buying with anything else costs MORE than the 晶石 price: the island merchant (even with the full 讨价还价 talent -15%),
+     every villager (even the generous ×0.6 one) and 老钱 (遗物币);
+   - selling never pays as much as the 晶石 price (merchant SELL_PRICE, and the ×1.8 villager);
+   so nothing can be bought one way and sold another for a profit. NEW ITEMS / PRICES MUST FOLLOW THIS; econCheck() lists any
+   that don't (console + ECON.bad, smoke3 can read it). */
+const ECON = { GEM_COIN: 20, RELIC_GEM: 1.5, SHOP_DISC: .15, VIL_MIN: .6, VIL_MAX_BUY: 1.8, bad: [] };
+const ECON_NAME = { 医疗包: 'med', 弹药: 'ammo', 木头: 'wood', 石头: 'stone', 铁片: 'metal', 火药: 'powder', 电子元件: 'circuit', 精钢锭: 'steel', 变异血清: 'serum', 腐化晶体: 'crystal', 终焉核心: 'core' };
+function econGem() { const g = {}; for (const [k, n, p] of GSHOP) if (k !== 'coin' && k !== 'relic') g[k] = p / n; return g; }   // 晶石 per one unit
+function econCheck() {
+  const G = econGem(), C = ECON.GEM_COIN, bad = [];
+  try { for (const it of SHOP_BUY) { const m = /^(\S+?)(?: ×(\d+))?$/.exec(it.n); if (!m) continue; const k = ECON_NAME[m[1]], n = +(m[2] || 1); if (!k || G[k] == null) continue;
+    const min = it.p * (1 - ECON.SHOP_DISC), ref = G[k] * n * C; if (min < ref) bad.push('岛上商人 ' + it.n + ' ' + it.p + ' 币 < 晶石价 ' + Math.ceil(ref / (1 - ECON.SHOP_DISC)) + ' 币'); } } catch (e) { }
+  try { for (const [k, n, p] of VIL_SELL) { if (G[k] == null) continue; const ref = G[k] * n * C; if (p * ECON.VIL_MIN < ref) bad.push('村民卖 ' + k + '×' + n + ' ' + p + ' 币 < ' + Math.ceil(ref / ECON.VIL_MIN)); } } catch (e) { }
+  try { for (const [k, n, p] of RELIC_SHOP) { if (G[k] == null) continue; if (p * ECON.RELIC_GEM < G[k] * n) bad.push('老钱 ' + k + '×' + n + ' ' + p + ' 遗物币 < 晶石价'); } } catch (e) { }
+  try { for (const k in SELL_PRICE) { if (G[k] == null) continue; if (SELL_PRICE[k] * ECON.VIL_MAX_BUY >= G[k] * C) bad.push('卖 ' + k + ' 最多 ' + SELL_PRICE[k] * ECON.VIL_MAX_BUY + ' 币 ≥ 晶石价 ' + G[k] * C); } } catch (e) { }
+  ECON.bad = bad; if (bad.length) console.warn('ECON price rule broken:\n' + bad.join('\n')); return bad;
+}
+try { econCheck(); } catch (e) { }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -22923,4 +22948,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794997140').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794998491').catch(()=>{});</script></body></html>
