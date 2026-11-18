@@ -18414,6 +18414,8 @@ function tpRebuild() {
       put('blade', x, terH(x, z), z, 1, h, 1, tpHash(k, s * 7 + 4) * 3, (tpHash(k, s * 7 + 5) - .5) * .5, greens[(tpHash(k, s * 7 + 6) * 3) | 0]); }
     if (v === 2) for (let s = 0; s < 3; s++) { const x = x0 + (tpHash(k, s * 5 + 40) - .5) * 1.4, z = z0 + (tpHash(k, s * 5 + 41) - .5) * 1.4; put('flower', x, terH(x, z) + .32 + tpHash(k, s * 5 + 42) * .15, z, 1, 1, 1, tpHash(k, s) * 3, 0, fls[(tpHash(k, s * 5 + 43) * fls.length) | 0]); }
   }
+  // whatever changed the water (brush, 圈池塘, loading, an old save), every joined pond is levelled before it is drawn
+  if (!TER.down) { try { tpFixLevels(); } catch (e) { console.warn('tp levels', e); } }
   try { tpWater(floors); } catch (e) { console.warn('tp water', e); }
   for (const m in M) { M[m].count = cnt[m]; M[m].instanceMatrix.needsUpdate = true; if (M[m].instanceColor) M[m].instanceColor.needsUpdate = true; M[m].visible = S.isl && !S.dun; }
 }
@@ -18718,10 +18720,14 @@ function trivFinishRiver(c) {
   TRIV.list.push({ w: c.w, p: c.p.slice(), l: lv.map(v => Math.round(v * 100) / 100) }); TRIV.dirty = true;
   try { TPATH.dirty = true; TPAINT.dirty = true; } catch (e) { }
 }
+// the ground's height before anything was dug (like the water brush): a loop drawn across an old pond took the dug pond floor
+// as its level, and the whole joined pond dropped ~0.9 m under its banks
+function trivNat(x, z) { const N = TER_N, i = Math.round((x + TER_O) / TER_S), j = Math.round((z + TER_O) / TER_S); if (i < 0 || j < 0 || i >= N || j >= N) return terH(HOME.x + x, HOME.z + z);
+  return TER.h[j * N + i] < 0 ? terBase(Math.hypot(x, z)) : terH(HOME.x + x, HOME.z + z); }
 function trivFinishPond(c) {
   const P = c.p, n = P.length / 2; if (n < 5) return; const N = TER_N;
   let minx = 1e9, maxx = -1e9, minz = 1e9, maxz = -1e9, lvl = 1e9;
-  for (let i = 0; i < n; i++) { const x = P[i * 2], z = P[i * 2 + 1]; minx = Math.min(minx, x); maxx = Math.max(maxx, x); minz = Math.min(minz, z); maxz = Math.max(maxz, z); lvl = Math.min(lvl, terH(HOME.x + x, HOME.z + z)); }
+  for (let i = 0; i < n; i++) { const x = P[i * 2], z = P[i * 2 + 1]; minx = Math.min(minx, x); maxx = Math.max(maxx, x); minz = Math.min(minz, z); maxz = Math.max(maxz, z); lvl = Math.min(lvl, trivNat(x, z)); }
   if (maxx - minx < 1.5 || maxz - minz < 1.5) return; lvl -= .15;
   const inside = (x, z) => { let c = false; for (let i = 0, j = n - 1; i < n; j = i++) { const xi = P[i * 2], zi = P[i * 2 + 1], xj = P[j * 2], zj = P[j * 2 + 1]; if (((zi > z) !== (zj > z)) && (x < (xj - xi) * (z - zi) / (zj - zi) + xi)) c = !c; } return c; };
   const edge = (x, z) => { let m = 1e9; for (let i = 0, j = n - 1; i < n; j = i++) { const ax = P[j * 2], az = P[j * 2 + 1], bx = P[i * 2], bz = P[i * 2 + 1], dx = bx - ax, dz = bz - az, L = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L)); m = Math.min(m, Math.hypot(x - ax - dx * t, z - az - dz * t)); } return m; };
@@ -18735,6 +18741,10 @@ function trivFinishPond(c) {
     if (inn && e > .35 && lk >= .99) { TPAINT.p[k] = 4; TPAINT.wl[k] = lvl; ch = true; } }
   function H_set(k, v) { TER.h[k] = clamp(v, TER_MIN, TER_MAX); }
   if (ch) { TER.any = true; for (let j = j0 - 1; j <= j1 + 1; j++) for (let i = i0 - 1; i <= i1 + 1; i++) if (i >= 0 && j >= 0 && i < N && j < N) terVert(i, j); terMeshDone(true); try { terProps(); } catch (e) { } TPAINT.dirty = true; try { TPATH.dirty = true; } catch (e) { } }
+  // THE BUG (owner 18 Nov: 'drawing a pond makes all the water vanish'): a drawn pond touching an old pond joined it with a
+  // different level, but the level fix only ran after the WATER BRUSH, never after 圈池塘 — so the whole joined pond was drawn
+  // at the new pond's lower level, under the old pond's ground. Now every drawn pond is levelled and dug like a brushed one.
+  if (ch) { try { tpFixLevels(); } catch (e) { console.warn('pond levels', e); } }
 }
 
 // ---- the water ribbon of each river ----
@@ -22635,4 +22645,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794971409').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794975720').catch(()=>{});</script></body></html>
