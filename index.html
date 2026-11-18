@@ -2567,7 +2567,7 @@ const WMODEL = {
     return 1.2;
   }
 };
-function buildWeapon(id, t) { const g = new THREE.Group(); const mz = WMODEL[id](t, g); g.userData.muzzle = mz; return g; }
+function buildWeapon(id, t) { const g = new THREE.Group(); g.userData.wid = id; const mz = WMODEL[id](t, g); g.userData.muzzle = mz; return g; }
 
 /* ---- low-poly item models (bag icons and loot on the ground share them) ---- */
 const IMODEL = {
@@ -2680,6 +2680,75 @@ function renderIcons() {
 if (typeof IMODEL2 !== 'undefined') Object.assign(IMODEL, IMODEL2);
 renderIcons();
 const wIconKey = (id, L) => 'w_' + id + '_' + wTier(Math.max(1, L == null ? wLv(id) : L));
+/* ============ real-looking melee weapons (owner 18 Nov: "把武器建模做的真一点…镐子不像镐子") ============
+   Axe, pickaxe and katana rebuilt from real outlines (THREE.Shape extruded, flat-shaded) instead of stacked boxes:
+   - 斧头: a slightly bent wooden haft with a swelled end, a forged head with a flared, curved bit and a bright sharpened edge,
+     a wedge collar round the eye; tiers add leather grip wraps, a back spike, gold trim on the cheek, glowing runes
+   - 镐子: a haft like the axe's, and a CURVED head that crosses it: a sharp pick point on one side and a flat chisel on the
+     other, both ends swept back toward you like a real pickaxe; tiers add wraps, a steel collar, trim, glowing tips
+   - 武士刀: a curved blade (sori) with a real kissaki tip, a bright hamon line along the edge, an oval tsuba, habaki,
+     a tsuka with diamond wrap; tiers as before (trim, glowing hamon)
+   Same muzzle / length as before so hits, skins and hand placement don't move. Loaded right after a5_weapons.js. */
+const WM2 = {};
+// a flat outline in the weapon's z/y plane, extruded across x (centred), flat-shaded
+function wm2Shape(pts, depth, c, g, x, bevel) { const s = new THREE.Shape();
+  if (typeof s.moveTo !== 'function') { let a = 1e9, b = -1e9, c2 = 1e9, d = -1e9; for (const [z, y] of pts) { a = Math.min(a, z); b = Math.max(b, z); c2 = Math.min(c2, y); d = Math.max(d, y); } return _bx(depth, d - c2, b - a, c, x || 0, (c2 + d) / 2, (a + b) / 2, g); }   // headless test stub
+  s.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) s.lineTo(pts[i][0], pts[i][1]);
+  const geo = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: !!bevel, bevelThickness: bevel || 0, bevelSize: bevel || 0, bevelSegments: 1, curveSegments: 4 });
+  geo.translate(0, 0, -depth / 2); geo.rotateY(-Math.PI / 2); const m = new THREE.Mesh(geo, typeof c === 'number' ? new THREE.MeshLambertMaterial({ color: c, flatShading: true }) : c); m.position.x = x || 0; g.add(m); return m; }
+// a haft made of a few tapered round segments with a gentle bend, swelled at the end
+function wm2Haft(g, p, z0, z1, r, bend) { const n = 4, L = (z1 - z0) / n;
+  for (let i = 0; i < n; i++) { const za = z0 + i * L, zb = za + L, ya = bend * Math.sin(Math.PI * (za - z0) / (z1 - z0)), yb = bend * Math.sin(Math.PI * (zb - z0) / (z1 - z0)), rr = r * (1 - .1 * i / n);
+    const m = _cy(rr, rr * 1.02, Math.hypot(L, yb - ya) + .004, 7, p.grip, 0, (ya + yb) / 2, (za + zb) / 2, g, HALF); m.rotation.x = HALF - Math.atan2(yb - ya, L); }
+  _cy(r * 1.35, r * 1.1, .07, 7, p.grip, 0, 0, z0 - .01, g, HALF); _cy(r * 1.2, r * 1.35, .03, 7, p.dark, 0, 0, z0 - .055, g, HALF); }
+WMODEL.axe = function (t, g) { const p = TP[t];
+  wm2Haft(g, p, -.27, .7, .032, .025);
+  if (t >= 1) for (let i = 0; i < 4; i++) _cy(.036, .036, .045, 7, p.dark, 0, 0, -.18 + i * .055, g, HALF);   // leather grip wraps
+  // head: eye + neck + flared bit with a curved edge (points in z, y)
+  const arc = (a, b, ym, n) => { const o = []; for (let i = 0; i <= n; i++) { const f = i / n, z = a + (b - a) * f; o.push([z, ym + .055 * Math.sin(Math.PI * f) - .02 * Math.abs(f - .5)]); } return o; };
+  const edge = arc(.82, .38, .33, 8);
+  wm2Shape([[.54, -.07], [.68, -.07], [.69, .07], [.76, .15], [.84, .27]].concat(edge.map(([z, y]) => [z, y - .045])).concat([[.42, .25], [.5, .15], [.55, .07]]), .05, p.metal, g, 0, .006);
+  wm2Shape(edge.concat(edge.slice().reverse().map(([z, y]) => [z, y - .05])), .026, p.edge, g, 0, .004);   // the sharpened bright edge
+  _bx(.075, .15, .16, p.dark, 0, 0, .61, g);   // eye collar round the haft
+  _bx(.08, .03, .17, p.metal, 0, -.085, .61, g); _bx(.08, .02, .17, p.metal, 0, .07, .61, g);
+  if (t >= 2) { const sp = _cy(0, .035, .16, 4, p.metal, 0, -.15, .61, g); sp.rotation.x = Math.PI; }                    // back spike
+  if (t >= 3) { wm2Shape([[.6, .12], [.74, .2], [.72, .24], [.58, .16]], .056, p.trim, g, 0); }                          // gold trim on the cheek
+  if (t >= 4) { for (const s of [-1, 1]) for (let i = 0; i < 3; i++) _bx(.004, .05, .012, p.acc, s * .031, .14 + i * .04, .56 + i * .06, g, .5); }   // glowing runes
+  return .6; };
+WMODEL.pick = function (t, g) { const p = TP[t];
+  wm2Haft(g, p, -.28, .72, .032, .02);
+  if (t >= 1) for (let i = 0; i < 4; i++) _cy(.036, .036, .045, 7, p.dark, 0, 0, -.19 + i * .055, g, HALF);
+  // curved head across the haft: centre line z = .7 - .55*y², thick in the middle; +y end a flat chisel, -y end a sharp point
+  const N = 12, top = [], bot = [], C = y => .7 - .55 * y * y;
+  for (let i = 0; i <= N; i++) { const y = -.44 + .88 * i / N, a = Math.abs(y) / .44, h = y > 0 ? .05 - .028 * a : .05 * (1 - Math.pow(a, 1.3)) + .003; top.push([C(y) + h, y]); bot.push([C(y) - h, y]); }
+  wm2Shape(top.concat(bot.reverse()), .055, p.metal, g, 0, .006);
+  wm2Shape([[C(.44) + .024, .44], [C(.44) - .024, .44], [C(.4) - .028, .4], [C(.4) + .028, .4]], .06, p.edge, g, 0);       // chisel edge
+  wm2Shape([[C(-.44), -.455], [C(-.36) - .016, -.36], [C(-.36) + .016, -.36]], .058, p.edge, g, 0);                         // bright point
+  _bx(.08, .13, .14, p.dark, 0, 0, .7, g);                                                                                   // eye collar
+  if (t >= 2) { _bx(.085, .03, .15, p.metal, 0, .07, .7, g); _bx(.085, .03, .15, p.metal, 0, -.07, .7, g); }
+  if (t >= 3) { for (const s of [-1, 1]) _bx(.062, .02, .06, p.trim, 0, s * .2, C(s * .2) + .02, g, 0, 0, 0); }
+  if (t >= 4) { for (const y of [-.4, .4]) { const o = new THREE.Mesh(new THREE.OctahedronGeometry(.025), p.acc); o.position.set(0, y, C(y)); g.add(o); } }
+  return .7; };
+WMODEL.blade = function (t, g) { const p = TP[t], wrap = [0x3a2a24, 0x2a2a30, 0x1c1c26, 0x2a1418, 0x1a0e10][t], ito = [0x5a4a40, 0x8a2a2a, 0x2a3a6a, 0x1a1a1a, 0x8a1a1a][t];
+  // tsuka: wrapped grip with a diamond pattern, kashira cap
+  _bx(.044, .058, .34, wrap, 0, 0, -.1, g); for (let i = 0; i < 6; i++) { const d = _bx(.048, .03, .03, ito, 0, 0, -.25 + i * .055, g, 0, 0, 0); d.rotation.x = .78; d.scale.set(1, 1.3, 1); }
+  _bx(.05, .064, .035, p.dark, 0, 0, -.285, g);
+  const ts = _cy(.085, .085, .02, 10, t >= 3 ? p.trim : p.dark, 0, 0, .085, g, HALF); ts.scale.set(1, 1, 1.25);              // oval tsuba
+  _bx(.026, .07, .05, t >= 3 ? p.trim : 0xb8a070, 0, .005, .12, g);                                                        // habaki
+  // the blade: centre curve y = .1*f², height tapering, kissaki at the end (points in z, y)
+  const N = 14, z0 = .14, z1 = 1.18, sp = [], ed = [], cy = f => .1 * f * f;
+  for (let i = 0; i <= N; i++) { const f = i / N, z = z0 + (z1 - z0) * f, w = .066 - .016 * f; sp.push([z, cy(f) + w * .5]); ed.push([z, cy(f) - w * .5]); }
+  const tip = [z1 + .1, cy(1) + .045];   // kissaki: the edge sweeps up to meet the spine
+  wm2Shape(sp.concat([tip]).concat(ed.slice().reverse()), .016, p.edge, g, 0, .002);
+  // spine (mune) slightly darker, and the hamon line along the edge
+  const mune = sp.map(([z, y]) => [z, y]).concat(sp.slice().reverse().map(([z, y]) => [z, y - .012]));
+  wm2Shape(mune, .02, p.metal, g, 0);
+  const hm = ed.map(([z, y], i) => [z, y + .012 + .004 * Math.sin(i * 1.7)]).concat(ed.slice().reverse().map(([z, y]) => [z, y + .004]));
+  wm2Shape(hm, .019, t >= 4 ? p.acc : t >= 2 ? 0xffffff : 0xd8dde4, g, 0);
+  if (t >= 1) _bx(.05, .062, .04, p.acc, 0, 0, -.02, g);                                                                 // seppa / fuchi
+  if (t >= 3) _bx(.054, .068, .02, p.trim, 0, 0, -.27, g);
+  if (t >= 4) { const r = _cy(.088, .088, .01, 10, p.acc, 0, 0, .085, g, HALF); r.scale.set(1, 1, 1.25); }
+  return 1.2; };
 /* ============ game state ============ */
 const S = {
   started: false, dead: false, t: 0, hp: 100, maxHp: 100,
@@ -8136,7 +8205,7 @@ function applyWSkin(g, key) {
   const solid = meshes.filter(m => !(m.material && m.material.isMeshBasicMaterial)), rank = solid.map(m => [lum(m), m]).sort((a, b) => a[0] - b[0]);
   rank.forEach(([, m], i) => { const q = i / Math.max(1, rank.length); m.material = q < .45 ? A : q < .8 ? B : C; });
   meshes.forEach(m => { if (m.material && m.material.isMeshBasicMaterial) m.material = GL; });
-  if (K.custom) return;   // skins with their own hand-made extras (凤鸣) skip the generic stripes, gems, rings and glow box
+  if (K.custom || (g.userData.wid && WEAP[g.userData.wid] && WEAP[g.userData.wid].cls === 'melee')) return;   // melee: no generic stripes / gems / rings (owner: 莫名其妙的线方块); skins with their own hand-made extras (凤鸣) skip the generic stripes, gems, rings and glow box
   try { const bb = new THREE.Box3().setFromObject(g), sz = new THREE.Vector3(), ct = new THREE.Vector3(); bb.getSize(sz); bb.getCenter(ct);
     const L = Math.max(.2, sz.z * .62), hw = sz.x / 2 + .006;
     for (const s of [-1, 1]) { const st = new THREE.Mesh(new THREE.BoxGeometry(.016, .022, L), GL); st.position.set(ct.x + s * hw, ct.y + sz.y * .1, ct.z); g.add(st); }
@@ -22014,7 +22083,8 @@ function ghPremium(g, G, bb, sz, ct) {
   if (!M.pulse) { M.pulse = new THREE.MeshBasicMaterial({ color: G.wp.glow, transparent: true, opacity: .9 }); M.aura = new THREE.MeshBasicMaterial({ color: G.wp.glow, transparent: true, opacity: .14, depthWrite: false, blending: THREE.AdditiveBlending });
     M.flame = new THREE.MeshBasicMaterial({ color: G.wp.tr2, transparent: true, opacity: .9 }); M.gold = new THREE.MeshLambertMaterial({ color: 0xffd27a, emissive: 0x6a4410 }); }
   const P = { fl: [], spk: 0 };
-  for (const sd of [-1, 1]) { const st = new THREE.Mesh(new THREE.BoxGeometry(.014, .02, L), M.pulse); st.position.set(ct.x + sd * hw, ct.y + sz.y * .12, ct.z); g.add(st);
+  const mel = g.userData.wid && WEAP[g.userData.wid] && WEAP[g.userData.wid].cls === 'melee';   // melee: no trim strips / side badges floating off the head
+  for (const sd of (mel ? [] : [-1, 1])) { const st = new THREE.Mesh(new THREE.BoxGeometry(.014, .02, L), M.pulse); st.position.set(ct.x + sd * hw, ct.y + sz.y * .12, ct.z); g.add(st);
     // ghost-face badge: a white rounded plate with gold rim and two eyes
     const b = new THREE.Group(), r = Math.max(.03, Math.min(.06, sz.y * .22)); b.position.set(ct.x + sd * (hw + .004), ct.y - sz.y * .05, zAt(.35)); b.rotation.y = sd * Math.PI / 2; g.add(b);
     const rim = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.2, r * 1.2, .008, 6), M.gold); rim.rotation.x = Math.PI / 2; b.add(rim);
@@ -22351,6 +22421,10 @@ function w3Build(g, k) {
   const B = c => new THREE.MeshBasicMaterial({ color: c }), L = c => new THREE.MeshLambertMaterial({ color: c, flatShading: true });
   const A = { g, k, sz, ct, bb, list: [], spk: 0 };
   const add = (geo, m, x, y, z, fx) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); if (fx) { o.userData.w3 = fx; o.userData.p0 = o.position.clone(); A.list.push(o); } return o; };
+  const wid = g.userData.wid, mel = wid && WEAP[wid] && WEAP[wid].cls === 'melee';
+  if (mel) { const hz0 = bb.min.z + .06, hz1 = { axe: .5, pick: .55, blade: .03 }[wid] || .3, hr = wid === 'blade' ? .032 : .036;
+    (WSK3M[k] || (() => { }))({ add, B, L, hz0, hz1, hr, wid, A, zc: (hz0 + hz1) / 2 });
+    const host = add(new THREE.BoxGeometry(.001, .001, .001), B(0), ct.x, ct.y, ct.z); host.onBeforeRender = () => { try { w3Tick(A, performance.now() / 1000); } catch (e) { } }; return; }
   const U = Math.min(sz.y, sz.z * .22);   // a 'thickness' unit: melee heads are tall, so size the add-ons by this, not by the height
   WSK3[k]({ add, B, L, sz, ct, hw, top, bot, zAt, R, A, U });
   const host = add(new THREE.BoxGeometry(.001, .001, .001), B(0), ct.x, ct.y, ct.z);   // always visible: a hidden mesh never calls onBeforeRender
@@ -22408,6 +22482,27 @@ WSK3.sakura = ({ add, B, L, sz, ct, hw, top, zAt , U }) => {
     add(new THREE.OctahedronGeometry(r * .5), Y, cx + s * .004, cy, cz); }
   for (const s of [-1, 1]) { const b = add(new THREE.ConeGeometry(U * .18, U * .4, 4), P2, ct.x + s * sz.y * .2, top + sz.y * .1, zAt(.1), 'flap'); b.rotation.z = s * Math.PI / 2; b.userData.r0 = b.rotation.z; b.userData.s = s;
     const t = add(new THREE.BoxGeometry(.012, sz.y * .6, .01), P, ct.x + s * sz.y * .1, top - sz.y * .2, zAt(.06), 'flap'); t.userData.r0 = s * .3; t.userData.s = s; t.userData.ph = 1; } };
+
+/* melee weapons: the add-ons sit ON the haft / grip (and at the head collar), never floating round the bounding box —
+   owner: lines and blocks floating round the axe / knife made no sense */
+const _w3ring = (add, m, z, r, fx) => { const o = add(new THREE.TorusGeometry(r, r * .22, 5, 10), m, 0, 0, z, fx); return o; };
+const WSK3M = {
+  dragon: ({ add, B, L, hz0, hz1, hr }) => { for (let i = 0; i < 7; i++) { const a = i * 1.1, z = hz0 + (hz1 - hz0) * (i + .5) / 7, m = add(new THREE.OctahedronGeometry(hr * .55), i % 2 ? L(0x8a1410) : L(0xe8b040), Math.cos(a) * hr, Math.sin(a) * hr, z); m.scale.set(1, .5, 1.4); }
+    _w3ring(add, L(0xe8b040), hz0, hr * 1.25); _w3ring(add, L(0xe8b040), hz1, hr * 1.25); const g = add(new THREE.OctahedronGeometry(hr * .9), B(0xff5a10), 0, 0, hz0 - .04, 'flick'); g.scale.y = 1.4; },
+  neon: ({ add, B, hz0, hz1, hr }) => { for (let i = 0; i < 5; i++) { const o = _w3ring(add, B(0x40f0ff), hz0 + (hz1 - hz0) * i / 4, hr * 1.12, 'run'); o.userData.ph = i * .12; } },
+  lava: ({ add, B, hz0, hz1, hr }) => { for (let i = 0; i < 6; i++) { const c = add(new THREE.BoxGeometry(.008, .008, (hz1 - hz0) * .14), B(0xff5a10), Math.cos(i * 2.1) * hr * 1.02, Math.sin(i * 2.1) * hr * 1.02, hz0 + (hz1 - hz0) * (i + .5) / 6, 'breathe'); c.rotation.z = i; c.userData.ph = i; } },
+  celest: ({ add, B, L, hz1, hr, wid, hz0 }) => { for (const s of [-1, 1]) for (let i = 0; i < 3; i++) { const f = add(new THREE.OctahedronGeometry(.05 - i * .01), i % 2 ? L(0xd8ecff) : L(0xf8f4ec), s * (hr + .03 + i * .025), .02 + i * .03, hz1 - .02 - i * .03, 'flap');
+      f.scale.set(.25, 1, 2.4); f.rotation.z = -s * (.4 + i * .3); f.userData.r0 = f.rotation.z; f.userData.s = s; }
+    _w3ring(add, B(0xffe08a), hz0 + .02, hr * 1.2); _w3ring(add, B(0xffe08a), (hz0 + hz1) / 2, hr * 1.15); },
+  gold: ({ add, B, L, hz0, hz1, hr }) => { for (let i = 0; i < 4; i++) _w3ring(add, L(0xf0c050), hz0 + (hz1 - hz0) * i / 3, hr * 1.18);
+    for (let i = 0; i < 3; i++) add(new THREE.OctahedronGeometry(hr * .4), B(i === 1 ? 0x4ad8ff : 0xff4a6a), 0, hr * 1.05, hz0 + (hz1 - hz0) * (i + .5) / 3); },
+  ice: ({ add, B, L, hz0, hz1, hr }) => { for (let i = 0; i < 6; i++) { const a = i * 1.05, c = add(new THREE.OctahedronGeometry(hr * .5), i % 2 ? B(0xffffff) : L(0xcfeeff), Math.cos(a) * hr * 1.4, Math.sin(a) * hr * 1.4, hz1 - .02); c.scale.set(.6, 2, .6); c.rotation.z = a - Math.PI / 2; }
+    for (let i = 0; i < 3; i++) _w3ring(add, B(0x9fe8ff), hz0 + (hz1 - hz0) * (i + .5) / 3, hr * 1.1); },
+  sakura: ({ add, B, hz0, hz1, hr }) => { for (let i = 0; i < 4; i++) { const a = i * 1.6, z = hz0 + (hz1 - hz0) * (i + .5) / 4, cx = Math.cos(a) * hr * 1.1, cy = Math.sin(a) * hr * 1.1;
+      for (let p = 0; p < 5; p++) { const b = p / 5 * 6.283, q = add(new THREE.OctahedronGeometry(hr * .32), B(i % 2 ? 0xffb0d8 : 0xff80b8), cx + Math.cos(b) * hr * .32, cy + Math.sin(b) * hr * .32, z); q.scale.set(1, 1, .3); }
+      add(new THREE.OctahedronGeometry(hr * .16), B(0xffe08a), cx, cy, z); }
+    const r = add(new THREE.BoxGeometry(.012, .14, .008), B(0xff80b8), .02, -.08, hz0, 'flap'); r.userData.r0 = .2; r.userData.s = 1; }
+};
 /* ============ 深渊商店: spend 深渊币 with the diver of the 深渊号 (owner 18 Nov: "add a trade system to the abyss") ============
    Opened from the abyss page (button 深渊商店 next to 下潜). The trader is the brass-helmet diver who stands on the sub.
    Tabs: 升级材料 (now) · 皮肤 (empty: the owner will hand over skin code later, then they go in ABYSHOP_SKINS).
@@ -23579,4 +23674,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795013544').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795014255').catch(()=>{});</script></body></html>
