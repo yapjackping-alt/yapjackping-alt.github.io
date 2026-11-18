@@ -5528,11 +5528,16 @@ function gearValid(it) { return Array.isArray(it) && (it.length === 5 || (it.len
 // [slot, quality, level, set, seed, durability, repairs, enhance, trait, ...affixes]; older pieces get their trait and affixes rolled from the seed
 const gFix = it => { const a = it.slice(0, 5); a.push(clamp(it.length >= 7 ? it[5] : 100, 0, 100), clamp(it.length >= 7 ? it[6] | 0 : 0, 0, GREP_MAX), clamp(it.length >= 8 ? it[7] | 0 : 0, 0, 15));
   if (it.length >= 9) { a.push(clamp(it[8] | 0, -1, 99)); for (let i = 9; i < it.length && i < 15; i++) a.push(Math.max(0, it[i] | 0)); afxSanitize(a); } else afxGen(a); return a; };
+// percentage base stats (crit / def / dmg / spd / coin) grow on a gentler curve (owner 18 Nov: a top helmet alone had 26-33%
+// crit, over the 30% whole-body cap, so gloves and crit lines were worthless): the best possible piece (不朽 Lv.100 +15) gets about
+// a third of the cap, lower pieces less (power 0.6 of their share). Flat stats (life, stamina) keep the old straight growth.
+const GPW_MAX = (1 + 5 * .75) * 1.08 * (1 + 100 * .035) * (1 + .06 * 15);
+function gBaseV(s, k, pwe, r) { const c = GCAP[k]; if (c != null && k !== 'hp' && k !== 'sta') return c / 3 * Math.pow(Math.min(1, pwe / GPW_MAX), .6) * r; return GSTAT[s][k] * pwe * r; }
 function gStats(it, raw) {
   if (!raw && gDur(it) <= 0) return {};          // broken: gives nothing until repaired
   const s = gSlot(it), q = it[1], lv = q === 6 ? 100 : it[2], R = mulberry32(it[4] | 0), pw = (q === 6 ? (1 + 5 * .75) * 1.08 : 1 + q * .75) * (1 + lv * .035), o = {};      // 不朽: a little above 神话, always top level
-  for (const k in GSTAT[s]) o[k] = GSTAT[s][k] * pw * (.88 + R() * .24);
-  if (it[7] > 0) { const m = 1 + .06 * it[7]; for (const k in GSTAT[s]) o[k] *= m; }        // enhancement: +6% per level on the base stats (affixes get their own small bonus)
+  const m = it[7] > 0 ? 1 + .06 * it[7] : 1;        // enhancement: +6% per level on the base stats (affixes get their own small bonus)
+  for (const k in GSTAT[s]) o[k] = gBaseV(s, k, pw * m, .88 + R() * .24);
   if (raw !== 'base') afxStats(it, o);
   return o;
 }
@@ -21564,7 +21569,7 @@ function g3Info(it) {
   let h = '<div class="g3info"><div class="g3ch"><b>属性上限 · ' + Q.n + ' ' + g3Esc(gName(it)) + '</b><button class="g3x g3ix" aria-label="关闭">✕</button></div>';
   h += '<p class="g3ip">' + Q.n + '品质：固定词条 ' + L + ' 条 · 可洗词条 ' + R + ' 条。下面是这件装备（Lv.' + it[2] + (e ? ' +' + e : '') + '）每一种属性能有的范围；「全身上限」是所有装备加起来最多能到多少，超过的部分没有用。</p>';
   h += '<h5>基础属性（' + GSLOT_N[s] + '固定有）</h5>';
-  for (const k in GSTAT[s]) { const b = GSTAT[s][k] * pw * em; h += '<div class="g3ir"><i>' + GSTAT_N[k][0] + '</i><span>' + g3Fm(k, b * .88) + ' ~ ' + g3Fm(k, b * 1.12) + '</span><em>' + (GCAP[k] != null ? '全身上限 ' + g3Fm(k, GCAP[k]) : '没有上限') + '</em><small>' + (G3_EXP[k] || '') + '</small></div>'; }
+  for (const k in GSTAT[s]) { h += '<div class="g3ir"><i>' + GSTAT_N[k][0] + '</i><span>' + g3Fm(k, gBaseV(s, k, pw * em, .88)) + ' ~ ' + g3Fm(k, gBaseV(s, k, pw * em, 1.12)) + '</span><em>' + (GCAP[k] != null ? '全身上限 ' + g3Fm(k, GCAP[k]) : '没有上限') + '</em><small>' + (G3_EXP[k] || '') + '</small></div>'; }
   h += '<h5>词条（每条随机一种，同一件不重复）</h5>';
   AFX.forEach((A, ai) => { const lo = afxVal(it, ai * 1000), hi = afxVal(it, ai * 1000 + 999); const cap = GCAP[A.k];
     h += '<div class="g3ir"><i>' + A.n + '</i><span>' + g3Fm(A.k, lo) + ' ~ ' + g3Fm(A.k, hi) + '</span><em>' + (cap != null ? '全身上限 ' + g3Fm(A.k, cap) : '没有上限') + '</em><small>' + (G3_EXP[A.k] || '') + '</small></div>'; });
@@ -22838,4 +22843,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794994581').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794995137').catch(()=>{});</script></body></html>
