@@ -21914,6 +21914,41 @@ function econCheck() {
   ECON.bad = bad; if (bad.length) console.warn('ECON price rule broken:\n' + bad.join('\n')); return bad;
 }
 try { econCheck(); } catch (e) { }
+/* ============ elemental 洗练 lines (owner 18 Nov: "add fire damage, water damage … more variety") ============
+   New affix lines at the END of AFX (old pieces keep their lines). On every hit of yours:
+   - 火焰伤害   +X% of the hit as fire, and the target keeps burning a little (2 s)
+   - 冰霜伤害   +X% of the hit as cold, and the target is slowed (1 s)
+   - 雷电伤害   +X% of the hit as lightning; 1 in 5 hits also arcs to one zombie nearby (double the bonus)
+   - 毒素伤害   +X% of the hit as poison, dealt over 3 s (stacks up to 3 hits' worth)
+   - 元素强化   makes all of the above AND the weapon's element core (火 / 雷 / 水) stronger
+   Caps on the 6 gear pieces in GCAP like every line. Switch: GAFX2_ON. */
+const GAFX2_ON = true;
+if (GAFX2_ON) {
+  AFX.push({ k: 'fireDmg', n: '火焰伤害', lo: .03, hi: .08, pct: 1 }, { k: 'iceDmg', n: '冰霜伤害', lo: .03, hi: .08, pct: 1 }, { k: 'shockDmg', n: '雷电伤害', lo: .03, hi: .08, pct: 1 },
+    { k: 'poisonDmg', n: '毒素伤害', lo: .04, hi: .1, pct: 1 }, { k: 'elemAmp', n: '元素强化', lo: .05, hi: .12, pct: 1 });
+  Object.assign(GCAP, { fireDmg: .3, iceDmg: .3, shockDmg: .3, poisonDmg: .4, elemAmp: .5 });   // kept low: all four together with 元素强化 already add up to about double damage
+  for (const A of AFX) if (!GSTAT_N[A.k]) GSTAT_N[A.k] = [A.n, v => '+' + (A.pct ? pc1(v) : A.dec ? v.toFixed(2) : Math.round(v))];
+  try { Object.assign(G3_EXP, { fireDmg: '每次攻击多打这么多火焰伤害，还会让目标烧一会儿', iceDmg: '每次攻击多打这么多冰霜伤害，还会让目标变慢', shockDmg: '每次攻击多打这么多雷电伤害，有时会电到旁边的丧尸',
+    poisonDmg: '每次攻击让目标中毒，3 秒内慢慢扣这么多血', elemAmp: '上面四种元素伤害和武器元素核心（火 / 雷 / 水）都更强' }); } catch (e) { }
+}
+const g2a = k => GAFX2_ON ? Math.max(0, Math.min(GCAP[k] || 1, gst(k) || 0)) : 0;
+let _g2In = false;   // the extra hits must not set off more extra hits
+traitHit = (o => function (z, d, crit) { o.apply(this, arguments); if (_g2In || !GAFX2_ON || !z || z.dead || z.animal || !(d > 0)) return;
+  _g2In = true; try { const amp = 1 + g2a('elemAmp');
+    const f = g2a('fireDmg') * amp; if (f) { hurtZombie(z, d * f, 0, 0); z.burnD = Math.max(z.burnT > 0 ? (z.burnD || 0) : 0, d * f * .25); z.burnT = Math.max(z.burnT || 0, 2); if (Math.random() < .3) burst(z.pos.x, 1.3 * z.sc, z.pos.z, 0xff7a2a, 3, 2); }
+    const c = g2a('iceDmg') * amp; if (c && !z.dead) { hurtZombie(z, d * c, 0, 0); z.slowT = Math.max(z.slowT || 0, 1); if (Math.random() < .3) burst(z.pos.x, 1.2 * z.sc, z.pos.z, 0xbfe8ff, 3, 2); }
+    const s = g2a('shockDmg') * amp; if (s && !z.dead) { hurtZombie(z, d * s, 0, 0);
+      if (Math.random() < .2) { let best = null, bd = 5; for (const q of zombies) { if (q === z || q.dead || q.animal) continue; const dd = Math.hypot(q.pos.x - z.pos.x, q.pos.z - z.pos.z); if (dd < bd) { bd = dd; best = q; } }
+        if (best) { tracer(z.pos.x, 1.3 * z.sc, z.pos.z, best.pos.x, 1.3 * best.sc, best.pos.z, 0x9fe8ff); hurtZombie(best, d * s * 2, 0, 0); } } }
+    const p = g2a('poisonDmg') * amp; if (p && !z.dead) { const add = d * p; z.g2pT = 3; z.g2pD = Math.min((z.g2pD || 0) + add / 3, d * p); }
+  } catch (e) { } finally { _g2In = false; } })(traitHit);
+// 元素强化 also makes the weapon's element core stronger
+attEl = (o => function (id) { const E = o.apply(this, arguments); try { if (E && GAFX2_ON) { const a = g2a('elemAmp'); if (a) E.p *= 1 + a; } } catch (e) { } return E; })(attEl);
+// poison: damage over time, in small bites (through hurtZombie so kills count)
+let _g2pT = 0;
+petsTick = (o => function (dt) { const r = o(dt); try { _g2pT += dt; if (_g2pT >= .5) { const t = _g2pT; _g2pT = 0;
+  for (const z of zombies) { if (z.dead || !(z.g2pT > 0)) continue; const n = Math.min(t, z.g2pT); z.g2pT -= t; _g2In = true; try { hurtZombie(z, z.g2pD * n, 0, 0); } finally { _g2In = false; }
+    if (Math.random() < .25) burst(z.pos.x, 1.2 * z.sc, z.pos.z, 0x8fd84a, 2, 1.5); if (!(z.g2pT > 0)) z.g2pD = 0; } } } catch (e) { } return r; })(petsTick);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -22948,4 +22983,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794998491').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795003093').catch(()=>{});</script></body></html>
