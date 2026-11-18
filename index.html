@@ -21909,6 +21909,221 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
   '.g3luck button{width:32px;height:30px;border-radius:8px;border:1px solid rgba(255,210,122,.6);background:rgba(255,210,122,.15);color:#ffe2a6;font-size:18px;font-weight:900;line-height:1;padding:0}.g3luck button:disabled{opacity:.35}' +
   '.g3lock{display:flex;align-items:center;justify-content:center;gap:6px;min-height:36px;border-radius:10px;border:1.5px solid rgba(159,216,255,.45);background:rgba(159,216,255,.08);color:#d6eeff;font-weight:800;font-size:13px;padding:4px 8px;flex-wrap:wrap}.g3lock i{width:16px;height:16px;border-radius:4px;border:2px solid #9fd8ff;flex:none}.g3lock.on{background:rgba(159,216,255,.2);border-color:#9fd8ff}.g3lock.on i{background:#9fd8ff;box-shadow:inset 0 0 0 2px #12283a}.g3lock small{font-weight:600;opacity:.75}.g3lock:disabled{opacity:.5}' +
   '.g3luck b{min-width:18px;text-align:center;font-size:15px;color:#fff}.g3luck em{font-style:normal;color:#ffd27a;min-width:52px}.g3luck small{font-weight:600;opacity:.7}' })); } catch (e) { }
+/* ============ 萌鬼 series: a mythic skin for EVERY weapon, sold only in the 深渊商店 (owner 18 Nov) ============
+   Owner: "神话级别，全部武器都要，有可爱的鬼怪围绕在周边，每个武器都设计一个自己的鬼怪，打击特效，有鬼怪的扶持，音效走可爱鬼怪风格".
+   Each weapon gets its own little ghost (faceted low-poly, glowing a bit so it reads in daylight):
+     手枪 糖糖  pink, a candy bow          步枪 南瓜  cream, a pumpkin hat       狙击枪 月眠  pale blue, a sleepy nightcap
+     散弹枪 鬼火 lilac, horns + blue flame  斧头 青藤  mint, a leaf sprout        镐子 矿灯  yellow, a miner's lamp helmet
+     武士刀 狐面 white, fox ears + red marks
+   - the ghost floats round the weapon (in hand, in the shop preview, in icons); in first person it sits still beside the gun
+   - 鬼怪扶持: while you are fighting (attacked in the last 3 s), every 3 s the ghost flies out to the nearest monster in 10 m,
+     bonks it for 25% of your weapon damage with a cute pop, and flies back (`ghAssistTick`, petsTick wrapper)
+   - hits: guns shoot a trail of ghost wisps that ends in a pop of the ghost's colours (+ a tiny ghost face on big hits);
+     melee swings leave two crescents in the ghost's colours and a ghost swooping along them (mythShot / mythSwing wrappers)
+   - sound: melee gets a full "wooo" + giggle layer (WSK_SND), guns keep the real gunshot with only a quiet "wooo" tail and a
+     pop on hits (WSK_GUN; owner: guns must sound like guns); the assist says "boo!" + pop
+   Stats like the other mythic skins. Bought with 深渊币 in the shop's 皮肤 tab (ABYSHOP_SKINS, z_abyshop.js); no gacha, no 晶石. */
+const GH_LIST = [
+  { wid: 'pistol', k: 'gh_candy', n: '萌鬼·糖糖', gn: '糖糖', hat: 'bow', body: 0xffc4e2, cheek: 0xff6fa8, ac: 0xff4f8f, pit: 1.25,
+    wp: { base: 0xffd6ea, mid: 0xff8fc0, acc: 0xffffff, glow: 0xff5fa0, tr: 0xff8fc8, tr2: 0xfff0a0 }, d: '粉白色的糖果手枪，两侧亮着会呼吸的粉色光条和小幽灵徽章，三朵小魂火绕着枪口转。小幽灵「糖糖」头绑粉红蝴蝶结，绕着枪飘，打中的地方炸出一团粉色糖果烟。' },
+  { wid: 'rifle', k: 'gh_pumpkin', n: '萌鬼·南瓜', gn: '南瓜', hat: 'pumpkin', body: 0xfff4e0, cheek: 0xff9a6a, ac: 0xff8a1a, pit: 1,
+    wp: { base: 0x2a1a30, mid: 0xff8a1a, acc: 0xffd27a, glow: 0xffa030, tr: 0xffa030, tr2: 0x9a6aff }, d: '深紫配南瓜橙的步枪，亮着橙色光条和小幽灵徽章。戴南瓜帽的小幽灵「南瓜」跟着你飘，子弹拖着一串鬼火。' },
+  { wid: 'sniper', k: 'gh_moon', n: '萌鬼·月眠', gn: '月眠', hat: 'nightcap', body: 0xdcecff, cheek: 0xa8c8ff, ac: 0x5a7aff, pit: .8, sleepy: true,
+    wp: { base: 0x1a2250, mid: 0x9ab8ff, acc: 0xfff2a8, glow: 0xa8d8ff, tr: 0xa8d8ff, tr2: 0xfff2a8 }, d: '夜空蓝的长狙击枪，亮着淡蓝光条和小幽灵徽章。戴睡帽、总在打瞌睡的小幽灵「月眠」在枪边飘，子弹是一道月光色的线。' },
+  { wid: 'shotgun', k: 'gh_wisp', n: '萌鬼·鬼火', gn: '鬼火', hat: 'horns', body: 0xe6d4ff, cheek: 0xc08aff, ac: 0x5ad8ff, pit: .9,
+    wp: { base: 0x2a1648, mid: 0x8a5aff, acc: 0x5ad8ff, glow: 0x7ae8ff, tr: 0x7ae8ff, tr2: 0xc08aff }, d: '紫色散弹枪，亮着青蓝光条和小幽灵徽章，蓝色魂火绕着枪转。头上长小角、顶着一团蓝火的小幽灵「鬼火」跟着你。' },
+  { wid: 'axe', k: 'gh_vine', n: '萌鬼·青藤', gn: '青藤', hat: 'sprout', body: 0xd8ffe8, cheek: 0x8ae0a8, ac: 0x3aaa5a, pit: 1.1,
+    wp: { base: 0x2a4a2a, mid: 0x7ad88a, acc: 0xe8ffd0, glow: 0x8affb0, tr: 0x8affb0, tr2: 0xfff28a }, d: '青绿色的斧头，亮着嫩绿光条和小幽灵徽章。头顶长着两片小叶子的幽灵「青藤」围着斧头转，挥斧时跟着刀光一起冲出去。' },
+  { wid: 'pick', k: 'gh_lamp', n: '萌鬼·矿灯', gn: '矿灯', hat: 'miner', body: 0xfff2b0, cheek: 0xffb070, ac: 0xffd23a, pit: 1.15,
+    wp: { base: 0x3a3028, mid: 0xffd23a, acc: 0xfff6d0, glow: 0xffe27a, tr: 0xffe27a, tr2: 0xff9a4a }, d: '黄铜色的镐子，亮着金黄光条和小幽灵徽章。戴矿工帽、帽上一盏会闪的小灯的幽灵「矿灯」帮你照路，敲下去迸出金色星星。' },
+  { wid: 'blade', k: 'gh_fox', n: '萌鬼·狐面', gn: '狐面', hat: 'fox', body: 0xffffff, cheek: 0xff4a5a, ac: 0xd8283a, pit: 1.35,
+    wp: { base: 0xf4f0f6, mid: 0xd8283a, acc: 0xffd27a, glow: 0xff8aa0, tr: 0xff8aa0, tr2: 0xffffff }, d: '白鞘红纹的武士刀，亮着粉红光条和小幽灵徽章。长着狐狸耳朵、脸上有红纹的小幽灵「狐面」在刀边飘，挥刀时跟着刀光一起冲出去。' }
+];
+const GH = { by: {}, wid: {}, lastAtk: 0, t: 0, away: 0 };
+for (const G of GH_LIST) { GH.by[G.k] = G; GH.wid[G.wid] = G;
+  WSKINS[G.k] = Object.assign({ only: G.wid, st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%，还有小幽灵帮你打', n: G.n, r: 5, custom: true, relicOnly: true, abyOnly: true, d: G.d }, G.wp); }
+
+/* ---- the ghost model: faceted head, a skirt with four points, eyes, blush, little arms, and its hat ---- */
+const GHC = {};
+function ghMats(G) { if (GHC[G.k]) return GHC[G.k]; const L = (c, e) => new THREE.MeshLambertMaterial({ color: c, emissive: e || 0, flatShading: true }), B = c => new THREE.MeshBasicMaterial({ color: c });
+  const em = new THREE.Color(G.body).multiplyScalar(.38).getHex();
+  return (GHC[G.k] = { body: L(G.body, em), skirt: new THREE.MeshLambertMaterial({ color: G.body, emissive: em, flatShading: true, side: THREE.DoubleSide }), eye: B(0x241a2a), shine: B(0xffffff), cheek: B(G.cheek),
+    ac: L(G.ac, new THREE.Color(G.ac).multiplyScalar(.3).getHex()), ac2: L(0xffffff, 0x404040), glow: B(G.wp.glow), green: L(0x4aa84a, 0x153a15), dark: L(0x3a2a20) }); }
+function ghostModel(G, s) {
+  const M = ghMats(G), g = new THREE.Group(), add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x || 0, y || 0, z || 0); g.add(o); return o; };
+  const head = add(new THREE.IcosahedronGeometry(s, 1), M.body); head.scale.set(1, .95, .92);
+  add(new THREE.CylinderGeometry(s * .96, s * 1.12, s * .9, 8, 1, true), M.skirt, 0, -s * .45, 0);
+  for (let i = 0; i < 4; i++) { const a = i / 4 * 6.283 + .4, c = add(new THREE.ConeGeometry(s * .32, s * .5, 4), M.body, Math.cos(a) * s * .82, -s * 1.08, Math.sin(a) * s * .82); c.rotation.x = Math.PI; c.userData.tip = i; }
+  for (const sd of [-1, 1]) {
+    if (G.sleepy) add(new THREE.BoxGeometry(s * .3, s * .06, s * .05), M.eye, sd * s * .32, s * .08, s * .86);
+    else { const e = add(new THREE.OctahedronGeometry(s * .16), M.eye, sd * s * .32, s * .1, s * .84); e.scale.set(.85, 1.3, .5); add(new THREE.BoxGeometry(s * .07, s * .07, s * .03), M.shine, sd * s * .32 + s * .05, s * .18, s * .9); }
+    add(new THREE.BoxGeometry(s * .24, s * .09, s * .03), M.cheek, sd * s * .56, -s * .12, s * .76);
+    const arm = add(new THREE.OctahedronGeometry(s * .2), M.body, sd * s * 1.02, -s * .25, s * .1); arm.scale.set(1, .7, .8); arm.userData.arm = sd; }
+  add(new THREE.BoxGeometry(s * .16, s * .07, s * .03), M.eye, 0, -s * .2, s * .9);
+  const top = s * .92;
+  if (G.hat === 'bow') { for (const sd of [-1, 1]) { const w = add(new THREE.ConeGeometry(s * .26, s * .42, 4), M.ac, sd * s * .26, top, s * .1); w.rotation.z = sd * Math.PI / 2; } add(new THREE.BoxGeometry(s * .16, s * .16, s * .16), M.ac, 0, top, s * .1); }
+  else if (G.hat === 'pumpkin') { const p = add(new THREE.IcosahedronGeometry(s * .62, 0), M.ac, 0, top + s * .05, 0); p.scale.set(1.15, .62, 1.15); add(new THREE.BoxGeometry(s * .1, s * .26, s * .1), M.green, 0, top + s * .45, 0); }
+  else if (G.hat === 'nightcap') { const c = add(new THREE.ConeGeometry(s * .62, s * 1.15, 6), M.ac, s * .12, top + s * .35, 0); c.rotation.z = -.5; add(new THREE.OctahedronGeometry(s * .17), M.ac2, s * .62, top + s * .62, 0); add(new THREE.CylinderGeometry(s * .66, s * .66, s * .14, 8), M.ac2, 0, top - s * .12, 0); }
+  else if (G.hat === 'horns') { for (const sd of [-1, 1]) { const h = add(new THREE.ConeGeometry(s * .14, s * .42, 4), M.cheek, sd * s * .42, top, 0); h.rotation.z = -sd * .35; }
+    const f = add(new THREE.ConeGeometry(s * .22, s * .6, 5), M.glow, 0, top + s * .32, 0); f.userData.flame = 1; }
+  else if (G.hat === 'sprout') { add(new THREE.BoxGeometry(s * .07, s * .3, s * .07), M.green, 0, top + s * .08, 0);
+    for (const sd of [-1, 1]) { const l = add(new THREE.OctahedronGeometry(s * .22), M.green, sd * s * .2, top + s * .26, 0); l.scale.set(1.3, .45, .8); l.rotation.z = sd * .5; } }
+  else if (G.hat === 'miner') { add(new THREE.CylinderGeometry(s * .62, s * .74, s * .36, 8), M.ac, 0, top - s * .02, 0); add(new THREE.CylinderGeometry(s * .86, s * .86, s * .06, 8), M.ac, 0, top - s * .18, 0);
+    const lamp = add(new THREE.BoxGeometry(s * .26, s * .22, s * .14), M.glow, 0, top + s * .02, s * .62); lamp.userData.lamp = 1; }
+  else if (G.hat === 'fox') { for (const sd of [-1, 1]) { const e = add(new THREE.ConeGeometry(s * .24, s * .5, 3), M.body, sd * s * .48, top + s * .02, 0); e.rotation.z = -sd * .3; const ei = add(new THREE.ConeGeometry(s * .12, s * .3, 3), M.cheek, sd * s * .48, top + s * .0, s * .08); ei.rotation.z = -sd * .3; }
+    for (const sd of [-1, 1]) { const mk = add(new THREE.BoxGeometry(s * .26, s * .05, s * .03), M.cheek, sd * s * .4, s * .3, s * .82); mk.rotation.z = sd * .4; } }
+  g.userData.ghead = head; return g;
+}
+// the little dance: bob, arms wave, skirt points wiggle, flame / lamp flicker
+function ghWiggle(gg, t, ph) { gg.children.forEach(o => { const u = o.userData;
+  if (u.arm) o.rotation.z = u.arm * (.3 + Math.sin(t * 6 + ph) * .35);
+  else if (u.tip != null) o.scale.y = 1 + Math.sin(t * 7 + u.tip * 1.6 + ph) * .25;
+  else if (u.flame) o.scale.set(1 + Math.sin(t * 11) * .15, 1 + Math.sin(t * 13 + 1) * .3, 1);
+  else if (u.lamp) o.material.color.setHex(Math.sin(t * 5) > -.6 ? GH_LAMP_ON : GH_LAMP_DIM); }); }
+const GH_LAMP_ON = 0xffe27a, GH_LAMP_DIM = 0xc89a3a;
+
+/* ---- put the ghost on the weapon model (hand, first person, previews, icons) ---- */
+buildWeapon = (orig => function (id, t, skin) { const g = orig(id, t, skin), k = skin !== undefined ? skin : (S.wsk && S.wsk[id]);
+  if (k && GH.by[k] && GH.by[k].wid === id) try { ghOnWeapon(g, GH.by[k]); } catch (e) { console.warn('ghostskin', e); }
+  return g; })(buildWeapon);
+function ghOnWeapon(g, G) {
+  const bb = new THREE.Box3().setFromObject(g), sz = new THREE.Vector3(), ct = new THREE.Vector3(); bb.getSize(sz); bb.getCenter(ct);
+  const big = Math.max(sz.x, sz.y, sz.z), s = Math.max(.11, Math.min(.18, big * .13)), gg = ghostModel(G, s), R = Math.max(sz.x, sz.y) * .5 + s * 2.8, Rz = Math.max(R, sz.z * .42);
+  gg.position.set(ct.x + R, ct.y + sz.y * .4, ct.z); g.add(gg); g.userData.ghost = gg;
+  const P = ghPremium(g, G, bb, sz, ct);
+  const ph = Math.random() * 6, head = gg.userData.ghead;
+  const cw = new THREE.Vector3();
+  head.onBeforeRender = (r0, s0, cam) => { const t = performance.now() / 1000;
+    if (GH.away > t && g === (typeof wpnModel !== 'undefined' ? wpnModel : null)) { gg.scale.setScalar(.001); return; } gg.scale.setScalar(1);   // scale, not visible=false: a hidden mesh never calls this again
+    const fp = typeof FPV !== 'undefined' && FPV && FPV.w === g;
+    if (fp) gg.position.set(ct.x + Math.max(sz.x, sz.y) * .5 + s * 1.6, ct.y + sz.y * .55 + Math.sin(t * 2.4 + ph) * s * .4, ct.z - sz.z * .15);
+    else { const a = t * .9 + ph; gg.position.set(ct.x + Math.cos(a) * R, ct.y + sz.y * .5 + s * 1.4 + Math.sin(t * 2.2 + ph) * s * .6, ct.z + Math.sin(a) * Rz); }
+    try { if (cam) { cam.getWorldPosition(cw); gg.lookAt(cw); } } catch (e) { }   // always looks at whoever is watching
+    ghWiggle(gg, t, ph); try { ghPremTick(g, G, P, t, ph); } catch (e) { } };
+}
+
+/* ---- what makes it look like a 神话 skin (owner: the value is in the effects): on the weapon itself
+   - glowing trim strips down both sides that breathe, and a ghost-face badge on each side
+   - a soft aura shell in the ghost's colour that pulses
+   - three little soul flames circling the barrel / blade
+   - sparkles drifting off the weapon (in the world only)
+   and in the fight: a custom muzzle burst, a pop + ghost face on hits, and a KILL FINISHER: the monster's soul rises as a
+   little ghost with a gold halo while a ring of sparkles opens on the ground (ghSoul). ---- */
+function ghPremium(g, G, bb, sz, ct) {
+  const M = ghMats(G), hw = sz.x / 2 + .008, L = sz.z * .7, zAt = f => bb.min.z + sz.z * f;
+  if (!M.pulse) { M.pulse = new THREE.MeshBasicMaterial({ color: G.wp.glow, transparent: true, opacity: .9 }); M.aura = new THREE.MeshBasicMaterial({ color: G.wp.glow, transparent: true, opacity: .14, depthWrite: false, blending: THREE.AdditiveBlending });
+    M.flame = new THREE.MeshBasicMaterial({ color: G.wp.tr2, transparent: true, opacity: .9 }); M.gold = new THREE.MeshLambertMaterial({ color: 0xffd27a, emissive: 0x6a4410 }); }
+  const P = { fl: [], spk: 0 };
+  for (const sd of [-1, 1]) { const st = new THREE.Mesh(new THREE.BoxGeometry(.014, .02, L), M.pulse); st.position.set(ct.x + sd * hw, ct.y + sz.y * .12, ct.z); g.add(st);
+    // ghost-face badge: a white rounded plate with gold rim and two eyes
+    const b = new THREE.Group(), r = Math.max(.03, Math.min(.06, sz.y * .22)); b.position.set(ct.x + sd * (hw + .004), ct.y - sz.y * .05, zAt(.35)); b.rotation.y = sd * Math.PI / 2; g.add(b);
+    const rim = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.2, r * 1.2, .008, 6), M.gold); rim.rotation.x = Math.PI / 2; b.add(rim);
+    const pl = new THREE.Mesh(new THREE.CylinderGeometry(r, r, .012, 6), M.body); pl.rotation.x = Math.PI / 2; pl.position.z = .002; b.add(pl);
+    for (const e of [-1, 1]) { const ey = new THREE.Mesh(new THREE.BoxGeometry(r * .25, r * .38, .01), M.eye); ey.position.set(e * r * .35, r * .1, .01); b.add(ey); }
+    const ck = new THREE.Mesh(new THREE.BoxGeometry(r * .7, r * .14, .01), M.cheek); ck.position.set(0, -r * .35, .01); b.add(ck); }
+  const R0 = Math.max(sz.x, sz.y) * .55 + .05;
+  for (let i = 0; i < 3; i++) { const f = new THREE.Mesh(new THREE.ConeGeometry(.025, .07, 5), M.flame); f.userData.ph = i * 2.094; g.add(f); P.fl.push(f); }
+  P.c = [ct.x, ct.y, zAt(.6)]; P.r = R0; P.tips = [new THREE.Vector3(ct.x, ct.y, bb.max.z), new THREE.Vector3(ct.x, ct.y, ct.z)]; return P; }
+const _ghV = new THREE.Vector3();
+function ghPremTick(g, G, P, t, ph) { const M = ghMats(G);
+  M.pulse.opacity = .55 + .4 * Math.sin(t * 3.2); M.aura.opacity = .1 + .07 * Math.sin(t * 2.4);
+  P.fl.forEach((f, i) => { const a = t * 2.2 + f.userData.ph; f.position.set(P.c[0] + Math.cos(a) * P.r, P.c[1] + Math.sin(a) * P.r, P.c[2] + Math.sin(t * 1.3 + i) * .06); f.scale.set(1, 1 + .35 * Math.sin(t * 12 + i), 1); });
+  const now = performance.now(); if (now < P.spk || typeof scene === 'undefined' || typeof burst !== 'function') return; P.spk = now + 140;
+  let o = g; while (o.parent) o = o.parent; if (o !== scene) return;   // sparkles only in the world, not in previews / icons
+  _ghV.copy(P.tips[(Math.random() * 2) | 0]); g.localToWorld(_ghV); burst(_ghV.x, _ghV.y, _ghV.z, [G.wp.glow, G.wp.tr2, G.cheek, 0xffffff][(Math.random() * 4) | 0], 1, .5); }
+// kill finisher: the soul floats up as a little ghost with a halo
+let _ghSouls = 0;
+function ghSoul(G, x, y, z) { if (_ghSouls >= 3 || typeof scene === 'undefined') return; _ghSouls++;
+  const gg = ghostModel(G, .24), M = ghMats(G), halo = new THREE.Mesh(new THREE.TorusGeometry(.2, .03, 6, 18), M.gold), t0 = performance.now(), ph = Math.random() * 6;
+  halo.rotation.x = Math.PI / 2; halo.position.y = .42; gg.add(halo); gg.position.set(x, y, z); gg.traverse(o => { o.frustumCulled = false; }); scene.add(gg);
+  gg.userData.ghead.onBeforeRender = (r0, s0, cam) => { const k = (performance.now() - t0) / 1400, t = performance.now() / 1000; ghWiggle(gg, t, ph);
+    gg.position.set(x + Math.sin(t * 4 + ph) * .15, y + k * 2.4, z); gg.scale.setScalar(k < .15 ? k / .15 : k > .75 ? Math.max(.001, (1 - k) / .25) : 1); halo.rotation.z = t * 3;
+    try { if (cam) gg.lookAt(cam.position.x, gg.position.y, cam.position.z); } catch (e) { } };
+  try { const F = fxGeo(); fxPiece(F.ring, G.wp.tr, x, .08, z, .7, (k, m) => { m.rotation.x = -Math.PI / 2; m.scale.setScalar(1 + k * 4); m.material.opacity = .85 * (1 - k); });
+    for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283; fxPiece(F.oct, [G.wp.tr, G.wp.tr2, G.cheek, 0xffffff][i % 4], x, .3, z, .9, (k, m) => { const r = .4 + k * 1.4; m.position.set(x + Math.cos(a) * r, .3 + Math.sin(k * Math.PI) * .9, z + Math.sin(a) * r); m.scale.setScalar(2.4 * (1 - k)); m.rotation.y = k * 8; m.material.opacity = 1 - k; }); } } catch (e) { }
+  try { ghSnd.soul(G.pit); } catch (e) { }
+  setTimeout(() => { try { scene.remove(gg); gg.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } catch (e) { } _ghSouls--; }, 1450); }
+killZombie = (o => function (z) { const mine = z && !z.dead && !z.animal && !z.mirror && !z.hitBy, G = mine ? ghNow() : null, x = z && z.pos ? z.pos.x : 0, zz = z && z.pos ? z.pos.z : 0, y = z && z.pos ? (z.pos.y || 0) + 1.1 * (z.sc || 1) : 1;
+  const r = o.apply(this, arguments); if (G) try { ghSoul(G, x, y, zz); } catch (e) { } return r; })(killZombie);
+
+/* ---- 鬼怪扶持: the ghost flies out, bonks the nearest monster, flies back ---- */
+const ghNow = () => { try { const k = S.wsk && S.wsk[S.wp]; return k && GH.by[k] && GH.by[k].wid === S.wp ? GH.by[k] : null; } catch (e) { return null; } };
+sfx.shot = (o => function () { GH.lastAtk = Date.now(); return o.apply(this, arguments); })(sfx.shot);
+sfx.swing = (o => function () { GH.lastAtk = Date.now(); return o.apply(this, arguments); })(sfx.swing);
+function ghAssistTick(dt) { const G = ghNow(); if (!G) return; GH.t += dt; if (GH.t < 3) return;
+  if (Date.now() - GH.lastAtk > 3000 || S.dead || (typeof buildOpen !== 'undefined' && buildOpen)) return;
+  let best = null, bd = 10; for (const z of zombies) { if (!z || z.dead || z.mirror || (z.animal && !z.hostile)) continue; const d = Math.hypot(z.pos.x - player.pos.x, z.pos.z - player.pos.z); if (d < bd) { bd = d; best = z; } }
+  if (!best) return; GH.t = 0; ghFly(G, best); }
+function ghFly(G, z) {
+  const t0 = performance.now(), PY = (typeof playerY === 'function' && playerY()) || 0, sx = player.pos.x, sy = 1.7 + PY, sz0 = player.pos.z, gg = ghostModel(G, .2);
+  let hitDone = false; gg.position.set(sx, sy, sz0); scene.add(gg); GH.away = performance.now() / 1000 + 1.1; const ph = Math.random() * 6;
+  try { ghSnd.boo(G.pit); } catch (e) { }
+  gg.userData.ghead.onBeforeRender = () => { const k = (performance.now() - t0) / 1000, t = performance.now() / 1000; ghWiggle(gg, t, ph);
+    const tx = z.pos.x, ty = 1.1 * (z.sc || 1) + (z.pos.y || 0), tz = z.pos.z, px = player.pos.x, py = 1.7 + ((typeof playerY === 'function' && playerY()) || 0), pz = player.pos.z;
+    if (k < .35) { const f = k / .35, e = f * f * (3 - 2 * f); gg.position.set(sx + (tx - sx) * e, sy + (ty - sy) * e + Math.sin(f * Math.PI) * .8, sz0 + (tz - sz0) * e); gg.rotation.y = Math.atan2(tx - sx, tz - sz0); gg.scale.setScalar(1); }
+    else if (k < .55) { const f = (k - .35) / .2; gg.scale.set(1 + Math.sin(f * Math.PI) * .35, 1 - Math.sin(f * Math.PI) * .25, 1); }
+    else if (k < 1) { const f = (k - .55) / .45, e = f * f; gg.position.set(tx + (px - tx) * e, ty + (py - ty) * e + Math.sin(f * Math.PI) * .6, tz + (pz - tz) * e); gg.rotation.y = Math.atan2(px - tx, pz - tz); gg.scale.setScalar(1 - e * .7); } };
+  gg.traverse(o => { o.frustumCulled = false; });
+  setTimeout(() => { if (!hitDone) { hitDone = true; ghBonk(G, z, z.pos.x, 1.1 * (z.sc || 1) + (z.pos.y || 0), z.pos.z); } }, 350);   // the bonk does not wait for a frame to be drawn
+  setTimeout(() => { try { scene.remove(gg); gg.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } catch (e) { } }, 1050);
+}
+function ghBonk(G, z, x, y, zz) { try { if (!z.dead) hurtZombie(z, weaponDmg(S.wp) * .25, 0, 0); } catch (e) { } try { ghPop(G, x, y, zz, true); ghSnd.pop(G.pit); } catch (e) { } }
+petsTick = (o => function (dt) { const r = o(dt); try { ghAssistTick(dt); } catch (e) { } return r; })(petsTick);
+
+/* ---- hit effects in the ghost's colours ---- */
+function ghPop(G, x, y, z, big) { const F = fxGeo(), c1 = G.wp.tr, c2 = G.wp.tr2, cb = G.body;
+  fxPiece(F.ico, 0xffffff, x, y, z, .18, (k, m) => { m.scale.setScalar(.6 + k * 1.8); m.material.opacity = 1 - k; });
+  fxPiece(F.ico, cb, x, y, z, .4, (k, m) => { m.scale.setScalar((big ? 1.4 : .9) * (.7 + k * 1.6)); m.position.y = y + k * .4; m.material.opacity = .75 * (1 - k); });   // a soft puff of ghost colour
+  fxPiece(F.ring, c1, x, y, z, .35, (k, m) => { faceCam(m); m.scale.setScalar(1 + k * (big ? 4 : 2.6)); m.material.opacity = .9 * (1 - k); });
+  const n = big ? 8 : 4;
+  for (let i = 0; i < n; i++) { const a = i / n * 6.283 + Math.random() * .5, R = .6 + Math.random() * .5, c = [c1, c2, 0xffffff, G.cheek][i % 4], s = 1.6 + Math.random() * 1.4;
+    fxPiece(F.oct, c, x, y, z, .55 + Math.random() * .25, (k, m) => { const r = R * (1 - Math.pow(1 - Math.min(1, k * 2), 2)); m.position.set(x + Math.cos(a) * r, y + Math.sin(a) * r * .7 + k * .5, z + Math.sin(a) * r * .5); m.scale.setScalar(s * (1 - k * k)); m.rotation.set(k * 4, k * 6, 0); m.material.opacity = 1 - k * k; }); }
+  if (big) ghFace(G, x, y + .3, z);
+}
+// a tiny ghost face that pops up and shrinks away (shared materials, at most 3 at once)
+let _ghFaces = 0;
+function ghFace(G, x, y, z) { if (_ghFaces >= 3 || typeof scene === 'undefined') return; _ghFaces++; const gg = ghostModel(G, .16), t0 = performance.now(), ph = Math.random() * 6; gg.position.set(x, y, z); scene.add(gg);
+  gg.userData.ghead.onBeforeRender = () => { const k = (performance.now() - t0) / 700; ghWiggle(gg, performance.now() / 1000, ph); gg.position.y = y + k * .9; gg.scale.setScalar(k < .2 ? k / .2 * 1.1 : 1.1 * (1 - (k - .2) / .8)); try { gg.lookAt(camera.position.x, gg.position.y, camera.position.z); } catch (e) { } };
+  setTimeout(() => { try { scene.remove(gg); gg.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } catch (e) { } _ghFaces--; }, 720); }
+mythShot = (orig => function (K, ox, oz, dx, dz, end, hit, fm, pel) {
+  const G = K && GH.by[K.key]; if (!G) return orig.apply(this, arguments);
+  const now = performance.now(); if (now - FXN.shot > 30) { FXN.shot = now; FXN.big = 0; FXN.first = true; } else FXN.first = false;
+  const PY = (typeof playerY === 'function' && playerY()) || 0, sx = fm ? fm.x : ox, sy = fm ? fm.y : 1.55 + PY, sz = fm ? fm.z : oz, ex = ox + dx * end, ey = 1.45 + PY, ez = oz + dz * end, F = fxGeo(), len = Math.hypot(ex - sx, ey - sy, ez - sz);
+  if (FXN.first) { fxMuzzle(K, sx, sy, sz, dx, dz); const f0 = Math.atan2(dx, dz); for (let i = 0; i < 5; i++) { const a = f0 + (i / 4 - .5) * 1.4, c = [G.wp.tr, G.wp.tr2, G.cheek, 0xffffff, G.body][i];
+    fxPiece(F.oct, c, sx, sy, sz, .3, (k, m) => { const r = k * .55; m.position.set(sx + Math.sin(a) * r, sy + k * .15, sz + Math.cos(a) * r); m.scale.setScalar(1.6 * (1 - k)); m.rotation.y = k * 6; m.material.opacity = 1 - k; }); } }
+  // a soft line in the ghost's colour + little wisps riding along it
+  fxPiece(F.box, G.wp.tr, (sx + ex) / 2, (sy + ey) / 2, (sz + ez) / 2, .22, (k, m) => { m.lookAt(ex, ey, ez); m.scale.set(.05 * (1 - k * .6), .05 * (1 - k * .6), len); m.material.opacity = .85 * (1 - k); });
+  const T = Math.max(.07, Math.min(.24, len / 80));
+  for (let i = 0; i < 3; i++) { const lag = i * .22, c = [0xffffff, G.body, G.wp.tr2][i];
+    fxPiece(F.ico, c, sx, sy, sz, T + .08, (k, m) => { const f = Math.max(0, Math.min(1, k * (T + .08) / T - lag)); m.position.set(sx + (ex - sx) * f, sy + (ey - sy) * f + Math.sin(f * 12 + i) * .08, sz + (ez - sz) * f); m.scale.setScalar(.55 - i * .12); m.material.opacity = f >= 1 ? 0 : 1; }); }
+  const big = hit && FXN.big < 2; if (big) FXN.big++;
+  if (hit || FXN.first) setTimeout(() => { try { ghPop(G, ex, ey, ez, big && Math.random() < .5); } catch (e) { } }, T * 1000);
+})(mythShot);
+mythSwing = (orig => function (K) { const G = K && GH.by[K.key]; if (!G) return orig.apply(this, arguments);
+  const F = fxGeo(), [dx, dz] = aimDir(), f = Math.atan2(dx, dz), x = player.pos.x, z = player.pos.z, y = 1.15 + ((typeof playerY === 'function' && playerY()) || 0);
+  [G.wp.tr, G.body].forEach((c, i) => fxPiece(F.arc, c, x, y + i * .12, z, .3, (k, m) => { m.rotation.set(i ? .12 : -.08, f + .55 - k * 1.1, 0); const s = .7 + k * .5 + i * .1; m.scale.set(s, s, 1); m.material.opacity = (1 - k) * (i ? .75 : 1); }));
+  for (let i = 0; i < 10; i++) { const a = f + (i / 9 - .5) * 2, r = 1.1 + Math.random() * .8; fxSpark(x + Math.sin(a) * r, y - .2 + Math.random() * .8, z + Math.cos(a) * r, [G.wp.tr, G.wp.tr2, G.cheek, 0xffffff][i % 4], { sp: 1, life: .45 + Math.random() * .3, s: 2 + Math.random() * 1.6 }); }
+  // the ghost swoops along the slash
+  if (_ghFaces < 3 && typeof scene !== 'undefined') { _ghFaces++; const gg = ghostModel(G, .17), t0 = performance.now(), ph = Math.random() * 6; scene.add(gg);
+    gg.userData.ghead.onBeforeRender = () => { const k = Math.min(1, (performance.now() - t0) / 380), a = f + .9 - k * 1.8, r = 1.5; ghWiggle(gg, performance.now() / 1000, ph); gg.position.set(x + Math.sin(a) * r, y + .3 + Math.sin(k * Math.PI) * .3, z + Math.cos(a) * r); gg.rotation.y = a - Math.PI / 2; gg.scale.setScalar(k > .8 ? (1 - k) * 5 : 1); };
+    setTimeout(() => { try { scene.remove(gg); gg.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } catch (e) { } _ghFaces--; }, 400); }
+  setTimeout(() => { try { const P = 1.6, hx = x + dx * P, hz = z + dz * P; ghPop(G, hx, y, hz, false); } catch (e) { } }, 120);
+})(mythSwing);
+
+/* ---- cute ghost sounds (through the 音效 volume) ---- */
+const ghSnd = {
+  boo(p) { p = p || 1; WSKT(560 * p, 300 * p, .38, .07, 'sine', { vib: 9, vibD: 45 * p }); WSKT(840 * p, 450 * p, .3, .025, 'triangle', { vib: 9, vibD: 50 * p, delay: .02 }); },
+  giggle(p) { p = p || 1; for (let i = 0; i < 3; i++) WSKT((1300 + i * 170) * p, (1150 + i * 170) * p, .06, .04, 'triangle', { delay: i * .075 }); },
+  pop(p) { p = p || 1; WSKT(500 * p, 1500 * p, .06, .07, 'sine'); WSKN(.04, .05, 3200, { type: 'bandpass', q: 2 }); },
+  soul(p) { p = p || 1; WSKT(900 * p, 1800 * p, .35, .05, 'sine', { vib: 7, vibD: 30 }); [1568, 2093, 2637].forEach((f, i) => WSKT(f * p, f * p, .25, .03, 'sine', { delay: .08 + i * .07 })); },
+  swoosh(p) { p = p || 1; WSKN(.22, .09, 900 * p, { type: 'bandpass', f1: 2600 * p, q: 1.2 }); }
+};
+for (const G of GH_LIST) {
+  WSK_SND[G.k] = { fire() { ghSnd.swoosh(G.pit); WSKT(620 * G.pit, 420 * G.pit, .22, .045, 'sine', { vib: 10, vibD: 40, delay: .05 }); },
+    hit() { ghSnd.pop(G.pit); if (Math.random() < .35) ghSnd.giggle(G.pit); } };
+  WSK_GUN[G.k] = { fire() { WSKT(600 * G.pit, 380 * G.pit, .3, .02, 'sine', { vib: 9, vibD: 40, delay: .07 }); },
+    hit() { WSKT(520 * G.pit, 1300 * G.pit, .05, .03, 'sine'); if (Math.random() < .15) ghSnd.giggle(G.pit); } };
+}
 /* ============ 深渊商店: spend 深渊币 with the diver of the 深渊号 (owner 18 Nov: "add a trade system to the abyss") ============
    Opened from the abyss page (button 深渊商店 next to 下潜). The trader is the brass-helmet diver who stands on the sub.
    Tabs: 升级材料 (now) · 皮肤 (empty: the owner will hand over skin code later, then they go in ABYSHOP_SKINS).
@@ -21921,7 +22136,14 @@ const ABYSHOP = [
   ['estone', 5, 150, 4], ['apart', 10, 40, 5], ['elem', 2, 60, 5], ['steel', 5, 200, 2], ['bpf', 10, 200, 2],
   ['eluck', 1, 250, 2], ['crystal', 1, 300, 2], ['elock', 1, 400, 1], ['heart', 1, 450, 1], ['core', 1, 525, 1]
 ];
-const ABYSHOP_SKINS = [];   // filled when the owner sends the skins
+// 萌鬼 mythic skins (z_ghostskin.js), one per weapon. Price: a mythic 晶石 skin is 1680; at ABY_GEM .25 that is 6720 深渊币, so 7000 (≈ 3 months of first runs)
+const ABY_SKIN_PRICE = 7000;
+const ABYSHOP_SKINS = (typeof GH_LIST !== 'undefined' ? GH_LIST : []).map(G => ({ key: G.k, wid: G.wid, price: ABY_SKIN_PRICE }));
+const abySkOwn = s => S.wskOwn.includes(s.key + ':' + s.wid);
+function abySkinBuy(i, btn) { const s = ABYSHOP_SKINS[i]; if (!s || abySkOwn(s)) return;
+  if ((S.abyss.ac | 0) < s.price) { feed(T2('深渊币不够（还差 ' + (s.price - (S.abyss.ac | 0)) + '）', 'Not enough Abyss coins'), '#ff9b8a'); return; }
+  const key = 'sk' + i; if (ABYSH.arm !== key || Date.now() - ABYSH.t > 3000) { ABYSH.arm = key; ABYSH.t = Date.now(); if (btn) { btn.classList.add('armed'); btn.textContent = T2('再点一次确认', 'Tap again'); } return; }
+  ABYSH.arm = ''; S.abyss.ac = (S.abyss.ac | 0) - s.price; giveWSkin(s.key, s.wid); try { sfx.build(); } catch (e) { } try { ghSnd.giggle(GH.by[s.key].pit); } catch (e) { } try { refreshHud(); } catch (e) { } saveGame(); abyShopDraw(); }
 S.abyShop = { w: '', b: {} };
 const abyShW = () => { if (S.abyShop.w !== abyWeek()) S.abyShop = { w: abyWeek(), b: {} }; return S.abyShop; };
 const abyShLeft = i => Math.max(0, ABYSHOP[i][3] - (abyShW().b[ABYSHOP[i][0]] | 0));
@@ -21948,13 +22170,17 @@ function abyShopDraw() { const m = $('abyShopM'); if (!m) return; const L = m.qu
   if (ABYSH.tab === 'mat') body = '<div class="absg">' + ABYSHOP.map((x, i) => { const [k, n, p, lim] = x, left = abyShLeft(i), ok = left > 0 && (S.abyss.ac | 0) >= p;
     return '<div class="absc' + (left ? '' : ' out') + '"><span class="absi">' + svgIcon(k) + '</span><b>' + gsName(k) + ' ×' + n + '</b><small>' + T2('本周还能买 ', 'This week ') + left + ' / ' + lim + '</small>' +
       '<button class="go absb" data-i="' + i + '"' + (ok ? '' : ' disabled') + '>' + abyCoinIc(14) + ' ' + p + '</button></div>'; }).join('') + '</div>';
-  else body = ABYSHOP_SKINS.length ? '' : '<div class="absempty">' + ABYSHOP_FACE + '<b>' + T2('皮肤还在路上', 'Skins are on the way') + '</b><span>' + T2('阿深说：深海里捞到的好东西很快就会摆上来，先攒着深渊币吧！', 'Coming soon — keep your Abyss coins!') + '</span></div>';
+  else body = ABYSHOP_SKINS.length ? '<p class="absnote">' + T2('萌鬼系列 · 神话：每把武器都有自己的小幽灵，会绕着武器飘、战斗时飞出去帮你打。只能在这里用深渊币换，抽不到。', 'Ghost series · Mythic: each weapon has its own little ghost that floats around it and helps you fight. Only here.') + '</p><div class="absk">' + ABYSHOP_SKINS.map((s, i) => { const K = WSKINS[s.key], own = abySkOwn(s), ok = (S.abyss.ac | 0) >= s.price;
+    return '<div class="abskc' + (own ? ' own' : '') + '"><div class="abskp" data-i="' + i + '">' + icHtml('wsk:' + s.key + ':' + s.wid, 'big') + '<em>' + T2('点我看看', 'Preview') + '</em></div><div class="abskx"><b>' + K.n + ' · ' + WEAP[s.wid].n + '</b><em>' + T2('神话 · 只属于', 'Mythic · only for ') + WEAP[s.wid].n + '</em><span>' + K.stt + '</span><small>' + K.d + '</small>' +
+      '<button class="' + (own ? 'sbtn ghostb' : 'go') + ' abskb" data-i="' + i + '"' + (own || !ok ? ' disabled' : '') + '>' + (own ? T2('已拥有 · 在背包点' + WEAP[s.wid].n + '换上', 'Owned') : abyCoinIc(14) + ' ' + s.price) + '</button>' + (own || ok ? '' : '<p>' + T2('还差 ', 'Need ') + (s.price - (S.abyss.ac | 0)) + '</p>') + '</div></div>'; }).join('') + '</div>' : '<div class="absempty">' + ABYSHOP_FACE + '<b>' + T2('皮肤还在路上', 'Skins are on the way') + '</b><span>' + T2('阿深说：深海里捞到的好东西很快就会摆上来，先攒着深渊币吧！', 'Coming soon — keep your Abyss coins!') + '</span></div>';
   m.innerHTML = '<div class="absh">' + ABYSHOP_FACE + '<div class="absn"><b>' + T2('潜水员 · 阿深', 'Diver Ah Shen') + '</b><span>' + T2('「深渊币我收，好货我有。每周一补货。」', '"Abyss coins welcome. New stock every Monday."') + '</span></div>' +
     '<div class="absac">' + abyCoinIc(20) + '<b>' + (S.abyss.ac | 0) + '</b></div></div>' +
     '<div class="abstabs">' + tab('mat', T2('升级材料', 'Upgrade materials')) + tab('skin', T2('皮肤', 'Skins')) + '</div><div class="absl">' + body + '</div>' +
     '<div class="abygb"><button class="sbtn ghostb absx">' + T2('返回', 'Back') + '</button></div>';
   m.querySelectorAll('.abst').forEach(b => b.addEventListener('click', () => { ABYSH.tab = b.dataset.t; abyShopDraw(); }));
   m.querySelectorAll('.absb').forEach(b => b.addEventListener('click', () => abyShopBuy(+b.dataset.i, b)));
+  m.querySelectorAll('.abskb').forEach(b => b.addEventListener('click', () => abySkinBuy(+b.dataset.i, b)));
+  m.querySelectorAll('.abskp').forEach(p => p.addEventListener('click', () => { const s = ABYSHOP_SKINS[+p.dataset.i]; try { wskPreview(s.key, s.wid); } catch (e) { } }));
   m.querySelector('.absx').addEventListener('click', () => { m.remove(); try { if ($('abyPageM')) { $('abyPageM').remove(); abyPage(); } } catch (e) { } });
   const L2 = m.querySelector('.absl'); if (L2) L2.scrollTop = y; }
 function abyShopOpen() { let m = $('abyShopM'); if (m) m.remove(); m = document.createElement('div'); m.id = 'abyShopM'; m.className = 'abym abshop'; ABYSH.arm = ''; document.body.appendChild(m); abyShopDraw(); }
@@ -21969,6 +22195,11 @@ function abyShopOpen() { let m = $('abyShopM'); if (m) m.remove(); m = document.
   '.absc{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px;border-radius:12px;background:rgba(0,0,0,.4);border:1.5px solid rgba(31,143,154,.7);text-align:center}.absc.out{opacity:.5}' +
   '.absi .ic,.absi img,.absi svg{width:40px;height:40px}.absc b{font-size:14px}.absc small{font-size:11px;color:#9fc8cc}.absb{display:flex;align-items:center;justify-content:center;gap:4px;width:100%;padding:7px 4px!important;font-size:14px!important}.absb.armed{background:#ff9b3a!important}' +
   '.absempty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:30px 16px;text-align:center}.absempty .abdf{width:90px;height:90px}.absempty b{font-size:17px;color:#ffd27a}.absempty span{font-size:13px;color:#cfe8ea;max-width:360px}' +
+  '.absnote{font-size:12.5px;color:#cfe8ea;text-align:center;margin:2px 0 8px}.absk{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px}' +
+  '.abskc{display:flex;gap:10px;padding:8px;border-radius:12px;background:linear-gradient(120deg,rgba(90,40,120,.35),rgba(10,30,36,.5));border:1.5px solid #ff4d8d}.abskc.own{opacity:.85;border-color:rgba(255,77,141,.5)}' +
+  '.abskp{position:relative;flex:none;width:112px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:radial-gradient(circle at 50% 55%,rgba(255,180,230,.25),rgba(0,0,0,.35));cursor:pointer}.abskp .ic,.abskp img{width:106px;max-height:84px;object-fit:contain}' +
+  '.abskp em{position:absolute;bottom:2px;left:0;right:0;text-align:center;font-style:normal;font-size:10px;opacity:.7}.abskx{display:flex;flex-direction:column;gap:3px;min-width:0}.abskx b{font-size:14px;color:#ffd3e4}.abskx em{font-style:normal;font-size:11px;color:#ff4d8d}' +
+  '.abskx span{font-size:11.5px;color:#ffd98a}.abskx small{font-size:10.5px;opacity:.78;line-height:1.4}.abskb{margin-top:4px;display:flex;align-items:center;justify-content:center;gap:5px;padding:7px!important}.abskb.armed{background:#ff9b3a!important}.abskx p{margin:2px 0 0;font-size:11px;color:#ff9b8a}' +
   '@media (orientation:landscape) and (max-height:500px){.absh{padding:4px 10px}.abdf{width:40px;height:40px}.absg{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}}';
   document.head.appendChild(st); } catch (e) { } }
 /* ============ one price rule for every trade (owner 18 Nov) ============
@@ -21992,6 +22223,7 @@ function econCheck() {
   // 深渊商店: dearer than 晶石; items without a 晶石 price must still cost more than the best villager pays for them
   try { if (typeof ABYSHOP !== 'undefined') for (const [k, n, p] of ABYSHOP) { const v = p * ECON.ABY_GEM; if (G[k] != null) { if (v < G[k] * n) bad.push('深渊商店 ' + k + '×' + n + ' ' + p + ' 深渊币 < 晶石价'); }
     else if (SELL_PRICE[k] != null && SELL_PRICE[k] * ECON.VIL_MAX_BUY * n >= v * C) bad.push('深渊商店 ' + k + '×' + n + ' 卖给村民赚得更多'); } } catch (e) { }
+  try { if (typeof ABYSHOP_SKINS !== 'undefined' && typeof SKIN_PRICE !== 'undefined') { const top = Math.max(...Object.values(SKIN_PRICE).filter(v => typeof v === 'number')); for (const sk of ABYSHOP_SKINS) if (sk.price * ECON.ABY_GEM < top) bad.push('深渊皮肤 ' + sk.key + ' ' + sk.price + ' 深渊币 < 晶石皮肤 ' + top); } } catch (e) { }
   // 老钱's skins (遗物币) never cheaper than the dearest 晶石 skin
   try { if (typeof RELIC_SKIN_PRICE !== 'undefined' && typeof SKIN_PRICE !== 'undefined') { const top = Math.max(...Object.values(SKIN_PRICE).filter(v => typeof v === 'number')); if (RELIC_SKIN_PRICE * ECON.RELIC_GEM < top) bad.push('老钱皮肤 ' + RELIC_SKIN_PRICE + ' 遗物币 < 晶石皮肤 ' + top); } } catch (e) { }
   ECON.bad = bad; if (bad.length) console.warn('ECON price rule broken:\n' + bad.join('\n')); return bad;
@@ -23059,4 +23291,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795009281').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795010751').catch(()=>{});</script></body></html>
