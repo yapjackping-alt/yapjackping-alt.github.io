@@ -10867,7 +10867,7 @@ function engineTick(dt) {
 petsTick = (o => function (dt) { o(dt); try { engineTick(dt); if (S.boat || SW.b) S.sprint = false; } catch (e) { } })(petsTick);
 /* ============ weapon attachments ============
    Every weapon has three slots. Guns take a 枪口 and a 弹匣/握把; melee weapons take their own 刃锋 and 握柄
-   parts; both take an 元素核心 (火 / 雷 / 水). Attachments drop with the same grades as gear (普通 … 神话).
+   parts; both take an 元素核心 (火 / 雷 / 水 / 毒). Attachments drop with the same grades as gear (普通 … 神话).
    Each attachment has its OWN level (1-50, shown on it): parts level up with 精密零件, element cores with
    元素晶核, plus 余烬币, and every 10 levels needs 首领之心. It gets steeply more expensive. Everything counts
    toward 战力.
@@ -10880,9 +10880,9 @@ const ATT_K = {
   gr: [{ n: '扩容弹匣', st: { mag: .12 } }, { n: '快拔弹匣', st: { reload: .06 } }, { n: '战术握把', st: { rate: .04 } }],
   bl: [{ n: '精钢磨刀石', st: { dmg: .045 } }, { n: '锯齿刃', st: { crit: .02, dmg: .015 } }, { n: '重锤头', st: { critDmg: .1 } }],
   hd: [{ n: '缠绳握柄', st: { rate: .04 } }, { n: '配重块', st: { dmg: .025, critDmg: .04 } }, { n: '轻量握柄', st: { rate: .02, crit: .012 } }],
-  el: [{ n: '烈焰核心', el: 'fire', st: { dmg: .02 } }, { n: '雷霆核心', el: 'thun', st: { dmg: .02 } }, { n: '潮汐核心', el: 'water', st: { dmg: .02 } }]
+  el: [{ n: '烈焰核心', el: 'fire', st: { dmg: .02 } }, { n: '雷霆核心', el: 'thun', st: { dmg: .02 } }, { n: '潮汐核心', el: 'water', st: { dmg: .02 } }, { n: '剧毒核心', el: 'pois', st: { dmg: .02 } }]
 };
-const EL_N = { fire: ['火', '#ff7a3a'], thun: ['雷', '#9fe8ff'], water: ['水', '#5ab0ff'] };
+const EL_N = { fire: ['火', '#ff7a3a'], thun: ['雷', '#9fe8ff'], water: ['水', '#5ab0ff'], pois: ['毒', '#8fd84a'] };
 const ATT_SN = { mz: '枪口', gr: '弹匣 / 握把', bl: '刃锋', hd: '握柄', el: '元素核心' };
 const ATT_STN = { dmg: '伤害', crit: '暴击率', critDmg: '暴击伤害', mag: '弹匣容量', reload: '换弹速度', rate: '攻速' };
 // a weapon's three slots: [stored as, attachment type]
@@ -10906,11 +10906,12 @@ function attSt(id, k) { if (!id || !S.watt[id]) return 0; const w = S.watt[id]; 
 wsSt = (o => function (id, k) { return o(id, k) + attSt(id, k); })(wsSt);
 const elPow = a => (1 + .35 * a[3]) * attLvF(a[4]);
 function attEl(id) { const w = S.watt[id], a = w && w.e && attById(w.e); if (!a) return null; return { el: attKind(a).el, q: a[3], p: elPow(a) }; }
-const EL_DPS = { fire: .08, thun: .1, water: .06 };
+const EL_DPS = { fire: .08, thun: .1, water: .06, pois: .08 };
 weaponDps = (o => function (id) { const E = attEl(id); return o(id) * (E ? 1 + EL_DPS[E.el] * E.p : 1); })(weaponDps);
 function elDesc(el, q, p) {
   if (el === 'fire') return '命中有 ' + Math.round((.35 + .03 * q) * 100) + '% 机会点燃丧尸，3 秒内每秒烧掉 ' + Math.round(8 * p) + '% 伤害；被烧死的丧尸会爆出火焰溅到旁边';
   if (el === 'thun') return '命中有 ' + Math.round((.14 + .02 * q) * 100) + '% 机会放出闪电，连锁打 ' + (2 + Math.floor(q / 2)) + ' 只附近的丧尸，每只 ' + Math.round(35 * p) + '% 伤害';
+  if (el === 'pois') return '每次命中让丧尸中毒 4 秒，每秒扣 ' + Math.round(5 * p) + '% 伤害，连续命中可叠到 ' + Math.round(15 * p) + '%；中毒的丧尸死掉会喷出毒雾，毒到旁边的丧尸';
   return '命中让丧尸湿透 3 秒：移动变慢，受到的所有伤害 +' + Math.round(5 * p) + '%';
 }
 /* ---- the elements in combat ---- */
@@ -10922,19 +10923,22 @@ function attElHit(z, d) {
     for (let n = 0; n < 2 + Math.floor(E.q / 2); n++) { let best = null, bd = 7; for (const o of zombies) { if (o.dead || hit.has(o) || o.animal) continue; const dd = Math.hypot(o.pos.x - from.pos.x, o.pos.z - from.pos.z); if (dd < bd) { bd = dd; best = o; } }
       if (!best) break; hit.add(best); tracer(from.pos.x, 1.3 * from.sc, from.pos.z, best.pos.x, 1.3 * best.sc, best.pos.z, 0x9fe8ff); burst(best.pos.x, 1.3 * best.sc, best.pos.z, 0xc8f4ff, 5, 3); hurtZombie(best, d * .35 * E.p, 0, 0); from = best; }
     if (hit.size > 1 && AC) try { sfxNoise(.12, .06, 4200); } catch (e) { } } }
-  else { z.slowT = Math.max(z.slowT || 0, 1.2 + .2 * E.q); z.wetT = S.t + 3; z.wetK = .05 * E.p; if (Math.random() < .3) burst(z.pos.x, 1.2 * z.sc, z.pos.z, 0x6ab8ff, 3, 2); }
+  else if (E.el === 'pois') { z.g2pT = Math.max(z.g2pT || 0, 4); z.g2pD = Math.min((z.g2pD || 0) + d * .05 * E.p, Math.max(z.g2pD || 0, d * .15 * E.p)); z.elPois = S.t + 4; if (Math.random() < .3) burst(z.pos.x, 1.2 * z.sc, z.pos.z, 0x8fd84a, 3, 2); }
+  else if (E.el === 'water') { z.slowT = Math.max(z.slowT || 0, 1.2 + .2 * E.q); z.wetT = S.t + 3; z.wetK = .05 * E.p; if (Math.random() < .3) burst(z.pos.x, 1.2 * z.sc, z.pos.z, 0x6ab8ff, 3, 2); }
 }
 hurtZombie = (o => function (z, dmg, dx, dz) { if (z && z.wetT > S.t) dmg *= 1 + (z.wetK || 0); return o(z, dmg, dx, dz); })(hurtZombie);
 
 /* ---- drops ---- */
 let _attRoll = 0;
-function attMake(slot, q, kind) { const a = [S.attN++, slot, kind == null ? rint(0, 2) : kind, clamp(q, 0, 5), 1]; S.atts.push(a); return a; }
+function attMake(slot, q, kind) { const a = [S.attN++, slot, kind == null ? rint(0, ATT_K[slot].length - 1) : kind, clamp(q, 0, 5), 1]; S.atts.push(a); return a; }
 function attDrop(tier, bonus, minQ) { const q = Math.max(minQ || 0, Math.min(5, rollQuality(tier, bonus || 0))), slot = pick(['mz', 'gr', 'bl', 'hd', 'el', 'el']), a = attMake(slot, q);
   const K = attKind(a); feed('获得配件：' + GQ[q].n + ' · ' + K.n, GQ[q].c); if (q >= 4) banner('稀有配件！', GQ[q].n + ' · ' + K.n + '（去武器页面装上）', 3); return a; }
 killZombie = (o => function (z) { const mine = z && !z.dead && !z.animal && !z.mirror && !z.hitBy; o(z);
   if (!mine) return;
   try { const E = attEl(S.wp); if (E && E.el === 'fire' && z.elFire > S.t) { burst(z.pos.x, 1, z.pos.z, 0xff7a2a, 16, 5); const dd = weaponDmg(S.wp) * .3 * E.p;
-    for (const o2 of zombies) if (!o2.dead && !o2.animal && o2 !== z && Math.hypot(o2.pos.x - z.pos.x, o2.pos.z - z.pos.z) < 3) { hurtZombie(o2, dd, 0, 0); o2.burnD = Math.max(o2.burnD || 0, dd * .2); o2.burnT = 2; } } } catch (e) { }
+    for (const o2 of zombies) if (!o2.dead && !o2.animal && o2 !== z && Math.hypot(o2.pos.x - z.pos.x, o2.pos.z - z.pos.z) < 3) { hurtZombie(o2, dd, 0, 0); o2.burnD = Math.max(o2.burnD || 0, dd * .2); o2.burnT = 2; } }
+    if (E && E.el === 'pois' && z.elPois > S.t) { burst(z.pos.x, 1, z.pos.z, 0x8fd84a, 14, 3); const pd = weaponDmg(S.wp) * .06 * E.p;
+      for (const o2 of zombies) if (!o2.dead && !o2.animal && o2 !== z && Math.hypot(o2.pos.x - z.pos.x, o2.pos.z - z.pos.z) < 3.5) { o2.g2pT = Math.max(o2.g2pT || 0, 4); o2.g2pD = Math.max(o2.g2pD || 0, pd); o2.elPois = S.t + 4; } } } catch (e) { }
   try { const t = tierAt(z.pos.x, z.pos.z);
     if (z.boss) { gain('apart', rint(6, 12) + t); gain('elem', rint(1, 3)); attDrop(t, 1.5, 2); }
     else if (z.elite) { gain('apart', rint(2, 3)); if (Math.random() < .2) gain('elem', 1); if (Math.random() < .08) attDrop(t, .5); }
@@ -11024,7 +11028,7 @@ renderWeapon = (o => function () { o(); try { const box = $('wDetail'), id = wSe
     { const g = new THREE.Group(); box(.4, 1.3, .7, mat(0x4a5a3a), 0, 0, 0, g); box(.44, .14, .74, dk, 0, -.62, 0, g); box(.3, .2, .5, mat(0xc8a040), 0, .72, .05, g); shot(g, 'att_gr0'); }
     { const g = new THREE.Group(); box(.4, 1.0, .6, mat(0x8a6a3a), 0, 0, 0, g); box(.5, .18, .3, mat(0xff8a2a), 0, -.55, 0, g); box(.3, .2, .45, mat(0xc8a040), 0, .58, .05, g); shot(g, 'att_gr1'); }
     { const g = new THREE.Group(); box(.36, 1.0, .5, dk, 0, -.1, 0, g); for (let i = 0; i < 3; i++) box(.4, .08, .54, mid, 0, -.4 + i * .25, 0, g); box(.5, .2, .9, lt, 0, .5, 0, g); shot(g, 'att_gr2'); }
-    [['fire', 0xff6a2a, 0xffd04a], ['thun', 0x6ad8ff, 0xffffff], ['water', 0x2a7aff, 0x9fe8ff]].forEach(([e, c1, c2], i) => { const g = new THREE.Group();
+    [['fire', 0xff6a2a, 0xffd04a], ['thun', 0x6ad8ff, 0xffffff], ['water', 0x2a7aff, 0x9fe8ff], ['pois', 0x4ac83a, 0xd8ff8a]].forEach(([e, c1, c2], i) => { const g = new THREE.Group();
       box(.9, .2, .9, dk, 0, -.6, 0, g); box(.7, .12, .7, mid, 0, -.44, 0, g); const cr = box(.62, .62, .62, new THREE.MeshBasicMaterial({ color: c1 }), 0, .05, 0, g); cr.rotation.set(.6, .6, 0);
       const c2m = box(.3, .3, .3, new THREE.MeshBasicMaterial({ color: c2 }), 0, .05, 0, g); c2m.rotation.set(.2, .9, .3);
       for (const [x, z] of [[-.38, -.38], [.38, -.38], [-.38, .38], [.38, .38]]) box(.08, .7, .08, lt, x, -.1, z, g); shot(g, 'att_el' + e + i); });
@@ -11794,14 +11798,14 @@ S.av = []; S.mp5 = 0; S.avf = 0;
 const AV_MAX = 300, AV_FR = [1, 1, 2, 6, 30, 120], AV_COST = { 4: 60, 5: 200 };
 let avSel = ['mz', 0], avQ = 5;
 const attName = (sl, kd) => (ATT_K[sl] && ATT_K[sl][kd] ? ATT_K[sl][kd].n : '配件');
-const attPrize = (q, lab) => [() => { const sl = pick(['mz', 'gr', 'bl', 'hd', 'el', 'el']), kd = rint(0, 2); return { n: GQ[q].n + '配件「' + attName(sl, kd) + '」（已放进配件库）', f: () => { S.av.push([sl, kd, q]); if (S.av.length > AV_MAX) { const x = S.av.shift(); S.avf += AV_FR[x[2]]; } } }; }, null, lab || GQ[q].n + '配件（随机）'];
+const attPrize = (q, lab) => [() => { const sl = pick(['mz', 'gr', 'bl', 'hd', 'el', 'el']), kd = rint(0, ATT_K[sl].length - 1); return { n: GQ[q].n + '配件「' + attName(sl, kd) + '」（已放进配件库）', f: () => { S.av.push([sl, kd, q]); if (S.av.length > AV_MAX) { const x = S.av.shift(); S.avf += AV_FR[x[2]]; } } }; }, null, lab || GQ[q].n + '配件（随机）'];
 const ATTPOOL = {
   5: [attPrize(5)],
   4: [attPrize(4)],
   3: [attPrize(3), ['精密零件 ×25', () => gain('apart', 25)], ['元素晶核 ×6', () => gain('elem', 6)]],
   2: [attPrize(2), ['精密零件 ×10', () => gain('apart', 10)], ['元素晶核 ×2', () => gain('elem', 2)], ['图纸残页 ×10', () => gain('bpf', 10)]],
   0: [attPrize(1), attPrize(0), ['精密零件 ×3', () => gain('apart', 3)], ['余烬币 ×300', () => gain('coin', 300)], ['图纸残页 ×3', () => gain('bpf', 3)]] };
-BOXES.att = { n: '配件补给箱', ic: 'item:att_mz2', big: 'item:att_elfire0', d: '神话、黄金、史诗配件：枪口、弹匣握把、刃锋、握柄、火雷水元素核心，还有大量精密零件和元素晶核' };
+BOXES.att = { n: '配件补给箱', ic: 'item:att_mz2', big: 'item:att_elfire0', d: '神话、黄金、史诗配件：枪口、弹匣握把、刃锋、握柄、火雷水毒元素核心，还有大量精密零件和元素晶核' };
 const avGive = v => { for (const k in v) matAdd(k, v[k]); };
 function renderAttVault() {
   const box = $('avList'); if (!box) return; box.innerHTML = ''; const A = S.av;
@@ -21922,30 +21926,41 @@ try { econCheck(); } catch (e) { }
    - 冰霜伤害   +X% of the hit as cold, and the target is slowed (1 s)
    - 雷电伤害   +X% of the hit as lightning; 1 in 5 hits also arcs to one zombie nearby (double the bonus)
    - 毒素伤害   +X% of the hit as poison, dealt over 3 s (stacks up to 3 hits' worth)
-   - 元素强化   makes all of the above AND the weapon's element core (火 / 雷 / 水) stronger
+   - 元素强化   makes all of the above AND the weapon's element core (火 / 雷 / 水 / 毒) stronger
+   OWNER 18 Nov: a line only works when the weapon in hand carries the MATCHING element core (火焰→烈焰核心,
+   潮汐(old name 冰霜)→潮汐核心, 雷电→雷霆核心, 毒素→剧毒核心; 元素强化 needs any core). Otherwise the line is wasted
+   (shown in red on the gear screen) — players reroll it away. G2_NEED maps line → core.
    Caps on the 6 gear pieces in GCAP like every line. Switch: GAFX2_ON. */
 const GAFX2_ON = true;
 if (GAFX2_ON) {
-  AFX.push({ k: 'fireDmg', n: '火焰伤害', lo: .03, hi: .08, pct: 1 }, { k: 'iceDmg', n: '冰霜伤害', lo: .03, hi: .08, pct: 1 }, { k: 'shockDmg', n: '雷电伤害', lo: .03, hi: .08, pct: 1 },
+  AFX.push({ k: 'fireDmg', n: '火焰伤害', lo: .03, hi: .08, pct: 1 }, { k: 'iceDmg', n: '潮汐伤害', lo: .03, hi: .08, pct: 1 }, { k: 'shockDmg', n: '雷电伤害', lo: .03, hi: .08, pct: 1 },
     { k: 'poisonDmg', n: '毒素伤害', lo: .04, hi: .1, pct: 1 }, { k: 'elemAmp', n: '元素强化', lo: .05, hi: .12, pct: 1 });
   Object.assign(GCAP, { fireDmg: .3, iceDmg: .3, shockDmg: .3, poisonDmg: .4, elemAmp: .5 });   // kept low: all four together with 元素强化 already add up to about double damage
   for (const A of AFX) if (!GSTAT_N[A.k]) GSTAT_N[A.k] = [A.n, v => '+' + (A.pct ? pc1(v) : A.dec ? v.toFixed(2) : Math.round(v))];
-  try { Object.assign(G3_EXP, { fireDmg: '每次攻击多打这么多火焰伤害，还会让目标烧一会儿', iceDmg: '每次攻击多打这么多冰霜伤害，还会让目标变慢', shockDmg: '每次攻击多打这么多雷电伤害，有时会电到旁边的丧尸',
-    poisonDmg: '每次攻击让目标中毒，3 秒内慢慢扣这么多血', elemAmp: '上面四种元素伤害和武器元素核心（火 / 雷 / 水）都更强' }); } catch (e) { }
 }
-const g2a = k => GAFX2_ON ? Math.max(0, Math.min(GCAP[k] || 1, gst(k) || 0)) : 0;
+const _g2AttEl = attEl;   // the core alone (the wrapper below asks g2a, which asks this: no loop)
+const G2_NEED = { fireDmg: 'fire', iceDmg: 'water', shockDmg: 'thun', poisonDmg: 'pois', elemAmp: '*' };
+const G2_CN = { fire: '烈焰核心', water: '潮汐核心', thun: '雷霆核心', pois: '剧毒核心', '*': '任何元素核心' };
+// is this line live with the weapon in hand? (needs the matching core)
+function g2Live(k) { const n = G2_NEED[k]; if (!n) return true; let E = null; try { E = _g2AttEl(S.wp); } catch (e) { } return !!E && (n === '*' || E.el === n); }
+if (GAFX2_ON) try { const T = { fireDmg: '每次攻击多打这么多火焰伤害，还会让目标烧一会儿', iceDmg: '每次攻击多打这么多水流伤害，还会让目标变慢', shockDmg: '每次攻击多打这么多雷电伤害，有时会电到旁边的丧尸',
+    poisonDmg: '每次攻击让目标中毒，3 秒内慢慢扣这么多血', elemAmp: '上面四种元素伤害和武器元素核心（火 / 雷 / 水 / 毒）都更强' };
+  for (const k in T) Object.defineProperty(G3_EXP, k, { enumerable: true, configurable: true, get() { const n = G2_NEED[k];
+    return T[k] + '。<b style="color:' + (g2Live(k) ? '#7ad86a">手上武器有' + G2_CN[n] + '，生效中' : '#ff6a5a">要武器装上' + G2_CN[n] + '才有用，现在没效果') + '</b>'; } });
+} catch (e) { }
+const g2a = k => GAFX2_ON && g2Live(k) ? Math.max(0, Math.min(GCAP[k] || 1, gst(k) || 0)) : 0;
 let _g2In = false;   // the extra hits must not set off more extra hits
 traitHit = (o => function (z, d, crit) { o.apply(this, arguments); if (_g2In || !GAFX2_ON || !z || z.dead || z.animal || !(d > 0)) return;
   _g2In = true; try { const amp = 1 + g2a('elemAmp');
     const f = g2a('fireDmg') * amp; if (f) { hurtZombie(z, d * f, 0, 0); z.burnD = Math.max(z.burnT > 0 ? (z.burnD || 0) : 0, d * f * .25); z.burnT = Math.max(z.burnT || 0, 2); if (Math.random() < .3) burst(z.pos.x, 1.3 * z.sc, z.pos.z, 0xff7a2a, 3, 2); }
-    const c = g2a('iceDmg') * amp; if (c && !z.dead) { hurtZombie(z, d * c, 0, 0); z.slowT = Math.max(z.slowT || 0, 1); if (Math.random() < .3) burst(z.pos.x, 1.2 * z.sc, z.pos.z, 0xbfe8ff, 3, 2); }
+    const c = g2a('iceDmg') * amp; if (c && !z.dead) { hurtZombie(z, d * c, 0, 0); z.slowT = Math.max(z.slowT || 0, 1); if (Math.random() < .3) burst(z.pos.x, 1.2 * z.sc, z.pos.z, 0x6ab8ff, 3, 2); }
     const s = g2a('shockDmg') * amp; if (s && !z.dead) { hurtZombie(z, d * s, 0, 0);
       if (Math.random() < .2) { let best = null, bd = 5; for (const q of zombies) { if (q === z || q.dead || q.animal) continue; const dd = Math.hypot(q.pos.x - z.pos.x, q.pos.z - z.pos.z); if (dd < bd) { bd = dd; best = q; } }
         if (best) { tracer(z.pos.x, 1.3 * z.sc, z.pos.z, best.pos.x, 1.3 * best.sc, best.pos.z, 0x9fe8ff); hurtZombie(best, d * s * 2, 0, 0); } } }
-    const p = g2a('poisonDmg') * amp; if (p && !z.dead) { const add = d * p; z.g2pT = 3; z.g2pD = Math.min((z.g2pD || 0) + add / 3, d * p); }
+    const p = g2a('poisonDmg') * amp; if (p && !z.dead) { const add = d * p, E = attEl(S.wp), cap = d * (p + .15 * (E ? E.p : 1)); z.g2pT = Math.max(z.g2pT || 0, 3); z.g2pD = Math.max(z.g2pD || 0, Math.min((z.g2pD || 0) + add / 3, cap)); }
   } catch (e) { } finally { _g2In = false; } })(traitHit);
 // 元素强化 also makes the weapon's element core stronger
-attEl = (o => function (id) { const E = o.apply(this, arguments); try { if (E && GAFX2_ON) { const a = g2a('elemAmp'); if (a) E.p *= 1 + a; } } catch (e) { } return E; })(attEl);
+attEl = (o => function (id) { const E = o.apply(this, arguments); try { if (E && GAFX2_ON) { const a = GAFX2_ON ? Math.max(0, Math.min(GCAP.elemAmp || 1, gst('elemAmp') || 0)) : 0; if (a) E.p *= 1 + a; } } catch (e) { } return E; })(attEl);
 // poison: damage over time, in small bites (through hurtZombie so kills count)
 let _g2pT = 0;
 petsTick = (o => function (dt) { const r = o(dt); try { _g2pT += dt; if (_g2pT >= .5) { const t = _g2pT; _g2pT = 0;
@@ -22985,4 +23000,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795003240').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795003829').catch(()=>{});</script></body></html>
