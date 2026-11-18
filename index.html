@@ -2274,16 +2274,16 @@ function furnish(A, I, put, obs, w, d, door, R, rr, rp, tone) {
     for (let i = 0; i < 7; i++) put(I, rr(-w / 2.4, w / 2.4), rr(.1, .3), rr(-d / 2.4, d / 2.4), rr(.4, 1.2), rr(.2, .6), rr(.4, 1), rp([0x4a3a38, 0x3a2e2c, 0x5a4a44]), rr(-.3, .3), rr(0, 3));
   }
 }
-// what a cabinet holds, by building type; rare parts scale a little with monster level
+// what a cabinet holds, by building type (ammo too: owner 18 Nov — monsters never drop it, so houses and crates are where it is found); rare parts scale a little with monster level
 const SEARCH_LOOT = {
-  home:   [['coin', .6, 2, 8], ['wood', .35, 1, 2], ['metal', .25, 1, 2], ['med', .14, 1, 1], ['powder', .06, 1, 1], ['circuit', .04, 1, 1]],
-  cabin:  [['wood', .6, 2, 4], ['coin', .4, 1, 5], ['metal', .15, 1, 2], ['med', .1, 1, 1], ['powder', .08, 1, 1]],
-  shop:   [['coin', .85, 4, 12], ['med', .3, 1, 1], ['powder', .1, 1, 2], ['circuit', .08, 1, 1], ['wood', .15, 1, 2]],
-  gas:    [['metal', .4, 1, 3], ['powder', .3, 1, 2], ['coin', .5, 2, 8], ['circuit', .1, 1, 1]],
-  office: [['coin', .7, 4, 10], ['circuit', .2, 1, 2], ['metal', .2, 1, 2], ['med', .12, 1, 1], ['steel', .02, 1, 1]],
-  ware:   [['metal', .7, 2, 4], ['wood', .4, 2, 3], ['powder', .15, 1, 2], ['circuit', .08, 1, 1], ['steel', .04, 1, 1]],
-  temple: [['coin', .5, 3, 10], ['med', .2, 1, 1], ['serum', .05, 1, 1], ['crystal', .01, 1, 1]],
-  ruin:   [['wood', .4, 1, 3], ['metal', .4, 1, 3], ['coin', .3, 1, 5], ['powder', .05, 1, 1]]
+  home:   [['ammo', .25, 4, 10], ['coin', .6, 2, 8], ['wood', .35, 1, 2], ['metal', .25, 1, 2], ['med', .14, 1, 1], ['powder', .06, 1, 1], ['circuit', .04, 1, 1]],
+  cabin:  [['ammo', .2, 3, 8], ['wood', .6, 2, 4], ['coin', .4, 1, 5], ['metal', .15, 1, 2], ['med', .1, 1, 1], ['powder', .08, 1, 1]],
+  shop:   [['ammo', .3, 6, 15], ['coin', .85, 4, 12], ['med', .3, 1, 1], ['powder', .1, 1, 2], ['circuit', .08, 1, 1], ['wood', .15, 1, 2]],
+  gas:    [['ammo', .35, 6, 15], ['metal', .4, 1, 3], ['powder', .3, 1, 2], ['coin', .5, 2, 8], ['circuit', .1, 1, 1]],
+  office: [['ammo', .15, 4, 10], ['coin', .7, 4, 10], ['circuit', .2, 1, 2], ['metal', .2, 1, 2], ['med', .12, 1, 1], ['steel', .02, 1, 1]],
+  ware:   [['ammo', .3, 8, 20], ['metal', .7, 2, 4], ['wood', .4, 2, 3], ['powder', .15, 1, 2], ['circuit', .08, 1, 1], ['steel', .04, 1, 1]],
+  temple: [['ammo', .1, 4, 8], ['coin', .5, 3, 10], ['med', .2, 1, 1], ['serum', .05, 1, 1], ['crystal', .01, 1, 1]],
+  ruin:   [['ammo', .25, 4, 12], ['wood', .4, 1, 3], ['metal', .4, 1, 3], ['coin', .3, 1, 5], ['powder', .05, 1, 1]]
 };
 const RARE_SET = { circuit: 1, steel: 1, serum: 1, crystal: 1 };
 function searchCont(c) {
@@ -3455,11 +3455,11 @@ function epochOf(t) { return Math.floor(Date.now() / (t.ep * 60000)); }
 function crateLoot(t) {
   const r = () => Math.random(), R = rareMul(), L = (k, n) => spawnLoot(k, cr_x, cr_z, n);
   const give = (k, a, b, p) => { if (r() < (p == null ? 1 : p)) L(k, rint(a, b)); };
-  if (t.id === 0) { give('wood', 3, 5); give('metal', 1, 3, .7); give('coin', 1, 4, .45); give('med', 1, 1, .15); give('powder', 1, 1, .08 * R); }
-  else if (t.id === 1) { give('wood', 4, 7); give('metal', 3, 5); give('coin', 4, 9); give('med', 1, 1, .5); give('powder', 1, 2, .5); give('circuit', 1, 1, .3 * R); give('steel', 1, 1, .04 * R); }
-  else if (t.id === 2) { give('metal', 5, 8); give('coin', 9, 20); give('med', 1, 2); give('powder', 2, 4); give('circuit', 1, 3, .7); give('steel', 1, 1, .35 * R); give('serum', 1, 1, .25 * R); give('crystal', 1, 1, .03 * R); }
-  else if (t.id === 3) { give('coin', 35, 70); give('med', 2, 3); give('circuit', 2, 4); give('steel', 1, 2); give('serum', 1, 2); give('crystal', 1, 2, .6); give('core', 1, 1, .5); }
-  else { give('coin', 180, 350); give('med', 4, 6); give('steel', 3, 3); give('serum', 3, 3); give('crystal', 3, 5); give('core', 2, 3); give('heart', 1, 1); }
+  if (t.id === 0) { give('ammo', 6, 12, .5); give('wood', 3, 5); give('metal', 1, 3, .7); give('coin', 1, 4, .45); give('med', 1, 1, .15); give('powder', 1, 1, .08 * R); }
+  else if (t.id === 1) { give('ammo', 10, 20, .7); give('wood', 4, 7); give('metal', 3, 5); give('coin', 4, 9); give('med', 1, 1, .5); give('powder', 1, 2, .5); give('circuit', 1, 1, .3 * R); give('steel', 1, 1, .04 * R); }
+  else if (t.id === 2) { give('ammo', 20, 35); give('metal', 5, 8); give('coin', 9, 20); give('med', 1, 2); give('powder', 2, 4); give('circuit', 1, 3, .7); give('steel', 1, 1, .35 * R); give('serum', 1, 1, .25 * R); give('crystal', 1, 1, .03 * R); }
+  else if (t.id === 3) { give('ammo', 30, 50); give('coin', 35, 70); give('med', 2, 3); give('circuit', 2, 4); give('steel', 1, 2); give('serum', 1, 2); give('crystal', 1, 2, .6); give('core', 1, 1, .5); }
+  else { give('ammo', 60, 90); give('coin', 180, 350); give('med', 4, 6); give('steel', 3, 3); give('serum', 3, 3); give('crystal', 3, 5); give('core', 2, 3); give('heart', 1, 1); }
 }
 // the crate itself: a wooden supply box for white, armoured cases with glowing seams for the rarer colours
 const CRATE_LOOK = [
@@ -21911,6 +21911,8 @@ function econCheck() {
   try { for (const [k, n, p] of VIL_SELL) { if (G[k] == null) continue; const ref = G[k] * n * C; if (p * ECON.VIL_MIN < ref) bad.push('村民卖 ' + k + '×' + n + ' ' + p + ' 币 < ' + Math.ceil(ref / ECON.VIL_MIN)); } } catch (e) { }
   try { for (const [k, n, p] of RELIC_SHOP) { if (G[k] == null) continue; if (p * ECON.RELIC_GEM < G[k] * n) bad.push('老钱 ' + k + '×' + n + ' ' + p + ' 遗物币 < 晶石价'); } } catch (e) { }
   try { for (const k in SELL_PRICE) { if (G[k] == null) continue; if (SELL_PRICE[k] * ECON.VIL_MAX_BUY >= G[k] * C) bad.push('卖 ' + k + ' 最多 ' + SELL_PRICE[k] * ECON.VIL_MAX_BUY + ' 币 ≥ 晶石价 ' + G[k] * C); } } catch (e) { }
+  // 老钱's skins (遗物币) never cheaper than the dearest 晶石 skin
+  try { if (typeof RELIC_SKIN_PRICE !== 'undefined' && typeof SKIN_PRICE !== 'undefined') { const top = Math.max(...Object.values(SKIN_PRICE).filter(v => typeof v === 'number')); if (RELIC_SKIN_PRICE * ECON.RELIC_GEM < top) bad.push('老钱皮肤 ' + RELIC_SKIN_PRICE + ' 遗物币 < 晶石皮肤 ' + top); } } catch (e) { }
   ECON.bad = bad; if (bad.length) console.warn('ECON price rule broken:\n' + bad.join('\n')); return bad;
 }
 try { econCheck(); } catch (e) { }
@@ -22983,4 +22985,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795003093').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795003240').catch(()=>{});</script></body></html>
