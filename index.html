@@ -22481,6 +22481,22 @@ if (typeof swimMul === 'function') swimMul = (o => function () { if (!hasWings()
   // the other wrappers (abyss cards…) still count: only the water part is switched off for this call
   const a = typeof SWN !== 'undefined' ? SWN.on : null, b = typeof SW !== 'undefined' ? SW.b : null;
   try { if (a != null) SWN.on = false; if (b != null) SW.b = false; return o(); } finally { if (a != null) SWN.on = a; if (b != null) SW.b = b; } })(swimMul);
+/* winged = you fly over the water (owner 18 Nov: "可以飞到水面"): over your own ponds / rivers / the sea you glide just above the
+   surface instead of swimming — upright, you can shoot, full speed, a ripple + spray under you; the swim code is told there is
+   no water (islWaterLevel answers null to it), so it lets go of the swim pose by itself */
+const WFLY = { on: false, y: 0, bt: 0 };
+swn2Tick = (o => function (dt) { if (!hasWings()) { WFLY.on = false; return o(dt); }
+  const W0 = islWaterLevel; let lvl = null;
+  try { lvl = W0(player.pos.x, player.pos.z); } catch (e) { }
+  islWaterLevel = () => null; try { o(dt); } finally { islWaterLevel = W0; }
+  const ok = S.started && S.isl && !S.dun && !S.boat && !S.dead && !(S.fl | 0) && !(typeof GV !== 'undefined' && GV.on);
+  const deep = ok && lvl != null && lvl - swGround(player.pos.x, player.pos.z) > .3;
+  if (deep && !WFLY.on) { burst(player.pos.x, lvl + .2, player.pos.z, 0xfff4d8, 10, 3); }
+  WFLY.on = deep; if (!deep) return;
+  WFLY.y = lvl + .35 + Math.sin(S.t * 2.2) * .06;
+  const mv = Math.hypot(input.mx || 0, input.mz || 0) > .1; WFLY.bt -= dt;
+  if (WFLY.bt <= 0) { WFLY.bt = mv ? .08 : .5; burst(player.pos.x + rand(-.25, .25), lvl + .04, player.pos.z + rand(-.25, .25), mv ? 0xdff6ff : 0xfff0c8, mv ? 3 : 2, mv ? 2 : 1); } })(swn2Tick);
+terOff = (o => function () { return WFLY.on ? WFLY.y : o(); })(terOff);
 /* ============ weapon skins 2.0 (owner 18 Nov: "不只是时装，还有枪的皮肤" — the old skins were only a recolour) ============
    The seven gacha weapon skins that fit every weapon get their own hand-placed parts and moving effects on top of the
    recolour (sized from the weapon's bounding box, so they fit guns and melee weapons alike):
@@ -23790,4 +23806,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795015242').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795015825').catch(()=>{});</script></body></html>
