@@ -3806,7 +3806,7 @@ function updateZombie(z, dt) {
   if (z.atkT > 0) zAttackPose(z, dt);
   if (chase && dist < 1.25 * z.sc + .4 && (tg.peer || (!!z.up === !!S.up && (z.up || (playerY() || 0) < 1.4)))) { z.cd -= dt; if (z.cd <= 0) { z.cd = 1.25; zAttackStart(z); if (tg.peer) coopBite(z, tg.peer); else takeDamage(z.dmg, z); zombieVoice(z, 'attack'); } }
   if (z.buff === 'ember' && z.hp < z.max) z.hp = Math.min(z.max, z.hp + z.max * .02 * dt);
-  if (z.burnT > 0) { z.burnT -= dt; z.burnK = (z.burnK || 0) + dt; const dd = (z.burnD || 0) * dt; z.hp -= dd; if (z.burnK > .3) { z.burnK = 0; burst(z.pos.x, 1.4 * z.sc, z.pos.z, 0xff8a2a, 2, 2); } if (z.hp <= 0 && !z.dead) killZombie(z); }
+  if (z.burnT > 0) { z.burnT -= dt; z.burnK = (z.burnK || 0) + dt; const dd = (z.burnD || 0) * dt * (typeof elMul === 'function' ? elMul('fire') : 1); z.hp -= dd; if (z.burnK > .3) { z.burnK = 0; burst(z.pos.x, 1.4 * z.sc, z.pos.z, 0xff8a2a, 2, 2); } if (z.hp <= 0 && !z.dead) killZombie(z); }
   if (chase && dist > 90) z.horde = false;
 }
 
@@ -5664,25 +5664,34 @@ const AFX_QM = [1, 1, 1.1, 1.25, 1.45, 1.7, 1.8];
 const TRAIT_QP = [0, 0, 1, 1.3, 1.6, 2, 2.2];
 const pc1 = v => (Math.round(v * 1000) / 10) + '%';
 const TRAITS = [
-  { id: 'burn', n: '烈焰', c: '#ff7a2a', d: p => '命中有 ' + pc1(.08 * p) + ' 几率点燃敌人，3 秒内每秒烧掉这一击 30% 的伤害' },
-  { id: 'frost', n: '寒霜', c: '#7de0ff', d: p => '命中有 ' + pc1(.1 * p) + ' 几率冻住敌人，2 秒内移动速度 -45%' },
-  { id: 'chain', n: '雷霆', c: '#bfe6ff', d: p => '暴击时闪电跳到附近一个敌人，造成 ' + pc1(.3 * p) + ' 伤害' },
-  { id: 'leech', n: '嗜血', c: '#ff5a6a', d: p => '造成伤害的 ' + pc1(.015 * p) + ' 转为生命' },
-  { id: 'exec', n: '处刑', c: '#ffb27a', d: p => '对生命低于 25% 的敌人伤害 +' + pc1(.2 * p) },
-  { id: 'hunter', n: '猎手', c: '#8fe05a', d: p => '对动物和精英伤害 +' + pc1(.3 * p) },
-  { id: 'sniper', n: '鹰眼', c: '#ffe070', d: p => '枪械暴击伤害 +' + pc1(.25 * p) },
-  { id: 'tough', n: '坚韧', c: '#c9a07a', d: p => '生命低于 30% 时减伤 +' + pc1(.12 * p) },
-  { id: 'thorns', n: '荆棘', c: '#a0d870', d: p => '被近身攻击时反弹 ' + pc1(.2 * p) + ' 伤害' },
-  { id: 'swift', n: '疾风', c: '#9fe8ff', d: p => '击杀后 3 秒移动速度 +' + pc1(.15 * p) },
-  { id: 'guard', n: '守护', c: '#ffd27a', d: p => '每 ' + Math.round(40 / p) + ' 秒完全挡下一次伤害' },
-  { id: 'rage', n: '狂怒', c: '#ff6a5a', d: p => '连杀每层伤害 +' + pc1(.01 * p) + '（最多 10 层）' }
+  // owner 18 Nov: every trait says what kind it is; the four element traits deal that element, so the matching 洗练 line
+  // (火焰/潮汐/雷电/毒素伤害, 元素强化) makes them stronger, and a piece with such a trait rolls that line more often (afxPickW).
+  { id: 'burn', n: '烈焰', c: '#ff7a2a', el: 'fire', d: p => '火焰 · 命中有 ' + pc1(.08 * p) + ' 几率点燃敌人，3 秒内每秒烧掉这一击 30% 的伤害（火焰伤害词条让它更痛）' },
+  { id: 'frost', n: '潮汐', c: '#5ab0ff', el: 'water', d: p => '潮汐 · 命中有 ' + pc1(.1 * p) + ' 几率让敌人湿透 2 秒：移动速度 -45%，受到的所有伤害 +8%（潮汐伤害词条让它更强）' },
+  { id: 'chain', n: '雷霆', c: '#bfe6ff', el: 'thun', d: p => '雷电 · 暴击时闪电跳到附近一个敌人，造成 ' + pc1(.3 * p) + ' 伤害（雷电伤害词条让它更痛）' },
+  { id: 'leech', n: '嗜血', c: '#ff5a6a', d: p => '回复 · 造成伤害的 ' + pc1(.015 * p) + ' 转为生命' },
+  { id: 'exec', n: '处刑', c: '#ffb27a', d: p => '攻击 · 对生命低于 25% 的敌人伤害 +' + pc1(.2 * p) },
+  { id: 'hunter', n: '猎手', c: '#8fe05a', d: p => '攻击 · 对动物和精英伤害 +' + pc1(.3 * p) },
+  { id: 'sniper', n: '鹰眼', c: '#ffe070', d: p => '攻击 · 枪械暴击伤害 +' + pc1(.25 * p) },
+  { id: 'tough', n: '坚韧', c: '#c9a07a', d: p => '防御 · 生命低于 30% 时，受到的伤害 -' + pc1(Math.min(.5, .12 * p)) },
+  { id: 'thorns', n: '荆棘', c: '#a0d870', d: p => '防御 · 被近身攻击时，把受到伤害的 ' + pc1(.2 * p) + ' 反弹给对方' },
+  { id: 'swift', n: '疾风', c: '#9fe8ff', d: p => '行动 · 击杀后 3 秒移动速度 +' + pc1(.15 * p) },
+  { id: 'guard', n: '守护', c: '#ffd27a', d: p => '防御 · 每 ' + Math.round(40 / p) + ' 秒完全挡下一次伤害' },
+  { id: 'rage', n: '狂怒', c: '#ff6a5a', d: p => '攻击 · 连杀每层伤害 +' + pc1(.01 * p) + '（最多 10 层）' },
+  { id: 'pois', n: '剧毒', c: '#8fd84a', el: 'pois', d: p => '毒素 · 命中有 ' + pc1(.1 * p) + ' 几率让敌人中毒，4 秒内每秒扣这一击 10% 的伤害（毒素伤害词条让它更痛）' }
 ];
+// which 洗练 line goes with which element trait; a piece with that trait rolls it ×4 as often (元素强化 ×2)
+const TRAIT_LINE = { fire: 'fireDmg', water: 'iceDmg', thun: 'shockDmg', pois: 'poisonDmg' };
+function afxPickW(it, rnd) { const T = it && it[8] >= 0 && TRAITS[it[8]], k = T && T.el && TRAIT_LINE[T.el];
+  const w = AFX.map(A => !k ? 1 : A.k === k ? 4 : A.k === 'elemAmp' ? 2 : 1); let t = w.reduce((a, b) => a + b, 0) * rnd();
+  for (let i = 0; i < w.length; i++) { t -= w[i]; if (t < 0) return i; } return w.length - 1; }
+const elMulS = el => typeof elMul === 'function' ? elMul(el) : 1;
 const tp = id => { const i = TRAITS.findIndex(t => t.id === id); return i < 0 ? 0 : gst('t' + i); };       // total trait power worn
 // ---- affix rolling
 function afxGen(a) {
   const q = a[1], R = mulberry32(((a[4] | 0) ^ 0x5bd1e995) >>> 0), [L, Rr] = AFX_SLOTS[q] || [0, 0];
   a[8] = q >= 2 ? Math.floor(R() * TRAITS.length) : -1;
-  const used = []; for (let i = 0; i < L + Rr; i++) { let s; do s = Math.floor(R() * AFX.length); while (used.includes(s)); used.push(s); a.push(s * 1000 + Math.floor(R() * 1000)); }
+  const used = []; for (let i = 0; i < L + Rr; i++) { let s; do s = afxPickW(a, R); while (used.includes(s)); used.push(s); a.push(s * 1000 + Math.floor(R() * 1000)); }
 }
 function afxSanitize(a) {
   const q = a[1], [L, Rr] = AFX_SLOTS[q] || [0, 0], n = L + Rr; if (a[8] >= TRAITS.length || (q < 2 && a[8] >= 0)) a[8] = q >= 2 ? 0 : -1;
@@ -5702,7 +5711,7 @@ function rerollAffix(it, line) {
   const L = afxLocked(it), idx = 9 + line; if (line < L || idx >= it.length) return false;
   const c = rerollCost(it); if (S.coin < c.coin || matHave('estone') < c.estone) { feed('余烬币或强化石不够', '#ff9b8a'); return false; }
   S.coin -= c.coin; if (c.estone) matAdd('estone', -c.estone);
-  const others = afxLines(it).filter((_, i) => i !== line).map(x => Math.floor(x / 1000)); let s; do s = Math.floor(Math.random() * AFX.length); while (others.includes(s));
+  const others = afxLines(it).filter((_, i) => i !== line).map(x => Math.floor(x / 1000)); let s; do s = afxPickW(it, Math.random); while (others.includes(s));
   it[idx] = s * 1000 + Math.floor(Math.random() * 1000); feed('洗练：' + afxTxt(it, it[idx]), '#c28bff'); sfx.pick(); _gTot = null; gearChanged(); return true;
 }
 // the full description of a piece, for cards
@@ -5730,9 +5739,10 @@ function traitHit(z, d, crit) {
   if (P('leech') && !S.dead) S.hp = Math.min(S.maxHp, S.hp + d * .015 * P('leech'));
   if (z.dead) return;
   if (P('burn') && Math.random() < .08 * P('burn')) { z.burnD = Math.max(z.burnT > 0 ? (z.burnD || 0) : 0, d * .3); z.burnT = 3; burst(z.pos.x, 1.4 * (z.sc || 1), z.pos.z, 0xff7a2a, 5, 3); }
-  if (P('frost') && Math.random() < .1 * P('frost')) { z.slowT = 2; burst(z.pos.x, 1.2 * (z.sc || 1), z.pos.z, 0x9fe8ff, 6, 3); }
+  if (P('frost') && Math.random() < .1 * P('frost')) { z.slowT = 2; z.wetK = Math.max(z.wetT > S.t ? (z.wetK || 0) : 0, .08 * elMulS('water')); z.wetT = Math.max(z.wetT || 0, S.t + 2); burst(z.pos.x, 1.2 * (z.sc || 1), z.pos.z, 0x9fe8ff, 6, 3); }
   if (P('chain') && crit) { let best = null, bd = 6; for (const o of zombies) { if (o === z || o.dead || (o.animal && !o.hostile)) continue; const e = Math.hypot(o.pos.x - z.pos.x, o.pos.z - z.pos.z); if (e < bd) { bd = e; best = o; } }
-    if (best) { tracer(z.pos.x, 1.4, z.pos.z, best.pos.x, 1.3, best.pos.z, 0xbfe6ff); hurtZombie(best, d * .3 * P('chain'), 0, 0); } }
+    if (best) { tracer(z.pos.x, 1.4, z.pos.z, best.pos.x, 1.3, best.pos.z, 0xbfe6ff); hurtZombie(best, d * .3 * P('chain') * elMulS('thun'), 0, 0); } }
+  if (P('pois') && Math.random() < .1 * P('pois')) { z.g2pT = Math.max(z.g2pT || 0, 4); z.g2pD = Math.max(z.g2pD || 0, d * .1); burst(z.pos.x, 1.2 * (z.sc || 1), z.pos.z, 0x8fd84a, 5, 3); }
 }
 // when you get hit (called from takeDamage): returns the damage left
 function traitHurt(n, src) {
@@ -10906,6 +10916,7 @@ function attSt(id, k) { if (!id || !S.watt[id]) return 0; const w = S.watt[id]; 
 wsSt = (o => function (id, k) { return o(id, k) + attSt(id, k); })(wsSt);
 const elPow = a => (1 + .35 * a[3]) * attLvF(a[4]);
 function attEl(id) { const w = S.watt[id], a = w && w.e && attById(w.e); if (!a) return null; return { el: attKind(a).el, q: a[3], p: elPow(a) }; }
+const elM = el => typeof elMul === 'function' ? elMul(el) : 1;   // 洗练 element lines (z_gafx2.js)
 const EL_DPS = { fire: .08, thun: .1, water: .06, pois: .08 };
 weaponDps = (o => function (id) { const E = attEl(id); return o(id) * (E ? 1 + EL_DPS[E.el] * E.p : 1); })(weaponDps);
 function elDesc(el, q, p) {
@@ -10921,10 +10932,10 @@ function attElHit(z, d) {
   if (E.el === 'fire') { if (Math.random() < .35 + .03 * E.q) { z.burnD = Math.max(z.burnT > 0 ? (z.burnD || 0) : 0, d * .08 * E.p); z.burnT = 3; z.elFire = S.t + 3; burst(z.pos.x, 1.3 * z.sc, z.pos.z, 0xff7a2a, 4, 2.5); } }
   else if (E.el === 'thun') { if (Math.random() < .14 + .02 * E.q) { let from = z; const hit = new Set([z]);
     for (let n = 0; n < 2 + Math.floor(E.q / 2); n++) { let best = null, bd = 7; for (const o of zombies) { if (o.dead || hit.has(o) || o.animal) continue; const dd = Math.hypot(o.pos.x - from.pos.x, o.pos.z - from.pos.z); if (dd < bd) { bd = dd; best = o; } }
-      if (!best) break; hit.add(best); tracer(from.pos.x, 1.3 * from.sc, from.pos.z, best.pos.x, 1.3 * best.sc, best.pos.z, 0x9fe8ff); burst(best.pos.x, 1.3 * best.sc, best.pos.z, 0xc8f4ff, 5, 3); hurtZombie(best, d * .35 * E.p, 0, 0); from = best; }
+      if (!best) break; hit.add(best); tracer(from.pos.x, 1.3 * from.sc, from.pos.z, best.pos.x, 1.3 * best.sc, best.pos.z, 0x9fe8ff); burst(best.pos.x, 1.3 * best.sc, best.pos.z, 0xc8f4ff, 5, 3); hurtZombie(best, d * .35 * E.p * elM('thun'), 0, 0); from = best; }
     if (hit.size > 1 && AC) try { sfxNoise(.12, .06, 4200); } catch (e) { } } }
   else if (E.el === 'pois') { z.g2pT = Math.max(z.g2pT || 0, 4); z.g2pD = Math.min((z.g2pD || 0) + d * .05 * E.p, Math.max(z.g2pD || 0, d * .15 * E.p)); z.elPois = S.t + 4; if (Math.random() < .3) burst(z.pos.x, 1.2 * z.sc, z.pos.z, 0x8fd84a, 3, 2); }
-  else if (E.el === 'water') { z.slowT = Math.max(z.slowT || 0, 1.2 + .2 * E.q); z.wetT = S.t + 3; z.wetK = .05 * E.p; if (Math.random() < .3) burst(z.pos.x, 1.2 * z.sc, z.pos.z, 0x6ab8ff, 3, 2); }
+  else if (E.el === 'water') { z.slowT = Math.max(z.slowT || 0, 1.2 + .2 * E.q); z.wetT = S.t + 3; z.wetK = .05 * E.p * elM('water'); if (Math.random() < .3) burst(z.pos.x, 1.2 * z.sc, z.pos.z, 0x6ab8ff, 3, 2); }
 }
 hurtZombie = (o => function (z, dmg, dx, dz) { if (z && z.wetT > S.t) dmg *= 1 + (z.wetK || 0); return o(z, dmg, dx, dz); })(hurtZombie);
 
@@ -10935,7 +10946,7 @@ function attDrop(tier, bonus, minQ) { const q = Math.max(minQ || 0, Math.min(5, 
   const K = attKind(a); feed('获得配件：' + GQ[q].n + ' · ' + K.n, GQ[q].c); if (q >= 4) banner('稀有配件！', GQ[q].n + ' · ' + K.n + '（去武器页面装上）', 3); return a; }
 killZombie = (o => function (z) { const mine = z && !z.dead && !z.animal && !z.mirror && !z.hitBy; o(z);
   if (!mine) return;
-  try { const E = attEl(S.wp); if (E && E.el === 'fire' && z.elFire > S.t) { burst(z.pos.x, 1, z.pos.z, 0xff7a2a, 16, 5); const dd = weaponDmg(S.wp) * .3 * E.p;
+  try { const E = attEl(S.wp); if (E && E.el === 'fire' && z.elFire > S.t) { burst(z.pos.x, 1, z.pos.z, 0xff7a2a, 16, 5); const dd = weaponDmg(S.wp) * .3 * E.p * elM('fire');
     for (const o2 of zombies) if (!o2.dead && !o2.animal && o2 !== z && Math.hypot(o2.pos.x - z.pos.x, o2.pos.z - z.pos.z) < 3) { hurtZombie(o2, dd, 0, 0); o2.burnD = Math.max(o2.burnD || 0, dd * .2); o2.burnT = 2; } }
     if (E && E.el === 'pois' && z.elPois > S.t) { burst(z.pos.x, 1, z.pos.z, 0x8fd84a, 14, 3); const pd = weaponDmg(S.wp) * .06 * E.p;
       for (const o2 of zombies) if (!o2.dead && !o2.animal && o2 !== z && Math.hypot(o2.pos.x - z.pos.x, o2.pos.z - z.pos.z) < 3.5) { o2.g2pT = Math.max(o2.g2pT || 0, 4); o2.g2pD = Math.max(o2.g2pD || 0, pd); o2.elPois = S.t + 4; } } } catch (e) { }
@@ -11513,7 +11524,7 @@ hurtZombie = (o => function (z, dmg, dx, dz) {
 attElHit = (o => function (z, d) { NUM.src = 'thun'; try { return o(z, d); } finally { NUM.src = ''; } })(attElHit);
 takeDamage = (o => function (n, src) { const h0 = S.hp; const r = o(n, src); try { const lost = h0 - S.hp; if (lost > .5) numPop(player.pos.x, 2.3, player.pos.z, lost, 'hurt'); } catch (e) { } return r; })(takeDamage);
 // burning: the fire damage ticks inside the zombie update, so show it in small bursts
-function burnNums(dt) { for (const z of zombies) { if (z.dead || !(z.burnT > 0)) { if (z) z._bAcc = 0; continue; } z._bAcc = (z._bAcc || 0) + (z.burnD || 0) * dt; z._bT = (z._bT || 0) + dt;
+function burnNums(dt) { for (const z of zombies) { if (z.dead || !(z.burnT > 0)) { if (z) z._bAcc = 0; continue; } z._bAcc = (z._bAcc || 0) + (z.burnD || 0) * dt * (typeof elMul === 'function' ? elMul('fire') : 1); z._bT = (z._bT || 0) + dt;
   if (z._bT > .5) { z._bT = 0; if (z._bAcc > .5) numPop(z.pos.x, 1.6 * (z.sc || 1), z.pos.z, z._bAcc, 'dot'); z._bAcc = 0; } } }
 
 /* ---- roll ---- */
@@ -21921,50 +21932,32 @@ function econCheck() {
 }
 try { econCheck(); } catch (e) { }
 /* ============ elemental 洗练 lines (owner 18 Nov: "add fire damage, water damage … more variety") ============
-   New affix lines at the END of AFX (old pieces keep their lines). On every hit of yours:
-   - 火焰伤害   +X% of the hit as fire, and the target keeps burning a little (2 s)
-   - 冰霜伤害   +X% of the hit as cold, and the target is slowed (1 s)
-   - 雷电伤害   +X% of the hit as lightning; 1 in 5 hits also arcs to one zombie nearby (double the bonus)
-   - 毒素伤害   +X% of the hit as poison, dealt over 3 s (stacks up to 3 hits' worth)
-   - 元素强化   makes all of the above AND the weapon's element core (火 / 雷 / 水 / 毒) stronger
-   OWNER 18 Nov: a line only works when the weapon in hand carries the MATCHING element core (火焰→烈焰核心,
-   潮汐(old name 冰霜)→潮汐核心, 雷电→雷霆核心, 毒素→剧毒核心; 元素强化 needs any core). Otherwise the line is wasted
-   (shown in red on the gear screen) — players reroll it away. G2_NEED maps line → core.
-   Caps on the 6 gear pieces in GCAP like every line. Switch: GAFX2_ON. */
+   New affix lines at the END of AFX (old pieces keep their lines). OWNER 18 Nov (2nd word): a line raises ALL damage of
+   its element, from any source (element core, talents, gear perks, turrets, abyss cards, and gear he will add later) —
+   it adds no hit of its own, so with nothing that deals that element it simply does nothing. No live/not-live note.
+   - 火焰伤害 fireDmg   every burn tick (b2_enemies burn loop asks elMul('fire')) + the fire core's kill burst
+   - 潮汐伤害 iceDmg    the 潮汐核心 wet bonus (key kept from the old name 冰霜)
+   - 雷电伤害 shockDmg  the 雷霆核心 chain hits
+   - 毒素伤害 poisonDmg every poison tick (z.g2pT/g2pD, the 剧毒核心)
+   - 元素强化 elemAmp   all four
+   elMul(el) = 1 + line + 元素强化. Caps on the 6 gear pieces in GCAP like every line. Switch: GAFX2_ON. */
 const GAFX2_ON = true;
 if (GAFX2_ON) {
   AFX.push({ k: 'fireDmg', n: '火焰伤害', lo: .03, hi: .08, pct: 1 }, { k: 'iceDmg', n: '潮汐伤害', lo: .03, hi: .08, pct: 1 }, { k: 'shockDmg', n: '雷电伤害', lo: .03, hi: .08, pct: 1 },
     { k: 'poisonDmg', n: '毒素伤害', lo: .04, hi: .1, pct: 1 }, { k: 'elemAmp', n: '元素强化', lo: .05, hi: .12, pct: 1 });
-  Object.assign(GCAP, { fireDmg: .3, iceDmg: .3, shockDmg: .3, poisonDmg: .4, elemAmp: .5 });   // kept low: all four together with 元素强化 already add up to about double damage
+  Object.assign(GCAP, { fireDmg: .3, iceDmg: .3, shockDmg: .3, poisonDmg: .4, elemAmp: .5 });
   for (const A of AFX) if (!GSTAT_N[A.k]) GSTAT_N[A.k] = [A.n, v => '+' + (A.pct ? pc1(v) : A.dec ? v.toFixed(2) : Math.round(v))];
+  try { Object.assign(G3_EXP, { fireDmg: '所有火焰伤害提高这么多（燃烧、火焰爆炸等）', iceDmg: '所有潮汐效果提高这么多（湿透后多受的伤害）', shockDmg: '所有雷电伤害提高这么多（闪电连锁等）',
+    poisonDmg: '所有毒素伤害提高这么多（中毒扣血等）', elemAmp: '火焰、潮汐、雷电、毒素四种伤害都提高这么多' }); } catch (e) { }
 }
-const _g2AttEl = attEl;   // the core alone (the wrapper below asks g2a, which asks this: no loop)
-const G2_NEED = { fireDmg: 'fire', iceDmg: 'water', shockDmg: 'thun', poisonDmg: 'pois', elemAmp: '*' };
-const G2_CN = { fire: '烈焰核心', water: '潮汐核心', thun: '雷霆核心', pois: '剧毒核心', '*': '任何元素核心' };
-// is this line live with the weapon in hand? (needs the matching core)
-function g2Live(k) { const n = G2_NEED[k]; if (!n) return true; let E = null; try { E = _g2AttEl(S.wp); } catch (e) { } return !!E && (n === '*' || E.el === n); }
-if (GAFX2_ON) try { const T = { fireDmg: '每次攻击多打这么多火焰伤害，还会让目标烧一会儿', iceDmg: '每次攻击多打这么多水流伤害，还会让目标变慢', shockDmg: '每次攻击多打这么多雷电伤害，有时会电到旁边的丧尸',
-    poisonDmg: '每次攻击让目标中毒，3 秒内慢慢扣这么多血', elemAmp: '上面四种元素伤害和武器元素核心（火 / 雷 / 水 / 毒）都更强' };
-  for (const k in T) Object.defineProperty(G3_EXP, k, { enumerable: true, configurable: true, get() { const n = G2_NEED[k];
-    return T[k] + '。<b style="color:' + (g2Live(k) ? '#7ad86a">手上武器有' + G2_CN[n] + '，生效中' : '#ff6a5a">要武器装上' + G2_CN[n] + '才有用，现在没效果') + '</b>'; } });
-} catch (e) { }
-const g2a = k => GAFX2_ON && g2Live(k) ? Math.max(0, Math.min(GCAP[k] || 1, gst(k) || 0)) : 0;
-let _g2In = false;   // the extra hits must not set off more extra hits
-traitHit = (o => function (z, d, crit) { o.apply(this, arguments); if (_g2In || !GAFX2_ON || !z || z.dead || z.animal || !(d > 0)) return;
-  _g2In = true; try { const amp = 1 + g2a('elemAmp');
-    const f = g2a('fireDmg') * amp; if (f) { hurtZombie(z, d * f, 0, 0); z.burnD = Math.max(z.burnT > 0 ? (z.burnD || 0) : 0, d * f * .25); z.burnT = Math.max(z.burnT || 0, 2); if (Math.random() < .3) burst(z.pos.x, 1.3 * z.sc, z.pos.z, 0xff7a2a, 3, 2); }
-    const c = g2a('iceDmg') * amp; if (c && !z.dead) { hurtZombie(z, d * c, 0, 0); z.slowT = Math.max(z.slowT || 0, 1); if (Math.random() < .3) burst(z.pos.x, 1.2 * z.sc, z.pos.z, 0x6ab8ff, 3, 2); }
-    const s = g2a('shockDmg') * amp; if (s && !z.dead) { hurtZombie(z, d * s, 0, 0);
-      if (Math.random() < .2) { let best = null, bd = 5; for (const q of zombies) { if (q === z || q.dead || q.animal) continue; const dd = Math.hypot(q.pos.x - z.pos.x, q.pos.z - z.pos.z); if (dd < bd) { bd = dd; best = q; } }
-        if (best) { tracer(z.pos.x, 1.3 * z.sc, z.pos.z, best.pos.x, 1.3 * best.sc, best.pos.z, 0x9fe8ff); hurtZombie(best, d * s * 2, 0, 0); } } }
-    const p = g2a('poisonDmg') * amp; if (p && !z.dead) { const add = d * p, E = attEl(S.wp), cap = d * (p + .15 * (E ? E.p : 1)); z.g2pT = Math.max(z.g2pT || 0, 3); z.g2pD = Math.max(z.g2pD || 0, Math.min((z.g2pD || 0) + add / 3, cap)); }
-  } catch (e) { } finally { _g2In = false; } })(traitHit);
-// 元素强化 also makes the weapon's element core stronger
-attEl = (o => function (id) { const E = o.apply(this, arguments); try { if (E && GAFX2_ON) { const a = GAFX2_ON ? Math.max(0, Math.min(GCAP.elemAmp || 1, gst('elemAmp') || 0)) : 0; if (a) E.p *= 1 + a; } } catch (e) { } return E; })(attEl);
+const g2a = k => GAFX2_ON ? Math.max(0, Math.min(GCAP[k] || 1, gst(k) || 0)) : 0;
+const G2_EL = { fire: 'fireDmg', water: 'iceDmg', thun: 'shockDmg', pois: 'poisonDmg' };
+function elMul(el) { try { const k = G2_EL[el]; return k ? 1 + g2a(k) + g2a('elemAmp') : 1; } catch (e) { return 1; } }
+// the core's own element damage uses elMul directly in z_att.js (chain hits, wet bonus, kill burst); burns in b2_enemies; poison below
 // poison: damage over time, in small bites (through hurtZombie so kills count)
 let _g2pT = 0;
-petsTick = (o => function (dt) { const r = o(dt); try { _g2pT += dt; if (_g2pT >= .5) { const t = _g2pT; _g2pT = 0;
-  for (const z of zombies) { if (z.dead || !(z.g2pT > 0)) continue; const n = Math.min(t, z.g2pT); z.g2pT -= t; _g2In = true; try { hurtZombie(z, z.g2pD * n, 0, 0); } finally { _g2In = false; }
+petsTick = (o => function (dt) { const r = o(dt); try { _g2pT += dt; if (_g2pT >= .5) { const t = _g2pT, pm = elMul('pois'); _g2pT = 0;
+  for (const z of zombies) { if (z.dead || !(z.g2pT > 0)) continue; const n = Math.min(t, z.g2pT); z.g2pT -= t; hurtZombie(z, z.g2pD * n * pm, 0, 0);
     if (Math.random() < .25) burst(z.pos.x, 1.2 * z.sc, z.pos.z, 0x8fd84a, 2, 1.5); if (!(z.g2pT > 0)) z.g2pD = 0; } } } catch (e) { } return r; })(petsTick);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
@@ -23000,4 +22993,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795003829').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795004375').catch(()=>{});</script></body></html>
