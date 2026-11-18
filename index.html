@@ -21566,7 +21566,7 @@ function g3Exp(it) { const o = gStats(it, true), ks = Object.keys(o).filter(k =>
 const g3Fm = (k, v) => GSTAT_N[k] ? GSTAT_N[k][1](v) : '+' + (Math.round(v * 100) / 100);
 function g3Info(it) {
   const q = it[1], Q = GQ[q], s = gSlot(it), lv = q === 6 ? 100 : it[2], e = it[7] || 0, pw = (q === 6 ? (1 + 5 * .75) * 1.08 : 1 + q * .75) * (1 + lv * .035), em = 1 + .06 * e, [L, R] = AFX_SLOTS[q] || [0, 0];
-  let h = '<div class="g3info"><div class="g3ch"><b>属性上限 · ' + Q.n + ' ' + g3Esc(gName(it)) + '</b><button class="g3x g3ix" aria-label="关闭">✕</button></div>';
+  let h = '<div class="g3info"><div class="g3ch"><b>属性上限 · ' + Q.n + ' ' + g3Esc(gName(it)) + '</b><small class="g3bk">按右上角 ✕ 返回</small></div>';
   h += '<p class="g3ip">' + Q.n + '品质：固定词条 ' + L + ' 条 · 可洗词条 ' + R + ' 条。下面是这件装备（Lv.' + it[2] + (e ? ' +' + e : '') + '）每一种属性能有的范围；「全身上限」是所有装备加起来最多能到多少，超过的部分没有用。</p>';
   h += '<h5>基础属性（' + GSLOT_N[s] + '固定有）</h5>';
   for (const k in GSTAT[s]) { h += '<div class="g3ir"><i>' + GSTAT_N[k][0] + '</i><span>' + g3Fm(k, gBaseV(s, k, pw * em, .88)) + ' ~ ' + g3Fm(k, gBaseV(s, k, pw * em, 1.12)) + '</span><em>' + (GCAP[k] != null ? '全身上限 ' + g3Fm(k, GCAP[k]) : '没有上限') + '</em><small>' + (G3_EXP[k] || '') + '</small></div>'; }
@@ -21608,7 +21608,6 @@ function g3Render(box, slot, name) {
   const cw = d.querySelector('.g3cmp'); if (cw) { const i = G3.cmp, it = S.ginv[i];
     cw.querySelector('.g3wear').addEventListener('click', () => { G3.cmp = null; equipGear(i); try { sfx.pick(); } catch (er) { } renderBag(); });
     cw.querySelector('.g3scrap').addEventListener('click', () => { G3.cmp = null; scrapGear(i); renderBag(); });
-    cw.querySelector('.g3x').addEventListener('click', () => { G3.cmp = null; g3Re(); });
     const eh = cw.querySelector('.g3enh2'); if (eh) eh.replaceWith(g3Enh(it)); }
   box.appendChild(d);
 }
@@ -21620,7 +21619,7 @@ function g3Cmp(a, b) {
     return '<div class="g3r"><i>' + GSTAT_N[k][0] + '</i><span>' + fm(k, x) + '</span><span class="' + (up ? 'gup' : dn ? 'gdn' : '') + '">' + fm(k, y) + (up ? ' ▲' : dn ? ' ▼' : '') + '</span></div>'; }).join('');
   const tr = it => { try { return it && it[8] >= 0 && TRAITS[it[8]] ? '【' + TRAITS[it[8]].n + '】' : '—'; } catch (e) { return '—'; } };
   const Qa = a ? GQ[a[1]] : null, Qb = GQ[b[1]], df = gScore(b) - (a ? gScore(a) : 0);
-  return '<div class="g3cmp"><div class="g3ch"><b>对比</b><button class="g3x" aria-label="关闭对比">✕</button></div>' +
+  return '<div class="g3cmp"><div class="g3ch"><b>对比</b><small class="g3bk">按右上角 ✕ 返回</small></div>' +
     '<div class="g3r g3hd"><i><button class="g3inf" data-w="cmp" aria-label="这件的属性上限">!</button></i><span style="color:' + (Qa ? Qa.c : '#999') + '">身上' + (a ? '<small>' + Qa.n + ' Lv.' + a[2] + (a[7] ? ' +' + a[7] : '') + '</small>' : '<small>没有</small>') + '</span><span style="color:' + Qb.c + '">这件<small>' + Qb.n + ' Lv.' + b[2] + (b[7] ? ' +' + b[7] : '') + '</small></span></div>' +
     '<div class="g3r"><i>评分</i><span>' + (a ? gScore(a) : '—') + '</span><span class="' + (df > 0 ? 'gup' : df < 0 ? 'gdn' : '') + '">' + gScore(b) + (df > 0 ? ' ▲' : df < 0 ? ' ▼' : '') + '</span></div>' +
     rows + '<div class="g3r"><i>特性</i><span>' + tr(a) + '</span><span>' + tr(b) + '</span></div>' +
@@ -21645,6 +21644,10 @@ function g3PickGrid() { const bag = $('bag'), grid = $('bagGrid'); if (!bag || !
   grid.querySelectorAll('.g3mt').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const i = +b.dataset.i; G3.cmp = G3.cmp === i ? null : i; G3.info = null; try { sfx.pick(); } catch (er) { } g3Re(); }));
 }
 renderBag0 = (o => function () { const r = o.apply(this, arguments); try { g3PickGrid(); } catch (e) { console.warn('g3pick', e); } return r; })(renderBag0);
+// one ✕ only (owner 18 Nov: the second ✕ inside the sheet was easy to press by mistake): the window's ✕ first leaves the
+// caps sheet, then the comparison, and only then closes the window
+document.addEventListener('click', e => { try { const x = e.target && e.target.closest && e.target.closest('#bagDetail .bpx'); if (!x || !G3_ON || !bagSel || bagSel[0] !== 'g') return;
+  if (G3.info) G3.info = null; else if (G3.cmp != null) G3.cmp = null; else return; e.stopImmediatePropagation(); e.preventDefault(); g3Re(); } catch (er) { } }, true);
 /* ---- 属性 page on the 角色 window ---- */
 function g3Num(f, d) { try { const v = f(); return v == null || (typeof v === 'number' && !Number.isFinite(v)) ? d : v; } catch (e) { return d; } }
 const g3P = v => (Math.round(v * 1000) / 10) + '%';
@@ -21685,7 +21688,7 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
   '.g3grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:8px;margin:6px 0 10px}.g3t{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:12px;border:2px solid var(--qc);background:rgba(255,255,255,.05);color:#eee;font-size:12px}' +
   '.g3t svg{width:26px;height:26px}.g3t b{color:var(--qc);font-size:12.5px}.g3t small{opacity:.8}.g3t em{font-style:normal;font-weight:900}.g3t.on{background:rgba(255,200,120,.18);box-shadow:0 0 0 2px #ffd27a}' +
   '.g3cmp{margin:8px 0;padding:10px;border-radius:14px;border:1.5px solid #ffd27a;background:rgba(40,30,20,.6)}.g3ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}.g3ch b{color:#ffd27a;font-size:15px}' +
-  '.g3x{width:32px;height:32px;border-radius:9px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#eee}' +
+  '.g3bk{font-size:11.5px;opacity:.6}.g3x{width:32px;height:32px;border-radius:9px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#eee}' +
   '.g3r{display:grid;grid-template-columns:minmax(64px,1fr) 1fr 1fr;gap:6px;padding:4px 2px;border-top:1px solid rgba(255,255,255,.07);font-size:13px}.g3r i{font-style:normal;color:#b9a99a}.g3r span{text-align:right}.g3hd span{font-weight:900}.g3hd small{display:block;font-size:11px;font-weight:600;opacity:.85}.g3no{opacity:.4}' +
   '.g3r .gup{color:#7fe07a}.g3r .gdn{color:#ff8a7a}.g3wear{width:100%;margin-top:10px;font-size:16px;padding:12px}' +
   '#talents.g3st>*:not(h2):not(#g3Stats):not(.ovx){display:none!important}#talents:not(.g3st) #g3Stats{display:none}#g3Stats{width:min(760px,100%);display:flex;flex-direction:column;gap:10px}' +
@@ -21809,6 +21812,43 @@ shopLoad = (o => function (d) { o(d); for (const f of S.pfish || []) pfDrop(f); 
     '#bPondF{position:absolute;right:calc(var(--sr) + 214px);bottom:calc(var(--sb) + 104px);display:none;font-size:15px;min-width:76px;border-color:#9fe8ff;background:rgba(20,60,90,.88);color:#e8faff}' +
     '@media (orientation:portrait){#bPondF{right:calc(var(--sr) + 14px);bottom:calc(var(--sb) + 312px)}}body.gvOn #bPondF,body.bOpen #bPondF{display:none!important}' })); } catch (e) { } } }
 try { if (typeof KE_LIST !== 'undefined' && Array.isArray(KE_LIST) && !KE_LIST.includes('bPondF')) KE_LIST.push('bPondF'); } catch (e) { }
+/* ============ 强化幸运符 (owner 18 Nov: "add something that raises the enhance chance") ============
+   A new item 'eluck'. Under the 强化 button on a piece there is a switch 「用幸运符」: while it is on and you have one, each
+   enhance try uses up one charm and the success chance goes up by ELUCK_ADD (never above 100%; nothing is used when the
+   chance is already 100%). Sold in the gem resource shop (稀有材料). Switch: ELUCK_ON. */
+const ELUCK_ON = true, ELUCK_ADD = .2;
+const ELK = { on: false };
+try { ELK.on = localStorage.getItem('ember_eluck') === '1'; } catch (e) { }
+MAT.eluck = { n: '强化幸运符', c: '#ffd27a', r: 3 };
+if (!('eluck' in S.inv)) S.inv.eluck = 0;
+try { ITEMS.eluck = { n: '强化幸运符', r: 3, cat: 'rare', d: '一张画着四叶草的金色符纸。强化时带着它，成功的机会更大。', use: '装备强化按钮下面打开「用幸运符」：每次强化用掉 1 张，成功率 +' + Math.round(ELUCK_ADD * 100) + '%（最多到 100%）。', src: '资源商店（稀有材料）' }; } catch (e) { }
+try { if (Array.isArray(GSHOP)) GSHOP.push(['eluck', 1, 20, 'r']); } catch (e) { }
+const eluckUse = it => ELUCK_ON && ELK.on && matHave('eluck') > 0 && it && (it[7] || 0) < 15 && enhRate(it) < 1;
+// the charm: an enhance try with the first random roll moved down by ELUCK_ADD (= chance + ELUCK_ADD), and one charm used up
+enhance = (o => function (it) { if (!eluckUse(it)) return o.apply(this, arguments);
+  const es = matHave('estone'), R = Math.random; let first = true;
+  Math.random = () => { if (first) { first = false; return Math.max(0, R() - ELUCK_ADD); } return R(); };
+  try { o.apply(this, arguments); } finally { Math.random = R; }
+  if (matHave('estone') < es) { matAdd('eluck', -1); try { feed('用掉 1 张强化幸运符（还有 ' + matHave('eluck') + ' 张）', '#ffd27a'); } catch (e) { } } })(enhance);
+// the switch under the enhance button (gear screen 3), and the chance shown with the charm
+g3Enh = (o => function (it) { const b = o.apply(this, arguments); if (!ELUCK_ON || (it[7] || 0) >= 15) return b;
+  const w = document.createElement('div'); w.className = 'g3ebw'; w.appendChild(b); const n = matHave('eluck');
+  if (eluckUse(it)) { const sm = b.querySelector('small'); if (sm) sm.innerHTML = sm.innerHTML.replace(/成功率 \d+%/, '成功率 <b style="color:#ffd27a">' + Math.round(Math.min(1, enhRate(it) + ELUCK_ADD) * 100) + '%</b>'); }
+  const t = document.createElement('button'); t.className = 'g3luck' + (ELK.on ? ' on' : ''); t.disabled = !n && !ELK.on;
+  t.innerHTML = '<i></i>用幸运符 +' + Math.round(ELUCK_ADD * 100) + '%<small>（有 ' + n + ' 张）</small>';
+  t.addEventListener('click', e => { e.stopPropagation(); ELK.on = !ELK.on; try { localStorage.setItem('ember_eluck', ELK.on ? '1' : '0'); } catch (er) { } try { g3Re(); } catch (er) { renderBag(); } });
+  w.appendChild(t); return w; })(g3Enh);
+// icon: a gold tag with a four-leaf clover
+(function () { try { if (typeof ICON_URL === 'undefined' || !document.createElement) return; const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext && c.getContext('2d'); if (!g || !g.fillRect) return;
+  g.translate(48, 48); g.rotate(-.15); g.fillStyle = '#c98a1c'; g.fillRect(-24, -32, 48, 64); g.fillStyle = '#ffd56a'; g.fillRect(-20, -28, 40, 56); g.fillStyle = '#e7a92a'; g.fillRect(-20, 18, 40, 10);
+  g.fillStyle = '#2f9a4a'; for (const [x, y] of [[-7, -7], [7, -7], [-7, 7], [7, 7]]) { g.beginPath(); g.arc(x, y - 4, 8, 0, Math.PI * 2); g.fill(); }
+  g.fillStyle = '#1f6e33'; g.fillRect(-1.5, 2, 3, 16); g.fillStyle = '#fff6c8'; g.beginPath(); g.arc(0, -4, 3, 0, Math.PI * 2); g.fill();
+  ICON_URL.eluck = c.toDataURL('image/png'); } catch (e) { } })();
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+  '.g3ebw{flex:2 1 180px!important;display:flex;flex-direction:column;gap:6px;min-width:0}.g3ebw .g3eb{width:100%;flex:none!important}' +
+  '.g3luck{display:flex;align-items:center;justify-content:center;gap:6px;min-height:34px;border-radius:10px;border:1.5px solid rgba(255,210,122,.45);background:rgba(255,210,122,.08);color:#ffe2a6;font-weight:800;font-size:13px;padding:4px 8px}' +
+  '.g3luck i{width:16px;height:16px;border-radius:4px;border:2px solid #ffd27a;flex:none}.g3luck.on{background:rgba(255,210,122,.22);border-color:#ffd27a}.g3luck.on i{background:#ffd27a;box-shadow:inset 0 0 0 2px #3a2a12}' +
+  '.g3luck small{font-weight:600;opacity:.75}.g3luck:disabled{opacity:.45}' })); } catch (e) { }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -22843,4 +22883,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794995137').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794995843').catch(()=>{});</script></body></html>
