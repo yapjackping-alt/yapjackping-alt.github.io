@@ -711,7 +711,7 @@ input[type=text]::placeholder{color:var(--dim)}
 .gvfr{display:flex;align-items:center;gap:6px}.gvfr .ic{width:30px;height:30px}.gvfr b{font-size:20px;color:#d8b8ff}.gvfr span{font-size:12px;color:#c9b8d8}.gvn{font-size:12px;color:#c9a88a}
 .gvex{padding:8px 10px;border-radius:12px;border:1.5px solid rgba(255,200,90,.5);background:linear-gradient(135deg,rgba(90,60,10,.4),rgba(30,14,30,.6));display:flex;flex-direction:column;gap:6px}.gvex h3{margin:0;font-size:14px;color:#ffd9a8;letter-spacing:.02em}.gvex .go{letter-spacing:.02em;font-size:15px}
 .gvslots{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}.gvs{display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 0;border-radius:10px;border:1.5px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#e8d8c8}.gvs .ic{width:30px;height:30px}.gvs small{font-size:10.5px}.gvs.on{border-color:#ffc94a;background:rgba(255,200,80,.15)}
-.gvqs{display:grid;grid-template-columns:1fr 1fr;gap:6px}.gvq{display:flex;flex-direction:column;align-items:center;padding:6px;border-radius:10px;border:1.5px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3)}.gvq small{font-size:11px;color:#c9a88a}.gvq.on{border-color:#ffc94a;background:rgba(255,200,80,.15)}
+.gvqs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.gvq{display:flex;flex-direction:column;align-items:center;padding:6px;border-radius:10px;border:1.5px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3)}.gvq small{font-size:11px;color:#c9a88a}.gvq.on{border-color:#ffc94a;background:rgba(255,200,80,.15)}
 .gvall{display:flex;gap:6px;flex-wrap:wrap}.gvall .armed,.gvall .sbtn.armed{background:#a8281c;color:#fff}
 .gvlist{display:flex;flex-direction:column;gap:5px}.gvlist .strow .sbtn{margin-left:4px}
 .gscrapall{margin-left:auto;padding:4px 10px!important;font-size:11.5px!important}
@@ -8903,7 +8903,7 @@ function passBooks(box) {
    choose: a big pity on top of the 120-draw mythic pity. Materials from the box still go straight to your bag.
    Fragments per piece: 特级 1 · 高级 2 · 史诗 6 · 黄金 30 · 神话 120. Costs: 黄金 60 · 神话 200 (about 45 / 150 draws). */
 S.gv = { g: [], f: 0 };
-const GV_FR = [1, 1, 2, 6, 30, 120, 400], GV_COST = { 4: 60, 5: 200 }, GV_MAX = 400;
+const GV_FR = [1, 1, 2, 6, 30, 120, 400], GV_COST = { 2: 5, 3: 15, 4: 60, 5: 200 }, GV_MAX = 400;
 function vaultPut(it) { S.gv.g.push(it); if (S.gv.g.length > GV_MAX) { const x = S.gv.g.shift(); S.gv.f += GV_FR[x[1]]; } }
 let gvSel = 0, gvQ = 5;
 function renderVault() {
@@ -8913,7 +8913,7 @@ function renderVault() {
   // exchange: pick a slot and a quality
   const ex = pel2('div', 'gvex'); ex.appendChild(pel2('h3', '', T2('碎片兑换（大保底）', 'Shard exchange (big pity)')));
   const sl = pel2('div', 'gvslots'); GSLOT.forEach((k, i) => { const b = pel2('button', 'gvs' + (gvSel === i ? ' on' : ''), icHtml('gsl:' + gvQ + ':' + k) + '<small>' + GSLOT_N[k] + '</small>'); b.addEventListener('click', () => { gvSel = i; renderVault(); }); sl.appendChild(b); }); ex.appendChild(sl);
-  const qs = pel2('div', 'gvqs'); [4, 5].forEach(q => { const b = pel2('button', 'gvq' + (gvQ === q ? ' on' : ''), '<b style="color:' + GQ[q].c + '">' + GQ[q].n + '</b><small>' + GV_COST[q] + ' ' + T2('碎片', 'shards') + '</small>'); b.addEventListener('click', () => { gvQ = q; renderVault(); }); qs.appendChild(b); }); ex.appendChild(qs);
+  const qs = pel2('div', 'gvqs'); [2, 3, 4, 5].forEach(q => { const b = pel2('button', 'gvq' + (gvQ === q ? ' on' : ''), '<b style="color:' + GQ[q].c + '">' + GQ[q].n + '</b><small>' + GV_COST[q] + ' ' + T2('碎片', 'shards') + '</small>'); b.addEventListener('click', () => { gvQ = q; renderVault(); }); qs.appendChild(b); }); ex.appendChild(qs);
   const go = pel2('button', 'go', T2('兑换 ', 'Get ') + GQ[gvQ].n + GSLOT_N[GSLOT[gvSel]] + ' · ' + GV_COST[gvQ] + ' ' + T2('碎片', 'shards')); go.disabled = S.gv.f < GV_COST[gvQ];
   go.addEventListener('click', () => { if (S.gv.f < GV_COST[gvQ]) return; S.gv.f -= GV_COST[gvQ]; let it = null; for (let i = 0; i < 60 && (!it || it[0] !== gvSel); i++) it = makeGear(lvTier(), S.level, gvQ, 0); it[0] = gvSel; vaultPut(it);
     banner(T2('兑换成功', 'Exchanged'), GQ[gvQ].n + T2('装备「', ' gear "') + gName(it) + T2('」已放进装备库', '" is in the vault'), 3); try { sfx.build(); } catch (e) { } saveGame(); renderVault(); });
@@ -11806,7 +11806,7 @@ function renderBpm() {
 
 /* ---- 配件补给箱 in the shop: drawn attachments wait in the 配件库 ---- */
 S.av = []; S.mp5 = 0; S.avf = 0;
-const AV_MAX = 300, AV_FR = [1, 1, 2, 6, 30, 120], AV_COST = { 4: 60, 5: 200 };
+const AV_MAX = 300, AV_FR = [1, 1, 2, 6, 30, 120], AV_COST = { 2: 5, 3: 15, 4: 60, 5: 200 };
 let avSel = ['mz', 0], avQ = 5;
 const attName = (sl, kd) => (ATT_K[sl] && ATT_K[sl][kd] ? ATT_K[sl][kd].n : '配件');
 const attPrize = (q, lab) => [() => { const sl = pick(['mz', 'gr', 'bl', 'hd', 'el', 'el']), kd = rint(0, ATT_K[sl].length - 1); return { n: GQ[q].n + '配件「' + attName(sl, kd) + '」（已放进配件库）', f: () => { S.av.push([sl, kd, q]); if (S.av.length > AV_MAX) { const x = S.av.shift(); S.avf += AV_FR[x[2]]; } } }; }, null, lab || GQ[q].n + '配件（随机）'];
@@ -11821,11 +11821,11 @@ const avGive = v => { for (const k in v) matAdd(k, v[k]); };
 function renderAttVault() {
   const box = $('avList'); if (!box) return; box.innerHTML = ''; const A = S.av;
   const el2 = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
-  box.appendChild(el2('div', 'snote', '从「配件补给箱」抽到的配件先放在这里：想要的点「取出」放进你的配件（去武器页面装上），不要的分解成配件碎片，碎片可以换指定的黄金或神话配件。库里 ' + A.length + ' 件。'));
+  box.appendChild(el2('div', 'snote', '从「配件补给箱」抽到的配件先放在这里：想要的点「取出」放进你的配件（去武器页面装上），不要的分解成配件碎片，碎片可以换指定的高级、史诗、黄金或神话配件。库里 ' + A.length + ' 件。'));
   box.appendChild(el2('div', 'gvtop', '<div class="gvfr">' + svgIcon('att_elthun1') + '<b>' + S.avf + '</b><span>配件碎片</span></div><div class="gvn">分解：特级 1 · 高级 2 · 史诗 6 · 黄金 30 · 神话 120</div>'));
   { const ex = el2('div', 'gvex'); ex.appendChild(el2('h3', '', '碎片兑换（指定配件）'));
-    const sl = el2('div', 'gvslots avslots'); for (const k of ['mz', 'gr', 'bl', 'hd', 'el']) for (let d = 0; d < 3; d++) { const on = avSel[0] === k && avSel[1] === d, b = el2('button', 'gvs' + (on ? ' on' : ''), svgIcon(attIc([0, k, d, 0, 1])) + '<small>' + ATT_K[k][d].n + '</small>'); b.addEventListener('click', () => { avSel = [k, d]; renderAttVault(); }); sl.appendChild(b); }
-    ex.appendChild(sl); const qs = el2('div', 'gvqs'); [4, 5].forEach(q => { const b = el2('button', 'gvq' + (avQ === q ? ' on' : ''), '<b style="color:' + GQ[q].c + '">' + GQ[q].n + '</b><small>' + AV_COST[q] + ' 碎片</small>'); b.addEventListener('click', () => { avQ = q; renderAttVault(); }); qs.appendChild(b); }); ex.appendChild(qs);
+    const sl = el2('div', 'gvslots avslots'); for (const k of ['mz', 'gr', 'bl', 'hd', 'el']) for (let d = 0; d < ATT_K[k].length; d++) { const on = avSel[0] === k && avSel[1] === d, b = el2('button', 'gvs' + (on ? ' on' : ''), svgIcon(attIc([0, k, d, 0, 1])) + '<small>' + ATT_K[k][d].n + '</small>'); b.addEventListener('click', () => { avSel = [k, d]; renderAttVault(); }); sl.appendChild(b); }
+    ex.appendChild(sl); const qs = el2('div', 'gvqs'); [2, 3, 4, 5].forEach(q => { const b = el2('button', 'gvq' + (avQ === q ? ' on' : ''), '<b style="color:' + GQ[q].c + '">' + GQ[q].n + '</b><small>' + AV_COST[q] + ' 碎片</small>'); b.addEventListener('click', () => { avQ = q; renderAttVault(); }); qs.appendChild(b); }); ex.appendChild(qs);
     const go = el2('button', 'go', '兑换 ' + GQ[avQ].n + '「' + ATT_K[avSel[0]][avSel[1]].n + '」 · ' + AV_COST[avQ] + ' 碎片'); go.disabled = S.avf < AV_COST[avQ];
     go.addEventListener('click', () => { if (S.avf < AV_COST[avQ]) return; S.avf -= AV_COST[avQ]; S.av.push([avSel[0], avSel[1], avQ]); banner('兑换成功', GQ[avQ].n + '配件「' + ATT_K[avSel[0]][avSel[1]].n + '」已放进配件库', 3); try { sfx.build(); } catch (e) { } saveGame(); renderAttVault(); });
     ex.appendChild(go); box.appendChild(ex); }
@@ -22993,4 +22993,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795004375').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795008502').catch(()=>{});</script></body></html>
