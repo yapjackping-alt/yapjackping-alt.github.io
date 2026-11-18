@@ -21535,7 +21535,7 @@ function g3Enh(it) { const b = enhBtn(it); b.className = 'sbtn ghostb g3eb'; con
   return b; }
 function g3Lines(it, own) {   // the affix lines; own = the worn piece (gets reroll buttons)
   const L = afxLocked(it), c = rerollCost(it), ok = S.coin >= c.coin && matHave('estone') >= c.estone;
-  return afxLines(it).map((code, i) => '<div class="g3ln' + (i < L ? ' lk' : '') + '"><i>' + (i < L ? '固定' : '可洗') + '</i><span>' + g3Esc(afxTxt(it, code)) + '</span>' +
+  return afxLines(it).map((code, i) => '<div class="g3ln' + (i < L ? ' lk' : '') + '"><i>' + (i < L ? '固定' : '可洗') + '</i><span>' + g3Esc(afxTxt(it, code)) + (own ? g3X((AFX[Math.floor(code / 1000)] || {}).k) : '') + '</span>' +
     (own && i >= L ? '<button class="g3rr" data-l="' + i + '"' + (ok ? '' : ' disabled') + ' aria-label="洗练这一条">' + G3_RR + '</button>' : '') + '</div>').join('');
 }
 function g3Base(it) { const o = gStats(it, 'base');
@@ -21550,6 +21550,11 @@ const G3_EXP = { hp: '最大生命，多少就多多少血', def: '受到的伤�
   spd: '走路和跑步更快', sta: '体力上限更高（跑步、翻滚用体力）', coin: '打怪和任务得到的余烬币更多', melee: '只对刀、剑等近战武器有效', gun: '只对枪有效', rate: '开枪、挥刀更快',
   reload: '换子弹更快', regen: '每秒自动回复的生命', xp: '得到的经验更多', staRegen: '体力回得更快', full: '肚子饿得更慢', dodge: '有机会完全躲开一次攻击',
   heal: '医疗包回的血更多', gather: '砍树、挖矿得到的木头和金属更多', bossDmg: '打首领时伤害更高', cdr: '武器技能冷却得更快' };
+// the explanation right under its own stat (owner 18 Nov: not one block of text)
+const g3X = k => k && G3_EXP[k] ? '<small class="g3xp">' + G3_EXP[k] + '</small>' : '';
+function g3BaseX(it) { const o = gStats(it, 'base');
+  return (gSlot(it) === 'pack' ? '<div class="g3b"><span>背包格子 <b>+' + (PACK_CAP[it[1]] + Math.floor((it[7] || 0) / 5)) + '</b></span><small class="g3xp">背包多出的格子</small></div>' : '') +
+    Object.keys(o).map(k => '<div class="g3b"><span>' + GSTAT_N[k][0] + ' <b>' + GSTAT_N[k][1](o[k]) + '</b></span>' + g3X(k) + '</div>').join(''); }
 function g3Exp(it) { const o = gStats(it, true), ks = Object.keys(o).filter(k => G3_EXP[k] && GSTAT_N[k]);
   if (!ks.length) return ''; return '<div class="g3exp"><b>属性说明</b>' + ks.map(k => '<div><i>' + GSTAT_N[k][0] + '</i><span>' + G3_EXP[k] + '</span></div>').join('') +
     (gSlot(it) === 'pack' ? '<div><i>背包格子</i><span>背包多出的格子</span></div>' : '') + '</div>'; }
@@ -21574,9 +21579,9 @@ function g3Render(box, slot, name) {
   if (infoIt) h += g3Info(infoIt);
   else if (G3.cmp != null) h += g3Cmp(cur, S.ginv[G3.cmp]);
   else if (cur) { const Q = GQ[cur[1]], c = rerollCost(cur), lines = afxLines(cur).length, canRr = lines > afxLocked(cur);
-    h += '<div class="gcard g3cur" style="--qc:' + Q.c + '">' + g3Head(cur, ' · 穿着中', 'cur') + '<div class="gsts">' + g3Base(cur) + '</div><div class="gtrs">' + g3Trait(cur) + '</div>' +
+    h += '<div class="gcard g3cur" style="--qc:' + Q.c + '">' + g3Head(cur, ' · 穿着中', 'cur') + '<div class="g3bs">' + g3BaseX(cur) + '</div><div class="gtrs">' + g3Trait(cur) + '</div>' +
       (canRr ? '<div class="g3cost">洗练一条：<b class="' + (S.coin >= c.coin ? '' : 'no') + '">' + c.coin + ' 币</b>' + (c.estone ? ' + <b class="' + (matHave('estone') >= c.estone ? '' : 'no') + '">强化石 ' + c.estone + '</b>（有 ' + matHave('estone') + '）' : '') + ' · 点右边的按钮洗那一条</div>' : '') +
-      g3Lines(cur, true) + g3Exp(cur) + g3Dur(cur) + '<div class="g3acts"><span class="g3enh"></span><button class="sbtn ghostb g3off">脱下</button></div></div>';
+      g3Lines(cur, true) + g3Dur(cur) + '<div class="g3acts"><span class="g3enh"></span><button class="sbtn ghostb g3off">脱下</button></div></div>';
   } else h += '<p class="dd">这个部位还没有装备。打丧尸会掉落，越深的区域越容易出好品质，首领必掉。</p>';
   const mine = mine0.sort((a, b) => gScore(b[0]) - gScore(a[0]));
   if (!infoIt && G3.cmp == null) h += '<div class="snote">' + (mine.length ? '背包里的' + name + '（' + mine.length + ' 件）在中间，点一件就在这里和身上的比一比' : '背包里没有别的' + name + '。') + '</div>';
@@ -21683,6 +21688,7 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
   '#g3Stats .g3back{align-self:flex-start}' +
   '#bag.g3pick #bagTabs,#bag.g3pick #gcapOld{display:none!important}#bag.g3pick #bagGrid{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;align-content:start}' +
   '.g3ph{grid-column:1/-1;font-weight:900;color:#ffd27a;font-size:14px;padding:4px 2px}.g3pe{grid-column:1/-1;font-size:13px;opacity:.8;padding:6px 2px}.g3mt{min-height:96px;justify-content:center}' +
+  '.g3xp{display:block;font-size:11.5px;font-weight:500;opacity:.62;line-height:1.35;margin-top:1px}.g3bs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 12px;margin:6px 0}.g3b span{font-size:14px}.g3b b{color:#fff}' +
   '.g3inf{flex:none;width:24px;height:24px;border-radius:50%;border:1.5px solid #ffd27a;background:rgba(255,210,122,.12);color:#ffd27a;font-weight:900;font-size:14px;line-height:1;padding:0;margin:0 6px;vertical-align:middle}' +
   '.g3hd .g3inf{margin:0}.g3exp{margin:10px 0 4px;padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.22);font-size:12.5px}.g3exp>b{display:block;color:#ffd27a;font-size:13px;margin-bottom:4px}' +
   '.g3exp div{display:flex;gap:8px;padding:2px 0}.g3exp i{font-style:normal;flex:none;min-width:64px;color:#e8dccf;font-weight:800}.g3exp span{opacity:.8}' +
@@ -22832,4 +22838,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794994327').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794994581').catch(()=>{});</script></body></html>
