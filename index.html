@@ -9505,25 +9505,38 @@ SKIN_BUILD.seraph = function (k) {
   // one great pair of angel wings: a gold wing-bone arching up and out, long feathers hanging from it (longest at the tip),
   // a cream covert row over them, flame-gold tips. They sweep back while you move and rise and fall slowly.
   both(s => {
-    const piv = new THREE.Group(); piv.position.set(s * .14, 1.74, -.36); piv.scale.setScalar(1.05); put(piv, 'b');
-    const P = [[0, 0], [.3, .55], [.6, .98], [.8, 1.16]], seg = [], tot = [0];
+    // owner 18 Nov: "翅膀要威武霸气" — a great battle-angel wing: an armoured gold wing-bone arching high (shoulder → elbow → wrist),
+    // long pointed flight feathers fanning down and out from it in three layers (primaries / secondaries / coverts), real
+    // pointed feather outlines (not planks), each with a gold shaft, flame-gold tips on the long ones, gold armour plates on the bone.
+    const piv = new THREE.Group(); piv.position.set(s * .16, 1.78, -.36); piv.scale.setScalar(1.1); put(piv, 'b');
+    const P = [[0, 0], [.42, .62], [.98, .98], [1.42, .86]], seg = [], tot = [0];
     for (let i = 0; i < 3; i++) { const d = Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]); seg.push(d); tot.push(tot[i] + d); }
     const at = u => { const t = u * tot[3]; let i = 0; while (i < 2 && t > tot[i + 1]) i++; const k = (t - tot[i]) / seg[i]; return [P[i][0] + (P[i + 1][0] - P[i][0]) * k, P[i][1] + (P[i + 1][1] - P[i][1]) * k]; };
-    for (let i = 0; i < 3; i++) { const [x0, y0] = P[i], [x1, y1] = P[i + 1], b = new THREE.Mesh(new THREE.BoxGeometry(seg[i] + .06, .09 - i * .015, .07), mat(GO));
-      b.position.set(s * (x0 + x1) / 2, (y0 + y1) / 2, .03); b.rotation.z = s * Math.atan2(y1 - y0, x1 - x0); piv.add(b); }
-    const feather = (u, len, w, m, dz, glowTip) => { const [px, py] = at(u), a = -Math.PI / 2 + u * 1.45, ca = Math.cos(a), sa = Math.sin(a);
-      const f = new THREE.Mesh(new THREE.BoxGeometry(w, len, .028), m); f.position.set(s * (px + ca * len / 2), py + sa * len / 2, dz); f.rotation.z = s * (a - Math.PI / 2); piv.add(f);
-      if (glowTip) { const tp = new THREE.Mesh(new THREE.BoxGeometry(w * .8, .14, .034), glowTip); tp.position.set(s * (px + ca * (len - .07)), py + sa * (len - .07), dz + .004); tp.rotation.z = f.rotation.z; piv.add(tp); }
+    const FL = (c, e) => new THREE.MeshLambertMaterial({ color: c, emissive: e || 0, flatShading: true, side: THREE.DoubleSide });
+    const fGeo = {}, featherGeo = (w, L) => { const key = w.toFixed(2) + '|' + L.toFixed(2); if (fGeo[key]) return fGeo[key];
+      const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(w * .5, -L * .12); sh.lineTo(w * .48, -L * .78); sh.lineTo(0, -L); sh.lineTo(-w * .38, -L * .82); sh.lineTo(-w * .5, -L * .14); sh.lineTo(0, 0);
+      let g; try { g = new THREE.ExtrudeGeometry(sh, { depth: .018, bevelEnabled: false }); g.translate(0, 0, -.009); } catch (e) { g = new THREE.BoxGeometry(w, L, .02); g.translate(0, -L / 2, 0); } return (fGeo[key] = g); };
+    const MW = FL(0xf4efe6, 0x0c0904), MW2 = FL(0xe2d6bc, 0x0a0804), MG = FL(GO, 0x4a3008), MT = FL(0xffb040, 0x7a3a00), MS = FL(0xd8b060, 0x3a2408);
+    // a feather hanging from the bone at u, pointing at angle a (0 = straight down), outward lean grows to the tip
+    const feather = (u, L, w, m, dz, a, tip) => { const [px, py] = at(u), f = new THREE.Mesh(featherGeo(w, L), m); f.position.set(s * px, py, dz); f.rotation.z = s * a; piv.add(f);
+      const sh = new THREE.Mesh(new THREE.BoxGeometry(.012, L * .9, .024), MS); sh.position.set(s * (px + Math.sin(a) * L * .45), py - Math.cos(a) * L * .45, dz + .004); sh.rotation.z = s * a; piv.add(sh);
+      if (tip) { const t = new THREE.Mesh(featherGeo(w * .8, L * .3), MT); t.position.set(s * (px + Math.sin(a) * L * .7), py - Math.cos(a) * L * .7, dz + .006); t.rotation.z = s * a; piv.add(t); }
       return f; };
-    const N = 15;
-    for (let i = 0; i < N; i++) { const u = .03 + i / (N - 1) * .97, len = .4 + Math.pow(u, 1.2) * .46 - (u > .94 ? (u - .94) * 2 : 0);
-      feather(u, len, .2, mat(i % 2 ? W : 0xfbf8f0), -.01 - i * .004, u > .55 ? (i % 2 ? F : F2) : null); }
-    for (let i = 0; i < 12; i++) { const u = .03 + i / 11 * .92; feather(u, .26 + u * .18, .2, mat(i % 2 ? 0xf0e2b8 : W2), .02 + i * .002, null); }
-    for (let i = 0; i < 7; i++) { const u = .02 + i / 6 * .85; feather(u, .2, .2, mat(GO), .045, null); }
-    const glowE = new THREE.Mesh(new THREE.BoxGeometry(.38, .38, .04), glow(0xff9a3a, .22)); const [tx, ty] = at(.9); glowE.position.set(s * (tx + .18), ty - .38, -.04); piv.add(glowE);
+    // the armoured bone: thick gold segments + faceted plates + a spike at the wrist
+    for (let i = 0; i < 3; i++) { const [x0, y0] = P[i], [x1, y1] = P[i + 1], b = new THREE.Mesh(new THREE.BoxGeometry(seg[i] + .08, .12 - i * .02, .1), MG);
+      b.position.set(s * (x0 + x1) / 2, (y0 + y1) / 2, .03); b.rotation.z = s * Math.atan2(y1 - y0, x1 - x0); piv.add(b); }
+    for (let i = 0; i < 6; i++) { const [px, py] = at(.05 + i * .17), pl = new THREE.Mesh(new THREE.OctahedronGeometry(.08), MG); pl.position.set(s * px, py + .05, .07); pl.scale.set(1.4, .6, .5); pl.rotation.z = s * .4; piv.add(pl); }
+    { const [wx, wy] = at(.72), sp = new THREE.Mesh(new THREE.ConeGeometry(.05, .32, 4), MG); sp.position.set(s * (wx + .05), wy + .16, .03); sp.rotation.z = -s * .5; piv.add(sp);
+      const gm = new THREE.Mesh(new THREE.OctahedronGeometry(.06), F2); gm.position.set(s * wx, wy, .09); gm.scale.y = 1.5; piv.add(gm); }
+    // primaries: from the wrist to the tip, long, fanning outward
+    for (let i = 0; i < 10; i++) { const u = .6 + i / 9 * .4, L = 1.0 + i * .06 - (i > 7 ? (i - 7) * .08 : 0); feather(u, L, .19, i % 2 ? MW : MW2, -.02 - i * .006, .02 + i * .075, i > 2); }
+    // secondaries: shoulder to wrist, medium, hanging down
+    for (let i = 0; i < 12; i++) { const u = .04 + i / 11 * .56, L = .7 + i * .025; feather(u, L, .2, i % 2 ? MW2 : MW, .0 - i * .004, -.08 + i * .02, false); }
+    // coverts: short gold-edged feathers over the top of the others
+    for (let i = 0; i < 11; i++) { const u = .03 + i / 10 * .9, L = .24 + u * .1; feather(u, L, .17, i % 2 ? MG : MW, .045 + i * .002, -.05 + u * .5, false); }
     const bone0 = piv.children[0];
     bone0.onBeforeRender = () => { const T = performance.now() / 1000, mv = (typeof _capeMv === 'function' ? _capeMv() : 0);
-      const sp = 1.6 + mv * 4.2, amp = .09 + mv * .3; piv.rotation.y = s * (.4 + .12 * mv); piv.rotation.z = s * (amp * Math.sin(T * sp) + .05 * mv); };   // swept back, beating harder while you move
+      const sp = 1.4 + mv * 3.6, amp = .07 + mv * .22; piv.rotation.y = s * (.28 + .14 * mv); piv.rotation.z = s * (amp * Math.sin(T * sp) + .04 * mv); piv.rotation.x = -.08; };   // half spread and swept a little back; beats harder when you move
   });
   // arms and legs
   sleeves(R2, GO); both((s, L, a) => { bx(.29, .32, .29, W, 0, -.56, 0, a); bx(.3, .04, .3, GO, 0, -.42, 0, a); bx(.3, .03, .3, F, 0, -.7, 0, a); });
@@ -22437,8 +22450,7 @@ const F2 = {
     for (const z of [.26, -.26]) both(s => chain(6, .13, .2, [L(R), L(0x5a0c14)], s * .14, .98, z, [z > 0 ? -.06 : .06, 0, s * .06], { side: s, amp: .18, front: z > 0 ? 1 : 0, edge: L(0xe8b84a) }));
     both(s => { for (let i = 0; i < 4; i++) { const f = add(new THREE.OctahedronGeometry(.08), L(i % 2 ? W : 0xe8b84a), s * (.5 + i * .06), 1.98 - i * .07, -.02 + i * .03, 'b'); f.scale.set(.35, 1, 2.2); f.rotation.set(0, 0, -s * (.9 + i * .2)); } });
     for (let i = 0; i < 5; i++) { const a = (i - 2) * .3, h = i === 2 ? .46 : .3 - Math.abs(i - 2) * .04; const c = add(new THREE.ConeGeometry(.045, h, 4), B(i % 2 ? Gd : F), Math.sin(a) * .26, 2.44 + h / 2, Math.cos(a) * .18, 'b', 'f2flk', i); c.rotation.set(.1 * Math.cos(a), 0, -Math.sin(a) * .45); }
-    both(s => { for (let i = 0; i < 4; i++) { const a = .5 + i * .3, w = add(new THREE.OctahedronGeometry(.09), L(i % 2 ? W : 0xffe8c0), s * (.2 + Math.cos(a) * .35), 1.05 + Math.sin(a) * .25, -.34, 'b', s < 0 ? 'wingL' : 'wingR', i * .25);
-      w.scale.set(.6, 3.2 - i * .4, .25); w.rotation.z = -s * (Math.PI / 2 - a) - s * .6; w.userData.r0 = w.rotation.z; w.userData.z0 = -.34; } });
+    // (the lower pair of small wings was removed again: the big wings are the show)
     for (let i = 0; i < 4; i++) { const o = K.orb(new THREE.OctahedronGeometry(.06), B(i % 2 ? 0xfff4d8 : F), .78, 1.1 + i * .3, 1.3, i * 1.57); o.scale.set(.4, 1, 2); } }
 };
 if (FASH2_ON && typeof SKIN_BUILD !== 'undefined') for (const key in F2) if (SKIN_BUILD[key]) SKIN_BUILD[key] = (o => function (k) { o(k); try { F2[key](f2kit(k)); } catch (e) { console.warn('fash2', key, e); } })(SKIN_BUILD[key]);
@@ -22461,6 +22473,14 @@ try { if (FASH2_ON && typeof SKIN_P !== 'undefined') {
   add('seraph', [{ pts: [[0, 1.62, -.55]], rate: 14, life: 1.1, v: [0, .8, -.3], sp: 1, col: [0xffd27a, 0xff8a2a, 0xfff4d8], sz: .05 }]);
   add('lord', [{ pts: [[-.5, 1.1, -.6], [.5, 1.1, -.6], [0, 2.7, 0]], rate: 22, life: 1, v: [0, 1, -.2], sp: .4, col: [0xff5a10, 0xffa030, 0xffd060], sz: .055 }]);
 } } catch (e) { }
+
+/* wings keep you fast in water (owner 18 Nov: "带了翅膀不会被水影响速度"): with any wings on — 炽天之翼 / 天穹神裔's crystal wings,
+   or a wings item — swimming / wading no longer slows you down */
+const hasWings = () => { try { return !!((typeof wingBlockName === 'function' && wingBlockName()) || (typeof wingActive === 'function' && wingActive())); } catch (e) { return false; } };
+if (typeof swimMul === 'function') swimMul = (o => function () { if (!hasWings()) return o();
+  // the other wrappers (abyss cards…) still count: only the water part is switched off for this call
+  const a = typeof SWN !== 'undefined' ? SWN.on : null, b = typeof SW !== 'undefined' ? SW.b : null;
+  try { if (a != null) SWN.on = false; if (b != null) SW.b = false; return o(); } finally { if (a != null) SWN.on = a; if (b != null) SW.b = b; } })(swimMul);
 /* ============ weapon skins 2.0 (owner 18 Nov: "不只是时装，还有枪的皮肤" — the old skins were only a recolour) ============
    The seven gacha weapon skins that fit every weapon get their own hand-placed parts and moving effects on top of the
    recolour (sized from the weapon's bounding box, so they fit guns and melee weapons alike):
@@ -23770,4 +23790,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795014907').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795015242').catch(()=>{});</script></body></html>
