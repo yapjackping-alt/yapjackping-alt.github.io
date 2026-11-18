@@ -22378,6 +22378,18 @@ const F2 = {
     ring(.7, 1.7, -.68, F, -.5, { t: .02, seg: 8 });
     both(s => chain(12, .17, .16, [L(D), B(F)], s * .36, 1.84, -.28, [.5, 0, s * .28], { side: s, amp: .32, taper: .4, edge: B(F2c), tip: G(0xffd060) }));
     for (let i = 0; i < 5; i++) { const a = (i - 2) * .32, h = i === 2 ? .5 : .3; const c = add(new THREE.ConeGeometry(.05, h, 4), B(i % 2 ? 0xffd060 : F), Math.sin(a) * .27, 2.52 + h / 2, Math.cos(a) * .2, 'b', 'f2flk', i); c.rotation.set(.1 * Math.cos(a), 0, -Math.sin(a) * .5); } }
+,
+  // 炽天之翼 (owner 18 Nov: "炽天之翼也要改"): a blazing sun mandorla between the wings, crimson battle-skirt panels with gold hems
+  // that flow, gold feather pauldrons, a taller flame crown, flame feathers circling, a lower pair of small wings
+  seraph(K) { const { both, chain, ring, add, B, L, glow, G, cone } = K, Gd = 0xffd27a, F = 0xff8a2a, R = 0x8a1420, W = 0xf6f2ea;
+    ring(.78, 1.62, -.5, Gd, .45, { glow: 0xffb04a, n: 16, out: 1.08, mk: i => { const c = new THREE.Mesh(new THREE.ConeGeometry(.05, i % 2 ? .26 : .42, 4), B(i % 2 ? 0xfff4d8 : F)); c.userData.fx = 'f2flk'; c.userData.ph = i; return c; } });
+    ring(.55, 1.62, -.48, 0xfff4d8, -.7, { t: .018, seg: 12 });
+    for (const z of [.26, -.26]) both(s => chain(6, .13, .2, [L(R), L(0x5a0c14)], s * .14, .98, z, [z > 0 ? -.06 : .06, 0, s * .06], { side: s, amp: .18, front: z > 0 ? 1 : 0, edge: L(0xe8b84a) }));
+    both(s => { for (let i = 0; i < 4; i++) { const f = add(new THREE.OctahedronGeometry(.08), L(i % 2 ? W : 0xe8b84a), s * (.5 + i * .06), 1.98 - i * .07, -.02 + i * .03, 'b'); f.scale.set(.35, 1, 2.2); f.rotation.set(0, 0, -s * (.9 + i * .2)); } });
+    for (let i = 0; i < 5; i++) { const a = (i - 2) * .3, h = i === 2 ? .46 : .3 - Math.abs(i - 2) * .04; const c = add(new THREE.ConeGeometry(.045, h, 4), B(i % 2 ? Gd : F), Math.sin(a) * .26, 2.44 + h / 2, Math.cos(a) * .18, 'b', 'f2flk', i); c.rotation.set(.1 * Math.cos(a), 0, -Math.sin(a) * .45); }
+    both(s => { for (let i = 0; i < 4; i++) { const a = .5 + i * .3, w = add(new THREE.OctahedronGeometry(.09), L(i % 2 ? W : 0xffe8c0), s * (.2 + Math.cos(a) * .35), 1.05 + Math.sin(a) * .25, -.34, 'b', s < 0 ? 'wingL' : 'wingR', i * .25);
+      w.scale.set(.6, 3.2 - i * .4, .25); w.rotation.z = -s * (Math.PI / 2 - a) - s * .6; w.userData.r0 = w.rotation.z; w.userData.z0 = -.34; } });
+    for (let i = 0; i < 4; i++) { const o = K.orb(new THREE.OctahedronGeometry(.06), B(i % 2 ? 0xfff4d8 : F), .78, 1.1 + i * .3, 1.3, i * 1.57); o.scale.set(.4, 1, 2); } }
 };
 if (FASH2_ON && typeof SKIN_BUILD !== 'undefined') for (const key in F2) if (SKIN_BUILD[key]) SKIN_BUILD[key] = (o => function (k) { o(k); try { F2[key](f2kit(k)); } catch (e) { console.warn('fash2', key, e); } })(SKIN_BUILD[key]);
 skinAnimate = (o => function (out, T) { o(out, T); if (!FASH2_ON) return;
@@ -22396,6 +22408,7 @@ try { if (FASH2_ON && typeof SKIN_P !== 'undefined') {
   add('medic', [{ pts: 'body', rate: 9, life: 1.4, v: [0, .7, 0], sp: .3, col: [0x6aff9a, 0xffffff], sz: .04 }]);
   add('warden', [{ pts: [[-.3, .9, .25], [.3, .9, .25]], rate: 10, life: .7, v: [0, .9, 0], sp: .4, col: [0xff7a1a, 0xffc040], sz: .045 }]);
   add('pion', [{ pts: [[-.7, 1.5, -.5], [.7, 1.5, -.5], [-.9, 1.9, -.5], [.9, 1.9, -.5]], rate: 20, life: .7, v: [0, .4, -.4], sp: .35, col: [0xffc94a, 0xfff0a0], sz: .05 }]);
+  add('seraph', [{ pts: [[0, 1.62, -.55]], rate: 14, life: 1.1, v: [0, .8, -.3], sp: 1, col: [0xffd27a, 0xff8a2a, 0xfff4d8], sz: .05 }]);
   add('lord', [{ pts: [[-.5, 1.1, -.6], [.5, 1.1, -.6], [0, 2.7, 0]], rate: 22, life: 1, v: [0, 1, -.2], sp: .4, col: [0xff5a10, 0xffa030, 0xffd060], sz: .055 }]);
 } } catch (e) { }
 /* ============ weapon skins 2.0 (owner 18 Nov: "不只是时装，还有枪的皮肤" — the old skins were only a recolour) ============
@@ -22503,6 +22516,39 @@ const WSK3M = {
       add(new THREE.OctahedronGeometry(hr * .16), B(0xffe08a), cx, cy, z); }
     const r = add(new THREE.BoxGeometry(.012, .14, .008), B(0xff80b8), .02, -.08, hz0, 'flap'); r.userData.r0 = .2; r.userData.s = 1; }
 };
+/* ============ every 神话 weapon skin gets the full "top skin" package (owner 18 Nov: 神话必须和别的游戏最高级皮肤对比) ============
+   On top of each mythic skin's own model, tracer, impacts, sound and skill colours (z_wsskin.js):
+   - 击杀特效 (kill finisher): a sigil of two turning rings in the skin's colours opens where the monster fell, a pillar of
+     light shoots up, sparks spray out, the skin's hit sound rings (萌鬼 skins keep their own soul-ghost finisher)
+   - 持枪光环 (aura): while you hold a mythic-skinned weapon a thin ring of its colour turns under your feet and two motes
+     circle you (hidden in build mode / first person)
+   - 换上特效 (equip flourish): switching to the weapon, or putting the skin on, bursts a ring and sparks around you
+   Works for every r:5 weapon skin (天穹, 凤鸣, 星河, 寰宇, 苍月龙翼, and any added later). Switch: MWSK_ON. */
+const MWSK_ON = true;
+const mwK = () => { try { const K = typeof wsMyth === 'function' ? wsMyth() : null; return K && K.r >= 5 ? K : null; } catch (e) { return null; } };
+function mwKill(K, x, y, z) { const F = fxGeo(), c1 = K.tr || K.glow, c2 = K.tr2 || K.acc || 0xffffff;
+  fxPiece(F.ring, c1, x, .08, z, .8, (k, m) => { m.rotation.set(-Math.PI / 2, 0, k * 3); m.scale.setScalar(1 + k * 3.2); m.material.opacity = .9 * (1 - k); });
+  fxPiece(F.ring, c2, x, .1, z, .7, (k, m) => { m.rotation.set(-Math.PI / 2, 0, -k * 4); m.scale.setScalar(.6 + k * 2.2); m.material.opacity = .9 * (1 - k); });
+  fxPiece(F.box, c1, x, y, z, .55, (k, m) => { m.scale.set(.18 * (1 - k), 3.5 * Math.min(1, k * 4), .18 * (1 - k)); m.position.y = y + 1.4 * Math.min(1, k * 4); m.material.opacity = 1 - k; });
+  fxPiece(F.box, 0xffffff, x, y, z, .35, (k, m) => { m.scale.set(.06, 3 * Math.min(1, k * 5), .06); m.position.y = y + 1.2 * Math.min(1, k * 5); m.material.opacity = 1 - k; });
+  for (let i = 0; i < 10; i++) { const a = i / 10 * 6.283, sp = 3 + Math.random() * 3; fxStreak(x, y, z, Math.cos(a) * sp, 2 + Math.random() * 3, Math.sin(a) * sp, [c1, c2, 0xffffff][i % 3], .45 + Math.random() * .2, .05); }
+  try { const P = WSK_SND[K.key]; if (P) P.hit(); } catch (e) { } }
+killZombie = (o => function (z) { const mine = MWSK_ON && z && !z.dead && !z.animal && !z.mirror && !z.hitBy, K = mine ? mwK() : null, x = z && z.pos ? z.pos.x : 0, zz = z && z.pos ? z.pos.z : 0, y = z && z.pos ? (z.pos.y || 0) + 1 : 1;
+  const r = o.apply(this, arguments); if (K && !(typeof GH !== 'undefined' && GH.by[K.key])) try { mwKill(K, x, y, zz); } catch (e) { } return r; })(killZombie);
+// aura under your feet + equip flourish
+const MW = { ring: null, motes: [], key: '', t: 0 };
+function mwAuraTick(dt) { if (typeof scene === 'undefined' || !player) return; MW.t += dt;
+  const K = mwK(), hide = !K || S.dead || (typeof buildOpen !== 'undefined' && buildOpen) || (typeof fpOn === 'function' && fpOn()) || (pm && pm.g && !pm.g.visible), key = K ? K.key + ':' + S.wp : '';
+  if (key && key !== MW.key) { try { const px = player.pos.x, pz = player.pos.z; fxRing(px, pz, .3, 2.6, .5, K.tr || K.glow, .9); burst(px, 1.2, pz, K.tr || K.glow, 14, 5); burst(px, 1.4, pz, K.tr2 || 0xffffff, 8, 4); const P = WSK_SND[K.key]; if (P && MW.key) P.hit(); } catch (e) { } }
+  MW.key = key;
+  if (!MW.ring) { MW.ring = new THREE.Mesh(new THREE.RingGeometry(.58, .64, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .55, depthWrite: false, side: THREE.DoubleSide }));
+    MW.ring.rotation.x = -Math.PI / 2; MW.ring.renderOrder = 2; scene.add(MW.ring);
+    for (let i = 0; i < 2; i++) { const m = new THREE.Mesh(new THREE.OctahedronGeometry(.05), new THREE.MeshBasicMaterial({ color: 0xffffff })); m.scale.y = 1.6; scene.add(m); MW.motes.push(m); } }
+  const on = !hide; MW.ring.visible = on; MW.motes.forEach(m => { m.visible = on; }); if (!on) return;
+  const PY = (typeof playerY === 'function' && playerY()) || 0, px = player.pos.x, pz = player.pos.z;
+  MW.ring.material.color.setHex(K.tr || K.glow); MW.ring.position.set(px, PY + .05, pz); MW.ring.rotation.z = MW.t * .8; MW.ring.material.opacity = .4 + .15 * Math.sin(MW.t * 3);
+  MW.motes.forEach((m, i) => { const a = MW.t * 1.8 + i * Math.PI; m.material.color.setHex(i ? (K.tr2 || 0xffffff) : (K.tr || K.glow)); m.position.set(px + Math.cos(a) * .7, PY + 1.1 + Math.sin(MW.t * 2 + i) * .3, pz + Math.sin(a) * .7); m.rotation.y = MW.t * 3; }); }
+petsTick = (o => function (dt) { const r = o(dt); if (MWSK_ON) try { mwAuraTick(dt); } catch (e) { } return r; })(petsTick);
 /* ============ 深渊商店: spend 深渊币 with the diver of the 深渊号 (owner 18 Nov: "add a trade system to the abyss") ============
    Opened from the abyss page (button 深渊商店 next to 下潜). The trader is the brass-helmet diver who stands on the sub.
    Tabs: 升级材料 (now) · 皮肤 (empty: the owner will hand over skin code later, then they go in ABYSHOP_SKINS).
@@ -23674,4 +23720,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795014255').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795014461').catch(()=>{});</script></body></html>
