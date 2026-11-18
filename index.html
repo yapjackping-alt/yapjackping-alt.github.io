@@ -21567,12 +21567,12 @@ const g3Fm = (k, v) => GSTAT_N[k] ? GSTAT_N[k][1](v) : '+' + (Math.round(v * 100
 function g3Info(it) {
   const q = it[1], Q = GQ[q], s = gSlot(it), lv = q === 6 ? 100 : it[2], e = it[7] || 0, pw = (q === 6 ? (1 + 5 * .75) * 1.08 : 1 + q * .75) * (1 + lv * .035), em = 1 + .06 * e, [L, R] = AFX_SLOTS[q] || [0, 0];
   let h = '<div class="g3info"><div class="g3ch"><b>属性上限 · ' + Q.n + ' ' + g3Esc(gName(it)) + '</b><small class="g3bk">按右上角 ✕ 返回</small></div>';
-  h += '<p class="g3ip">' + Q.n + '品质：固定词条 ' + L + ' 条 · 可洗词条 ' + R + ' 条。下面是这件装备（Lv.' + it[2] + (e ? ' +' + e : '') + '）每一种属性能有的范围；「全身上限」是所有装备加起来最多能到多少，超过的部分没有用。</p>';
+  h += '<p class="g3ip">' + Q.n + '品质：固定词条 ' + L + ' 条 · 可洗词条 ' + R + ' 条。下面是这件装备（Lv.' + it[2] + (e ? ' +' + e : '') + '）每一种属性能有的范围；「装备上限」是 6 件装备加起来最多能到多少，超过的部分没有用；时装、天赋、食物、宠物等其他来源不算在里面，可以超过这个上限。</p>';
   h += '<h5>基础属性（' + GSLOT_N[s] + '固定有）</h5>';
-  for (const k in GSTAT[s]) { h += '<div class="g3ir"><i>' + GSTAT_N[k][0] + '</i><span>' + g3Fm(k, gBaseV(s, k, pw * em, .88)) + ' ~ ' + g3Fm(k, gBaseV(s, k, pw * em, 1.12)) + '</span><em>' + (GCAP[k] != null ? '全身上限 ' + g3Fm(k, GCAP[k]) : '没有上限') + '</em><small>' + (G3_EXP[k] || '') + '</small></div>'; }
+  for (const k in GSTAT[s]) { h += '<div class="g3ir"><i>' + GSTAT_N[k][0] + '</i><span>' + g3Fm(k, gBaseV(s, k, pw * em, .88)) + ' ~ ' + g3Fm(k, gBaseV(s, k, pw * em, 1.12)) + '</span><em>' + (GCAP[k] != null ? '装备上限 ' + g3Fm(k, GCAP[k]) : '没有上限') + '</em><small>' + (G3_EXP[k] || '') + '</small></div>'; }
   h += '<h5>词条（每条随机一种，同一件不重复）</h5>';
   AFX.forEach((A, ai) => { const lo = afxVal(it, ai * 1000), hi = afxVal(it, ai * 1000 + 999); const cap = GCAP[A.k];
-    h += '<div class="g3ir"><i>' + A.n + '</i><span>' + g3Fm(A.k, lo) + ' ~ ' + g3Fm(A.k, hi) + '</span><em>' + (cap != null ? '全身上限 ' + g3Fm(A.k, cap) : '没有上限') + '</em><small>' + (G3_EXP[A.k] || '') + '</small></div>'; });
+    h += '<div class="g3ir"><i>' + A.n + '</i><span>' + g3Fm(A.k, lo) + ' ~ ' + g3Fm(A.k, hi) + '</span><em>' + (cap != null ? '装备上限 ' + g3Fm(A.k, cap) : '没有上限') + '</em><small>' + (G3_EXP[A.k] || '') + '</small></div>'; });
   h += '<p class="g3ip">强化每 +1：基础属性 +6%，每条词条也会多一点。品质越高、等级越高，范围越大。</p></div>';
   return h; }
 function g3Render(box, slot, name) {
@@ -22883,4 +22883,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794995843').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794996036').catch(()=>{});</script></body></html>
