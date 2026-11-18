@@ -20614,9 +20614,10 @@ function abyPage() {
       '<div class="abyws">' + W_ORDER.map(id => { const own = wLv(id) > 0; return '<button class="abyw' + (id === sel ? ' on' : '') + (own ? '' : ' off') + '" data-w="' + id + '">' + (own ? wImg(id, wLv(id), 'x') : '') + '<b>' + wName(id) + '</b><small>' + (own ? 'Lv.' + wLv(id) + ' · ' + T2('最高 ', 'best ') + (S.abyss.bestBy[id] | 0) + T2(' 层', '') : T2('还没有 · 在工作台制作', 'Not owned · craft it')) + '</small></button>'; }).join('') + '</div>' +
       '<div class="abyinfo"><span>' + abyCoinIc(16) + T2(' 深渊币 ', ' Abyss coins ') + '<b>' + (S.abyss.ac | 0) + '</b></span><span>' + T2('历史最高 ', 'Best ') + '<b>' + (S.abyss.best | 0) + '</b>' + T2(' 层', '') + '</span><span>' + T2('本周深渊币 ', 'Abyss coins this week ') + '<b>' + (S.abyss.acWk !== abyWeek() ? T2('还能拿', 'available') : T2('已拿过', 'taken')) + '</b></span><span>' + T2('本周领奖局数 ', 'Paid runs left ') + '<b>' + Math.max(0, 3 - S.abyss.runs) + ' / 3</b></span></div>' +
       '<p class="abynote">' + T2('深渊里的怪只掉「深渊币」（每周只有第一局会掉，死了也不会丢），不掉别的、不给经验；外面的东西（地区特性、周王加成）影响不到它们，全部会冲你来。奖励：每周前 3 局按结算层数给余烬币（每层 80，最多 3000）和经验；第 5 / 10 / 15 / 20 / 25 / 30 / 40 / 50 层第一次通过有首通奖励（经验、余烬币、宝石、深渊币……），每个只能拿一次。体力无限；子弹只带满弹匣 + 3 个弹匣，怪偶尔掉一点子弹，打光了就用拳头（也有「无限子弹」卡）；伙伴不能跟进来；不用医疗包，出来后一切恢复原样。', 'Monsters here drop only Abyss coins (only in your first run each week; kept even if you fall), nothing else and no XP; nothing from outside (region traits, the weekly king) touches them, and all of them come for you. Rewards: first 3 runs a week pay coins (80 a floor, max 3000) and XP; first clears of floors 5/10/15/20/25/30/40/50 pay once ever (XP, coins, gems, Abyss coins …). Stamina is endless; you bring a full magazine + 3 more, monsters sometimes drop a little ammo, and with none left you punch (there is an Infinite Ammo card); companions stay outside; everything is put back when you leave.') + '</p>' +
-      '<div class="abygb"><button class="sbtn ghostb abyx">' + T2('返回', 'Back') + '</button><button class="go abygo"' + (lock || !sel ? ' disabled' : '') + '>' + (lock || T2('下潜', 'Dive')) + '</button></div>';
+      '<div class="abygb"><button class="sbtn ghostb abyx">' + T2('返回', 'Back') + '</button><button class="sbtn abyshb">' + abyCoinIc(16) + ' ' + T2('深渊商店', 'Abyss shop') + '</button><button class="go abygo"' + (lock || !sel ? ' disabled' : '') + '>' + (lock || T2('下潜', 'Dive')) + '</button></div>';
     m.querySelectorAll('.abyw').forEach(b => b.addEventListener('click', () => { if (b.classList.contains('off')) return; sel = b.dataset.w; draw(); }));
     m.querySelector('.abyx').addEventListener('click', () => m.remove());
+    { const sb = m.querySelector('.abyshb'); if (sb) sb.addEventListener('click', () => { try { abyShopOpen(); } catch (e) { } }); }
     m.querySelector('.abygo').addEventListener('click', () => { if (lock || !sel) return; m.remove(); abyEnter(sel); }); };
   draw(); document.body.appendChild(m);
 }
@@ -21908,6 +21909,68 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
   '.g3luck button{width:32px;height:30px;border-radius:8px;border:1px solid rgba(255,210,122,.6);background:rgba(255,210,122,.15);color:#ffe2a6;font-size:18px;font-weight:900;line-height:1;padding:0}.g3luck button:disabled{opacity:.35}' +
   '.g3lock{display:flex;align-items:center;justify-content:center;gap:6px;min-height:36px;border-radius:10px;border:1.5px solid rgba(159,216,255,.45);background:rgba(159,216,255,.08);color:#d6eeff;font-weight:800;font-size:13px;padding:4px 8px;flex-wrap:wrap}.g3lock i{width:16px;height:16px;border-radius:4px;border:2px solid #9fd8ff;flex:none}.g3lock.on{background:rgba(159,216,255,.2);border-color:#9fd8ff}.g3lock.on i{background:#9fd8ff;box-shadow:inset 0 0 0 2px #12283a}.g3lock small{font-weight:600;opacity:.75}.g3lock:disabled{opacity:.5}' +
   '.g3luck b{min-width:18px;text-align:center;font-size:15px;color:#fff}.g3luck em{font-style:normal;color:#ffd27a;min-width:52px}.g3luck small{font-weight:600;opacity:.7}' })); } catch (e) { }
+/* ============ 深渊商店: spend 深渊币 with the diver of the 深渊号 (owner 18 Nov: "add a trade system to the abyss") ============
+   Opened from the abyss page (button 深渊商店 next to 下潜). The trader is the brass-helmet diver who stands on the sub.
+   Tabs: 升级材料 (now) · 皮肤 (empty: the owner will hand over skin code later, then they go in ABYSHOP_SKINS).
+   PRICE RULE: 深渊币 counts as ABY_GEM = .25 晶石 each for the checker (z_econ ECON.ABY_GEM); every item here costs MORE than its
+   晶石 resource-shop price (about ×1.25). Items without a 晶石 price (精密零件, 元素晶核) are priced above what a villager pays for them.
+   Weekly limit per item (`lim`, resets with abyWeek, Mon 04:00) so the coins from one week's first run go a sensible way.
+   Saved as r.abyShop = {w, b:{key:count}}. */
+const ABYSHOP = [
+  // [item, amount, price in 深渊币, bought per week]
+  ['estone', 5, 150, 4], ['apart', 10, 40, 5], ['elem', 2, 60, 5], ['steel', 5, 200, 2], ['bpf', 10, 200, 2],
+  ['eluck', 1, 250, 2], ['crystal', 1, 300, 2], ['elock', 1, 400, 1], ['heart', 1, 450, 1], ['core', 1, 525, 1]
+];
+const ABYSHOP_SKINS = [];   // filled when the owner sends the skins
+S.abyShop = { w: '', b: {} };
+const abyShW = () => { if (S.abyShop.w !== abyWeek()) S.abyShop = { w: abyWeek(), b: {} }; return S.abyShop; };
+const abyShLeft = i => Math.max(0, ABYSHOP[i][3] - (abyShW().b[ABYSHOP[i][0]] | 0));
+shopSave = (o => function () { const r = o(); try { r.abyShop = S.abyShop; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.abyShop = { w: '', b: {} }; try { const a = d && d.sh && d.sh.abyShop; if (a && typeof a === 'object') { S.abyShop.w = String(a.w || ''); for (const k in a.b || {}) S.abyShop.b[k] = Math.max(0, a.b[k] | 0); } } catch (e) { } })(shopLoad);
+// the diver's face: brass helmet, round glass window, a face behind it; blinks
+const ABYSHOP_FACE = '<svg viewBox="0 0 64 64" class="abdf"><circle cx="32" cy="34" r="27" fill="#d9a23a" stroke="#8a5e14" stroke-width="2"/>' +
+  '<rect x="10" y="54" width="44" height="9" rx="3" fill="#b07e22"/><circle cx="32" cy="32" r="17" fill="#8a5e14"/><circle cx="32" cy="32" r="14.5" fill="#cfeef2"/>' +
+  '<circle cx="32" cy="34" r="10" fill="#f0c49a"/><g class="abdeye"><circle cx="28" cy="32" r="1.6" fill="#2a2a2a"/><circle cx="36" cy="32" r="1.6" fill="#2a2a2a"/></g>' +
+  '<path d="M28 38q4 3 8 0" stroke="#7a3a22" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M24 26q8-6 16 0" stroke="#5a3a1a" stroke-width="2.4" fill="none"/>' +
+  '<path d="M21 23a14 14 0 0 1 9-5" stroke="#fff" stroke-width="2" fill="none" opacity=".7"/>' +
+  '<circle cx="8" cy="34" r="4" fill="#b07e22"/><circle cx="56" cy="34" r="4" fill="#b07e22"/><circle cx="32" cy="6" r="3.5" fill="#b07e22"/>' +
+  [0, 1, 2, 3, 4, 5, 6, 7].map(k => { const a = k / 8 * 6.283; return '<circle cx="' + (32 + Math.cos(a) * 15.8).toFixed(1) + '" cy="' + (32 + Math.sin(a) * 15.8).toFixed(1) + '" r="1.1" fill="#ffe08a"/>'; }).join('') + '</svg>';
+let ABYSH = { tab: 'mat', arm: '', t: 0 };
+function abyShopBuy(i, btn) { const [k, n, p] = ABYSHOP[i];
+  if (!abyShLeft(i)) { feed(T2('这件本周已经买满了（每周一刷新）', 'Sold out this week'), '#ff9b8a'); return; }
+  if ((S.abyss.ac | 0) < p) { feed(T2('深渊币不够', 'Not enough Abyss coins'), '#ff9b8a'); return; }
+  if (ABYSH.arm !== k || Date.now() - ABYSH.t > 3000) { ABYSH.arm = k; ABYSH.t = Date.now(); if (btn) { btn.classList.add('armed'); btn.textContent = T2('再点一次确认', 'Tap again'); } return; }
+  ABYSH.arm = ''; S.abyss.ac = (S.abyss.ac | 0) - p; abyShW().b[k] = (S.abyShop.b[k] | 0) + 1; gain(k, n);
+  feed(T2('买到 ', 'Bought ') + gsName(k) + ' ×' + n, '#7de0ff'); try { sfx.build(); } catch (e) { } try { refreshHud(); } catch (e) { } saveGame(); abyShopDraw(); }
+function abyShopDraw() { const m = $('abyShopM'); if (!m) return; const L = m.querySelector('.absl'), y = L ? L.scrollTop : 0;
+  const tab = (id, t) => '<button class="abst' + (ABYSH.tab === id ? ' on' : '') + '" data-t="' + id + '">' + t + '</button>';
+  let body = '';
+  if (ABYSH.tab === 'mat') body = '<div class="absg">' + ABYSHOP.map((x, i) => { const [k, n, p, lim] = x, left = abyShLeft(i), ok = left > 0 && (S.abyss.ac | 0) >= p;
+    return '<div class="absc' + (left ? '' : ' out') + '"><span class="absi">' + svgIcon(k) + '</span><b>' + gsName(k) + ' ×' + n + '</b><small>' + T2('本周还能买 ', 'This week ') + left + ' / ' + lim + '</small>' +
+      '<button class="go absb" data-i="' + i + '"' + (ok ? '' : ' disabled') + '>' + abyCoinIc(14) + ' ' + p + '</button></div>'; }).join('') + '</div>';
+  else body = ABYSHOP_SKINS.length ? '' : '<div class="absempty">' + ABYSHOP_FACE + '<b>' + T2('皮肤还在路上', 'Skins are on the way') + '</b><span>' + T2('阿深说：深海里捞到的好东西很快就会摆上来，先攒着深渊币吧！', 'Coming soon — keep your Abyss coins!') + '</span></div>';
+  m.innerHTML = '<div class="absh">' + ABYSHOP_FACE + '<div class="absn"><b>' + T2('潜水员 · 阿深', 'Diver Ah Shen') + '</b><span>' + T2('「深渊币我收，好货我有。每周一补货。」', '"Abyss coins welcome. New stock every Monday."') + '</span></div>' +
+    '<div class="absac">' + abyCoinIc(20) + '<b>' + (S.abyss.ac | 0) + '</b></div></div>' +
+    '<div class="abstabs">' + tab('mat', T2('升级材料', 'Upgrade materials')) + tab('skin', T2('皮肤', 'Skins')) + '</div><div class="absl">' + body + '</div>' +
+    '<div class="abygb"><button class="sbtn ghostb absx">' + T2('返回', 'Back') + '</button></div>';
+  m.querySelectorAll('.abst').forEach(b => b.addEventListener('click', () => { ABYSH.tab = b.dataset.t; abyShopDraw(); }));
+  m.querySelectorAll('.absb').forEach(b => b.addEventListener('click', () => abyShopBuy(+b.dataset.i, b)));
+  m.querySelector('.absx').addEventListener('click', () => { m.remove(); try { if ($('abyPageM')) { $('abyPageM').remove(); abyPage(); } } catch (e) { } });
+  const L2 = m.querySelector('.absl'); if (L2) L2.scrollTop = y; }
+function abyShopOpen() { let m = $('abyShopM'); if (m) m.remove(); m = document.createElement('div'); m.id = 'abyShopM'; m.className = 'abym abshop'; ABYSH.arm = ''; document.body.appendChild(m); abyShopDraw(); }
+{ try { const st = document.createElement('style'); st.textContent =
+  '#abyShopM{z-index:31;justify-content:flex-start!important;background:#0b161b!important}#abyShopM>:first-child{margin-top:0!important}#abyShopM .absl{flex:1;min-height:0;width:100%;max-width:640px;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}' +
+  '.absh{display:flex;align-items:center;gap:10px;width:100%;max-width:640px;box-sizing:border-box;padding:8px 10px;border-radius:14px;background:rgba(10,40,48,.75);border:1.5px solid #e0aa3a}' +
+  '.abdf{width:54px;height:54px;flex:none}.abdeye{animation:abdBl 4s infinite;transform-origin:32px 32px}@keyframes abdBl{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}' +
+  '.absn{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.absn b{color:#ffd27a;font-size:16px}.absn span{font-size:12px;color:#cfe8ea}' +
+  '.absac{display:flex;align-items:center;gap:5px;font-size:18px}.absac b{color:#ffd27a}' +
+  '.abstabs{display:flex;gap:8px}.abst{padding:7px 16px;border-radius:20px;border:1.5px solid rgba(255,255,255,.18);background:rgba(0,0,0,.35);color:#cfe8ea;font-weight:700}.abst.on{background:#1f8f9a;border-color:#e0aa3a;color:#fff}' +
+  '.absg{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;padding:2px}' +
+  '.absc{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px;border-radius:12px;background:rgba(0,0,0,.4);border:1.5px solid rgba(31,143,154,.7);text-align:center}.absc.out{opacity:.5}' +
+  '.absi .ic,.absi img,.absi svg{width:40px;height:40px}.absc b{font-size:14px}.absc small{font-size:11px;color:#9fc8cc}.absb{display:flex;align-items:center;justify-content:center;gap:4px;width:100%;padding:7px 4px!important;font-size:14px!important}.absb.armed{background:#ff9b3a!important}' +
+  '.absempty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:30px 16px;text-align:center}.absempty .abdf{width:90px;height:90px}.absempty b{font-size:17px;color:#ffd27a}.absempty span{font-size:13px;color:#cfe8ea;max-width:360px}' +
+  '@media (orientation:landscape) and (max-height:500px){.absh{padding:4px 10px}.abdf{width:40px;height:40px}.absg{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}}';
+  document.head.appendChild(st); } catch (e) { } }
 /* ============ one price rule for every trade (owner 18 Nov) ============
    Exchange rates: 1 晶石 = 20 余烬币 (resource shop: 1000 币 for 50 晶石); 1 遗物币 = 1.5 晶石 = 30 余烬币 (100 for 150 晶石).
    The 晶石 resource shop (GSHOP) is the reference price of every item. Rules, checked here at start-up:
@@ -21916,7 +21979,7 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
    - selling never pays as much as the 晶石 price (merchant SELL_PRICE, and the ×1.8 villager);
    so nothing can be bought one way and sold another for a profit. NEW ITEMS / PRICES MUST FOLLOW THIS; econCheck() lists any
    that don't (console + ECON.bad, smoke3 can read it). */
-const ECON = { GEM_COIN: 20, RELIC_GEM: 1.5, SHOP_DISC: .15, VIL_MIN: .6, VIL_MAX_BUY: 1.8, bad: [] };
+const ECON = { GEM_COIN: 20, RELIC_GEM: 1.5, SHOP_DISC: .15, VIL_MIN: .6, VIL_MAX_BUY: 1.8, ABY_GEM: .25, bad: [] };   // ABY_GEM: what one 深渊币 counts as, in 晶石 (z_abyshop.js)
 const ECON_NAME = { 医疗包: 'med', 弹药: 'ammo', 木头: 'wood', 石头: 'stone', 铁片: 'metal', 火药: 'powder', 电子元件: 'circuit', 精钢锭: 'steel', 变异血清: 'serum', 腐化晶体: 'crystal', 终焉核心: 'core' };
 function econGem() { const g = {}; for (const [k, n, p] of GSHOP) if (k !== 'coin' && k !== 'relic') g[k] = p / n; return g; }   // 晶石 per one unit
 function econCheck() {
@@ -21926,6 +21989,9 @@ function econCheck() {
   try { for (const [k, n, p] of VIL_SELL) { if (G[k] == null) continue; const ref = G[k] * n * C; if (p * ECON.VIL_MIN < ref) bad.push('村民卖 ' + k + '×' + n + ' ' + p + ' 币 < ' + Math.ceil(ref / ECON.VIL_MIN)); } } catch (e) { }
   try { for (const [k, n, p] of RELIC_SHOP) { if (G[k] == null) continue; if (p * ECON.RELIC_GEM < G[k] * n) bad.push('老钱 ' + k + '×' + n + ' ' + p + ' 遗物币 < 晶石价'); } } catch (e) { }
   try { for (const k in SELL_PRICE) { if (G[k] == null) continue; if (SELL_PRICE[k] * ECON.VIL_MAX_BUY >= G[k] * C) bad.push('卖 ' + k + ' 最多 ' + SELL_PRICE[k] * ECON.VIL_MAX_BUY + ' 币 ≥ 晶石价 ' + G[k] * C); } } catch (e) { }
+  // 深渊商店: dearer than 晶石; items without a 晶石 price must still cost more than the best villager pays for them
+  try { if (typeof ABYSHOP !== 'undefined') for (const [k, n, p] of ABYSHOP) { const v = p * ECON.ABY_GEM; if (G[k] != null) { if (v < G[k] * n) bad.push('深渊商店 ' + k + '×' + n + ' ' + p + ' 深渊币 < 晶石价'); }
+    else if (SELL_PRICE[k] != null && SELL_PRICE[k] * ECON.VIL_MAX_BUY * n >= v * C) bad.push('深渊商店 ' + k + '×' + n + ' 卖给村民赚得更多'); } } catch (e) { }
   // 老钱's skins (遗物币) never cheaper than the dearest 晶石 skin
   try { if (typeof RELIC_SKIN_PRICE !== 'undefined' && typeof SKIN_PRICE !== 'undefined') { const top = Math.max(...Object.values(SKIN_PRICE).filter(v => typeof v === 'number')); if (RELIC_SKIN_PRICE * ECON.RELIC_GEM < top) bad.push('老钱皮肤 ' + RELIC_SKIN_PRICE + ' 遗物币 < 晶石皮肤 ' + top); } } catch (e) { }
   ECON.bad = bad; if (bad.length) console.warn('ECON price rule broken:\n' + bad.join('\n')); return bad;
@@ -22993,4 +23059,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795008502').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795009281').catch(()=>{});</script></body></html>
