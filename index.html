@@ -22655,7 +22655,7 @@ WSKINS.jian9 = { only: 'rifle', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '
   base: 0x1c5a40, mid: 0x3ad88a, acc: 0xe8c060, glow: 0x7affc0, tr: 0x7affc0, tr2: 0xe8c060,
   d: '翠玉色的步枪，枪口下挂着一柄玉剑刺刀。身后九把翠玉飞剑排成剑阵缓缓旋转，每把剑各带一种属性：水、火、雷、毒、冰、木、土、金，第九把「合」集万法于一身。开枪时飞剑从身后飞到枪前，绕枪一圈后随子弹一同射出，命中时剑鸣「锵」的一声；九剑射尽后要重新凝聚，九把全部聚齐才能再出剑。' };
 const J9 = { n: 9, mode: 'ready', t: 0, step: 0, g: null, sw: [], fl: [] };
-const J9_GAP = [3, 2.5, 2, 1.5, 1, .5, .25, .25, .25];
+const J9_GAP = [2, 1, .5, .25, .25, .25, .25, .25, .25];   // owner 18 Nov (2nd): 2 s, 1 s, 0.5 s, then 0.25 s each
 /* ---- one flying sword, tip along +z: blade (extruded outline), ridge, guard, grip, pommel, tassel ---- */
 const J9G = {};
 function j9Mats(i) { if (J9G['m' + i]) return J9G['m' + i]; const c = J9_EL[i].c;
@@ -22706,8 +22706,13 @@ function j9Tick(dt) { if (typeof scene === 'undefined' || !player) return; j9Rin
     const a = T * .7 + i / 9 * 6.283, r = .98, lx = Math.cos(a) * r, ly = Math.sin(a) * r;
     // ring in the plane behind the back (right = (fz, -fx)), each sword pointing outward like a halo, bobbing a little
     s.position.set(cx + fz * lx, cy + ly + Math.sin(T * 2 + i) * .03, cz - fx * lx);
-    s.lookAt(cx + fz * lx * 2, cy + ly * 2, cz - fx * lx * 2);
+    // tip pointing outward round the ring, the FLAT of the blade facing out behind you (owner: 扁面对着外面)
+    j9Orient(s, fz * lx, ly, -fx * lx, -fx, 0, -fz);
     s.children.forEach(c => { if (c.userData.glow) c.material.opacity = .3 + .2 * Math.sin(T * 3 + i); if (c.userData.tas) c.rotation.z = Math.sin(T * 4 + i) * .4; }); }); }
+const _j9a = new THREE.Vector3(), _j9b = new THREE.Vector3(), _j9c = new THREE.Vector3(), _j9m = new THREE.Matrix4();
+// sword basis: local z (tip) = t, local y (the blade's flat normal) = n made square to t
+function j9Orient(o, tx, ty, tz, nx, ny, nz) { try { _j9c.set(tx, ty, tz).normalize(); _j9b.set(nx, ny, nz); _j9b.addScaledVector(_j9c, -_j9b.dot(_j9c)).normalize(); _j9a.crossVectors(_j9b, _j9c);
+  _j9m.makeBasis(_j9a, _j9b, _j9c); o.quaternion.setFromRotationMatrix(_j9m); } catch (e) { } }
 function j9Form(i) { try { const s = J9.sw[i]; const PY = (typeof playerY === 'function' && playerY()) || 0, x = player.pos.x - Math.sin(player.face || 0) * .62, z = player.pos.z - Math.cos(player.face || 0) * .62;
     burst(x, 1.55 + PY, z, J9_EL[i].c, 12, 3); burst(x, 1.55 + PY, z, 0x8affc8, 6, 2); fxRing(x, z, .2, 1.4, .45, J9_EL[i].c, .8, 1.5 + PY); } catch (e) { } try { j9Snd.form(i); } catch (e) { } }
 petsTick = (o => function (dt) { const r = o(dt); try { j9Tick(dt); } catch (e) { } return r; })(petsTick);
@@ -22727,13 +22732,14 @@ function j9Launch(i, mx, my, mz, dx, dz, ex, ey, ez, hit) {
   const q = { i, t0: performance.now() }; J9.fl.push(q);
   // the monster it will strike: the one nearest where the bullet ended
   let tgt = null; if (hit) { let bd = 1.8; for (const z of zombies) { if (z.dead) continue; const d = Math.hypot(z.pos.x - ex, z.pos.z - ez); if (d < bd) { bd = d; tgt = z; } } }
-  const len = Math.hypot(ex - mx, ez - mz), tFly = Math.max(.08, Math.min(.3, len / 70)), T1 = .12, T2 = .26, T3 = .3, tot = T3 + tFly, ang = Math.atan2(dx, dz);
+  const len = Math.hypot(ex - mx, ez - mz), tFly = Math.max(.08, Math.min(.3, len / 70)), T1 = .12, T2 = .26, T3 = .36, tot = T3 + tFly, ang = Math.atan2(dx, dz);
+  setTimeout(() => { try { j9Snd.lock(i); burst(mx, my, mz, J9_EL[i].c, 6, 2); } catch (e) { } }, T2 * 1000);   // the sword locks onto the gun: a heavy sound, then it goes
   try { j9Snd.launch(i); } catch (e) { }
   sw.children[0].onBeforeRender = () => { const k = (performance.now() - q.t0) / 1000;
     if (k < T1) { const f = k / T1, e = f * f * (3 - 2 * f); sw.position.set(st.x + (mx - st.x) * e, st.y + (my - st.y) * e + Math.sin(f * Math.PI) * .4, st.z + (mz - st.z) * e); sw.lookAt(mx + dx, my, mz + dz); }
     else if (k < T2) { const f = (k - T1) / (T2 - T1), a = f * 6.283, r = .42 * (1 - f * .6);   // one quick circle round the gun
       sw.position.set(mx + Math.cos(ang) * Math.cos(a) * r, my + Math.sin(a) * r, mz - Math.sin(ang) * Math.cos(a) * r); sw.lookAt(mx + dx * 2, my, mz + dz * 2); sw.rotateZ(a); }
-    else if (k < T3) { sw.position.set(mx, my, mz); sw.lookAt(mx + dx, my, mz + dz); }   // lined up with the barrel
+    else if (k < T3) { sw.position.set(mx, my - .02, mz); j9Orient(sw, dx, 0, dz, 0, 1, 0); }   // pressed against the barrel, lined up, flat side up
     else { const f = Math.min(1, (k - T3) / tFly); sw.position.set(mx + (ex - mx) * f, my + (ey - my) * f, mz + (ez - mz) * f); sw.lookAt(ex + dx, ey, ez + dz);
       if (Math.random() < .5) burst(sw.position.x, sw.position.y, sw.position.z, J9_EL[i].c, 1, .4); } };
   setTimeout(() => { try { scene.remove(sw); } catch (e) { } J9.fl = J9.fl.filter(x => x !== q); try { j9Hit(i, tgt, ex, ey, ez); } catch (e) { } }, tot * 1000 + 20);
@@ -22765,6 +22771,7 @@ function j9Hit(i, z, x, y, zz) { const F = fxGeo(), c = J9_EL[i].c, big = i === 
 const j9Snd = {
   launch(i) { sfxTone(900 + i * 60, 2400 + i * 80, .14, .035, 'sine'); sfxNoise(.12, .04, 3000, { type: 'bandpass', q: 2 }); },
   hit(i) { const f = 520 + (i % 4) * 40; sfxTone(f, f * .98, .7, .09, 'sine'); sfxTone(f * 2.76, f * 2.7, .45, .05, 'sine'); sfxTone(f * 5.4, f * 5.3, .25, .025, 'sine'); sfxNoise(.03, .08, 4500, { type: 'highpass' }); },
+  lock(i) { sfxTone(95, 48, .4, .2, 'sine'); sfxTone(310, 290, .45, .07, 'triangle', { delay: .01 }); sfxNoise(.18, .1, 500, { f1: 150 }); sfxTone(1240, 1200, .3, .03, 'sine', { delay: .02 }); },
   form(i) { sfxTone(70, 62, 1.1, .16, 'sine'); sfxTone(140, 132, .9, .07, 'triangle', { delay: .03 }); sfxTone(330 + i * 22, 330 + i * 22, 1.0, .05, 'sine', { delay: .05, vib: 4, vibD: 6 }); sfxNoise(.5, .05, 400, { f1: 120, delay: .02 }); }
 };
 // melee-like layer for the skin's own fire/hit sounds (guns keep their real gunshot)
@@ -23942,4 +23949,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795017119').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795017404').catch(()=>{});</script></body></html>
