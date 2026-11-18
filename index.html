@@ -9506,7 +9506,7 @@ SKIN_BUILD.seraph = function (k) {
   // a cream covert row over them, flame-gold tips. They sweep back while you move and rise and fall slowly.
   both(s => {
     const piv = new THREE.Group(); piv.position.set(s * .14, 1.74, -.36); piv.scale.setScalar(1.05); put(piv, 'b');
-    const P = [[0, 0], [.42, .5], [1.05, .74], [1.5, .64]], seg = [], tot = [0];
+    const P = [[0, 0], [.3, .55], [.6, .98], [.8, 1.16]], seg = [], tot = [0];
     for (let i = 0; i < 3; i++) { const d = Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]); seg.push(d); tot.push(tot[i] + d); }
     const at = u => { const t = u * tot[3]; let i = 0; while (i < 2 && t > tot[i + 1]) i++; const k = (t - tot[i]) / seg[i]; return [P[i][0] + (P[i + 1][0] - P[i][0]) * k, P[i][1] + (P[i + 1][1] - P[i][1]) * k]; };
     for (let i = 0; i < 3; i++) { const [x0, y0] = P[i], [x1, y1] = P[i + 1], b = new THREE.Mesh(new THREE.BoxGeometry(seg[i] + .06, .09 - i * .015, .07), mat(GO));
@@ -9523,7 +9523,7 @@ SKIN_BUILD.seraph = function (k) {
     const glowE = new THREE.Mesh(new THREE.BoxGeometry(.38, .38, .04), glow(0xff9a3a, .22)); const [tx, ty] = at(.9); glowE.position.set(s * (tx + .18), ty - .38, -.04); piv.add(glowE);
     const bone0 = piv.children[0];
     bone0.onBeforeRender = () => { const T = performance.now() / 1000, mv = (typeof _capeMv === 'function' ? _capeMv() : 0);
-      const sp = 1.6 + mv * 4.2, amp = .09 + mv * .3; piv.rotation.y = s * (.18 + .12 * mv); piv.rotation.z = s * (amp * Math.sin(T * sp) + .05 * mv); };   // swept back, beating harder while you move
+      const sp = 1.6 + mv * 4.2, amp = .09 + mv * .3; piv.rotation.y = s * (.4 + .12 * mv); piv.rotation.z = s * (amp * Math.sin(T * sp) + .05 * mv); };   // swept back, beating harder while you move
   });
   // arms and legs
   sleeves(R2, GO); both((s, L, a) => { bx(.29, .32, .29, W, 0, -.56, 0, a); bx(.3, .04, .3, GO, 0, -.42, 0, a); bx(.3, .03, .3, F, 0, -.7, 0, a); });
@@ -22198,6 +22198,56 @@ for (const G of GH_LIST) {
 /* ---- owner's code: all seven 萌鬼 skins at once (only the hash is stored; once per character) ---- */
 try { RDM[3491928377] = { id: 'menggui', n: '萌鬼全套皮肤', f() { let n = 0; for (const G of GH_LIST) if (!S.wskOwn.includes(G.k + ':' + G.wid)) { S.wskOwn.push(G.k + ':' + G.wid); n++; }
   if (!n) { feed('萌鬼皮肤已经全部拥有了', '#ff9b8a'); return false; } banner('获得萌鬼神话皮肤 ×' + n, '在背包点武器就能换上', 4); try { ghSnd.giggle(1.2); } catch (e) { } return true; } }; } catch (e) { }
+
+/* ---- 萌鬼 2: each weapon gets its own themed parts ON the weapon (owner 18 Nov: "武器本身太普通") ----
+   糖糖 pistol   candy-cane stripes round the barrel, a heart gem on the grip, a lollipop charm hanging from the back
+   南瓜 rifle    a faceted pumpkin drum magazine with a glowing jack-o'-lantern face, a green vine winding the barrel
+   月眠 sniper   a gold crescent moon under the barrel, two star charms dangling, a glowing moon lens on the scope
+   鬼火 shotgun  blue ghost-fire flickering out of the muzzles, little horns on top, a hanging spirit lantern
+   青藤 axe      vines with leaves spiralling up the haft, white flowers on the axe cheek
+   矿灯 pick     a glowing miner's lamp on the head collar, glowing ore crystals set in the pick head, brass rivets
+   狐面 blade    a white fox mask on the guard, a red tassel swinging from the pommel, foxfire flickering along the spine */
+buildWeapon = (orig => function (id, t, skin) { const g = orig(id, t, skin), k = skin !== undefined ? skin : (S.wsk && S.wsk[id]);
+  if (k && GH.by[k] && GH.by[k].wid === id) try { ghDeco(g, GH.by[k], id); } catch (e) { console.warn('ghdeco', e); }
+  return g; })(buildWeapon);
+function ghDeco(g, G, id) {
+  const ex = []; g.traverse(o => { if (o.isMesh && o.userData && o.userData.gh) ex.push(o); });
+  const box = new THREE.Box3(); g.children.forEach(c => { if (c !== g.userData.ghost && c.isMesh) box.expandByObject(c); });
+  const sz = new THREE.Vector3(), ct = new THREE.Vector3(); box.getSize(sz); box.getCenter(ct);
+  const L = c => new THREE.MeshLambertMaterial({ color: c, flatShading: true }), B = c => new THREE.MeshBasicMaterial({ color: c }), anim = [];
+  const add = (geo, m, x, y, z, fx, ph) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); if (fx) { o.userData.gfx = fx; o.userData.ph = ph || 0; o.userData.p0 = o.position.clone(); o.userData.r0 = o.rotation.clone(); anim.push(o); } return o; };
+  const ring = (r, t, m, z, y) => { const o = add(new THREE.TorusGeometry(r, t, 5, 10), m, ct.x, y == null ? ct.y : y, z); return o; };
+  const zAt = f => box.min.z + sz.z * f, H = Math.min(sz.y, .14);
+  if (id === 'pistol') { for (let i = 0; i < 5; i++) ring(H * .42, H * .1, L(i % 2 ? 0xffffff : 0xff4f8f), zAt(.62 + i * .07), ct.y + sz.y * .25);
+    const hg = add(new THREE.OctahedronGeometry(H * .22), B(0xff2a6a), ct.x + sz.x * .55, ct.y - sz.y * .2, zAt(.25)); hg.scale.set(.5, 1, 1);
+    const st = add(new THREE.BoxGeometry(.008, H * .9, .008), L(0xffffff), ct.x, box.min.y - H * .3, zAt(.12), 'swing'); add(new THREE.CylinderGeometry(H * .35, H * .35, .02, 8), L(0xff8fc0), 0, -H * .5, 0).position.set(0, 0, 0);
+    const lp = new THREE.Mesh(new THREE.CylinderGeometry(H * .35, H * .35, .02, 8), L(0xff8fc0)); lp.rotation.x = Math.PI / 2; lp.position.y = -H * .5; st.add(lp); }
+  else if (id === 'rifle') { const pk = add(new THREE.IcosahedronGeometry(H * .7, 0), L(0xff8a1a), ct.x, box.min.y - H * .35, zAt(.48)); pk.scale.set(.75, 1, 1.15);
+    for (const s of [-1, 1]) { const e = add(new THREE.ConeGeometry(H * .12, H * .16, 3), B(0xffe060), ct.x + s * .002 + H * .52, box.min.y - H * .25, zAt(.48) + s * H * .2, 'glow'); e.rotation.z = -Math.PI / 2; }
+    add(new THREE.BoxGeometry(.01, H * .1, H * .4), B(0xffe060), ct.x + H * .53, box.min.y - H * .52, zAt(.48), 'glow');
+    add(new THREE.BoxGeometry(H * .12, H * .25, H * .12), L(0x3a7a2a), ct.x, box.min.y + H * .4, zAt(.48));
+    for (let i = 0; i < 8; i++) { const a = i * 1.2, z = zAt(.66 + i * .04); add(new THREE.OctahedronGeometry(H * .1), L(i % 2 ? 0x4aa84a : 0x6ad84a), ct.x + Math.cos(a) * H * .3, ct.y + sz.y * .2 + Math.sin(a) * H * .3, z).scale.set(1, .5, 1.6); } }
+  else if (id === 'sniper') { const mn = add(new THREE.TorusGeometry(H * .8, H * .13, 5, 16, 3.8), L(0xffd27a), ct.x + sz.x * .5 + .01, ct.y, zAt(.72)); mn.rotation.set(0, Math.PI / 2, 2.0);   // a gold crescent on the barrel's side
+    for (let i = 0; i < 2; i++) { const s0 = add(new THREE.BoxGeometry(.006, H * .7, .006), L(0xd8d8e8), ct.x, box.min.y - H * .4, zAt(.3 + i * .15), 'swing', i); const st = new THREE.Mesh(new THREE.OctahedronGeometry(H * .2), B(i ? 0xfff2a8 : 0xa8d8ff)); st.position.y = -H * .4; st.scale.z = .4; s0.add(st); }
+    add(new THREE.CylinderGeometry(H * .32, H * .32, .01, 10), B(0xfff2a8), ct.x, box.max.y - H * .3, zAt(.52), 'glow').rotation.x = Math.PI / 2; }
+  else if (id === 'shotgun') { for (const s of [-1, 1]) for (let i = 0; i < 2; i++) { const f = add(new THREE.ConeGeometry(H * (.22 - i * .07), H * (.9 - i * .25), 5), B(i ? 0xd8f8ff : 0x5ad8ff), ct.x + s * H * .25, ct.y + sz.y * .2, box.max.z + H * .35, 'flick', s + i); f.rotation.x = Math.PI / 2; }
+    for (const s of [-1, 1]) { const h = add(new THREE.ConeGeometry(H * .12, H * .4, 4), L(0xc08aff), ct.x + s * H * .25, box.max.y + H * .12, zAt(.35)); h.rotation.z = -s * .3; }
+    const ln = add(new THREE.BoxGeometry(.006, H * .5, .006), L(0x3a2a48), ct.x, box.min.y - H * .2, zAt(.55), 'swing'); const lb = new THREE.Mesh(new THREE.CylinderGeometry(H * .2, H * .2, H * .35, 6), B(0x7ae8ff)); lb.position.y = -H * .4; ln.add(lb); }
+  else if (id === 'axe') { for (let i = 0; i < 10; i++) { const a = i * 1.3, z = -.15 + i * .065; add(new THREE.OctahedronGeometry(.028), L(i % 2 ? 0x3aaa5a : 0x8ae0a8), Math.cos(a) * .036, Math.sin(a) * .036, z).scale.set(1, .4, 1.8); }
+    for (const s of [-1, 1]) for (let i = 0; i < 2; i++) { const cz = .62 + i * .1, cy = .16 + i * .05; for (let p = 0; p < 5; p++) { const b = p / 5 * 6.283; add(new THREE.OctahedronGeometry(.018), L(0xffffff), s * .03, cy + Math.sin(b) * .022, cz + Math.cos(b) * .022).scale.set(.3, 1, 1); } add(new THREE.OctahedronGeometry(.01), B(0xffe08a), s * .034, cy, cz); } }
+  else if (id === 'pick') { add(new THREE.BoxGeometry(.06, .05, .05), L(0x8a6a2a), 0, .1, .7); add(new THREE.BoxGeometry(.05, .04, .02), B(0xffe27a), 0, .1, .73, 'glow');
+    for (const y of [-.28, -.14, .14, .28]) add(new THREE.OctahedronGeometry(.022), B(0xffd23a), .03, y, .7 - .55 * y * y, 'glow', y * 9).scale.set(.6, 1.4, .6);
+    for (const y of [-.06, .06]) for (const s of [-1, 1]) add(new THREE.CylinderGeometry(.008, .008, .01, 6), L(0xd8a040), s * .04, y, .7).rotation.z = Math.PI / 2; }
+  else if (id === 'blade') { const mk = add(new THREE.BoxGeometry(.012, .1, .08), L(0xffffff), 0, .07, .085); for (const s of [-1, 1]) { add(new THREE.ConeGeometry(.018, .04, 3), L(0xffffff), 0, .135, .085 + s * .028); add(new THREE.BoxGeometry(.014, .008, .03), B(0xd8283a), 0, .075, .085 + s * .02).rotation.x = s * .4; }
+    const ts = add(new THREE.BoxGeometry(.008, .012, .008), L(0xd8283a), 0, -.03, -.3, 'swing'); const tf = new THREE.Mesh(new THREE.ConeGeometry(.02, .12, 5), L(0xd8283a)); tf.position.y = -.08; ts.add(tf);
+    for (let i = 0; i < 5; i++) { const f = i / 4, z = .3 + f * .8, y = .1 * Math.pow((z - .14) / 1.04, 2) + .05; const fl = add(new THREE.ConeGeometry(.012, .05, 4), B(i % 2 ? 0xff8aa0 : 0x7ad8ff), 0, y, z, 'flick', i); } }
+  if (!anim.length) return; const host = anim[0];
+  const hostM = add(new THREE.BoxGeometry(.001, .001, .001), B(0), ct.x, ct.y, ct.z);
+  hostM.onBeforeRender = () => { const T = performance.now() / 1000; for (const o of anim) { const u = o.userData;
+    if (u.gfx === 'swing') o.rotation.x = u.r0.x + Math.sin(T * 2.4 + u.ph) * .3;
+    else if (u.gfx === 'flick') o.scale.set(1, 1 + .35 * Math.sin(T * 12 + u.ph * 2) + .15 * Math.sin(T * 27 + u.ph), 1);
+    else if (u.gfx === 'glow') { const k = .75 + .25 * Math.sin(T * 3 + u.ph); o.scale.setScalar(.85 + .25 * k); } } };
+}
 /* ============ weapon SKILL effects follow the weapon skin (owner 18 Nov: "技能特效也得对应皮肤") ============
    z_ws2.js colours each skill by its upgrade tier (ws2Col reads WS2.C / WS2.TC). With a skin on that weapon, the skill takes
    the skin's own colour instead (K.tr, else K.glow) — every tier's extra rings / pillars / flashes too — and the skill-time
@@ -23720,4 +23770,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795014461').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795014907').catch(()=>{});</script></body></html>
