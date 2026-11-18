@@ -18491,24 +18491,21 @@ function tpFixLevels() { const N = TER_N, P = TPAINT.p, WL = TPAINT.wl, seen = n
   for (let s0 = 0; s0 < N * N; s0++) { if (P[s0] !== 4 || seen[s0]) continue; const reg = [s0]; seen[s0] = 1;
     for (let q = 0; q < reg.length; q++) { const k = reg[q], i = k % N, j = (k / N) | 0;   // 8 neighbours: ponds touching only at a corner are one pond too
       for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if ((!di && !dj) || ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const kk = jj * N + ii; if (P[kk] === 4 && !seen[kk]) { seen[kk] = 1; reg.push(kk); } } }
-    // one joined pond = one water level (owner 17 Nov, video: ponds painted on ground of different heights met in a stepped
-    // dry line, because a cell whose corners differ too much is not drawn). The LOWEST level wins…
-    let hi = -1e9, lo = 1e9; for (const k of reg) { hi = Math.max(hi, WL[k]); lo = Math.min(lo, WL[k]); }
-    // …and never above the lowest bank round it (owner 17 Nov: water, its stones and a farm plot floated in the air — an
-    // older fix had lifted a pond to its highest part, over the lower banks)
-    let bank = 1e9; for (const k of reg) { const i = k % N, j = (k / N) | 0;
-      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const kk = jj * N + ii; if (P[kk] !== 4) bank = Math.min(bank, gH(kk)); } }
-    let L = lo; if (bank < 1e8 && L > bank - .1) L = bank - .15;
-    // a pond that reaches the beach (where the sea is drawn under the ground) never sits under the sea: it lies just over the
-    // sea's surface, so the two waters don't cut through each other (owner 17 Nov: 'the sea is high, my pond clips with it')
+    // one joined pond = one water level. WATER WAY 3 (owner 18 Nov: painting a pond next to an old one made ALL the old
+    // water vanish — the level dropped to the lowest bank round the whole pond, deeper than the ground can be dug, so the water
+    // ended under the ground). Water flows: joined ponds share the LOWEST level of their parts (the higher part is dug down to
+    // it), never so low that a floor can't be dug under every part, never under the sea at the beach. Banks lower than the
+    // water are raised (below), the level is no longer pulled down to them.
+    let bq = 1e9; for (const k of reg) bq = Math.min(bq, WL[k]);
+    let L = bq, need = -1e9;
+    for (const k of reg) { if (locked(k)) continue; const i = k % N, j = (k / N) | 0; need = Math.max(need, terBase(Math.hypot(i * TER_S - TER_O, j * TER_S - TER_O)) + TER_MIN + .5); }
+    if (L < need) L = need;
     let nearSea = false; for (const k of reg) if (Math.hypot((k % N) * TER_S - TER_O, ((k / N) | 0) * TER_S - TER_O) > TP_SEA_R) { nearSea = true; break; }
     if (nearSea && L < TP_SEA + .1) L = TP_SEA + .1;
-    if (hi - L > .01 || Math.abs(lo - L) > .01) { for (const k of reg) { WL[k] = L; if (locked(k)) continue; const i = k % N, j = (k / N) | 0, b = terBase(Math.hypot(i * TER_S - TER_O, j * TER_S - TER_O));
-        if (b + TER.h[k] > L - .3) { TER.h[k] = Math.max(TER_MIN, L - .45 - b); dug = true; TER.any = true; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii >= 0 && jj >= 0 && ii < N && jj < N) terVert(ii, jj); } } }
-      fixed++; }
-    // water under its own floor (the bottom limit was reached): lift it just over the floor
-    let mn = 1e9; for (const k of reg) if (!locked(k)) mn = Math.min(mn, gH(k));
-    if (mn < 1e8 && WL[reg[0]] < mn + .15) { const L2 = mn + .3; for (const k of reg) WL[k] = L2; fixed++; }
+    let chg = false; for (const k of reg) { if (Math.abs(WL[k] - L) > .001) { WL[k] = L; chg = true; } if (locked(k)) continue; const i = k % N, j = (k / N) | 0, b = terBase(Math.hypot(i * TER_S - TER_O, j * TER_S - TER_O));
+      // the floor under the water: at least .45 under the surface (deeper old floors stay)
+      if (b + TER.h[k] > L - .3) { TER.h[k] = Math.max(TER_MIN, L - .45 - b); dug = true; TER.any = true; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii >= 0 && jj >= 0 && ii < N && jj < N) terVert(ii, jj); } } }
+    if (chg) fixed++;
     // every bank point (next to the pond, not painted) at least a little over the water, so the flat sheet never hangs over
     // lower ground; a building's ground is left alone
     { const LW = WL[reg[0]]; for (const k of reg) { const i = k % N, j = (k / N) | 0;
@@ -22638,4 +22635,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794931955').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794971409').catch(()=>{});</script></body></html>
