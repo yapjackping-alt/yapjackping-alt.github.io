@@ -21816,28 +21816,34 @@ try { if (typeof KE_LIST !== 'undefined' && Array.isArray(KE_LIST) && !KE_LIST.i
    A new item 'eluck'. Under the 强化 button on a piece there is a switch 「用幸运符」: while it is on and you have one, each
    enhance try uses up one charm and the success chance goes up by ELUCK_ADD (never above 100%; nothing is used when the
    chance is already 100%). Sold in the gem resource shop (稀有材料). Switch: ELUCK_ON. */
-const ELUCK_ON = true, ELUCK_ADD = .2;
-const ELK = { on: false };
-try { ELK.on = localStorage.getItem('ember_eluck') === '1'; } catch (e) { }
+const ELUCK_ON = true, ELUCK_ADD = .2, ELUCK_PRICE = 50;
+// owner 18 Nov: use as many as you like per try, but from the 3rd one each charm adds only half of the one before
+// (+20%, +20%, +10%, +5%, +2.5% …)
+const ELK = { n: 0 };
+try { ELK.n = Math.max(0, Math.min(20, parseInt(localStorage.getItem('ember_eluckn') || '0', 10) || 0)); } catch (e) { }
+const eluckAdd = n => { let a = 0; for (let i = 0; i < n; i++) a += i < 2 ? ELUCK_ADD : ELUCK_ADD / Math.pow(2, i - 1); return a; };
+const eluckN = it => ELUCK_ON && it && (it[7] || 0) < 15 && enhRate(it) < 1 ? Math.min(ELK.n, matHave('eluck')) : 0;
 MAT.eluck = { n: '强化幸运符', c: '#ffd27a', r: 3 };
 if (!('eluck' in S.inv)) S.inv.eluck = 0;
-try { ITEMS.eluck = { n: '强化幸运符', r: 3, cat: 'rare', d: '一张画着四叶草的金色符纸。强化时带着它，成功的机会更大。', use: '装备强化按钮下面打开「用幸运符」：每次强化用掉 1 张，成功率 +' + Math.round(ELUCK_ADD * 100) + '%（最多到 100%）。', src: '资源商店（稀有材料）' }; } catch (e) { }
-try { if (Array.isArray(GSHOP)) GSHOP.push(['eluck', 1, 20, 'r']); } catch (e) { }
-const eluckUse = it => ELUCK_ON && ELK.on && matHave('eluck') > 0 && it && (it[7] || 0) < 15 && enhRate(it) < 1;
-// the charm: an enhance try with the first random roll moved down by ELUCK_ADD (= chance + ELUCK_ADD), and one charm used up
-enhance = (o => function (it) { if (!eluckUse(it)) return o.apply(this, arguments);
-  const es = matHave('estone'), R = Math.random; let first = true;
-  Math.random = () => { if (first) { first = false; return Math.max(0, R() - ELUCK_ADD); } return R(); };
+try { ITEMS.eluck = { n: '强化幸运符', r: 3, cat: 'rare', d: '一张画着四叶草的金色符纸。强化时带着它，成功的机会更大。', use: '装备强化按钮下面选要用几张：第 1、2 张各 +20%，从第 3 张起每张只有上一张的一半（+10%、+5%…），成功率最多到 100%。', src: '资源商店（稀有材料）' }; } catch (e) { }
+try { if (Array.isArray(GSHOP)) GSHOP.push(['eluck', 1, ELUCK_PRICE, 'r']); } catch (e) { }
+// the charms: an enhance try with the first random roll moved down by the bonus (= chance + bonus), the chosen charms used up
+enhance = (o => function (it) { const n = eluckN(it); if (!n) return o.apply(this, arguments);
+  const add = eluckAdd(n), es = matHave('estone'), R = Math.random; let first = true;
+  Math.random = () => { if (first) { first = false; return Math.max(0, R() - add); } return R(); };
   try { o.apply(this, arguments); } finally { Math.random = R; }
-  if (matHave('estone') < es) { matAdd('eluck', -1); try { feed('用掉 1 张强化幸运符（还有 ' + matHave('eluck') + ' 张）', '#ffd27a'); } catch (e) { } } })(enhance);
-// the switch under the enhance button (gear screen 3), and the chance shown with the charm
+  if (matHave('estone') < es) { matAdd('eluck', -n); try { feed('用掉 ' + n + ' 张强化幸运符（还有 ' + matHave('eluck') + ' 张）', '#ffd27a'); } catch (e) { } } })(enhance);
+// how many charms, under the enhance button (gear screen 3); the chance on the button includes them
 g3Enh = (o => function (it) { const b = o.apply(this, arguments); if (!ELUCK_ON || (it[7] || 0) >= 15) return b;
-  const w = document.createElement('div'); w.className = 'g3ebw'; w.appendChild(b); const n = matHave('eluck');
-  if (eluckUse(it)) { const sm = b.querySelector('small'); if (sm) sm.innerHTML = sm.innerHTML.replace(/成功率 \d+%/, '成功率 <b style="color:#ffd27a">' + Math.round(Math.min(1, enhRate(it) + ELUCK_ADD) * 100) + '%</b>'); }
-  const t = document.createElement('button'); t.className = 'g3luck' + (ELK.on ? ' on' : ''); t.disabled = !n && !ELK.on;
-  t.innerHTML = '<i></i>用幸运符 +' + Math.round(ELUCK_ADD * 100) + '%<small>（有 ' + n + ' 张）</small>';
-  t.addEventListener('click', e => { e.stopPropagation(); ELK.on = !ELK.on; try { localStorage.setItem('ember_eluck', ELK.on ? '1' : '0'); } catch (er) { } try { g3Re(); } catch (er) { renderBag(); } });
-  w.appendChild(t); return w; })(g3Enh);
+  const w = document.createElement('div'); w.className = 'g3ebw'; w.appendChild(b); const have = matHave('eluck'), n = eluckN(it), base = enhRate(it);
+  if (n) { const sm = b.querySelector('small'); if (sm) sm.innerHTML = sm.innerHTML.replace(/成功率 \d+%/, '成功率 <b style="color:#ffd27a">' + Math.round(Math.min(1, base + eluckAdd(n)) * 100) + '%</b>'); }
+  const row = document.createElement('div'); row.className = 'g3luck';
+  const maxN = Math.min(have, 20); let need = 0; while (need < maxN && base + eluckAdd(need) < 1) need++;   // more than this can't raise the chance
+  row.innerHTML = '<span>幸运符</span><button class="g3lm" aria-label="少用一张"' + (n ? '' : ' disabled') + '>−</button><b>' + n + '</b><button class="g3lp" aria-label="多用一张"' + (n < need ? '' : ' disabled') + '>+</button><em>' + (n ? '+' + Math.round(eluckAdd(n) * 1000) / 10 + '%' : '不用') + '</em><small>有 ' + have + ' 张</small>';
+  const set = v => { ELK.n = Math.max(0, Math.min(20, v)); try { localStorage.setItem('ember_eluckn', String(ELK.n)); } catch (er) { } try { g3Re(); } catch (er) { renderBag(); } };
+  row.querySelector('.g3lm').addEventListener('click', e => { e.stopPropagation(); set(n - 1); });
+  row.querySelector('.g3lp').addEventListener('click', e => { e.stopPropagation(); set(n + 1); });
+  w.appendChild(row); return w; })(g3Enh);
 // icon: a gold tag with a four-leaf clover
 (function () { try { if (typeof ICON_URL === 'undefined' || !document.createElement) return; const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext && c.getContext('2d'); if (!g || !g.fillRect) return;
   g.translate(48, 48); g.rotate(-.15); g.fillStyle = '#c98a1c'; g.fillRect(-24, -32, 48, 64); g.fillStyle = '#ffd56a'; g.fillRect(-20, -28, 40, 56); g.fillStyle = '#e7a92a'; g.fillRect(-20, 18, 40, 10);
@@ -21846,9 +21852,9 @@ g3Enh = (o => function (it) { const b = o.apply(this, arguments); if (!ELUCK_ON 
   ICON_URL.eluck = c.toDataURL('image/png'); } catch (e) { } })();
 try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
   '.g3ebw{flex:2 1 180px!important;display:flex;flex-direction:column;gap:6px;min-width:0}.g3ebw .g3eb{width:100%;flex:none!important}' +
-  '.g3luck{display:flex;align-items:center;justify-content:center;gap:6px;min-height:34px;border-radius:10px;border:1.5px solid rgba(255,210,122,.45);background:rgba(255,210,122,.08);color:#ffe2a6;font-weight:800;font-size:13px;padding:4px 8px}' +
-  '.g3luck i{width:16px;height:16px;border-radius:4px;border:2px solid #ffd27a;flex:none}.g3luck.on{background:rgba(255,210,122,.22);border-color:#ffd27a}.g3luck.on i{background:#ffd27a;box-shadow:inset 0 0 0 2px #3a2a12}' +
-  '.g3luck small{font-weight:600;opacity:.75}.g3luck:disabled{opacity:.45}' })); } catch (e) { }
+  '.g3luck{display:flex;align-items:center;justify-content:center;gap:8px;min-height:38px;border-radius:10px;border:1.5px solid rgba(255,210,122,.45);background:rgba(255,210,122,.08);color:#ffe2a6;font-weight:800;font-size:13px;padding:4px 8px}' +
+  '.g3luck button{width:32px;height:30px;border-radius:8px;border:1px solid rgba(255,210,122,.6);background:rgba(255,210,122,.15);color:#ffe2a6;font-size:18px;font-weight:900;line-height:1;padding:0}.g3luck button:disabled{opacity:.35}' +
+  '.g3luck b{min-width:18px;text-align:center;font-size:15px;color:#fff}.g3luck em{font-style:normal;color:#ffd27a;min-width:52px}.g3luck small{font-weight:600;opacity:.7}' })); } catch (e) { }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -22883,4 +22889,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794996036').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794996629').catch(()=>{});</script></body></html>
