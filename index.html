@@ -22128,6 +22128,102 @@ for (const G of GH_LIST) {
 /* ---- owner's code: all seven 萌鬼 skins at once (only the hash is stored; once per character) ---- */
 try { RDM[3491928377] = { id: 'menggui', n: '萌鬼全套皮肤', f() { let n = 0; for (const G of GH_LIST) if (!S.wskOwn.includes(G.k + ':' + G.wid)) { S.wskOwn.push(G.k + ':' + G.wid); n++; }
   if (!n) { feed('萌鬼皮肤已经全部拥有了', '#ff9b8a'); return false; } banner('获得萌鬼神话皮肤 ×' + n, '在背包点武器就能换上', 4); try { ghSnd.giggle(1.2); } catch (e) { } return true; } }; } catch (e) { }
+/* ============ weapon SKILL effects follow the weapon skin (owner 18 Nov: "技能特效也得对应皮肤") ============
+   z_ws2.js colours each skill by its upgrade tier (ws2Col reads WS2.C / WS2.TC). With a skin on that weapon, the skill takes
+   the skin's own colour instead (K.tr, else K.glow) — every tier's extra rings / pillars / flashes too — and the skill-time
+   bullet trail of pistol / rifle uses it. On top of the normal skill:
+   - mythic (神话) skins add their own finish: a double ring in both skin colours, a burst of skin-coloured sparks and the
+     skin's own hit sound;
+   - 萌鬼 skins: six little ghosts burst out in a circle, fly outward and pop, with a "boo" + giggle.
+   The tier rules (what the skill DOES) are unchanged; only the look follows the skin. */
+const wsSkinK = id => { try { const k = S.wsk && S.wsk[id], K = k && WSKINS[k]; if (!K) return null; K.key = k; return K; } catch (e) { return null; } };
+const wsSkinCol = K => K.tr || K.glow;
+ws2Cast = (o => function (id) { const K = wsSkinK(id); if (!K) return o.apply(this, arguments);
+  const c = wsSkinCol(K), C0 = WS2.C[id], TC0 = WS2.TC; WS2.C[id] = c; WS2.TC = TC0.map((v, i) => i ? c : v);
+  try { o.apply(this, arguments); } finally { WS2.C[id] = C0; WS2.TC = TC0; }
+  try { wsSkinFinish(id, K); } catch (e) { } })(ws2Cast);
+function wsSkinFinish(id, K) { if (K.r < 5) return;
+  const px = player.pos.x, pz = player.pos.z, c1 = wsSkinCol(K), c2 = K.tr2 || K.acc || 0xffffff;
+  fxRing(px, pz, .4, 4.8, .55, c1, .85); setTimeout(() => { try { fxRing(player.pos.x, player.pos.z, .3, 3.4, .5, c2, .75); } catch (e) { } }, 110);
+  burst(px, 1.2, pz, c1, 16, 7); burst(px, 1.4, pz, c2, 10, 5);
+  try { const P = WSK_SND[K.key]; if (P) P.hit(); } catch (e) { }
+  const G = typeof GH !== 'undefined' && GH.by[K.key]; if (G) wsGhostSwarm(G, px, pz);
+}
+// 萌鬼: six ghosts burst out in a ring and pop at the edge
+function wsGhostSwarm(G, px, pz) { if (typeof scene === 'undefined') return; const PY = (typeof playerY === 'function' && playerY()) || 0, t0 = performance.now(), list = [];
+  for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283, gg = ghostModel(G, .2), ph = Math.random() * 6; gg.traverse(o => { o.frustumCulled = false; }); gg.position.set(px, 1.3 + PY, pz); scene.add(gg); list.push(gg);
+    gg.userData.ghead.onBeforeRender = (r0, s0, cam) => { const k = Math.min(1, (performance.now() - t0) / 650), e = 1 - (1 - k) * (1 - k), r = .4 + e * 4.2;
+      gg.position.set(px + Math.cos(a) * r, 1.3 + PY + Math.sin(k * Math.PI) * .9, pz + Math.sin(a) * r); gg.scale.setScalar(k > .85 ? Math.max(.001, (1 - k) / .15) : 1); ghWiggle(gg, performance.now() / 1000, ph);
+      try { if (cam) gg.lookAt(cam.position.x, gg.position.y, cam.position.z); } catch (e) { } }; }
+  try { ghSnd.boo(G.pit); setTimeout(() => { try { ghSnd.giggle(G.pit); } catch (e) { } }, 380); } catch (e) { }
+  setTimeout(() => { list.forEach((gg, i) => { const a = i / 6 * 6.283; try { ghPop(G, px + Math.cos(a) * 4.6, 1.5 + PY, pz + Math.sin(a) * 4.6, false); } catch (e) { } }); }, 560);
+  setTimeout(() => { list.forEach(gg => { try { scene.remove(gg); gg.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } catch (e) { } }); }, 700); }
+// pistol / rifle skill: the bullet trail takes the skin colour too
+if (typeof tracer === 'function') tracer = (o => function (ox, oy, oz, ex, ey, ez, color) { try { const B = S.wsB, K = B && B.id === S.wp && S.t < B.t && (B.id === 'pistol' || B.id === 'rifle') ? wsSkinK(B.id) : null; if (K) color = wsSkinCol(K); } catch (e) { } return o.apply(this, [ox, oy, oz, ex, ey, ez, color].concat([].slice.call(arguments, 7))); })(tracer);
+/* ============ 天穹神裔 2.0 — the sample of the "二次元华丽" outfit look (owner 18 Nov chose: one sample first, anime-gorgeous) ============
+   Added on top of the existing 天穹神裔 (r_shop.js SKIN_BUILD.myth), nothing removed:
+   - 天女飘带: two long celestial ribbons from the back of the shoulders, cyan → violet with gold edges, floating and waving
+     behind (hinged chains, more wave when you run)
+   - 神环: a big gold mandorla ring behind the back with 8 rune gems on it, an inner ring turning the other way, soft glow
+   - 腰帘 + 裙甲: a long ivory front sash with gold hem and a glowing line that sways, layered gold-edged hip plates
+   - 金色纹路: gold filigree lines over the chest plate, a gold collar
+   - 冠: a gold crown of five spikes with gems on the helmet
+   - sparkles: gold + cyan motes drift up from the body, ribbon tips shed light when you move (SKIN_P.myth)
+   Switch: MYTH2_ON. If the owner likes it, the other outfits get the same treatment. */
+const MYTH2_ON = true;
+if (MYTH2_ON && typeof SKIN_BUILD !== 'undefined' && SKIN_BUILD.myth) SKIN_BUILD.myth = (o => function (k) { o(k);
+  const { bx, cone, gem, G, both, put } = k, W = 0xf4efe2, W2 = 0xe2dccd, GO = 0xe8c060, GO2 = 0xc79a38, CYc = 0x7ff0ff, VIc = 0xc49aff;
+  const glow = (c, op) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const add = (geo, m, x, y, z, p, fx, ph) => { const ob = new THREE.Mesh(geo, m); ob.position.set(x, y, z); put(ob, p); if (fx) { ob.userData.fx = fx; ob.userData.ph = ph || 0; } return ob; };
+  const B = c => new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }), L = c => new THREE.MeshLambertMaterial({ color: c, side: THREE.DoubleSide });
+  /* hinged chain: n segments of length sl, each a child of the previous; fx 'm2chain' waves it */
+  const chain = (n, sl, w, cols, x, y, z, base, opt) => { let par = null, first = null;
+    for (let i = 0; i < n; i++) { const g = new THREE.Group(); g.userData.fx = 'm2chain'; g.userData.i = i; g.userData.n = n; Object.assign(g.userData, opt);
+      put(g, 'b');   // put() also lists it for skinAnimate; children are then hung on the previous segment
+      if (!i) { g.position.set(x, y, z); g.rotation.set(base[0], base[1], base[2]); g.userData.b = base.slice(); first = g; } else { par.add(g); g.position.set(0, -sl, 0); }
+      const f = 1 - i / n * (opt.taper || 0), seg = new THREE.Mesh(new THREE.BoxGeometry(w * f, sl + .012, opt.th || .018), cols[i % cols.length]); seg.position.y = -sl / 2; g.add(seg);
+      if (opt.edge) for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.BoxGeometry(.016, sl + .012, (opt.th || .018) + .008), opt.edge); e.position.set(s * w * f / 2, -sl / 2, 0); g.add(e); }
+      if (i === n - 1 && opt.tip) { const t = new THREE.Mesh(new THREE.OctahedronGeometry(w * .45), opt.tip); t.position.y = -sl; t.scale.y = 1.6; g.add(t); }
+      par = g; }
+    return first; };
+  // 天女飘带 — cyan and violet glowing strips with gold edges, a gem at each tip
+  const RC = [B(0x8ff4ff), B(0xa8e8ff), B(0xc8b0ff), B(0xb894ff)], gold = L(GO);
+  both(s => chain(14, .17, .12, RC, s * .4, 1.86, -.24, [.5, 0, s * .32], { side: s, amp: .3, taper: .35, edge: gold, tip: G(0xffe08a) }));
+  // a second, thinner pair lower down (from the belt), crossing behind the legs
+  both(s => chain(10, .15, .07, [B(0xffffff), B(0xd8c8ff)], s * .3, 1.04, -.26, [.35, 0, -s * .18], { side: -s, amp: .24, taper: .2, edge: gold }));
+  // 神环 — the mandorla behind the back
+  const ring = add(new THREE.TorusGeometry(.92, .032, 6, 48), B(0xffe08a), 0, 1.66, -.68, 'b', 'm2spin', 1); ring.userData.sp = .35;
+  add(new THREE.TorusGeometry(.92, .1, 6, 48), glow(0xffd060, .22), 0, 1.66, -.69, 'b', 'm2glow');
+  const ring2 = add(new THREE.TorusGeometry(.7, .016, 6, 6), B(CYc), 0, 1.66, -.66, 'b', 'm2spin', 2); ring2.userData.sp = -.6;
+  for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283, gm = new THREE.Mesh(new THREE.OctahedronGeometry(.065), i % 2 ? G(VIc) : G(CYc)); gm.position.set(Math.cos(a) * .92, Math.sin(a) * .92, .02); gm.scale.y = 1.7; gm.rotation.z = a - Math.PI / 2; ring.add(gm);
+    const tick = new THREE.Mesh(new THREE.BoxGeometry(.03, .16, .02), L(GO2)); tick.position.set(Math.cos(a + .39) * .92, Math.sin(a + .39) * .92, 0); tick.rotation.z = a + .39 - Math.PI / 2; ring.add(tick); }
+  for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283, sp = new THREE.Mesh(new THREE.ConeGeometry(.035, .22, 4), L(GO)); sp.position.set(Math.cos(a) * 1.04, Math.sin(a) * 1.04, 0); sp.rotation.z = a - Math.PI / 2; ring.add(sp); }
+  // 腰帘 — a front sash that sways, gold hem, glowing centre line; layered hip plates
+  chain(6, .13, .3, [L(W)], 0, 1.0, .27, [-.08, 0, 0], { side: 0, amp: .16, front: 1, edge: gold, tip: G(CYc) });
+  add(new THREE.BoxGeometry(.04, .74, .02), B(CYc), 0, .66, .3, 'b', 'm2glow');
+  both(s => { for (let i = 0; i < 3; i++) { const p = add(new THREE.BoxGeometry(.2 - i * .02, .2, .05), L(i % 2 ? W2 : W), s * (.36 + i * .03), .9 - i * .15, .02, 'b'); p.rotation.set(0, 0, s * (.18 + i * .06));
+      const e = add(new THREE.BoxGeometry(.21 - i * .02, .03, .06), L(GO), s * (.36 + i * .03), .8 - i * .15, .02, 'b'); e.rotation.set(0, 0, s * (.18 + i * .06)); } });
+  // 金色纹路 on the chest plate + a gold collar
+  [[-.18, 1.66, .5], [.18, 1.66, -.5], [-.22, 1.36, -.7], [.22, 1.36, .7], [-.1, 1.22, .3], [.1, 1.22, -.3]].forEach(([x, y, r]) => bx(.02, .2, .015, GO, x, y, .275, 'b', 0, 0, r));
+  bx(.5, .06, .3, GO, 0, 1.8, .1); both(s => bx(.12, .1, .2, GO2, s * .2, 1.84, .14, 'b', 0, 0, -s * .3));
+  // 冠 — five gold spikes with gems around the helmet top
+  for (let i = 0; i < 5; i++) { const a = (i - 2) * .32, h = i === 2 ? .3 : .2 - Math.abs(i - 2) * .02; cone(.04, h, GO, Math.sin(a) * .25, 2.34 + h / 2, Math.cos(a) * .2 - .02, 'b', .15 * Math.cos(a), 0, -Math.sin(a) * .5);
+    gem(.03, i % 2 ? G(VIc) : G(CYc), Math.sin(a) * .25, 2.36, Math.cos(a) * .2 + .02); }
+})(SKIN_BUILD.myth);
+// the new moving parts
+skinAnimate = (o => function (out, T) { o(out, T); if (!MYTH2_ON) return; let mv = 0; try { mv = Math.min(1, Math.hypot(input.mx || 0, input.mz || 0)); } catch (e) { }
+  for (const ob of out || []) { if (!ob || !ob.userData) continue; const u = ob.userData;
+    if (u.fx === 'm2chain') { const i = u.i, w = Math.sin(T * (2.2 + mv * 2) - i * .55), a = (u.amp || .2) * (.5 + mv * .8);
+      if (i === 0) { ob.rotation.x = u.b[0] + (u.front ? -1 : 1) * (.05 + .25 * mv) + w * a * .3; ob.rotation.z = u.b[2] + Math.sin(T * 1.3) * .06 * (u.side || 0); }
+      else { ob.rotation.x = (u.front ? -1 : 1) * (.05 + w * a * .45 + mv * .06); ob.rotation.z = Math.sin(T * 1.7 - i * .6) * a * .35 * (u.side || 1); } }
+    else if (u.fx === 'm2spin') ob.rotation.z = T * (u.sp || .4);
+    else if (u.fx === 'm2glow') ob.material.opacity = (ob.geometry.type === 'TorusGeometry' ? .16 : .6) + Math.sin(T * 2.6) * .1; } })(skinAnimate);
+// sparkles: gold and cyan motes rising from the body; light shed from behind the shoulders when you move
+try { if (MYTH2_ON && typeof SKIN_P !== 'undefined') SKIN_P.myth = [
+  { pts: 'body', rate: 14, life: 1.5, v: [0, .7, 0], sp: .35, col: [0xffe08a, 0x8ff4ff, 0xffffff], sz: .045 },
+  { pts: [[-.6, 1.4, -.5], [.6, 1.4, -.5], [-.8, 1.0, -.7], [.8, 1.0, -.7]], rate: 30, life: .8, v: [0, .3, -.6], sp: .3, col: [0x8ff4ff, 0xc8b0ff, 0xffe08a], sz: .05, moving: 1 },
+  { pts: [[0, 1.66, -.7]], rate: 6, life: 1.2, v: [0, .5, -.2], sp: .9, col: [0xffe08a], sz: .04 }]; } catch (e) { }
+try { if (MYTH2_ON) SKINS.myth.d = '象牙白与金色的神铠，头戴金冠与旋转光环；背后一轮镶着符文宝石的金色神环，两条青紫色的天女飘带随风飞舞，腰间垂着金边腰帘；晶翼会呼吸，脚下光圈流转，星光环绕全身。'; } catch (e) { }
 /* ============ 深渊商店: spend 深渊币 with the diver of the 深渊号 (owner 18 Nov: "add a trade system to the abyss") ============
    Opened from the abyss page (button 深渊商店 next to 下潜). The trader is the brass-helmet diver who stands on the sub.
    Tabs: 升级材料 (now) · 皮肤 (empty: the owner will hand over skin code later, then they go in ABYSHOP_SKINS).
@@ -23299,4 +23395,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795011170').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795012750').catch(()=>{});</script></body></html>
