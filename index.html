@@ -21825,7 +21825,7 @@ const eluckAdd = n => { let a = 0; for (let i = 0; i < n; i++) a += i < 2 ? ELUC
 const eluckN = it => ELUCK_ON && it && (it[7] || 0) < 15 && enhRate(it) < 1 ? Math.min(ELK.n, matHave('eluck')) : 0;
 MAT.eluck = { n: '强化幸运符', c: '#ffd27a', r: 3 };
 if (!('eluck' in S.inv)) S.inv.eluck = 0;
-try { ITEMS.eluck = { n: '强化幸运符', r: 3, cat: 'rare', d: '一张画着四叶草的金色符纸。强化时带着它，成功的机会更大。', use: '装备强化按钮下面选要用几张：第 1、2 张各 +20%，从第 3 张起每张只有上一张的一半（+10%、+5%…），成功率最多到 100%。', src: '资源商店（稀有材料）' }; } catch (e) { }
+try { ITEMS.eluck = { n: '强化幸运符', r: 3, cat: 'rare', d: '一张画着四叶草的金色符纸。强化时带着它，成功的机会更大。', use: '装备强化按钮下面选要用几张：第 1、2 张各 +20%，从第 3 张起每张只有上一张的一半（+10%、+5%…），成功率最多到 100%。', src: '资源商店（稀有材料）· 打首领有机会掉，精英偶尔掉' }; } catch (e) { }
 try { if (Array.isArray(GSHOP)) GSHOP.push(['eluck', 1, ELUCK_PRICE, 'r']); } catch (e) { }
 // the charms: an enhance try with the first random roll moved down by the bonus (= chance + bonus), the chosen charms used up
 enhance = (o => function (it) { const n = eluckN(it); if (!n) return o.apply(this, arguments);
@@ -21851,7 +21851,7 @@ const ELOCK_PRICE = 80;
 ELK.lock = false; try { ELK.lock = localStorage.getItem('ember_elock') === '1'; } catch (e) { }
 MAT.elock = { n: '失败抵消石', c: '#9fd8ff', r: 3 };
 if (!('elock' in S.inv)) S.inv.elock = 0;
-try { ITEMS.elock = { n: '失败抵消石', r: 3, cat: 'rare', d: '刻着锁的蓝色石头。强化失败时护住装备，不让等级掉下去。', use: '装备 +10 以上强化失败会掉 1 级；强化按钮下面打开「失败抵消石」，失败时等级不掉，用掉 1 颗（成功不消耗）。', src: '资源商店（稀有材料）' }; } catch (e) { }
+try { ITEMS.elock = { n: '失败抵消石', r: 3, cat: 'rare', d: '刻着锁的蓝色石头。强化失败时护住装备，不让等级掉下去。', use: '装备 +10 以上强化失败会掉 1 级；强化按钮下面打开「失败抵消石」，失败时等级不掉，用掉 1 颗（成功不消耗）。', src: '资源商店（稀有材料）· 首领很少会掉，精英极少掉' }; } catch (e) { }
 try { if (Array.isArray(GSHOP)) GSHOP.push(['elock', 1, ELOCK_PRICE, 'r']); } catch (e) { }
 enhance = (o => function (it) { const on = ELUCK_ON && ELK.lock && it && (it[7] || 0) >= 10 && (it[7] || 0) < 15 && matHave('elock') > 0; if (!on) return o.apply(this, arguments);
   const lv = it[7] || 0; const r = o.apply(this, arguments);
@@ -21863,6 +21863,15 @@ g3Enh = (o => function (it) { const w = o.apply(this, arguments); const e = it[7
   t.addEventListener('click', e2 => { e2.stopPropagation(); ELK.lock = !ELK.lock; try { localStorage.setItem('ember_elock', ELK.lock ? '1' : '0'); } catch (er) { } try { g3Re(); } catch (er) { renderBag(); } });
   if (w.classList && w.classList.contains('g3ebw')) w.appendChild(t); else { const d = document.createElement('div'); d.className = 'g3ebw'; d.appendChild(w); d.appendChild(t); return d; }
   return w; })(g3Enh);
+/* ---- drops (owner 18 Nov: "give the luck charm a way to get it, hard to get, but not as hard as the fail stone") ----
+   rolled with every gear drop roll (any kill that can drop gear; nothing inside the abyss):
+     boss: 幸运符 25% · 抵消石 6%    elite: 3% · 0.5%    others: 0.15% · 0.02% */
+const ELK_DROP = { boss: [.25, .06], elite: [.03, .005], norm: [.0015, .0002] };
+gearDropFor = (o => function (z) { const r = o.apply(this, arguments);
+  try { if (!ELUCK_ON || !z || (typeof abyOn === 'function' && abyOn())) return r; const t = ELK_DROP[z.boss ? 'boss' : z.elite ? 'elite' : 'norm'];
+    if (Math.random() < t[0]) { gain('eluck', 1); feed('掉落：强化幸运符 ×1', '#ffd27a'); }
+    if (Math.random() < t[1]) { gain('elock', 1); feed('掉落：失败抵消石 ×1！', '#9fd8ff'); try { if (!z.boss) banner('失败抵消石！', '很少见的掉落', 2.4); } catch (e) { } } } catch (e) { }
+  return r; })(gearDropFor);
 // icon: a gold tag with a four-leaf clover
 (function () { try { if (typeof ICON_URL === 'undefined' || !document.createElement) return; const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext && c.getContext('2d'); if (!g || !g.fillRect) return;
   g.translate(48, 48); g.rotate(-.15); g.fillStyle = '#c98a1c'; g.fillRect(-24, -32, 48, 64); g.fillStyle = '#ffd56a'; g.fillRect(-20, -28, 40, 56); g.fillStyle = '#e7a92a'; g.fillRect(-20, 18, 40, 10);
@@ -22914,4 +22923,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794996885').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794997140').catch(()=>{});</script></body></html>
