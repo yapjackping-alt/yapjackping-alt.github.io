@@ -15012,7 +15012,7 @@ function skinShopRender(box, el2) {
   box.appendChild(g);
 }
 // weapon skins sold for gems: [skin key, weapon]
-const WSK_DIRECT = [['cosmos', 'sniper']];
+const WSK_DIRECT = [['cosmos', 'sniper'], ['jian9', 'rifle']];   // owner 18 Nov: 九霄剑阵 straight into direct sale
 const WSK_SHOP = () => WSK_DIRECT.filter(([k]) => WSKINS[k]);
 function wskBuy(k, id, b) { const P = SKIN_PRICE[WSKINS[k].r], key = k + ':' + id; if (S.wskOwn.includes(key)) return;
   if (_skArm !== key || Date.now() - _skArmT > 3000) { _skArm = key; _skArmT = Date.now(); if (b) { b.classList.add('armed'); b.innerHTML = '再点一次确认 · ' + P + ' 晶石'; } return; }
@@ -23942,4 +23942,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795016902').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795017119').catch(()=>{});</script></body></html>
