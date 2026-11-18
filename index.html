@@ -20934,6 +20934,222 @@ nearestPlayerDist = (o => function (z) { if (!S.dun || !z) return o(z); let d = 
 // spit is thrown where you are going (most of the way)
 spitAt = (o => function (z, x, zz) { if (z && z.aby && abyOn()) { const T = Math.max(.35, Math.hypot(x - z.pos.x, zz - z.pos.z) / 14); x += ABYV.vx * T * .8; zz += ABYV.vz * T * .8; } return o(z, x, zz); })(spitAt);
 
+/* ============ 无尽深渊 3: a refined arena + card effects that hit hard (owner 19 Nov) ============
+   Owner: "look at what other games do; make the building finer, NO pillars in the middle, and make the card effects obvious
+   and stunning". Reference = the round 'trial chamber' of action roguelikes (a sunken temple ring with inlaid floor, arched
+   wall bays, braziers and a glowing sigil), built here from our own shapes:
+   - floor: rings of sandstone slabs (each its own shade) with dark joints, gold inlay rings, ember channels, a layered sigil
+     in the middle (it turns, like the old rune ring); open floor everywhere — the 6 pillars are gone
+   - rim: two steps up to the wall, an ember line along the foot
+   - wall: 16 bays, each a plinth + panel with an arched, gold-framed niche lit from inside, pilasters with base and capital
+     ON the wall, a cornice, merlons, a gold band; braziers with live flames at the wall foot, ember crystals floating over them
+   - outside: tall obelisks with glowing tips above the wall line
+   Everything static is merged into a few meshes (stone / gold / glow) so the phone draws it in a handful of calls.
+   Cards: the pick screen deals the cards in with a flip, the better the quality the stronger the glow (rays turning behind
+   史诗+, a shine sweep, sparks for 传说/神话, a pulsing border for 神话); the chosen card flies up and flashes, and in the
+   arena a pillar of light, shock rings and sparks in the card's colour come down on you (传说/神话 shake the screen) with a
+   rising chord. In the fight every card hit gets a visible effect: lightning bolts between enemies, impact flashes,
+   big explosions with a shock ring, ice shards when something freezes. Switch: ABY3_ON. */
+const ABY3_ON = true;
+const ABY3 = { fl: [], t: 0, u: { uCam: { value: new THREE.Vector2() }, uPl: { value: new THREE.Vector2() }, uCen: { value: new THREE.Vector2() }, uR: { value: 0 } } };
+function aby3Cut(mat) { mat.onBeforeCompile = sh => { Object.assign(sh.uniforms, ABY3.u);
+    sh.vertexShader = 'varying vec3 vA3W;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvA3W = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = 'uniform vec2 uCam;\nuniform vec2 uPl;\nuniform vec2 uCen;\nuniform float uR;\nvarying vec3 vA3W;\n' + sh.fragmentShader.replace('void main() {', 'void main() {\n' +
+      '{ vec2 p = vA3W.xz, d = uPl - uCam; float L = max(dot(d, d), 1e-3), t = clamp(dot(p - uCam, d) / L, 0.0, 1.0); float off = length(p - uCam - d * t);' +
+      ' if (length(p - uCen) > uR && vA3W.y > 0.75 && t < 0.97 && off < 5.5) discard; }'); };
+  mat.customProgramCacheKey = () => 'aby3cut'; }
+// merge many small geometries (with a colour each) into one BufferGeometry with vertex colours
+function aby3Merge(list) { const P = [], N = [], C = [], c = new THREE.Color();
+  for (const it of list) { let g = it.g.index ? it.g.toNonIndexed() : it.g.clone(); if (it.m) g.applyMatrix4(it.m); if (!g.attributes.normal) g.computeVertexNormals();
+    const p = g.attributes.position.array, n = g.attributes.normal.array; c.setHex(it.c);
+    for (let i = 0; i < p.length; i++) { P.push(p[i]); N.push(n[i]); } for (let i = 0; i < p.length / 3; i++) C.push(c.r, c.g, c.b); g.dispose(); }
+  const G = new THREE.BufferGeometry(); G.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); G.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3)); G.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); return G; }
+// a matrix: position (x, y, z), turned a round Y, optional scale
+const aby3M = (x, y, z, a, s) => { const m = new THREE.Matrix4(), q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a || 0); m.compose(new THREE.Vector3(x, y, z), q, s ? new THREE.Vector3(s[0], s[1], s[2]) : new THREE.Vector3(1, 1, 1)); return m; };
+const aby3Flat = (x, y, z, a) => { const m = new THREE.Matrix4().makeRotationX(-Math.PI / 2); return new THREE.Matrix4().multiplyMatrices(aby3M(x, y, z, a), m); };
+function aby3Build() {
+  const R = ABY_R, G = new THREE.Group(); G.position.set(DUN.x, 0, DUN.z); scene.add(G); DUN.G = G;
+  const stone = [], gold = [], glow = [], rnd = mulberry32(919);
+  // ---- floor ----
+  const under = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), new THREE.MeshBasicMaterial({ color: 0x17120f })); under.rotation.x = -Math.PI / 2; under.position.y = -.03; G.add(under);
+  stone.push({ g: new THREE.CircleGeometry(R + .5, 64), m: aby3Flat(0, .005, 0), c: 0x2a211b });   // the joints between the slabs
+  const RINGS = [2.9, 4.7, 6.7, 8.9, 11.3, 13.9, 16.5, 19.0, R + .35], TONE = [0x766654, 0x6c5d4c, 0x7f6e5a, 0x625444, 0x726352];
+  for (let k = 0; k < RINGS.length - 1; k++) { const r0 = RINGS[k], r1 = RINGS[k + 1], rm = (r0 + r1) / 2, n = Math.max(8, Math.round(2 * Math.PI * rm / 2.7)), dth = 2 * Math.PI / n, gap = .07 / rm, off = k % 2 ? dth / 2 : 0;
+    for (let i = 0; i < n; i++) { const t = TONE[(rnd() * TONE.length) | 0], warm = k < 2 ? 0x0c0400 : 0;
+      stone.push({ g: new THREE.RingGeometry(r0 + .07, r1 - .07, 3, 1, off + i * dth + gap, dth - 2 * gap), m: aby3Flat(0, .02 + rnd() * .012, 0), c: t - warm }); } }
+  // gold inlay rings + ember channels
+  for (const r of [2.9, 8.9, 13.9]) gold.push({ g: new THREE.RingGeometry(r - .05, r + .05, 96), m: aby3Flat(0, .04, 0), c: 0x8a6428 });
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 + Math.PI / 8; glow.push({ g: new THREE.PlaneGeometry(.12, 4.2), m: new THREE.Matrix4().multiplyMatrices(aby3M(Math.cos(a) * 6.8, .045, Math.sin(a) * 6.8, -a + Math.PI / 2), new THREE.Matrix4().makeRotationX(-Math.PI / 2)), c: 0xff8a2a }); }
+  // ---- the sigil in the middle (turns; lights up between floors like the old rune) ----
+  const sg = new THREE.Group(); sg.rotation.x = -Math.PI / 2; sg.position.y = .05; G.add(sg);
+  const sgM = new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, opacity: .9, fog: false, depthWrite: false }), sgD = new THREE.MeshLambertMaterial({ color: 0x3a2c24 });
+  { const d = new THREE.Mesh(new THREE.CircleGeometry(2.8, 48), sgD); d.position.z = -.01; sg.add(d); }
+  const sgAdd = g => { const m = new THREE.Mesh(g, sgM); sg.add(m); return m; };
+  sgAdd(new THREE.RingGeometry(2.45, 2.6, 64)); sgAdd(new THREE.RingGeometry(2.05, 2.12, 64)); sgAdd(new THREE.RingGeometry(1.05, 1.15, 48));
+  sgAdd(new THREE.RingGeometry(1.75, 1.9, 3)); sgAdd(new THREE.RingGeometry(1.75, 1.9, 3, 1, Math.PI / 3));   // two triangles = a six-point star
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, m = sgAdd(new THREE.PlaneGeometry(i % 3 ? .1 : .16, i % 3 ? .22 : .34)); m.position.set(Math.cos(a) * 2.28, Math.sin(a) * 2.28, 0); m.rotation.z = a; }
+  { const m = sgAdd(new THREE.CircleGeometry(.42, 6)); m.material = sgM; }
+  DUN.abyRune = sg;
+  // the portal ring that lights up when a floor is clear (kept from before)
+  const pt = new THREE.Mesh(new THREE.TorusGeometry(2.1, .12, 6, 32), new THREE.MeshBasicMaterial({ color: 0x5ae8d8, transparent: true, opacity: 0, fog: false })); pt.position.y = 2.4; G.add(pt); DUN.abyPortal = pt;
+  // ---- rim steps (turned profile) + ember line at the foot ----
+  const prof = [[R + .35, 0], [R + .35, .2], [R + 1.0, .2], [R + 1.0, .4], [R + 1.75, .4], [R + 1.75, 0]].map(p => new THREE.Vector2(p[0], p[1]));
+  stone.push({ g: new THREE.LatheGeometry(prof, 96), c: 0x75685a });
+  glow.push({ g: new THREE.TorusGeometry(R + .36, .035, 4, 128).rotateX(Math.PI / 2), m: aby3M(0, .21, 0), c: 0xff9a40 });
+  // ---- the wall: 16 bays ----
+  const NB = 16, RW = R + 2.4, top = 5.9;
+  for (let i = 0; i < NB; i++) { const a = (i + .5) / NB * Math.PI * 2, w = 2 * Math.PI * RW / NB, ca = Math.cos(a), sa = Math.sin(a), rot = -a + Math.PI / 2;
+    const P = (r, y, sx, sy, sz, c, lift) => stone.push({ g: new THREE.BoxGeometry(1, 1, 1), m: aby3M(ca * r, y, sa * r, rot, [sx, sy, sz]), c });
+    P(RW, top / 2 + .2, w + .05, top, .9, 0x6a5c50);                      // panel
+    P(RW - .55, .4 + .45, w + .05, .9, .4, 0x5c5046);                    // plinth
+    // the niche: dark inset with an arch top, gold frame, lit from inside
+    const nw = w * .42, nh = 2.5, ny = 1.3 + nh / 2, rn = RW - .47;
+    P(rn, ny, nw, nh, .06, 0x231a16);
+    stone.push({ g: new THREE.CircleGeometry(nw / 2, 18, 0, Math.PI), m: aby3M(ca * (rn - .031), ny + nh / 2, sa * (rn - .031), rot + Math.PI), c: 0x231a16 });
+    gold.push({ g: new THREE.TorusGeometry(nw / 2 + .06, .05, 4, 18, Math.PI), m: aby3M(ca * (rn - .05), ny + nh / 2, sa * (rn - .05), rot), c: 0xd9a24a });
+    for (const s of [-1, 1]) { const ox = -sa * s * (nw / 2 + .06), oz = ca * s * (nw / 2 + .06); gold.push({ g: new THREE.BoxGeometry(.1, nh, .1), m: aby3M(ca * (rn - .05) + ox, ny, sa * (rn - .05) + oz, rot), c: 0xd9a24a }); }
+    gold.push({ g: new THREE.BoxGeometry(nw + .3, .14, .2), m: aby3M(ca * (rn - .08), 1.3, sa * (rn - .08), rot), c: 0xc08a3a });   // sill
+    glow.push({ g: new THREE.PlaneGeometry(nw * .8, nh * .55), m: aby3M(ca * (rn - .04), 1.3 + nh * .3, sa * (rn - .04), rot + Math.PI), c: i % 2 ? 0xff7a2a : 0xd8602a });
+    // pilaster at the bay edge (against the wall)
+    const b = (i + 1) / NB * Math.PI * 2, cb = Math.cos(b), sb = Math.sin(b), rb = -b + Math.PI / 2, Q = (r, y, sx, sy, sz, c) => stone.push({ g: new THREE.BoxGeometry(1, 1, 1), m: aby3M(cb * r, y, sb * r, rb, [sx, sy, sz]), c });
+    Q(RW - .62, .4 + .3, 1.2, .6, .5, 0x5c5046); Q(RW - .6, top / 2 + .3, .8, top - .4, .45, 0x7a6b5c); Q(RW - .62, top - .05, 1.15, .35, .55, 0x5c5046);
+    gold.push({ g: new THREE.BoxGeometry(.86, .08, .5), m: aby3M(cb * (RW - .62), top - .3, sb * (RW - .62), rb), c: 0xd9a24a });
+    // merlons on top
+    for (const f of [-.25, .25]) P(RW, top + .55, w * .32, .7, .8, 0x6a5c50 + (f > 0 ? 0x040404 : 0));}
+  // cornice + gold band
+  stone.push({ g: new THREE.LatheGeometry([[RW - .75, top - .1], [RW - .8, top + .05], [RW - .7, top + .2], [RW + .5, top + .2], [RW + .5, top - .1]].map(p => new THREE.Vector2(p[0], p[1])), 96), c: 0x5c5046 });
+  gold.push({ g: new THREE.TorusGeometry(RW - .46, .045, 4, 160).rotateX(Math.PI / 2), m: aby3M(0, 4.35, 0), c: 0xd9a24a });
+  // ---- obelisks outside, rising over the wall line ----
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 + Math.PI / 16, r = R + 8.5, x = Math.cos(a) * r, z = Math.sin(a) * r, h = 11 + (i % 2) * 3;
+    stone.push({ g: new THREE.CylinderGeometry(.7, 1.15, h, 4), m: aby3M(x, h / 2, z, a + Math.PI / 4), c: 0x4e433a });
+    stone.push({ g: new THREE.BoxGeometry(2.6, .8, 2.6), m: aby3M(x, .4, z, a), c: 0x463c34 });
+    glow.push({ g: new THREE.ConeGeometry(.72, 1.4, 4), m: aby3M(x, h + .7, z, a + Math.PI / 4), c: 0xffa040 }); }
+  // ---- braziers at the wall foot (between niches) + floating ember crystals ----
+  const flames = [];
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, r = R + 1.3, x = Math.cos(a) * r, z = Math.sin(a) * r;
+    stone.push({ g: new THREE.CylinderGeometry(.16, .3, 1.1, 8), m: aby3M(x, .4 + .55, z), c: 0x3e342c });
+    gold.push({ g: new THREE.CylinderGeometry(.55, .3, .35, 10), m: aby3M(x, 1.65, z), c: 0xb07a34 });
+    gold.push({ g: new THREE.TorusGeometry(.55, .05, 4, 16).rotateX(Math.PI / 2), m: aby3M(x, 1.83, z), c: 0xe8b860 });
+    const f = new THREE.Group(); f.position.set(x, 1.8, z); G.add(f);
+    for (let k = 0; k < 3; k++) { const c = new THREE.Mesh(new THREE.ConeGeometry(.3 - k * .07, .9 - k * .15, 6), new THREE.MeshBasicMaterial({ color: [0xff6a1a, 0xffa040, 0xffe08a][k], transparent: true, opacity: .85, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+      c.position.y = .4; f.add(c); }
+    flames.push(f);
+    const cr = new THREE.Mesh(new THREE.OctahedronGeometry(.42, 0), new THREE.MeshBasicMaterial({ color: 0xffa040, fog: false })); cr.position.set(Math.cos(a) * (R + 1.1), 4.3, Math.sin(a) * (R + 1.1)); cr.scale.y = 1.6; G.add(cr); (DUN.abyCr = DUN.abyCr || []).push(cr);
+    dAnchor(Math.cos(a) * (R - 2), Math.sin(a) * (R - 2)); }
+  dAnchor(0, 0);
+  ABY3.fl = flames;
+  // the merged static meshes
+  // the wall between the camera and you is cut away (the camera sits outside the ring: the near wall hid you, as the old one did)
+  const mk = (list, mat) => { const m = new THREE.Mesh(aby3Merge(list), mat); m.matrixAutoUpdate = false; m.updateMatrix(); G.add(m); aby3Cut(mat); return m; };
+  mk(stone, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: THREE.DoubleSide }));
+  mk(gold, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, emissive: 0x3a2408 }));
+  mk(glow, new THREE.MeshBasicMaterial({ vertexColors: true, fog: false, side: THREE.DoubleSide }));
+  // the wall stops you as before; no pillar obstacles any more
+  for (let i = 0; i < 40; i++) { const a = i / 40 * Math.PI * 2; DUN.obs.push(addCircle(dX(Math.cos(a) * (R + 1.2)), dZ(Math.sin(a) * (R + 1.2)), 1.1)); }
+  dRoom('arena', '', -R - 2, -R - 2, R + 2, R + 2);
+  for (let i = 0; i < 3; i++) { const Lt = new THREE.PointLight(0xffb070, .7, 22, 1.5); Lt.position.set(DUN.x, 3, DUN.z); scene.add(Lt); DUN.lights.push(Lt); }
+}
+if (ABY3_ON) { const old = DUNS[ABY_ID].build;
+  DUNS[ABY_ID].build = function () { try { aby3Build(); } catch (e) { console.warn('aby3 build', e); try { if (DUN.G) scene.remove(DUN.G); } catch (e2) { } DUN.abyCr = null; old(); } }; }
+// flames flicker
+petsTick = (o => function (dt) { const r = o(dt); if (ABY3.fl.length) try { if (!(S.dun && DUN.id === ABY_ID)) { ABY3.fl = []; } else { ABY3.t += dt;
+  try { const U = ABY3.u; U.uCam.value.set(camera.position.x, camera.position.z); U.uPl.value.set(player.pos.x, player.pos.z); U.uCen.value.set(DUN.x, DUN.z); U.uR.value = ABY_R + 1.0;
+    const cx = camera.position.x, cz = camera.position.z, dx = player.pos.x - cx, dz = player.pos.z - cz, L = dx * dx + dz * dz || 1, inCut = (x, z) => { const t = Math.max(0, Math.min(1, ((x - cx) * dx + (z - cz) * dz) / L)); return t < .97 && Math.hypot(x - cx - dx * t, z - cz - dz * t) < 5.5; };
+    ABY3.fl.forEach(f => { f.visible = !inCut(DUN.x + f.position.x, DUN.z + f.position.z); }); (DUN.abyCr || []).forEach(c => { c.visible = !inCut(DUN.x + c.position.x, DUN.z + c.position.z); }); } catch (e) { }
+  ABY3.fl.forEach((f, i) => { const t = ABY3.t * 9 + i * 1.7; f.children.forEach((c, k) => { c.scale.set(1 + Math.sin(t + k) * .12, 1 + Math.sin(t * 1.3 + k * 2) * .22, 1 + Math.cos(t + k) * .12); c.rotation.y = t * .3 * (k % 2 ? -1 : 1); }); }); } } catch (e) { } return r; })(petsTick);
+
+/* ---- the card screen ---- */
+const ABY3_QC = ABY_Q.map(q => q[1].toLowerCase());
+function aby3Snd(q) { try { const N = [523, 659, 784, 1047, 1319, 1568];
+  const n = q < 0 ? 2 : Math.min(6, 3 + q); for (let i = 0; i < n; i++) sfxTone(N[i], N[i] * 1.002, .32, .07 + q * .012, i % 2 ? 'sine' : 'triangle', { delay: i * .055 });
+  if (q >= 2) { sfxTone(N[n - 1] * 2, N[n - 1] * 2, .6, .05, 'sine', { delay: n * .055 }); sfxNoise(.5, .06 + q * .02, 6000, { type: 'highpass', delay: .05 }); }
+  if (q >= 3) { sfxTone(110, 55, .7, .25, 'sine'); sfxNoise(.4, .2, 300); }
+  if (q >= 4) for (let i = 0; i < 4; i++) sfxTone(N[i] * 2, N[i] * 2, .5, .05, 'triangle', { delay: .35 + i * .07 }); } catch (e) { } }
+function aby3DealSnd(i) { try { sfxNoise(.08, .12, 2600, { type: 'bandpass', q: 1.5, delay: i * .09 }); sfxTone(900 + i * 120, 1300 + i * 120, .06, .05, 'triangle', { delay: i * .09 }); } catch (e) { } }
+abyPick = (o => function (first) { const r = o.apply(this, arguments); if (!ABY3_ON) return r; try { const m = $('abyPickM'); if (!m) return r; m.classList.add('aby3');
+  const cards = [...m.querySelectorAll('.abyc')]; let best = -1;
+  cards.forEach((b, i) => { const qc = (b.style.getPropertyValue('--qc') || '').trim().toLowerCase(), q = ABY3_QC.indexOf(qc); b.dataset.q = q; b.classList.add('q' + (q < 0 ? 'f' : q)); best = Math.max(best, q);
+    b.style.animationDelay = (i * .09) + 's';
+    const ray = document.createElement('i'); ray.className = 'a3ray'; b.prepend(ray);
+    if (q >= 1) { const sh = document.createElement('i'); sh.className = 'a3sh'; sh.style.animationDelay = (.6 + i * .3) + 's'; b.appendChild(sh); }
+    if (q >= 3) for (let k = 0; k < (q >= 4 ? 9 : 5); k++) { const s = document.createElement('i'); s.className = 'a3sp'; s.style.left = (8 + Math.random() * 84) + '%'; s.style.animationDelay = (Math.random() * 2.2) + 's'; s.style.animationDuration = (1.6 + Math.random() * 1.2) + 's'; b.appendChild(s); }
+    aby3DealSnd(i); });
+  if (best >= 3) m.classList.add('a3hot');
+  // choosing: the card flies up and flashes, the others drop away, then the real pick runs
+  m.addEventListener('click', e => { const b = e.target.closest && e.target.closest('.abyc'); if (!b || m._a3) return; e.stopImmediatePropagation(); e.preventDefault(); m._a3 = 1;
+    const q = +b.dataset.q; m.classList.add('a3go'); b.classList.add('a3pick'); cards.forEach(c => { if (c !== b) c.classList.add('a3out'); });
+    const fl = document.createElement('div'); fl.className = 'a3flash'; fl.style.setProperty('--qc', q < 0 ? '#9fd8a0' : ABY_Q[q][1]); m.appendChild(fl);
+    aby3Snd(q); setTimeout(() => { try { b.click(); } catch (e2) { } try { aby3PickFx(q); } catch (e3) { console.warn('aby3 fx', e3); } }, 560); }, true);
+} catch (e) { console.warn('aby3 pick', e); } return r; })(abyPick);
+// the light that comes down on you when you take a card
+function aby3PickFx(q) { if (!abyOn()) return; const G = fxGeo(), px = player.pos.x, pz = player.pos.z, py = player.pos.y || 0, c = q < 0 ? 0x9fd8a0 : parseInt(ABY_Q[q][1].slice(1), 16), big = q >= 3, k = q < 0 ? .7 : 1 + q * .25;
+  fxPiece(G.box, c, px, py, pz, .9, (t, m) => { const u = Math.min(1, t * 5); m.scale.set(1.1 * k * (1 - t * .7), 14 * u, 1.1 * k * (1 - t * .7)); m.position.y = py + 7 * u; m.material.opacity = .75 * (1 - t); });
+  fxPiece(G.box, 0xffffff, px, py, pz, .6, (t, m) => { const u = Math.min(1, t * 6); m.scale.set(.35 * k, 14 * u, .35 * k); m.position.y = py + 7 * u; m.material.opacity = 1 - t; });
+  fxRing(px, pz, .4, 3.2 * k, .55, c, .95, py); setTimeout(() => { try { fxRing(px, pz, .3, 5 * k, .8, 0xffffff, .7, py); } catch (e) { } }, 120);
+  if (big) setTimeout(() => { try { fxRing(px, pz, .3, 8, 1, c, .8, py); } catch (e) { } }, 260);
+  burst(px, py + 1.2, pz, c, 14 + q * 6, 5 + q); burst(px, py + 1.5, pz, 0xffffff, 6 + q * 2, 4);
+  const n = 8 + Math.max(0, q) * 3; for (let i = 0; i < n; i++) { const a = i / n * 6.283; fxStreak(px, py + .3, pz, Math.cos(a) * (3 + q), 4 + Math.random() * 3, Math.sin(a) * (3 + q), i % 2 ? c : 0xffffff, .5 + Math.random() * .2, .06); }
+  // rising motes in a spiral round you
+  for (let i = 0; i < (big ? 10 : 5); i++) { const a0 = i / (big ? 10 : 5) * 6.283; fxPiece(G.oct, i % 3 ? c : 0xffffff, px, py, pz, 1.3, (t, m) => { const a = a0 + t * 7; m.position.set(px + Math.cos(a) * (1.1 - t * .5), py + .3 + t * 3.4, pz + Math.sin(a) * (1.1 - t * .5)); m.scale.setScalar(2.2 * (1 - t) + .4); m.material.opacity = 1 - t; }); }
+  if (big) S.shake = Math.max(S.shake || 0, q >= 4 ? .5 : .32); }
+
+/* ---- card effects in the fight ---- */
+// a jagged bolt between two points (lightning, bouncing bullets, chains)
+function aby3Bolt(x0, y0, z0, x1, y1, z1, c) { const G = fxGeo(), n = 5, pts = [[x0, y0, z0]], dx = x1 - x0, dz = z1 - z0, L = Math.hypot(dx, dz) || 1, nx = -dz / L, nz = dx / L;
+  for (let i = 1; i < n; i++) { const t = i / n, j = (Math.random() - .5) * Math.min(1.4, L * .25); pts.push([x0 + dx * t + nx * j, y0 + (y1 - y0) * t + (Math.random() - .5) * .5, z0 + dz * t + nz * j]); } pts.push([x1, y1, z1]);
+  for (let i = 0; i < n; i++) { const a = pts[i], b = pts[i + 1], mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, mz = (a[2] + b[2]) / 2, len = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+    for (const [w, col, life] of [[.16, c, .28], [.06, 0xffffff, .2]]) fxPiece(G.box, col, mx, my, mz, life, (t, m) => { m.lookAt(b[0], b[1], b[2]); m.scale.set(w * (1 - t * .5), w * (1 - t * .5), len); m.material.opacity = 1 - t; }); } }
+function aby3Hit(x, y, z, c, s) { const G = fxGeo(); s = s || 1;
+  fxPiece(G.ico, 0xffffff, x, y, z, .14, (t, m) => { m.scale.setScalar(s * (.6 + t * 1.8)); m.material.opacity = 1 - t; });
+  fxPiece(G.ico, c, x, y, z, .3, (t, m) => { m.scale.setScalar(s * (1 + t * 2.8)); m.material.opacity = .75 * (1 - t); });
+  fxPiece(G.ring, c, x, y, z, .35, (t, m) => { faceCam(m); m.scale.setScalar(s * (1.5 + t * 5)); m.material.opacity = .9 * (1 - t); }); }
+abyFx = (o => function (z, d, col, line, fromX, fromZ) { const ok = ABY3_ON && z && !z.dead && d > 0, x = ok ? z.pos.x : 0, zz = ok ? z.pos.z : 0, y = ok ? 1.2 * (z.sc || 1) : 0;
+  const r = o.apply(this, arguments); if (!ok) return r;
+  try { const c = col || 0xffffff; if (line) aby3Bolt(fromX != null ? fromX : player.pos.x, 1.4, fromZ != null ? fromZ : player.pos.z, x, y, zz, c); aby3Hit(x, y, zz, c, line ? .9 : 1.1); } catch (e) { } return r; })(abyFx);
+// explosions and freezing get their own big look
+killZombie = (o => function (z) { if (!ABY3_ON || !abyOn() || !z || z.dead) return o(z); const b0 = ABY.booms, x = z.pos.x, zz = z.pos.z, frozen = z.abyFz > ABY.t;
+  const r = o(z); try { if (ABY.booms > b0) { const G = fxGeo(), sh = frozen && aN('shatter');
+      fxPiece(G.ico, 0xffffff, x, 1, zz, .18, (t, m) => { m.scale.setScalar(2 + t * 6); m.material.opacity = 1 - t; });
+      fxPiece(G.ico, sh ? 0x9fe8ff : 0xff7a2a, x, 1, zz, .5, (t, m) => { m.scale.setScalar(3 + t * 9); m.material.opacity = .8 * (1 - t); });
+      fxPiece(G.ico, sh ? 0x5ab8ff : 0xffd27a, x, 1.4, zz, .7, (t, m) => { m.position.y = 1.4 + t * 2.5; m.scale.setScalar(2.5 + t * 5); m.material.opacity = .5 * (1 - t); });
+      fxRing(x, zz, .5, 6, .5, sh ? 0x9fe8ff : 0xff9a40, .95, 0); setTimeout(() => { try { fxRing(x, zz, .4, 4, .4, 0xffffff, .6, 0); } catch (e) { } }, 80);
+      for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283 + Math.random() * .3; fxStreak(x, 1, zz, Math.cos(a) * 7, 3 + Math.random() * 4, Math.sin(a) * 7, i % 3 ? (sh ? 0x9fe8ff : 0xff8a2a) : 0xffffff, .55, .08); }
+      S.shake = Math.max(S.shake || 0, .22); } } catch (e) { } return r; })(killZombie);
+abyOnHit = (o => function (z, D) { const f0 = z && z.abyFz, r = o.apply(this, arguments); if (!ABY3_ON) return r;
+  try { if (z && z.abyFz && z.abyFz !== f0) { const G = fxGeo(), x = z.pos.x, zz = z.pos.z;   // frozen: a burst of ice shards and a frost ring
+      for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283, h = .8 + Math.random() * .9; fxPiece(G.oct, i % 2 ? 0xbff4ff : 0x7ac8ff, x + Math.cos(a) * .5, h * .5, zz + Math.sin(a) * .5, 1.1, (t, m) => { const u = Math.min(1, t * 6); m.scale.set(3 * u, 9 * h * u, 3 * u); m.rotation.set(Math.cos(a) * .5, 0, Math.sin(a) * .5); m.material.opacity = t < .8 ? .95 : (1 - t) * 4.75; }); }
+      fxRing(x, zz, .3, 2.6, .5, 0xbff4ff, .9, 0); aby3Hit(x, 1, zz, 0xbff4ff, 1.2); } } catch (e) { } return r; })(abyOnHit);
+
+(function () { const st = document.createElement('style'); st.textContent =
+  '.aby3 .abycs{perspective:900px}' +
+  '.aby3 .abyh{animation:a3h .5s cubic-bezier(.2,1.6,.4,1) both}@keyframes a3h{from{transform:scale(.4);opacity:0;letter-spacing:.6em}to{transform:none;opacity:1}}' +
+  '.aby3.a3hot .abyh{text-shadow:0 0 18px #ffc94a,0 2px 0 rgba(0,0,0,.7)}' +
+  '.aby3 .abyc{isolation:isolate;animation:a3deal .6s cubic-bezier(.2,1.25,.4,1) both;transform-origin:50% 80%;transition:transform .15s}' +
+  '@keyframes a3deal{0%{transform:translateY(90px) rotateY(100deg) scale(.6);opacity:0}60%{opacity:1}100%{transform:none;opacity:1}}' +
+  '.aby3 .abyc:active{transform:scale(.97)}' +
+  '.a3ray{position:absolute;left:50%;top:44%;width:260%;aspect-ratio:1;transform:translate(-50%,-50%);z-index:-1;pointer-events:none;opacity:0;border-radius:50%;' +
+  'background:repeating-conic-gradient(from 0deg,color-mix(in srgb,var(--qc) 55%,transparent) 0deg 7deg,transparent 7deg 22deg);animation:a3spin 9s linear infinite}' +
+  '@keyframes a3spin{to{transform:translate(-50%,-50%) rotate(360deg)}}' +
+  '.aby3 .abyc.q2 .a3ray{opacity:.22}.aby3 .abyc.q3 .a3ray{opacity:.42}.aby3 .abyc.q4 .a3ray{opacity:.55;animation-duration:5s}' +
+  '.aby3 .abyc.q2,.aby3 .abyc.q3,.aby3 .abyc.q4{background:radial-gradient(circle at 50% 40%,color-mix(in srgb,var(--qc) 30%,#1c252c),#141b20 75%)}' +
+  '.aby3 .abyc.q1{box-shadow:0 0 12px color-mix(in srgb,var(--qc) 55%,transparent),0 6px 18px rgba(0,0,0,.5)}' +
+  '.aby3 .abyc.q2{box-shadow:0 0 18px var(--qc),0 6px 18px rgba(0,0,0,.5)}' +
+  '.aby3 .abyc.q3{animation:a3deal .6s cubic-bezier(.2,1.25,.4,1) both,a3glow 1.6s ease-in-out .6s infinite}' +
+  '.aby3 .abyc.q4{animation:a3deal .6s cubic-bezier(.2,1.25,.4,1) both,a3myth 1.2s ease-in-out .6s infinite}' +
+  '@keyframes a3glow{0%,100%{box-shadow:0 0 16px var(--qc),0 0 0 1px #000}50%{box-shadow:0 0 34px var(--qc),0 0 60px color-mix(in srgb,var(--qc) 50%,transparent)}}' +
+  '@keyframes a3myth{0%,100%{box-shadow:0 0 22px #ff4d8d,0 0 50px #ffc94a80;border-color:#ff4d8d}50%{box-shadow:0 0 40px #ffc94a,0 0 80px #ff4d8d90;border-color:#ffd27a}}' +
+  '.aby3 .abyc.q3 .abyic,.aby3 .abyc.q4 .abyic{filter:drop-shadow(0 0 8px var(--qc));animation:a3bob 1.8s ease-in-out infinite}@keyframes a3bob{50%{transform:translateY(-4px) scale(1.06)}}' +
+  '.a3sh{position:absolute;inset:-20% auto -20% -60%;width:40%;z-index:2;pointer-events:none;background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);transform:skewX(-18deg);animation:a3sweep 2.6s ease-in-out infinite}' +
+  '@keyframes a3sweep{0%{left:-60%}45%,100%{left:130%}}' +
+  '.a3sp{position:absolute;bottom:-6px;width:5px;height:5px;border-radius:1px;transform:rotate(45deg);background:#fff;box-shadow:0 0 6px var(--qc),0 0 10px var(--qc);z-index:2;pointer-events:none;animation:a3up 2s linear infinite;opacity:0}' +
+  '@keyframes a3up{0%{transform:translateY(0) rotate(45deg);opacity:0}15%{opacity:1}100%{transform:translateY(-240px) rotate(225deg);opacity:0}}' +
+  '.aby3.a3go .abyc{pointer-events:none}' +
+  '.aby3 .abyc.a3out{animation:a3drop .4s ease-in both!important}@keyframes a3drop{to{transform:translateY(120px) rotate(8deg) scale(.8);opacity:0}}' +
+  '.aby3 .abyc.a3pick{animation:a3take .56s cubic-bezier(.3,1.4,.5,1) both!important;z-index:3}' +
+  '@keyframes a3take{0%{transform:none}35%{transform:scale(1.18) translateY(-14px);box-shadow:0 0 60px var(--qc),0 0 120px var(--qc)}100%{transform:scale(1.35) translateY(-60px);opacity:0;filter:brightness(2.2)}}' +
+  '.a3flash{position:fixed;inset:0;pointer-events:none;z-index:5;background:radial-gradient(circle at 50% 50%,color-mix(in srgb,var(--qc) 70%,#fff) 0%,color-mix(in srgb,var(--qc) 40%,transparent) 35%,transparent 70%);animation:a3fl .56s ease-out both}' +
+  '@keyframes a3fl{0%{opacity:0}30%{opacity:.95}100%{opacity:0}}';
+  (document.head || document.body).appendChild(st); })();
 /* ============ 走上船：老钱的商船 → 收藏馆，深渊号 → 潜艇舱内 ============
    - Both gangplanks are walkable now. Walk up to the deck end and you are taken inside (a 3D room, built with the dungeon engine
      as DUNS[10] / DUNS[11] at the far-away dungeon spot, so nothing outside can wander in). Walk to the door to come back out
@@ -23999,4 +24215,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795019981').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795021442').catch(()=>{});</script></body></html>
