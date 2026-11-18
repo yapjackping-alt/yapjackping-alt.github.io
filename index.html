@@ -18887,6 +18887,25 @@ treeUnderBuild = (o => function (T) { if (o(T)) return true;
 rollGo = (o => function () { if (SWN.on) return; return o.apply(this, arguments); })(rollGo);
 petsTick = (o => function (dt) { const r = o(dt); try { const on = SWN.on; if (document.body.classList.contains('swimOn') !== on) document.body.classList.toggle('swimOn', on); } catch (e) { } return r; })(petsTick);
 try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent: 'body.swimOn #bRoll,body.swimOn #bFish{display:none!important}' })); } catch (e) { }
+/* ============ water drowns trees (owner 18 Nov: "when I paint a pond over a tree, make the tree disappear") ============
+   - The island's own trees: a tree is hidden as soon as any painted water / river reaches its trunk (it used to need water
+     right at the trunk's centre and showed up only on the next 2-second check). It stays gone while the water is there.
+   - Trees and plants you placed from the 花园 tab (橡树 松树 樱花树 柳树 芭蕉树 蕨类 龟背竹 草丛 花丛 and the tall trees):
+     water painted over them removes them and gives their materials back, with one message.
+   Runs when the finger lifts after painting water, drawing a pond loop or a river (tpRebuild). Switch: WTREE_ON. */
+const WTREE_ON = true;
+const WTREE_K = new Set(['toak', 'tpine', 'tsak', 'willow', 'banana', 'fern', 'monst', 'gtuft', 'gflow'].concat(typeof TREE2 === 'object' ? Object.keys(TREE2) : []));
+function wtWet(x, z) { if (Math.hypot(x - HOME.x, z - HOME.z) > ISL_R + 4) return false; const l = islWaterLevel(x, z); return l != null && l - terH(x, z) > .08; }
+function wtTreeWet(x, z, r) { if (wtWet(x, z)) return true; const d = Math.max(.4, Math.min(1.2, r || .8)) * .8; for (const [a, b] of [[d, 0], [-d, 0], [0, d], [0, -d]]) if (wtWet(x + a, z + b)) return true; return false; }
+treeUnderBuild = (o => function (T) { if (o(T)) return true; try { if (WTREE_ON && S.isl && wtTreeWet(T.x, T.z, T.r)) return true; } catch (e) { } return false; })(treeUnderBuild);
+function wtreeClear() { if (!WTREE_ON || !S.isl) return; let n = 0; const back = {};
+  for (const b of builds.slice()) { if (!WTREE_K.has(b.type) || (b.lv | 0) || !(b.hp > 0)) continue; const T = BT[b.type] || {};
+    if (!wtTreeWet(b.x, b.z, Math.max(T.hw || .4, .4))) continue;
+    try { dropBuild(b); n++; for (const k in (T.cost || {})) { back[k] = (back[k] || 0) + T.cost[k]; } } catch (e) { } }
+  if (!n) return; for (const k in back) try { gain(k, back[k]); } catch (e) { }
+  try { feed(T2(n + ' 棵树 / 植物被水淹掉了，材料已退回', n + ' trees / plants were flooded, materials returned'), '#8fd8ff'); } catch (e) { }
+  try { S.dirty = true; saveGame(); } catch (e) { } }
+tpRebuild = (o => function () { const r = o.apply(this, arguments); try { if (!TER.down) { wtreeClear(); if (typeof islTreeTick === 'function') islTreeTick(); } } catch (e) { console.warn('wtree', e); } return r; })(tpRebuild);
 /* ============ water round the boats ============
    Every boat on the water (老钱's ship, the 深渊号 submarine, the small boat at the pier, your fishing boat) has soft rings of
    ripples spreading out from its hull. Your fishing boat while it moves leaves a white wake behind it (two lines spreading
@@ -22645,4 +22664,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794975720').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1794976096').catch(()=>{});</script></body></html>
