@@ -22224,6 +22224,110 @@ try { if (MYTH2_ON && typeof SKIN_P !== 'undefined') SKIN_P.myth = [
   { pts: [[-.6, 1.4, -.5], [.6, 1.4, -.5], [-.8, 1.0, -.7], [.8, 1.0, -.7]], rate: 30, life: .8, v: [0, .3, -.6], sp: .3, col: [0x8ff4ff, 0xc8b0ff, 0xffe08a], sz: .05, moving: 1 },
   { pts: [[0, 1.66, -.7]], rate: 6, life: 1.2, v: [0, .5, -.2], sp: .9, col: [0xffe08a], sz: .04 }]; } catch (e) { }
 try { if (MYTH2_ON) SKINS.myth.d = '象牙白与金色的神铠，头戴金冠与旋转光环；背后一轮镶着符文宝石的金色神环，两条青紫色的天女飘带随风飞舞，腰间垂着金边腰帘；晶翼会呼吸，脚下光圈流转，星光环绕全身。'; } catch (e) { }
+/* ============ outfits 2.0: the other hand-built outfits get the 天穹神裔 2.0 treatment (owner 18 Nov: "做的高级点，和别的游戏比玩家会觉得很值得，改吧") ============
+   Every outfit keeps its old pieces; this file ADDS a premium layer per outfit, each in its own theme:
+     烈焰战神 fire    flame mandorla ring with fire spikes, two flame plumes off the back, burning crown, magma lines, embers
+     冰霜行者 frost   ice-crystal crown, a halo of hexagonal ice shards behind, a long frost scarf, ice shards orbiting, snow
+     暗夜刺客 night   a long torn shadow scarf, a crescent-moon sigil behind, two shadow daggers orbiting, violet smoke
+     荒野游侠 ranger  a leaf mantle of swaying leaf strips, antler-and-feather crown, fireflies, leaves orbiting
+     战地医生 medic   a turning holographic cross ring behind, white/red sashes, healing plus-orbs orbiting, green motes
+     暗紫斥候 scout   folding holo wings of thin violet blades, data trims, the drone keeps flying
+     余烬守卫 warden  an ember sigil ring behind the shield, glowing ember chains from the belt, sparks
+     赛季先锋 pion    gold energy wings (fans of glowing blades), a gold ring behind, gold sparks
+     余烬领主 lord    a great fire mandorla with crown spikes, long ember ribbons, a taller molten crown, embers
+   Moving parts use the fx kinds from z_myth2.js (m2chain / m2spin / m2glow) plus f2orb (orbiting things), f2flk (flicker),
+   f2bob (floating). Particles: SKIN_P entries added / extended. Switch: FASH2_ON. */
+const FASH2_ON = true;
+function f2kit(k) { const { bx, cone, gem, G, both, put } = k;
+  const B = (c, op) => new THREE.MeshBasicMaterial(op ? { color: c, transparent: true, opacity: op, depthWrite: false, side: THREE.DoubleSide } : { color: c, side: THREE.DoubleSide });
+  const L = c => new THREE.MeshLambertMaterial({ color: c, side: THREE.DoubleSide, flatShading: true });
+  const glow = (c, op) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const add = (geo, m, x, y, z, p, fx, ph) => { const ob = new THREE.Mesh(geo, m); ob.position.set(x, y, z); put(ob, p || 'b'); if (fx) { ob.userData.fx = fx; ob.userData.ph = ph || 0; } return ob; };
+  const chain = (n, sl, w, cols, x, y, z, base, opt) => { opt = opt || {}; let par = null, first = null;
+    for (let i = 0; i < n; i++) { const g = new THREE.Group(); g.userData.fx = 'm2chain'; g.userData.i = i; g.userData.n = n; Object.assign(g.userData, opt); put(g, 'b');
+      if (!i) { g.position.set(x, y, z); g.rotation.set(base[0], base[1], base[2]); g.userData.b = base.slice(); first = g; } else { par.add(g); g.position.set(0, -sl, 0); }
+      const f = 1 - i / n * (opt.taper || 0), seg = new THREE.Mesh(opt.leaf ? new THREE.OctahedronGeometry(w * f * .6) : new THREE.BoxGeometry(w * f, sl + .012, opt.th || .018), cols[i % cols.length]);
+      if (opt.leaf) seg.scale.set(1, 2.2, .25); seg.position.y = -sl / 2; g.add(seg);
+      if (opt.edge) for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.BoxGeometry(.016, sl + .012, (opt.th || .018) + .008), opt.edge); e.position.set(s * w * f / 2, -sl / 2, 0); g.add(e); }
+      if (opt.rag && i % 2) { const r = new THREE.Mesh(new THREE.ConeGeometry(w * f * .3, sl * .9, 3), cols[0]); r.position.set((i % 4 ? 1 : -1) * w * f * .55, -sl * .4, 0); r.rotation.z = (i % 4 ? -1 : 1) * 1.2; g.add(r); }
+      if (i === n - 1 && opt.tip) { const t = new THREE.Mesh(new THREE.OctahedronGeometry(Math.max(.04, w * .45)), opt.tip); t.position.y = -sl; t.scale.y = 1.6; g.add(t); }
+      par = g; }
+    return first; };
+  // a ring behind the back with things set on it; sp = turning speed
+  const ring = (r, y, z, c, sp, o) => { o = o || {}; const R = add(new THREE.TorusGeometry(r, o.t || .028, 6, o.seg || 48), B(c), 0, y, z, 'b', 'm2spin'); R.userData.sp = sp;
+    if (o.glow != null) add(new THREE.TorusGeometry(r, (o.t || .028) * 3.4, 6, o.seg || 48), glow(o.glow, .2), 0, y, z - .01, 'b', 'm2glow');
+    const n = o.n || 0; for (let i = 0; i < n; i++) { const a = i / n * 6.283, m = o.mk(i, a); m.position.set(Math.cos(a) * r * (o.out || 1), Math.sin(a) * r * (o.out || 1), .01); m.rotation.z = a - Math.PI / 2; R.add(m); } return R; };
+  const orb = (geo, m, r, y, sp, ph, o) => { const ob = add(geo, m, 0, y, 0, 'g', 'f2orb', ph); Object.assign(ob.userData, { r, y, sp, ...(o || {}) }); return ob; };
+  return { bx, cone, gem, G, both, put, B, L, glow, add, chain, ring, orb };
+}
+const F2 = {
+  fire(K) { const { both, chain, ring, add, B, L, glow, cone, gem, G, bx } = K, F = 0xff7a1a, F2c = 0xffd060, R = 0xff3a10;
+    ring(.9, 1.66, -.62, F, .5, { glow: 0xff7a1a, n: 12, out: 1.05, mk: i => { const c = new THREE.Mesh(new THREE.ConeGeometry(.06, i % 2 ? .3 : .44, 4), B(i % 2 ? F2c : F)); c.userData.fx = 'f2flk'; c.userData.ph = i; return c; } });
+    both(s => chain(9, .16, .2, [B(F), B(F2c), B(R)], s * .3, 1.78, -.3, [.9, 0, s * .7], { side: s, amp: .35, taper: .8, th: .03 }));   // flame plumes
+    for (let i = 0; i < 5; i++) { const a = (i - 2) * .34, h = i === 2 ? .42 : .28; const c = add(new THREE.ConeGeometry(.05, h, 4), B(i % 2 ? F2c : F), Math.sin(a) * .26, 2.42 + h / 2, Math.cos(a) * .2, 'b', 'f2flk', i); c.rotation.set(.12 * Math.cos(a), 0, -Math.sin(a) * .5); }
+    [[-.2, 1.6, .6], [.2, 1.6, -.6], [-.24, 1.3, -.4], [.24, 1.3, .4]].forEach(([x, y, r]) => bx(.025, .24, .015, G(F), x, y, .275, 'b', 0, 0, r));
+    both(s => add(new THREE.OctahedronGeometry(.07), G(F2c), s * .62, 2.06, 0, 'b', 'f2bob', s)); },
+  frost(K) { const { both, chain, ring, add, B, L, glow, cone, gem, G } = K, C = 0x9fe8ff, W = 0xffffff, I = 0x6ab8ff;
+    ring(.86, 1.66, -.55, C, -.25, { glow: 0x9fe8ff, n: 10, out: 1.0, seg: 6, mk: i => { const g = new THREE.Mesh(new THREE.OctahedronGeometry(.09), B(i % 2 ? W : C)); g.scale.set(.6, 2.6, .5); return g; } });
+    for (let i = 0; i < 7; i++) { const a = (i - 3) * .3, h = .16 + (3 - Math.abs(i - 3)) * .07; const g = add(new THREE.OctahedronGeometry(.05), B(i % 2 ? W : C), Math.sin(a) * .27, 2.4 + h * .6, Math.cos(a) * .2, 'b'); g.scale.set(.7, h * 12, .7); g.rotation.z = -Math.sin(a) * .4; }
+    chain(12, .15, .16, [L(0xf4fbff), L(0xd8f0ff)], .18, 1.82, .18, [.15, 0, -.25], { side: 1, amp: .3, taper: .3, edge: B(C), tip: G(C) });   // frost scarf
+    chain(9, .15, .14, [L(0xf4fbff), L(0xd8f0ff)], -.2, 1.8, -.24, [.6, 0, .35], { side: -1, amp: .3, taper: .3, edge: B(C) });
+    for (let i = 0; i < 4; i++) { const o = K.orb(new THREE.OctahedronGeometry(.06), B(i % 2 ? W : I), .75, 1.2 + i * .25, 1.1, i * 1.57); o.scale.y = 2.2; } },
+  night(K) { const { both, chain, ring, add, B, L, glow, G } = K, V = 0xb070ff, D = 0x1a1424, D2 = 0x2a1e3a;
+    chain(14, .16, .2, [L(D), L(D2)], .2, 1.82, -.22, [.55, 0, .4], { side: 1, amp: .42, taper: .5, edge: B(V), rag: 1 });
+    chain(12, .16, .18, [L(D), L(D2)], -.2, 1.82, -.22, [.65, 0, -.3], { side: -1, amp: .42, taper: .5, edge: B(V), rag: 1 });
+    const moon = add(new THREE.TorusGeometry(.62, .07, 6, 32, 4.2), B(0xd8c8ff), 0, 1.7, -.6, 'b', 'f2bob', 0); moon.rotation.z = 1.2;
+    add(new THREE.TorusGeometry(.62, .2, 6, 32, 4.2), glow(V, .22), 0, 1.7, -.61, 'b', 'm2glow').rotation.z = 1.2;
+    for (let i = 0; i < 2; i++) { const d = K.orb(new THREE.BoxGeometry(.05, .5, .02), B(i ? 0xe8d0ff : V), .8, 1.3 + i * .4, 1.8, i * 3.14, { blade: 1 }); const hilt = new THREE.Mesh(new THREE.BoxGeometry(.14, .04, .05), L(0x3a2a4a)); hilt.position.y = -.27; d.add(hilt); } },
+  ranger(K) { const { both, chain, add, B, L, G, cone, gem } = K, Lf = 0x4aa84a, Lf2 = 0x8ad84a, Y = 0xe8ff8a;
+    for (let j = -2; j <= 2; j++) chain(8, .14, .14, [L(j % 2 ? Lf : Lf2)], j * .13, 1.8, -.28, [.25, 0, j * .12], { side: j ? Math.sign(j) : 1, amp: .26, leaf: 1 });
+    both(s => { const a1 = add(new THREE.BoxGeometry(.04, .34, .04), L(0x8a6a40), s * .2, 2.48, -.02, 'b'); a1.rotation.z = -s * .5; const a2 = add(new THREE.BoxGeometry(.03, .18, .03), L(0x8a6a40), s * .3, 2.6, -.02, 'b'); a2.rotation.z = -s * 1.1;
+      const f = add(new THREE.OctahedronGeometry(.05), B(s > 0 ? 0xff8a4a : Y), s * .34, 2.36, .02, 'b', 'f2bob', s); f.scale.set(.6, 2.4, .3); });
+    for (let i = 0; i < 4; i++) { const o = K.orb(new THREE.OctahedronGeometry(.06), L(i % 2 ? Lf : Lf2), .7, 1 + i * .3, .9, i * 1.57); o.scale.set(1, 2, .25); } },
+  medic(K) { const { both, chain, ring, add, B, L, glow, G } = K, Rd = 0xff4a5a, W = 0xffffff, Gn = 0x6aff9a;
+    const R = ring(.7, 1.66, -.5, 0x9affd0, .4, { glow: 0x6aff9a, n: 4, mk: i => { const g = new THREE.Group(); g.add(new THREE.Mesh(new THREE.BoxGeometry(.2, .06, .03), B(Rd))); g.add(new THREE.Mesh(new THREE.BoxGeometry(.06, .2, .03), B(Rd))); return g; } });
+    const cr = new THREE.Group(); cr.add(new THREE.Mesh(new THREE.BoxGeometry(.5, .14, .03), glow(Gn, .5))); cr.add(new THREE.Mesh(new THREE.BoxGeometry(.14, .5, .03), glow(Gn, .5))); cr.position.set(0, 1.66, -.5); K.put(cr, 'b'); cr.userData.fx = 'm2spin'; cr.userData.sp = -.3;
+    both(s => chain(8, .14, .1, [L(W), L(s > 0 ? Rd : W)], s * .28, 1.1, .2, [-.05, 0, s * .1], { side: s, amp: .2, front: 1, edge: B(Rd) }));
+    for (let i = 0; i < 3; i++) { const g = new THREE.Group(); g.add(new THREE.Mesh(new THREE.BoxGeometry(.14, .045, .045), B(Gn))); g.add(new THREE.Mesh(new THREE.BoxGeometry(.045, .14, .045), B(Gn))); K.put(g, 'g'); Object.assign(g.userData, { fx: 'f2orb', ph: i * 2.09, r: .7, y: 1.3 + i * .25, sp: 1.2 }); } },
+  scout(K) { const { both, add, B, glow, bx, G } = K, V = 0xb070ff, V2 = 0xe8d0ff;
+    both(s => { for (let i = 0; i < 5; i++) { const a = .25 + i * .26, len = .7 - Math.abs(i - 2) * .1; const w = add(new THREE.BoxGeometry(.04, len, .015), B(i % 2 ? V2 : V), s * (.25 + Math.cos(a) * .45), 1.6 + Math.sin(a) * .35, -.36, 'b', 'wing' + (s < 0 ? 'L' : 'R'), i * .2);
+      w.rotation.z = -s * (Math.PI / 2 - a); w.userData.r0 = w.rotation.z; w.userData.z0 = -.36; } });
+    [[-.2, 1.5], [.2, 1.5], [0, 1.25]].forEach(([x, y]) => bx(.18, .02, .015, G(V), x, y, .275));
+    add(new THREE.RingGeometry(.5, .54, 6), glow(V, .5), 0, 1.6, -.4, 'b', 'm2spin').userData.sp = .6; },
+  warden(K) { const { both, chain, ring, add, B, L, glow, G } = K, O = 0xff7a1a, O2 = 0xffc040, St = 0x5a6470;
+    ring(.85, 1.6, -.72, O, .3, { glow: 0xff7a1a, n: 8, mk: i => { const m = new THREE.Mesh(new THREE.BoxGeometry(.12, .12, .03), B(i % 2 ? O2 : O)); m.rotation.z = .785; return m; } });
+    both(s => chain(7, .12, .05, [L(St), B(O)], s * .3, .98, .22, [-.05, 0, s * .15], { side: s, amp: .15, front: 1, th: .05 }));
+    both(s => add(new THREE.OctahedronGeometry(.06), G(O2), s * .58, 2.12, 0, 'b', 'f2flk', s)); },
+  pion(K) { const { both, ring, add, B, glow, G } = K, Gd = 0xffc94a, Gd2 = 0xfff0a0;
+    both(s => { for (let i = 0; i < 7; i++) { const a = .05 + i * .22, len = .95 - Math.abs(i - 3) * .1; const w = add(new THREE.BoxGeometry(.05, len, .02), B(i % 2 ? Gd2 : Gd), s * (.22 + Math.cos(a) * .55), 1.55 + Math.sin(a) * .5, -.42 - i * .01, 'b', s < 0 ? 'wingL' : 'wingR', i * .2);
+      w.rotation.z = -s * (Math.PI / 2 - a); w.userData.r0 = w.rotation.z; w.userData.z0 = w.position.z;
+      const g2 = add(new THREE.BoxGeometry(.12, len * 1.04, .02), glow(Gd, .25), w.position.x, w.position.y, w.position.z - .01, 'b', s < 0 ? 'wingL' : 'wingR', i * .2); g2.rotation.z = w.rotation.z; g2.userData.r0 = w.rotation.z; g2.userData.z0 = g2.position.z; } });
+    ring(.55, 1.7, -.6, Gd, .5, { glow: 0xffc94a, n: 6, mk: () => new THREE.Mesh(new THREE.OctahedronGeometry(.05), B(Gd2)) }); },
+  lord(K) { const { both, chain, ring, add, B, L, glow, G } = K, F = 0xff5a10, F2c = 0xffa030, D = 0x2a1410;
+    ring(1.0, 1.7, -.7, F2c, .35, { glow: 0xff5a10, n: 14, out: 1.06, mk: i => { const c = new THREE.Mesh(new THREE.ConeGeometry(.07, i % 2 ? .3 : .5, 4), B(i % 2 ? 0xffd060 : F)); c.userData.fx = 'f2flk'; c.userData.ph = i; return c; } });
+    ring(.7, 1.7, -.68, F, -.5, { t: .02, seg: 8 });
+    both(s => chain(12, .17, .16, [L(D), B(F)], s * .36, 1.84, -.28, [.5, 0, s * .28], { side: s, amp: .32, taper: .4, edge: B(F2c), tip: G(0xffd060) }));
+    for (let i = 0; i < 5; i++) { const a = (i - 2) * .32, h = i === 2 ? .5 : .3; const c = add(new THREE.ConeGeometry(.05, h, 4), B(i % 2 ? 0xffd060 : F), Math.sin(a) * .27, 2.52 + h / 2, Math.cos(a) * .2, 'b', 'f2flk', i); c.rotation.set(.1 * Math.cos(a), 0, -Math.sin(a) * .5); } }
+};
+if (FASH2_ON && typeof SKIN_BUILD !== 'undefined') for (const key in F2) if (SKIN_BUILD[key]) SKIN_BUILD[key] = (o => function (k) { o(k); try { F2[key](f2kit(k)); } catch (e) { console.warn('fash2', key, e); } })(SKIN_BUILD[key]);
+skinAnimate = (o => function (out, T) { o(out, T); if (!FASH2_ON) return;
+  for (const ob of out || []) { const u = ob && ob.userData; if (!u || !u.fx) continue;
+    if (u.fx === 'f2orb') { const a = T * u.sp + u.ph; ob.position.set(Math.cos(a) * u.r, u.y + Math.sin(T * 1.4 + u.ph) * .15, Math.sin(a) * u.r); ob.rotation.y = u.blade ? -a : T * 2; if (u.blade) ob.rotation.z = .3; }
+    else if (u.fx === 'f2bob') { if (u.y0 == null) u.y0 = ob.position.y; ob.position.y = u.y0 + Math.sin(T * 2 + u.ph) * .04; ob.rotation.y = T * 1.2; } }
+  // flickering flame cones (children of the rings too)
+  for (const ob of out || []) if (ob && ob.userData && ob.userData.fx === 'm2spin') ob.children.forEach(c => { if (c.userData.fx === 'f2flk') c.scale.set(1, 1 + .3 * Math.sin(T * 9 + c.userData.ph * 1.7), 1); });
+  for (const ob of out || []) if (ob && ob.userData && ob.userData.fx === 'f2flk') ob.scale.set(1, 1 + .25 * Math.sin(T * 9 + ob.userData.ph * 1.7), 1); })(skinAnimate);
+try { if (FASH2_ON && typeof SKIN_P !== 'undefined') {
+  const add = (k, e) => { SKIN_P[k] = (SKIN_P[k] || []).concat(e); };
+  add('fire', [{ pts: 'body', rate: 16, life: 1.1, v: [0, 1.1, 0], sp: .4, col: [0xff7a1a, 0xffd060, 0xff3a10], sz: .05 }, { pts: [[-.4, 1.4, -.6], [.4, 1.4, -.6]], rate: 26, life: .6, v: [0, .9, -.4], sp: .3, col: [0xffa030, 0xff5a10], sz: .06, moving: 1 }]);
+  add('frost', [{ pts: 'body', rate: 12, life: 1.6, v: [0, -.4, 0], sp: .5, col: [0xffffff, 0x9fe8ff], sz: .04 }, { pts: [[0, .1, 0]], rate: 20, life: .8, v: [0, .4, 0], sp: .6, col: [0xd8f4ff], sz: .05, moving: 1 }]);
+  add('night', [{ pts: [[-.2, 1.2, -.5], [.2, 1.2, -.5], [0, .3, 0]], rate: 18, life: 1.1, v: [0, .4, -.3], sp: .35, col: [0x6a3a9a, 0xb070ff, 0x2a1a3a], sz: .06 }]);
+  add('ranger', [{ pts: 'body', rate: 6, life: 2.2, v: [0, .25, 0], sp: .5, col: [0xe8ff8a, 0xfff6a0], sz: .035 }, { pts: [[0, 1.4, -.4]], rate: 8, life: 1.4, v: [0, -.3, -.3], sp: .4, col: [0x8ad84a, 0x4aa84a], sz: .05, moving: 1 }]);
+  add('medic', [{ pts: 'body', rate: 9, life: 1.4, v: [0, .7, 0], sp: .3, col: [0x6aff9a, 0xffffff], sz: .04 }]);
+  add('warden', [{ pts: [[-.3, .9, .25], [.3, .9, .25]], rate: 10, life: .7, v: [0, .9, 0], sp: .4, col: [0xff7a1a, 0xffc040], sz: .045 }]);
+  add('pion', [{ pts: [[-.7, 1.5, -.5], [.7, 1.5, -.5], [-.9, 1.9, -.5], [.9, 1.9, -.5]], rate: 20, life: .7, v: [0, .4, -.4], sp: .35, col: [0xffc94a, 0xfff0a0], sz: .05 }]);
+  add('lord', [{ pts: [[-.5, 1.1, -.6], [.5, 1.1, -.6], [0, 2.7, 0]], rate: 22, life: 1, v: [0, 1, -.2], sp: .4, col: [0xff5a10, 0xffa030, 0xffd060], sz: .055 }]);
+} } catch (e) { }
 /* ============ 深渊商店: spend 深渊币 with the diver of the 深渊号 (owner 18 Nov: "add a trade system to the abyss") ============
    Opened from the abyss page (button 深渊商店 next to 下潜). The trader is the brass-helmet diver who stands on the sub.
    Tabs: 升级材料 (now) · 皮肤 (empty: the owner will hand over skin code later, then they go in ABYSHOP_SKINS).
@@ -23395,4 +23499,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795012750').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795013065').catch(()=>{});</script></body></html>
