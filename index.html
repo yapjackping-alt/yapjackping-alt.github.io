@@ -24162,68 +24162,71 @@ function ksdHead(head, M) { const hsk = new THREE.MeshPhongMaterial({ color: 0xd
   for (const sd of [-1, 1]) for (let i = 0; i < 3; i++) lock(head, sd * .3, -.04 - i * .07, .05, .5 + i * .08, .06, sd * (.9 + i * .2), -.25 - i * .15);
   for (let i = 0; i < 4; i++) lock(jaw, (i - 1.5) * .06, -.1, .4 - Math.abs(i - 1.5) * .04, .4 + (i % 2) * .12, .05, (i - 1.5) * .15, -.8);
   return jaw; }
-/* REUSABLE DRAGON (owner 20 Nov: make the dragon model good so it can be used again):
-   dragonFly(path, life, gy, o)  path(s) -> [x,y,z] for s 0..1 = where the HEAD is (the body follows it like a snake, wave built in);
-   life = seconds for the whole flight; gy = ground y (parts past the ends go under it); o.sc = size (1 = skill size),
-   o.len = body length as a share of the path (default KSD.LEN). Returns nothing; everything is freed when the flight ends.
-   ksdHead(group, mats) builds the head alone (for previews / other uses). */
-function dragonFly(path, life, gy, o) { o = o || {}; const SC = o.sc || 1, LEN = o.len || KSD.LEN, NR = KSD.NR, NA = KSD.NA, t0 = performance.now(), dur = life * 1000 * SKX.ts, all = [];
-  const add = (m, par) => { m.frustumCulled = false; (par || scene).add(m); if (!par) all.push(m); return m; };
+/* REUSABLE DRAGON (owner 20 Nov: make the dragon model good so it can be used again).
+   dragonFly(path, life, gy, o): path(s) -> [x,y,z], s 0..1 = the route of the HEAD. The body is like water in a pipe: every
+   ring of the body passes exactly the places the head passed (sampled by distance along the route), nothing sways on its own;
+   to make it swim like a snake, give the ROUTE its S-curves. life = seconds, gy = ground (the body enters/leaves straight down
+   through it), o.sc = size, o.blen = body length in metres (default 9). Returns {hit}: the share of life when the head reaches
+   the end of the route. The model is built ONCE (`ksdBuild`, warmed up a few seconds after start so the first cast does not
+   stutter) and reused; a new flight replaces a running one. ksdHead(group, mats) builds the head alone. */
+function ksdBuild() { if (KSD.M) return KSD.M; const NR = KSD.NR, NA = KSD.NA, root = new THREE.Group();
+  const add = (m, par) => { m.frustumCulled = false; (par || root).add(m); return m; };
   let tex = null; try { tex = ksdTex(); } catch (e) { }
   const skin = new THREE.MeshPhongMaterial(tex ? { map: tex, specular: 0x8a94a4, shininess: 30 } : { color: 0xd8dde4, specular: 0xffffff, shininess: 40 });
   const silver = new THREE.MeshPhongMaterial({ color: 0xc4ccd6, specular: 0xaab4c4, shininess: 50 });
-  const gold = new THREE.MeshPhongMaterial({ color: 0xe8b84a, emissive: 0x3a2404, specular: 0xffe8a0, shininess: 90, flatShading: true }), horn = gold, white = new THREE.MeshPhongMaterial({ color: 0xf8f4ea, shininess: 60 });
+  const gold = new THREE.MeshPhongMaterial({ color: 0xe8b84a, emissive: 0x3a2404, specular: 0xffe8a0, shininess: 90, flatShading: true }), white = new THREE.MeshPhongMaterial({ color: 0xf8f4ea, shininess: 60 });
   const hair = new THREE.MeshPhongMaterial({ color: 0xe8ecf2, specular: 0x9aa4b4, shininess: 20, flatShading: true });
   const eyeM = new THREE.MeshBasicMaterial({ color: 0xffb428 }), fireM = new THREE.MeshBasicMaterial({ color: 0xffb040 }), coreM = new THREE.MeshBasicMaterial({ color: 0xfff2b0 });
   const haloM = new THREE.MeshBasicMaterial({ color: 0xff8a20, transparent: true, opacity: .35, blending: THREE.AdditiveBlending, depthWrite: false });
-  const mats = [skin, silver, gold, white, hair, eyeM, fireM, coreM, haloM];
-  // body tube
   const P = new Float32Array((NR + 1) * (NA + 1) * 3), UV = [], I = [];
   for (let j = 0; j <= NR; j++) for (let a = 0; a <= NA; a++) { UV.push(j / NR * 12, a / NA); if (j < NR && a < NA) { const p0 = j * (NA + 1) + a, p1 = p0 + NA + 1; I.push(p0, p1, p0 + 1, p1, p1 + 1, p0 + 1); } }
   const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.BufferAttribute(P, 3)); bg.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(P.length), 3)); bg.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2)); bg.setIndex(I);
-  const body = add(new THREE.Mesh(bg, skin));
-  // fire pearl: bright core + flames + soft halo (one in the mouth, one in the front claw)
-  const flames = [];
+  const body = add(new THREE.Mesh(bg, skin)), flames = [];
   const pearl = (par, x, y, z, s) => { const g = new THREE.Group(); g.position.set(x, y, z); g.scale.setScalar(s); par.add(g);
     g.add(new THREE.Mesh(new THREE.SphereGeometry(.12, 10, 8), coreM)); const h = new THREE.Mesh(new THREE.SphereGeometry(.24, 10, 8), haloM); g.add(h); flames.push(h);
     for (let i = 0; i < 6; i++) { const f = new THREE.Mesh(new THREE.ConeGeometry(.06, .3, 5), fireM); const a = i / 6 * 6.283; f.position.set(Math.cos(a) * .09, .1, Math.sin(a) * .09); f.rotation.set(Math.sin(a) * .5, 0, -Math.cos(a) * .5); g.add(f); flames.push(f); } return g; };
-  // white fur fin along the back, small gold flame-fins here and there
   const spines = []; for (let j = 2; j < NR - 3; j += 2) { const gd = j % 8 === 4, c = add(new THREE.Mesh(new THREE.ConeGeometry(.09, gd ? .4 : .62, 4), gd ? gold : hair)); c.userData.j = j; spines.push(c); }
   const legs = []; for (const [j, sd] of [[8, 1], [8, -1], [24, 1], [24, -1]]) { const L = add(new THREE.Group()); L.userData = { j, sd };
-    const up = new THREE.Mesh(new THREE.CylinderGeometry(.11, .08, .55, 7), skin); up.position.y = -.27; L.add(up); const lo = new THREE.Mesh(new THREE.CylinderGeometry(.07, .05, .45, 7), skin); lo.position.set(0, -.62, .12); lo.rotation.x = .5; L.add(lo);
-    // white hair tufts at the elbow flowing back
+    const u1 = new THREE.Mesh(new THREE.CylinderGeometry(.11, .08, .55, 7), skin); u1.position.y = -.27; L.add(u1); const lo = new THREE.Mesh(new THREE.CylinderGeometry(.07, .05, .45, 7), skin); lo.position.set(0, -.62, .12); lo.rotation.x = .5; L.add(lo);
     for (let h = 0; h < 3; h++) L.add(new THREE.Mesh(ksdTaper([new THREE.Vector3((h - 1) * .04, -.4, -.05), new THREE.Vector3((h - 1) * .07, -.42, -.3), new THREE.Vector3((h - 1) * .1, -.36, -.55)], .05), hair));
     for (let c = 0; c < 4; c++) { const cl = new THREE.Mesh(new THREE.ConeGeometry(.03, .2, 4), gold); cl.position.set((c - 1.5) * .06, -.86, .28); cl.rotation.x = 1.9 - (c === 0 ? .4 : 0); L.add(cl); }
     if (j === 8 && sd === 1) pearl(L, 0, -.95, .45, 1.3);
     legs.push(L); }
-  // tail: a big fan of white fur
   const tuft = add(new THREE.Group()); for (let i = 0; i < 11; i++) { const a = (i - 5) / 5, L = 1.2 - Math.abs(a) * .35, pts = []; for (let q = 0; q <= 4; q++) { const t = q / 4; pts.push(new THREE.Vector3(a * .5 * t + Math.sin(t * 4 + i) * .06, a * .35 * t + Math.sin(t * 5) * .08, -L * t)); } tuft.add(new THREE.Mesh(ksdTaper(pts, .08), hair)); }
-  const head = add(new THREE.Group()); const jaw = ksdHead(head, { skin, silver, gold, white, hair, eyeM, list: mats }); pearl(head, 0, -.12, .98, 1);
-  head.traverse(o => { o.frustumCulled = false; }); legs.forEach(L => L.traverse(o => { o.frustumCulled = false; })); tuft.traverse(o => { o.frustumCulled = false; });
-  // frames along the centreline
-  const cen = [], Tn = [], Nn = [], Bn = [], V = THREE.Vector3, up = new V(0, 1, 0), m4 = new THREE.Matrix4();
+  const head = add(new THREE.Group()), mats = []; const jaw = ksdHead(head, { skin, silver, gold, white, hair, eyeM, list: mats }); pearl(head, 0, -.12, .98, 1);
+  root.traverse(o => { o.frustumCulled = false; if (o.geometry) o.geometry.userData.keep = 1; });
+  const cen = [], Tn = [], Nn = [], Bn = [], V = THREE.Vector3, up = new V(0, 1, 0), m4 = new THREE.Matrix4(), tv = new V();
   for (let j = 0; j <= NR; j++) { cen.push(new V()); Tn.push(new V()); Nn.push(new V()); Bn.push(new V()); }
   const orient = (o, j) => { m4.makeBasis(Bn[j], Nn[j], Tn[j]); o.quaternion.setFromRotationMatrix(m4); };
-  body.onBeforeRender = () => { const k = Math.min(1, (performance.now() - t0) / dur), sH = k * (1 + LEN + .02), T = performance.now() / 1000;
-    for (let j = 0; j <= NR; j++) { const s = sH - LEN * j / NR, [x, y, z] = path(Math.min(1, Math.max(0, s))); cen[j].set(x, s <= 0 ? gy - 6 : s >= 1 ? gy - 6 : y, z); }
-    const frames = () => { for (let j = 0; j <= NR; j++) { const a = cen[Math.max(0, j - 1)], b = cen[Math.min(NR, j + 1)]; Tn[j].subVectors(a, b); if (Tn[j].lengthSq() < 1e-8) Tn[j].set(0, 0, 1); Tn[j].normalize();
-      Bn[j].crossVectors(up, Tn[j]); if (Bn[j].lengthSq() < 1e-6) Bn[j].set(1, 0, 0); Bn[j].normalize(); Nn[j].crossVectors(Tn[j], Bn[j]).normalize(); } };
-    frames();
-    /* swim like a snake: a side-to-side wave running from the neck back to the tail (the head stays on its line), a softer up-down one */
-    for (let j = 1; j <= NR; j++) { const u = j / NR, A = SC * Math.min(1, j / 10) * (.55 - .2 * u), ph = T * 7 - j * .32; cen[j].addScaledVector(Bn[j], Math.sin(ph) * A).addScaledVector(Nn[j], Math.sin(ph * .5 + 1) * A * .35); }
-    frames();
-    for (let j = 0; j <= NR; j++) { const r = SC * ksdR(j / NR) * (1 + .04 * Math.sin(T * 8 - j)); for (let a = 0; a <= NA; a++) { const th = a / NA * Math.PI * 2, c = Math.cos(th), sn = Math.sin(th), q = (j * (NA + 1) + a) * 3;
+  body.onBeforeRender = () => { const F = KSD.fly; if (!F) return; const now = performance.now(), k = Math.min(1, (now - F.t0) / F.dur), T = now / 1000, SC = F.sc, dH = k * F.tot;
+    // every ring sits on the head's own route, F.blen metres apart in total: water flowing through a pipe
+    for (let j = 0; j <= NR; j++) F.at(dH - F.blen * j / NR, cen[j]);
+    for (let j = 0; j <= NR; j++) { const a = cen[Math.max(0, j - 1)], b = cen[Math.min(NR, j + 1)]; Tn[j].subVectors(a, b); if (Tn[j].lengthSq() < 1e-8) Tn[j].set(0, 0, 1); Tn[j].normalize();
+      Bn[j].crossVectors(up, Tn[j]); if (Bn[j].lengthSq() < 1e-6) Bn[j].set(1, 0, 0); Bn[j].normalize(); Nn[j].crossVectors(Tn[j], Bn[j]).normalize(); }
+    for (let j = 0; j <= NR; j++) { const r = SC * ksdR(j / NR) * (1 + .03 * Math.sin(T * 6 - j * .4)); for (let a = 0; a <= NA; a++) { const th = a / NA * Math.PI * 2, c = Math.cos(th), sn = Math.sin(th), q = (j * (NA + 1) + a) * 3;
         P[q] = cen[j].x + (Nn[j].x * c + Bn[j].x * sn) * r; P[q + 1] = cen[j].y + (Nn[j].y * c + Bn[j].y * sn) * r; P[q + 2] = cen[j].z + (Nn[j].z * c + Bn[j].z * sn) * r; } }
     bg.attributes.position.needsUpdate = true; bg.computeVertexNormals();
-    const h0 = cen[0]; head.position.copy(h0).addScaledVector(Tn[0], .22 * SC); orient(head, 0); head.scale.setScalar(sH <= 0 || sH > 1.02 ? .0001 : 1.08 * SC); jaw.rotation.x = .35 + .2 * Math.sin(T * 7);
-    spines.forEach(c => { const j = c.userData.j, r = SC * ksdR(j / NR); c.position.copy(cen[j]).addScaledVector(Nn[j], r + .12); c.quaternion.setFromUnitVectors(up, new V().copy(Nn[j]).multiplyScalar(.6).addScaledVector(Tn[j], -.8).normalize()); c.scale.set((.5 + r) * SC, (.5 + r * 1.2) * SC * (1 + .15 * Math.sin(T * 10 - j)), .35 * SC); });
+    head.position.copy(cen[0]).addScaledVector(Tn[0], .22 * SC); orient(head, 0); head.scale.setScalar(dH <= 0 || dH > F.L + .4 ? .0001 : 1.08 * SC); jaw.rotation.x = .35 + .2 * Math.sin(T * 7);
+    spines.forEach(c => { const j = c.userData.j, r = SC * ksdR(j / NR); c.position.copy(cen[j]).addScaledVector(Nn[j], r + .12 * SC); c.quaternion.setFromUnitVectors(up, tv.copy(Nn[j]).multiplyScalar(.6).addScaledVector(Tn[j], -.8).normalize()); c.scale.set((.5 + r) * SC, (.5 + r * 1.2) * SC * (1 + .15 * Math.sin(T * 10 - j)), .35 * SC); });
     legs.forEach((L, i) => { const { j, sd } = L.userData, r = SC * ksdR(j / NR); L.position.copy(cen[j]).addScaledVector(Bn[j], sd * r * .85).addScaledVector(Nn[j], -r * .35); orient(L, j); L.rotateZ(sd * .5); L.rotateX(.5 * Math.sin(T * 9 + i * 1.6)); L.scale.setScalar(1.05 * SC); });
     flames.forEach((f, i) => { const w = 1 + .3 * Math.sin(T * 22 + i * 1.7); f.scale.set(w, 1 + .45 * Math.sin(T * 17 + i), w); });
-    if (sH > .05 && sH < 1 && performance.now() - (KSD.cl || 0) > 110 * SKX.ts) { KSD.cl = performance.now(); const j = 6 + Math.floor(Math.random() * (NR - 10)), c = cen[j];
-      skP(skGeo().ico, 0xf2f5fa, c.x + (Math.random() - .5) * .6, c.y + (Math.random() - .3) * .5, c.z + (Math.random() - .5) * .6, .9, (k, m) => { m.scale.setScalar(.25 + k * .8); m.material.opacity = .45 * (1 - k); }, .45); }
+    if (dH > 1 && dH < F.L && now - (KSD.cl || 0) > 110 * SKX.ts) { KSD.cl = now; const c = cen[6 + Math.floor(Math.random() * (NR - 10))];
+      skP(skGeo().ico, 0xf2f5fa, c.x + (Math.random() - .5) * .6, c.y + (Math.random() - .3) * .5, c.z + (Math.random() - .5) * .6, .9, (kk, m) => { m.scale.setScalar(.25 + kk * .8); m.material.opacity = .45 * (1 - kk); }, .45); }
     tuft.position.copy(cen[NR]); orient(tuft, NR); tuft.rotateY(.3 * Math.sin(T * 5)); tuft.scale.setScalar(1.2 * SC); };
-  bg.setDrawRange(0, 0); setTimeout(() => { try { bg.setDrawRange(0, Infinity); } catch (e) { } }, 30);
-  setTimeout(() => { for (const o of all) { try { scene.remove(o); o.traverse(c => { if (c.geometry) c.geometry.dispose(); }); } catch (e) { } } for (const m of mats) try { m.dispose(); } catch (e) { } }, dur + 80); }
+  KSD.M = { root, bg }; return KSD.M; }
+function dragonFly(path, life, gy, o) { o = o || {}; const M = ksdBuild(), SC = o.sc || 1, blen = (o.blen || 9) * SC, N = 480, pts = [], D = [0];
+  for (let i = 0; i <= N; i++) { const q = path(i / N); pts.push(q); if (i) D.push(D[i - 1] + Math.hypot(q[0] - pts[i - 1][0], q[1] - pts[i - 1][1], q[2] - pts[i - 1][2])); }
+  const L = D[N], tot = L + blen + .6;
+  /* the point d metres along the route; before the start / after the end the body goes straight down into the ground */
+  const at = (d, v) => { if (d <= 0) { const q = pts[0]; return v.set(q[0], q[1] + d, q[2]); } if (d >= L) { const q = pts[N]; return v.set(q[0], q[1] - (d - L), q[2]); }
+    let lo = 0, hi = N; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (D[m] < d) lo = m; else hi = m; } const f = (d - D[lo]) / Math.max(1e-6, D[hi] - D[lo]), a = pts[lo], b = pts[hi];
+    return v.set(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f); };
+  const F = { t0: performance.now(), dur: life * 1000 * SKX.ts, sc: SC, blen, L, tot, at }; KSD.fly = F; M.bg.setDrawRange(0, Infinity); scene.add(M.root);
+  setTimeout(() => { if (KSD.fly === F) { KSD.fly = null; try { scene.remove(M.root); } catch (e) { } } }, F.dur + 60);
+  return { hit: L / tot }; }
+/* build + compile the dragon once, a few seconds after start, so the first 神龙破山 does not stutter */
+setTimeout(() => { try { if (typeof renderer === 'undefined' || typeof scene === 'undefined' || typeof camera === 'undefined' || !renderer.compile) return; const M = ksdBuild();
+  M.root.position.set(0, -400, 0); scene.add(M.root); renderer.compile(scene, camera); scene.remove(M.root); M.root.position.set(0, 0, 0); } catch (e) { } }, 4000);
 SKT.kaishan = { snd() { my3N(1.4, .1, 160, { type: 'lowpass' }); my3T(55, 40, 1.2, .14, 'sawtooth');
     skL(300, () => { my3T(180, 90, .9, .1, 'sawtooth', { vib: 12, vibD: 20 }); my3T(260, 120, .8, .06, 'square', { delay: .05 }); }); },
   spot(C, x, z, s) { ksSpike(x, z, C.gy, 1.2 * s, .8); },
@@ -24232,14 +24235,16 @@ SKT.kaishan = { snd() { my3N(1.4, .1, 160, { type: 'lowpass' }); my3T(55, 40, 1.
     for (let b = 0; b < 10; b++) { const a = b / 10 * 6.283; skP(G.box, 0xffd060, px + Math.cos(a) * 1.8, gy + .04, pz + Math.sin(a) * 1.8, 1.2, (k, m) => { m.rotation.set(0, -a + Math.PI / 2, 0); m.scale.set(.09, .02, 3.6 * Math.min(1, k * 5)); m.material.opacity = k < .6 ? 1 : (1 - k) / .4; }); }
     // the earth dragon: emerges at A, circles you climbing, dives into B
     const a0 = Math.atan2(Az - pz, Ax - px), TURN = Math.PI * 2 * 3;
-    const path = s => { if (s < .08) { const k = s / .08; return [Ax, gy - 1 + k * 3, Az]; }
-      if (s < .86) { const k = (s - .08) / .78, a = a0 + k * TURN, r = 3.4 + Math.sin(k * Math.PI * 3) * .5 - k * .5; return [px + Math.cos(a) * r, gy + 2 + k * 3.6 + Math.sin(k * Math.PI * 6) * .45, pz + Math.sin(a) * r]; }
-      const k = (s - .86) / .14, sx = px + Math.cos(a0) * 2.9, sz = pz + Math.sin(a0) * 2.9, e = k * k; return [sx + (Bx - sx) * k, gy + 5.6 - e * 6.8, sz + (Bz - sz) * k]; };
-    const life = 3.4; dragonFly(path, life, gy);
-    for (let i = 0; i < 16; i++) skL(120 + i * 190, () => { const s = Math.min(1, ((i * 190 + 120) / (life * 1000)) * KSD.SPD), [x, y, z] = path(Math.max(0, s - .05)); skThrow(G.oct, i % 3 ? 0xf4f6fa : 0xffa040, x, Math.max(gy, y), z, (Math.random() - .5) * 1.5, .5, (Math.random() - .5) * 1.5, .8, 1, 3, 6); });
+    /* the route of the head: rise out of the ground, three climbing loops round you weaving in S-curves like a swimming snake,
+       then dive into the ground in front; the body just follows this route */
+    const path = s => { if (s < .06) { const k = s / .06; return [Ax, gy - 1 + k * 3, Az]; }
+      if (s < .88) { const k = (s - .06) / .82, a = a0 + k * TURN, w = Math.sin(k * Math.PI * 16) * Math.min(1, k * 8) * Math.min(1, (1 - k) * 8), r = 3.6 + w * .7 - k * .6; return [px + Math.cos(a) * r, gy + 2 + k * 3.4 + Math.sin(k * Math.PI * 7) * .5, pz + Math.sin(a) * r]; }
+      const k = (s - .88) / .12, sx = px + Math.cos(a0) * 3, sz = pz + Math.sin(a0) * 3, e = k * k; return [sx + (Bx - sx) * k, gy + 5.4 - e * 6.6, sz + (Bz - sz) * k]; };
+    const life = 3.6, DF = dragonFly(path, life, gy);
+    for (let i = 0; i < 16; i++) skL(120 + i * 190, () => { const s = Math.min(1, ((i * 190 + 120) / (life * 1000)) / DF.hit), [x, y, z] = path(Math.max(0, s - .03)); skThrow(G.oct, i % 3 ? 0xf4f6fa : 0xffa040, x, Math.max(gy, y), z, (Math.random() - .5) * 1.5, .5, (Math.random() - .5) * 1.5, .8, 1, 3, 6); });
     skL(80, () => { for (let i = 0; i < 6; i++) skThrow(G.ico, 0x8a7a6a, Ax, gy + .2, Az, (Math.random() - .5) * 5, 4 + Math.random() * 3, (Math.random() - .5) * 5, 1, 1.6, 12, 6); skRing(Ax, gy + .08, Az, .3, 2.6, .5, 0xa89a88, .7); });
     // the dive: a ring of mountain peaks shoots up, holds, crumbles
-    skL(life * 1000 / KSD.SPD, () => { ksSeal(Bx, gy + .06, Bz, 2.4, 1.2);
+    skL(life * 1000 * DF.hit, () => { ksSeal(Bx, gy + .06, Bz, 2.4, 1.2);
       for (let i = 0; i < 11; i++) { const a = i / 11 * 6.283 + Math.random() * .2, r = 2.2 + (i % 2) * 1.6, x = Bx + Math.cos(a) * r, z = Bz + Math.sin(a) * r; skL(i * 25, () => ksSpike(x, z, gy, 2.2 + Math.random() * 1.6, 1.4)); }
       skL(30, () => ksSpike(Bx, Bz, gy, 4, 1.5));
       for (let i = 0; i < 4; i++) skL(i * 90, () => skRing(Bx, gy + .1, Bz, .5, 6 + i * 2.5, .7, i % 2 ? 0x5afff0 : 0xffd060, .8));
@@ -26084,4 +26089,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795111869').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795112366').catch(()=>{});</script></body></html>
