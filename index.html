@@ -23529,6 +23529,418 @@ function gpuGcSweep() {
 petsTick = (o => function (dt) { const r = o.apply(this, arguments);
   /* real time, not game time: a slow phone (low FPS) must not slow the collector down */
   if (GPUGC.on) try { const n = performance.now() / 1000; GPUGC.now = n; if (!GPUGC.t15) GPUGC.t15 = n; if (n - GPUGC.t15 >= 15) { GPUGC.t15 = n; gpuGcSweep(); } } catch (e) { } return r; })(petsTick);
+/* ============ PvP 竞技场 (owner 19 Nov: "联机加入 PvP 模式") ============
+   Owner's choices: all four modes (1v1 决斗, 2v2 / 3v3 团队战, 大乱斗, 大陆野外 PvP 区 — the last one is z_pvpzone.js),
+   everyone fights with their OWN gear/level/skins, no rewards (just for fun), find opponents by inviting or by 自动匹配.
+   How it works:
+   - The arena is a dungeon-engine room (DUNS[PVP_ID]); every match is its own instance (the match id), so the players
+     of one match meet at the same place and nobody else is there.
+   - Enemy players become hidden "targets" in the zombie list (mirror zombies that follow the enemy's avatar). So every
+     weapon, skill, element, attachment and mythic-skin effect that hits zombies hits players too; the damage is sent
+     to that player ('pvh') and THEIR game applies it through takeDamage (their dodge / shield / armour / defence count).
+   - Players would die in a fraction of a second (weapons are tuned against zombies), so inside the arena everyone takes
+     damage / pvpM(): pvpM grows with your level so two equal players need about 8 s. Gear and level still decide —
+     a stronger player wins faster, a weaker one lasts less.
+   - Falling in the arena is not dying: no XP / durability loss, no 'you died' screen. Ammo, medkits, life, food and
+     stamina are put back as they were when you leave (PvP costs nothing and gives nothing).
+   - The player with the smallest id in the match leads: it runs the rounds / score / ring and sends the state ('pvst');
+     if it leaves, the next one carries on from the last state.
+   - Matchmaking: queued players carry `pq` in their lobby presence; the first N in queue order form a match and the
+     earliest one sends 'pvgo'. Invites: 'pvinv' → 'pvpj' (accept) / 'pvpn' (no) → the host starts with 'pvgo'.
+   - Pets and companions wait outside (players against players). */
+const PVP_ID = 12;
+const PVP_MODES = {
+  duel: { n: '1v1 决斗', d: '三局两胜，先赢两局的人胜', size: 2, teams: 2, H: 17, first: 2 },
+  t2: { n: '2v2 团队战', d: '红蓝两队，倒下 5 秒后复活，先拿 10 个击倒的队伍胜（最多 5 分钟）', size: 4, teams: 2, H: 22, respawn: 5, goal: 10, time: 300 },
+  t3: { n: '3v3 团队战', d: '红蓝两队，倒下 5 秒后复活，先拿 15 个击倒的队伍胜（最多 5 分钟）', size: 6, teams: 2, H: 26, respawn: 5, goal: 15, time: 300 },
+  ffa: { n: '大乱斗', d: '4～8 人各自为战，场地会慢慢缩小，圈外会掉血，最后活着的人胜', min: 4, max: 8, teams: 0, H: 30, ring: true }
+};
+const PVP_ORDER = ['duel', 't2', 't3', 'ffa'];
+/* owner 19 Nov: only 1v1 is open to players for now; the other modes are built as a working prototype but hidden.
+   To open one later, add its key here (e.g. ['duel', 't2', 't3', 'ffa']). */
+const PVP_OPEN = ['duel'];
+const PVP = { q: null, qt: 0, qSince: 0, m: null, mode: null, ps: [], tm: {}, names: {}, st: null, stAt: 0, lead: false, tgt: new Map(), hq: new Map(), tH: 0,
+  party: null, inv: null, snap: null, lastBy: null, reT: 0, medT: -99, dealt: 0, shown: false, grpKey: '', grpT: 0, swT: 0, tSt: 0, ringM: null, sel: 'duel', heal: 0 };
+const pvpIn = () => !!(PVP.m && S.dun && DUN.id === PVP_ID);
+const pvpCfg = () => PVP_MODES[PVP.mode] || PVP_MODES.duel;
+/* your damage taken is divided by this inside the arena (≈ 8 s for two players of your level, see the note on top) */
+const pvpM = () => Math.max(1, 8 * (1.5 + .047 * (Math.max(1, S.level) - 1)));
+const pvpTeam = p => (PVP.tm && PVP.tm[p] != null ? PVP.tm[p] : -1);
+const pvpEnemy = p => p !== MP.me && PVP.ps.includes(p) && (pvpCfg().teams === 0 || pvpTeam(p) !== pvpTeam(MP.me));
+const pvpName = p => (p === MP.me ? (S.name || '我') : (PVP.names[p] || (MP.others.get(p) || {}).name || '玩家'));
+const pvpSend = (t, d) => { try { coopSend(t, d); } catch (e) { } };
+/* who of this match is in the arena right now (presence says so), me included */
+function pvpHere() { const L = []; if (pvpIn() && !PVP.left) L.push(MP.me);
+  for (const [p, o] of MP.others) if (o.pv && o.pv[0] === PVP.m) L.push(p); return L.filter(p => PVP.ps.includes(p)); }
+
+/* ---------- presence: queue / match / life ---------- */
+function pvpPres() { const o = {};
+  if (PVP.q && !PVP.m) o.pq = PVP.q + ':' + PVP.qt;
+  if (pvpIn()) { o.pv = [PVP.m, pvpTeam(MP.me)]; o.ph = Math.max(0, Math.round(S.hp / Math.max(1, S.maxHp) * 100)); }
+  return o; }
+mpInit = (o => async function () { const r = await o.apply(this, arguments);
+  try { const R = MP.room; if (R && R.presence && !R.__pvp) { const pr = R.presence.bind(R); R.presence = obj => pr(Object.assign(obj || {}, pvpPres())); R.__pvp = 1; } } catch (e) { }
+  return r; })(mpInit);
+syncRemote = (o => function (p) { const r = o.apply(this, arguments);
+  try { const pr = p.presence || {}, R = MP.others.get(p.peer); if (R) { R.pq = typeof pr.pq === 'string' ? pr.pq.slice(0, 30) : ''; R.pv = Array.isArray(pr.pv) ? [String(pr.pv[0] || '').slice(0, 24), pr.pv[1] | 0] : null;
+    R.ph = clamp(+pr.ph || 0, 0, 100); R.cp = +pr.cp || 0; R.u = pr.u || ''; } } catch (e) { }
+  return r; })(syncRemote);
+coopWire = (o => function (r) { o(r);
+  r.on('pvgo', pvpOnGo); r.on('pvst', pvpOnSt); r.on('pvh', pvpOnHit); r.on('pvk', pvpOnDown); r.on('pvq', pvpOnQuit); r.on('pvsw', pvpOnSwing);
+  r.on('pvinv', pvpOnInv); r.on('pvpj', pvpOnJoin); r.on('pvpn', pvpOnNo); r.on('pvpt', pvpOnParty); r.on('pvpl', pvpOnLeaveParty); })(coopWire);
+const pvpPush = () => { try { MP.lt = -99; MP.tPres = 0; } catch (e) { } };
+
+/* ---------- the arena ---------- */
+function pvpBuild() {
+  DUN.G = new THREE.Group(); DUN.G.position.set(DUN.x, 0, DUN.z); scene.add(DUN.G);
+  const H = pvpCfg().H, g = DUN.G, L = (c, o) => new THREE.MeshLambertMaterial(Object.assign({ color: c }, o || {})), Bm = (c, o) => new THREE.MeshBasicMaterial(Object.assign({ color: c }, o || {}));
+  const sand = L(0xc8a878), sand2 = L(0xb8966a), seam = L(0x8a6e4c), wall = L(0x8a7058), wallD = L(0x6a5440), cap = L(0xd8c098), gold = L(0xd0a040, { emissive: 0x3a2800 }),
+    red = L(0xc0383a), blue = L(0x3a6ad0), redG = Bm(0xff5a4a, { transparent: true, opacity: .55 }), blueG = Bm(0x5a9aff, { transparent: true, opacity: .55 }), crate = L(0x8a6238), crateD = L(0x5e4024), stone = L(0x9a8e80);
+  const b = (w, h, d, m, x, y, z, ry) => { const o2 = box(w, h, d, m, x, y, z, g); if (ry) o2.rotation.y = ry; return o2; };
+  // ground outside, the sand floor in big tiles with darker seams
+  const out = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), L(0x7a8a5a)); out.rotation.x = -Math.PI / 2; out.position.y = -.05; g.add(out);
+  for (let x = -H; x < H; x += 4) for (let z = -H; z < H; z += 4) b(3.94, .1, 3.94, ((x + z) / 4) % 2 ? sand : sand2, x + 2, 0, z + 2);
+  for (let x = -H; x <= H; x += 4) b(.06, .11, H * 2, seam, x, 0, 0); for (let z = -H; z <= H; z += 4) b(H * 2, .11, .06, seam, 0, 0, z);
+  // the centre ring and the team halves
+  const ring = new THREE.Mesh(new THREE.RingGeometry(3.6, 4, 40), Bm(0xe0b050, { transparent: true, opacity: .7 })); ring.rotation.x = -Math.PI / 2; ring.position.y = .07; g.add(ring);
+  // the wall round it: a stone wall with a capping, buttresses, gold bands; it fades when it stands between you and the camera
+  const WH = 3.2;
+  /* the camera looks from the +z side: that wall is low (1.2 m, still a wall for walking and bullets) so it never hides the fight */
+  dSolid(-H - .8, -H - .8, H + .8, -H, WH, wall, true); dSolid(-H - .8, H, H + .8, H + .8, 1.2, wall, true); b(H * 2 + 1.7, .16, 1, cap, 0, 1.28, H + .4);
+  dSolid(-H - .8, -H, -H, H, WH, wall, true); dSolid(H, -H, H + .8, H, WH, wall, true);
+  for (let i = -H; i <= H; i += 4) { b(.9, WH + .5, .9, wallD, i, (WH + .5) / 2, -(H + .4)); b(1.1, .18, 1.1, cap, i, WH + .55, -(H + .4)); for (const s of [-1, 1]) { b(.9, WH + .5, .9, wallD, s * (H + .4), (WH + .5) / 2, i); b(1.1, .18, 1.1, cap, s * (H + .4), WH + .55, i); } }
+  b(H * 2 + 1.6, .14, .1, gold, 0, WH - .3, -(H - .02)); for (const s of [-1, 1]) b(.1, .14, H * 2 + 1.6, gold, s * (H - .02), WH - .3, 0);
+  // team colours: banners on the two end walls and the spawn pads (no teams in 大乱斗: gold banners all round)
+  const teams = pvpCfg().teams;
+  for (let k = -1; k <= 1; k++) { b(1.4, 2.2, .06, teams ? blue : gold, k * H * .5, 1.9, -(H - .1)); b(1.6, .12, .12, wallD, k * H * .5, 3.05, -(H - .14)); }
+  /* the red half's banners hang on the side walls (its own end wall is the low one) */
+  for (const sx of [-1, 1]) for (const z of [H * .45, H * .75]) { b(.06, 2.2, 1.4, teams ? red : gold, sx * (H - .1), 1.9, z); b(.12, .12, 1.6, wallD, sx * (H - .14), 3.05, z); }
+  if (teams) for (const s of [-1, 1]) { const pad = new THREE.Mesh(new THREE.CircleGeometry(4.2, 32), s > 0 ? redG : blueG); pad.rotation.x = -Math.PI / 2; pad.position.set(0, .08, s * (H - 3.2)); g.add(pad); }
+  // cover: the same on both halves (fair), stone pillars, crate stacks and low walls; bullets stop at them
+  const pill = (x, z) => { b(1.6, 3, 1.6, stone, x, 1.5, z); b(2, .3, 2, cap, x, 3.1, z); DUN.obs.push(addBox(dX(x), dZ(z), .8, .8)); };
+  const crates = (x, z) => { b(1.3, 1.3, 1.3, crate, x, .65, z); b(1.34, .1, 1.34, crateD, x, 1.0, z); b(1.3, 1.3, 1.3, crate, x + 1.35, .65, z + .2, .3); b(1, 1, 1, crate, x + .6, 1.8, z + .1, .5); DUN.obs.push(addBox(dX(x + .7), dZ(z + .1), 1.4, .8)); };
+  const lowWall = (x, z, w, rot) => { const o2 = b(w, 1.2, .7, wall, x, .6, z); b(w + .1, .12, .8, cap, x, 1.25, z); if (rot) { o2.rotation.y = Math.PI / 2; } DUN.obs.push(rot ? addBox(dX(x), dZ(z), .35, w / 2) : addBox(dX(x), dZ(z), w / 2, .35)); };
+  pill(0, 0);
+  for (const s of [-1, 1]) { lowWall(0, s * H * .42, 6); pill(s * H * .55, 0); crates(-H * .5, s * H * .25); crates(H * .42, s * H * .25); lowWall(s * H * .7, s * H * .62, 4, true); }
+  if (H >= 26) for (const sx of [-1, 1]) for (const sz of [-1, 1]) pill(sx * H * .3, sz * H * .7);
+  // braziers on the corners, lights over the floor
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const x = sx * (H - 1.4), z = sz * (H - 1.4); b(.8, 1.2, .8, wallD, x, .6, z); const f = new THREE.Mesh(new THREE.ConeGeometry(.35, .9, 6), Bm(0xffa040)); f.position.set(x, 1.65, z); g.add(f); DUN.obs.push(addBox(dX(x), dZ(z), .45, .45)); dAnchor(x * .7, z * .7); }
+  // the shrinking circle of 大乱斗: a glowing wall of light at the ring's edge
+  if (pvpCfg().ring) { const rm = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 6, 64, 1, true), Bm(0x8a5aff, { transparent: true, opacity: .28, side: THREE.DoubleSide, depthWrite: false, fog: false }));
+    rm.position.y = 3; rm.scale.set(H * 1.4, 1, H * 1.4); g.add(rm); PVP.ringM = rm; }
+  dRoom('arena', '', -H - 1, -H - 1, H + 1, H + 1);
+  for (let i = 0; i < 3; i++) { const Lt = new THREE.PointLight(0xffe6c0, .7, 30, 1.4); Lt.position.set(DUN.x, 4, DUN.z); scene.add(Lt); DUN.lights.push(Lt); }
+}
+function pvpSpawnAt(p) { const C = pvpCfg(), H = C.H, list = PVP.ps.slice();
+  if (C.teams) { const t = pvpTeam(p), mates = list.filter(q => pvpTeam(q) === t), i = Math.max(0, mates.indexOf(p)), n = mates.length, s = t === 0 ? 1 : -1;
+    return { x: (i - (n - 1) / 2) * 3, z: s * (H - 3.2), f: s > 0 ? Math.PI : 0 }; }
+  const i = Math.max(0, list.indexOf(p)), a = i / Math.max(1, list.length) * Math.PI * 2, r = H - 4; return { x: Math.cos(a) * r, z: Math.sin(a) * r, f: Math.atan2(-Math.cos(a), -Math.sin(a)) }; }
+function pvpPlace() { const P = pvpSpawnAt(MP.me); player.pos.set(dX(P.x), 0, dZ(P.z)); player.face = P.f; try { camPos.set(player.pos.x, camH, player.pos.z + camD); } catch (e) { } }
+DUNS[PVP_ID] = { nm: '竞技场', sh: '竞技场', boss: '', cls: '', txt: () => ({ intro: [] }), lv: [1, 99], build: pvpBuild, setup: () => { DUN.st = { stage: 0, done: false }; },
+  start: () => { pvpPlace(); try { for (const L of DUN.lights) L.color.setHex(0xffe6c0); } catch (e) { } try { dunEnv(); } catch (e) { } pvpPush(); pvpHud(); },
+  lift: '<b>进入竞技场</b><span>PvP</span>', tips: ['用你自己的武器、装备和技能。', '左下角「回岛」= 认输离开。'] };
+dunEnv = (o => function () { if (S.dun && DUN.id === PVP_ID) { try { scene.fog.color.setHex(0xcfe0ea); scene.fog.near = 60; scene.fog.far = 160; hemiLight.color.setHex(0xfff6e8); if (hemiLight.groundColor) hemiLight.groundColor.setHex(0x6a5a40);
+  hemiLight.intensity = 1.15; sunLight.intensity = .9; fillLight.intensity = .35; const sd = scene.getObjectByName('skydome'); if (sd) sd.visible = true; const sn = scene.getObjectByName('sun'); if (sn) sn.visible = true;
+  renderer.setClearColor(0x9ec8e0); groundMesh.visible = false; mountains.visible = false; embers.p.visible = false; torch.intensity = 0; torchPool.visible = false; starMat.opacity = 0; } catch (e) { } return; } return o(); })(dunEnv);
+dunTrk = (o => function () { if (S.dun && DUN.id === PVP_ID) { const e = $('dunObj'); if (e) e.style.display = 'none'; return; } return o(); })(dunTrk);
+try { dunGuide = (o => function () { if (S.dun && DUN.id === PVP_ID) return; return o.apply(this, arguments); })(dunGuide); } catch (e) { }
+/* the dungeon story sync has nothing to share here (and broke the rest of the per-frame dungeon work: lights, fading walls) */
+dunSync = (o => function () { if (S.dun && DUN.id === PVP_ID) return; return o.apply(this, arguments); })(dunSync);
+dunEnter = (o => function () { const me = DUN.id === PVP_ID; o(); if (me && S.dun) { try { DSNAP = null; } catch (e) { } } })(dunEnter);
+
+/* ---------- going in / coming out ---------- */
+function pvpOnGo(m) { const d = m && m.data; if (!d || !Array.isArray(d.ps) || !PVP_MODES[d.mode]) return; const ps = d.ps.map(String).slice(0, 8);
+  if (!ps.includes(MP.me) || PVP.m) return;
+  const mine = (PVP.q === d.mode) || (PVP.party && PVP.party.pid === d.pid);
+  if (!mine) return; pvpGo(String(d.m).slice(0, 24), d.mode, ps, d.tm || {}, d.nm || {}); }
+function pvpGo(mid, mode, ps, tm, nm) {
+  if (S.dun || S.dead || (typeof ABY !== 'undefined' && ABY.on)) { feed('现在不能进竞技场（在副本里或者倒下了）', '#ff9b8a'); return; }
+  PVP.q = null; PVP.m = mid; PVP.mode = mode; PVP.ps = ps; PVP.tm = {}; for (const p of ps) PVP.tm[p] = tm[p] != null ? tm[p] | 0 : -1;
+  PVP.names = Object.assign({}, nm); PVP.st = null; PVP.stAt = 0; PVP.shown = false; PVP.left = false; PVP.dealt = 0; PVP.reT = 0; PVP.lastBy = null; PVP.party = null;
+  PVP.snap = { hp: S.hp, food: S.food, sta: S.sta, med: S.med | 0, reserve: S.reserve | 0, mag: S.mag | 0, wp: S.wp };
+  PVP.goT = Date.now(); closePvpPage(); DUN.id = PVP_ID; DSEP.next = mid; DSEP.nextT = Date.now();
+  dunTravel('进入竞技场', PVP_MODES[mode].n, dunEnter); }
+dunCleanup = (o => function () { const was = DUN.on && DUN.id === PVP_ID; o(); if (!was) return;
+  for (const [, z] of PVP.tgt) pvpDropTgt(z); PVP.tgt.clear(); PVP.ringM = null;
+  if (PVP.m && !PVP.done) pvpSend('pvq', { m: PVP.m });
+  const s = PVP.snap; PVP.snap = null; if (s) { S.dead = false; try { pm.g.rotation.x = 0; pm.g.position.y = 0; } catch (e) { } S.hp = Math.min(S.maxHp, s.hp); S.food = s.food; S.sta = s.sta; S.med = s.med; S.reserve = s.reserve; S.mag = s.mag; }
+  PVP.m = null; PVP.st = null; PVP.done = false; pvpHud(); const r = $('pvpRes'); if (r) r.remove(); const dn = $('pvpDown'); if (dn) dn.classList.remove('on'); try { refreshHud(); } catch (e) { } })(dunCleanup);
+function pvpLeave() { if (!S.dun || DUN.id !== PVP_ID) return; dunTravel('离开竞技场', '回到海岛', () => goIsland(true)); }
+
+/* ---------- enemies as targets ---------- */
+function pvpMakeTgt(p, o) { let z = null; try { z = spawnZombie('walker', o.g.position.x, o.g.position.z, false, 1); } catch (e) { return null; }
+  if (!z) return null; z.mirror = true; z.pvp = p; z.nid = 'pv' + p; z.g.visible = false; z.boss = false; z.elite = false; z.buff = null; z.tough = true; z.r = .55; z.sc = 1; z.max = 100; z.hp = Math.max(1, o.ph || 100); z.lv = o.lv || 1; z.aggro = 0;
+  return z; }
+function pvpDropTgt(z) { try { const i = zombies.indexOf(z); if (i >= 0) zombies.splice(i, 1); scene.remove(z.g); z.removed = true; } catch (e) { } }
+function pvpTargets() { const fight = pvpIn() && PVP.st && PVP.st.ph === 'fight', want = new Set();
+  if (fight) for (const p of PVP.ps) { if (!pvpEnemy(p)) continue; const o = MP.others.get(p); if (!o || !o.pv || o.pv[0] !== PVP.m || o.dead) continue; want.add(p);
+    let z = PVP.tgt.get(p); if (!z || z.removed) { z = pvpMakeTgt(p, o); if (!z) continue; PVP.tgt.set(p, z); }
+    z.hp = Math.max(1, o.ph || 1); z.lv = o.lv || 1; z.dead = false; }
+  for (const [p, z] of PVP.tgt) if (!want.has(p)) { pvpDropTgt(z); PVP.tgt.delete(p); } }
+mirrorUpdate = (o => function (z, dt) { if (!z || !z.pvp) return o(z, dt); const R = MP.others.get(z.pvp); if (!R) return;
+  z.pos.x = R.g.position.x; z.pos.z = R.g.position.z; z.face = R.g.rotation.y; z.g.rotation.y = z.face; })(mirrorUpdate);
+coopHit = (o => function (z, dmg) { if (!z || !z.pvp) return o(z, dmg); if (!(PVP.st && PVP.st.ph === 'fight')) return;
+  PVP.hq.set(z.pvp, (PVP.hq.get(z.pvp) || 0) + dmg); z.hitT = S.t; PVP.dealt += dmg / Math.max(1, pvpMOf(z.lv)); })(coopHit);
+/* what share of an enemy's life a hit took (for the damage line of the result screen) */
+const pvpMOf = lv => Math.max(1, 8 * (1.5 + .047 * (Math.max(1, lv) - 1)));
+lvGapMul = (o => function (z) { if (z && z.pvp) return 1; return o(z); })(lvGapMul);
+try { coopElect = (o => function (dt) { if (S.dun && DUN.id === PVP_ID) { COOP.host = null; COOP.follow = null; return; } return o(dt); })(coopElect); } catch (e) { }
+try { onSnap = (o => function (m) { if (S.dun && DUN.id === PVP_ID) return; return o(m); })(onSnap); } catch (e) { }
+
+/* ---------- hits, falling, getting up ---------- */
+function pvpFlushHits(dt) { PVP.tH -= dt; if (PVP.tH > 0 || !PVP.hq.size) return; PVP.tH = .12;
+  pvpSend('pvh', { m: PVP.m, h: [...PVP.hq].slice(0, 8).map(([p, d]) => [p, Math.round(d)]) }); PVP.hq.clear(); }
+function pvpOnHit(m) { const d = m && m.data; if (!d || d.m !== PVP.m || !pvpIn() || S.dead || !Array.isArray(d.h)) return;
+  if (!(PVP.st && PVP.st.ph === 'fight') || !pvpEnemy(m.peer)) return;
+  let n = 0; for (const e of d.h) if (Array.isArray(e) && e[0] === MP.me) n += clamp(+e[1] || 0, 0, 5e6);
+  if (!n) return; PVP.lastBy = m.peer; takeDamage(n / pvpM(), { pvp: m.peer }); pvpPush(); }
+playerDie = (o => function () { if (!pvpIn()) return o.apply(this, arguments); pvpDown(PVP.lastBy); })(playerDie);
+function pvpDown(by) { if (S.dead) return; S.dead = true; S.hp = 0; input.fire = false; S.sprint = false; try { pm.g.rotation.x = -1.4; pm.g.position.y = .3; } catch (e) { }
+  S.shake = Math.max(S.shake, .4); pvpPush(); const C = pvpCfg();
+  if (C.respawn) PVP.reT = C.respawn; else PVP.reT = 0;
+  const dn = $('pvpDown'); if (dn) { dn.querySelector('b').textContent = '你倒下了'; dn.querySelector('span').textContent = by ? '被 ' + pvpName(by) + ' 击倒' : '被圈外的风暴击倒'; dn.classList.add('on'); dn.classList.toggle('out', PVP.mode === 'ffa'); }
+  pvpSend('pvk', { m: PVP.m, by: by || '' }); pvpOnDown({ peer: MP.me, isMe: true, data: { m: PVP.m, by: by || '' } }); }
+function pvpUp() { S.dead = false; S.hp = S.maxHp; S.sta = S.maxSta; S.exhausted = false; S.invT = 2; try { pm.g.rotation.x = 0; pm.g.position.y = 0; } catch (e) { }
+  pvpPlace(); PVP.lastBy = null; const dn = $('pvpDown'); if (dn) dn.classList.remove('on'); pvpPush(); try { refreshHud(); } catch (e) { } }
+/* no wear, no lost durability in the arena; a medkit at most every 10 s */
+try { gearWear = (o => function () { if (pvpIn()) return; return o.apply(this, arguments); })(gearWear); } catch (e) { }
+useMed = (o => function () { if (pvpIn()) { if (S.t - PVP.medT < 10) { feed('竞技场里医疗包每 10 秒只能用一次', '#ff9b8a'); return; } const h0 = S.hp, r = o.apply(this, arguments); if (S.hp > h0) PVP.medT = S.t; return r; } return o.apply(this, arguments); })(useMed);
+/* life stolen by hits is measured against zombie-sized damage: in the arena it is scaled like the damage you take */
+const pvpHealCap = f => function () { if (!pvpIn() || PVP.heal) return f.apply(this, arguments); PVP.heal = 1; const h0 = S.hp; try { return f.apply(this, arguments); } finally { PVP.heal = 0; if (S.hp > h0) S.hp = h0 + (S.hp - h0) / pvpM(); } };
+swingLand = pvpHealCap(swingLand); shoot = pvpHealCap(shoot); traitHit = pvpHealCap(traitHit);
+/* pets and companions wait outside */
+try { compsTick = (o => function (dt) { if (S.dun && DUN.id === PVP_ID) { try { for (const [id] of COMPS) compDespawn(id); } catch (e) { } return; } return o(dt); })(compsTick); } catch (e) { }
+try { petSpawn = (o => function (p) { if (S.dun && DUN.id === PVP_ID) return { pos: new THREE.Vector3(), p, fake: 1 }; return o(p); })(petSpawn);
+  petUpdate = (o => function (P, dt) { if (P && P.fake) { if (!(S.dun && DUN.id === PVP_ID)) { try { PETS.delete(P.p.id); } catch (e) { } } return; } if (S.dun && DUN.id === PVP_ID) { try { petDespawn(P.p.id); } catch (e) { } return; } return o(P, dt); })(petUpdate); } catch (e) { }
+/* your swings show on your figure in the others' games */
+swing = (o => function () { const r = o.apply(this, arguments); if (pvpIn() && S.t - PVP.swT > .2) { PVP.swT = S.t; pvpSend('pvsw', { m: PVP.m }); } return r; })(swing);
+function pvpOnSwing(m) { if (!m || !m.data || m.data.m !== PVP.m) return; const o = MP.others.get(m.peer); if (o) o.swT = .35; }
+remotesTick = (o => function (dt) { const r = o(dt); try { pvpRemoteLooks(dt); } catch (e) { } return r; })(remotesTick);
+function pvpRemoteLooks(dt) { const on = pvpIn();
+  for (const [p, o] of MP.others) { const mine = on && o.pv && o.pv[0] === PVP.m && PVP.ps.includes(p);
+    if (o.swT > 0) { o.swT -= dt; const k = 1 - Math.max(0, o.swT) / .35; o.h.armR.rotation.x = -2.6 + k * 2.4; if (o.swT <= 0) o.h.armR.rotation.x = -1.35; }
+    if (mine && !o.pvBar) { const holder = { g: o.g }; addHpBar(holder, 3.25); o.pvBar = holder; const en = pvpEnemy(p); holder.hpFg.material = new THREE.SpriteMaterial({ map: hpTex, color: en ? 0xff4a3a : 0x4aa8ff, transparent: true, depthWrite: false, depthTest: false });
+      o.pvTeam = en; try { if (o.lab) o.g.remove(o.lab); o.lab = labelSprite((en ? '敌 · ' : '友 · ') + o.name, en ? '#ff8a7a' : '#8ac8ff', 1); o.lab.position.set(0, 3.7, 0); o.g.add(o.lab); } catch (e) { } }
+    if (!mine && o.pvBar) { o.g.remove(o.pvBar.hpFg); o.g.remove(o.pvBar.hpBg); o.pvBar = null; try { setRemoteLabel(o); } catch (e) { } }
+    if (o.pvBar) { const k = clamp((o.ph || 0) / 100, 0, 1), w = Math.max(.002, k); o.pvBar.hpFg.scale.x = w; if (o.pvBar.hpFg.center && o.pvBar.hpFg.center.set) o.pvBar.hpFg.center.set(.5 / w, .5); o.pvBar.hpFg.visible = o.pvBar.hpBg.visible = !o.dead; } } }
+
+/* ---------- the leader: rounds, score, ring ---------- */
+function pvpNewState() { const C = pvpCfg(), st = { v: 1, ph: 'wait', r: 1, t: 20, sc: [0, 0], k: {}, dn: {}, al: PVP.ps.slice(), ring: C.H * 1.4, fT: 0, win: null, why: '' };
+  for (const p of PVP.ps) { st.k[p] = 0; st.dn[p] = 0; } return st; }
+function pvpLeadTick(dt) { const here = pvpHere(); if (!here.length) return; PVP.lead = here.slice().sort()[0] === MP.me; if (!PVP.lead) return;
+  let st = PVP.st; if (!st) { st = PVP.st = pvpNewState(); PVP.stAt = S.t; }
+  const C = pvpCfg(), was = st.ph + st.r; st.t -= dt;
+  // anyone gone for good (left the arena / the game) loses: their team may lose the whole match
+  const gone = PVP.ps.filter(p => !here.includes(p));
+  if (st.ph === 'wait') { const all = PVP.ps.every(p => here.includes(p)); if (all || st.t <= 0) { if (!pvpViable(here)) pvpEnd(st, null, '对手没有进来，比赛取消'); else { st.ph = 'count'; st.t = 3.5; } } }
+  else if (st.ph === 'count') { if (st.t <= 0) { st.ph = 'fight'; st.t = C.time || 0; st.fT = 0; } }
+  else if (st.ph === 'fight') { st.fT += dt;
+    if (C.ring) { const R0 = C.H * 1.4, el = Math.max(0, st.fT - 20); st.ring = Math.max(5, R0 - el * (R0 - 5) / 140); }
+    if (C.time && st.t <= 0) { pvpEnd(st, st.sc[0] > st.sc[1] ? 0 : st.sc[1] > st.sc[0] ? 1 : null, '时间到'); }
+    if (st.ph === 'fight' && gone.length) pvpCheckGone(st, here); }
+  else if (st.ph === 'rend') { if (st.t <= 0) { if (st.sc[0] >= C.first || st.sc[1] >= C.first) pvpEnd(st, st.sc[0] >= C.first ? 0 : 1, ''); else { st.r++; st.ph = 'count'; st.t = 3.5; } } }
+  if (st.ph !== 'end' && st.ph !== 'wait' && !pvpViable(here)) pvpCheckGone(st, here);
+  if (st.ph + st.r !== was) st.v++;
+  PVP.tSt -= dt; if (PVP.tSt <= 0 || st.ph + st.r !== was) { PVP.tSt = 1; pvpSend('pvst', { m: PVP.m, st }); pvpApply(st); } }
+function pvpViable(here) { const C = pvpCfg(); if (C.teams) return [0, 1].every(t => here.some(p => pvpTeam(p) === t)); return here.length >= 2; }
+function pvpCheckGone(st, here) { const C = pvpCfg();
+  if (C.teams) { const t0 = here.some(p => pvpTeam(p) === 0), t1 = here.some(p => pvpTeam(p) === 1); if (!t0 || !t1) pvpEnd(st, t0 ? 0 : t1 ? 1 : null, '对手离开了'); }
+  else { st.al = st.al.filter(p => here.includes(p)); if (st.al.length <= 1 && st.ph === 'fight') pvpEnd(st, st.al[0] || null, st.al.length ? '其他人都离开了' : ''); } }
+function pvpEnd(st, win, why) { st.ph = 'end'; st.win = win; st.why = why || ''; st.t = 0; st.v++; }
+function pvpOnDown(m) { const d = m && m.data; if (!d || d.m !== PVP.m || !PVP.lead || !PVP.st) return; const st = PVP.st, C = pvpCfg(), who = m.peer, by = d.by && PVP.ps.includes(d.by) ? d.by : null;
+  if (st.ph !== 'fight') return; st.dn[who] = (st.dn[who] || 0) + 1; if (by && by !== who) st.k[by] = (st.k[by] || 0) + 1;
+  if (PVP.mode === 'duel') { const t = pvpTeam(who) === 0 ? 1 : 0; st.sc[t]++; st.ph = 'rend'; st.t = 3; }
+  else if (C.teams) { if (by && pvpTeam(by) !== pvpTeam(who)) st.sc[pvpTeam(by)]++; if (st.sc[0] >= C.goal || st.sc[1] >= C.goal) pvpEnd(st, st.sc[0] >= C.goal ? 0 : 1, ''); }
+  else { st.al = st.al.filter(p => p !== who); if (st.al.length <= 1) pvpEnd(st, st.al[0] || null, ''); }
+  st.v++; PVP.tSt = 0; }
+function pvpOnQuit(m) { const d = m && m.data; if (!d || d.m !== PVP.m) return; const o = MP.others.get(m.peer); if (o) o.pv = null; }
+function pvpOnSt(m) { const d = m && m.data; if (!d || d.m !== PVP.m || !d.st || !pvpIn()) return; if (PVP.lead && m.peer > MP.me) return; pvpApply(d.st); }
+/* everyone (the leader too) follows the state: a new round puts you back on your spawn with full life */
+function pvpApply(st) { const old = PVP.st, fresh = !old || old !== st; PVP.st = st; PVP.stAt = S.t;
+  if (!PVP.lastPh || PVP.lastPh !== st.ph + st.r) { const prev = PVP.lastPh; PVP.lastPh = st.ph + st.r;
+    if (st.ph === 'count') { pvpUp(); banner(PVP.mode === 'duel' ? '第 ' + st.r + ' 局' : pvpCfg().n, '准备……', 2.4); }
+    if (st.ph === 'fight') { banner('开打！', PVP.mode === 'ffa' ? '活到最后' : '', 1.4); try { sfxTone(500, 900, .25, .14, 'square'); } catch (e) { } }
+    if (st.ph === 'rend') { const myT = pvpTeam(MP.me), won = st.sc[myT] > (PVP.scSeen ? PVP.scSeen[myT] : 0); banner(won ? '这局你赢了' : '这局你输了', st.sc[myT] + ' : ' + st.sc[1 - myT], 2.6); }
+    if (st.ph === 'end') pvpResult(st);
+    PVP.scSeen = (st.sc || [0, 0]).slice(); }
+  pvpHud(); }
+
+/* ---------- every frame ---------- */
+function pvpTick(dt) {
+  pvpQueueTick(dt);
+  /* a match that never got us inside (the trip failed): forget it after a while; during the 1.3 s trip PVP.m is already set */
+  if (!pvpIn()) { if (PVP.m && !S.dun && Date.now() - (PVP.goT || 0) > 8000) { PVP.m = null; PVP.snap = null; } return; }
+  pvpLeadTick(dt); pvpTargets(); pvpFlushHits(dt);
+  const st = PVP.st, C = pvpCfg();
+  if (st && st.ph === 'count') { input.fire = false; }
+  if (S.dead && PVP.reT > 0 && st && st.ph === 'fight') { PVP.reT -= dt; const dn = $('pvpDown'); if (dn) dn.querySelector('span').textContent = Math.ceil(PVP.reT) + ' 秒后复活'; if (PVP.reT <= 0) pvpUp(); }
+  // 大乱斗: outside the ring the storm eats your life (no armour against it)
+  if (C.ring && st && st.ph === 'fight' && PVP.ringM) { const R = st.ring || C.H * 1.4, cur = PVP.ringM.scale.x; const nr = cur + (R - cur) * Math.min(1, dt * 2); PVP.ringM.scale.set(nr, 1, nr);
+    const dx = player.pos.x - DUN.x, dz = player.pos.z - DUN.z; if (!S.dead && Math.hypot(dx, dz) > nr) { S.hp -= S.maxHp * .07 * dt; S.hurt = .2; if (S.hp <= 0) { PVP.lastBy = null; pvpDown(null); } } }
+  PVP.hudT = (PVP.hudT || 0) - dt; if (PVP.hudT <= 0) { PVP.hudT = .25; pvpHud(); } }
+petsTick = (o => function (dt) { const r = o.apply(this, arguments); try { pvpTick(dt); } catch (e) { console.warn('pvp', e); } return r; })(petsTick);
+
+/* ---------- 自动匹配 ---------- */
+function pvpQueue(mode) { if (!PVP_OPEN.includes(mode)) return; if (S.dun || (typeof ABY !== 'undefined' && ABY.on)) { feed('在副本里不能匹配，先回海岛或大陆', '#ff9b8a'); return; } if (!MP.on) { feed('需要联网才能匹配', '#ff9b8a'); return; } if (PVP.party && PVP.party.mem.length > 1) { feed('你在队伍里，先离开队伍再匹配', '#ff9b8a'); return; }
+  PVP.q = mode; PVP.qt = Date.now(); PVP.qSince = S.t; pvpPush(); feed('开始匹配：' + PVP_MODES[mode].n, '#7de0ff'); renderPvpPage(); }
+function pvpUnqueue() { PVP.q = null; pvpPush(); renderPvpPage(); }
+function pvpQueued(mode) { const L = []; if (PVP.q === mode && !PVP.m) L.push([PVP.qt, MP.me]);
+  for (const [p, o] of MP.others) { if (!o.pq || o.pv || o.dead) continue; const [md, t] = o.pq.split(':'); if (md === mode) L.push([+t || 0, p]); }
+  return L.sort((a, b) => a[0] - b[0] || (a[1] < b[1] ? -1 : 1)).map(e => e[1]); }
+function pvpQueueTick(dt) { if (!PVP.q || PVP.m || !MP.on) return; const C = PVP_MODES[PVP.q], L = pvpQueued(PVP.q);
+  let n = C.size || 0; if (!n) { const waited = (Date.now() - (PVP.qt || Date.now())) / 1000; n = L.length >= C.max ? C.max : L.length >= C.min && waited > 25 ? Math.min(L.length, C.max) : 0; }
+  if (!n || L.length < n) { PVP.grpKey = ''; return; }
+  const grp = L.slice(0, n), key = grp.join(','); if (!grp.includes(MP.me)) return;
+  if (key !== PVP.grpKey) { PVP.grpKey = key; PVP.grpT = S.t; return; }
+  if (S.t - PVP.grpT < 1.5 || grp[0] !== MP.me) return;
+  // I'm first in line: make the match (teams by combat power, strongest split between the teams)
+  const tm = {}, nm = {}; if (C.teams) { const byCp = grp.slice().sort((a, b) => pvpCp(b) - pvpCp(a)); byCp.forEach((p, i) => { tm[p] = [0, 1, 1, 0][i % 4]; }); } else grp.forEach(p => { tm[p] = -1; });
+  grp.forEach(p => { nm[p] = pvpName(p); }); const mid = dsepId(), mode = PVP.q;
+  pvpSend('pvgo', { m: mid, mode, ps: grp, tm, nm }); if (!PVP.m) pvpGo(mid, mode, grp, tm, nm); }
+const pvpCp = p => (p === MP.me ? (typeof combatPower === 'function' ? combatPower() : 0) : ((MP.others.get(p) || {}).cp || 0));
+
+/* ---------- 邀请好友 / 组队 ---------- */
+function pvpInvite(peer) { if (!MP.on || !PVP_OPEN.includes(PVP.sel)) return; const mode = PVP.sel, C = PVP_MODES[mode];
+  if (!PVP.party || PVP.party.mode !== mode) PVP.party = { pid: dsepId(), mode, host: MP.me, mem: [MP.me], tm: {}, nm: {} };
+  const P = PVP.party; if (P.host !== MP.me) { feed('只有队长可以邀请', '#ff9b8a'); return; }
+  if (P.mem.length >= (C.size || C.max)) { feed('人已经满了', '#ff9b8a'); return; }
+  P.nm[MP.me] = S.name || '我'; pvpSend('pvinv', { to: peer, pid: P.pid, mode, hn: S.name || '幸存者' }); feed('已邀请 ' + pvpName(peer), '#7de0ff'); renderPvpPage(); }
+function pvpOnInv(m) { const d = m && m.data; if (!d || d.to !== MP.me || !PVP_MODES[d.mode] || !PVP_OPEN.includes(d.mode) || PVP.m) return;
+  PVP.inv = { peer: m.peer, pid: String(d.pid).slice(0, 24), mode: d.mode, hn: cleanName(d.hn) || '玩家', t: Date.now() };
+  const old = $('pvpInvM'); if (old) old.remove(); const w = document.createElement('div'); w.id = 'pvpInvM';
+  w.innerHTML = '<div class="pvinvb"><b>' + PVP.inv.hn + '</b> 邀请你：' + PVP_MODES[d.mode].n + '<small>' + PVP_MODES[d.mode].d + '</small><div class="pvinvr"><button class="sbtn ghostb pvno">拒绝</button><button class="go pvyes">接受</button></div></div>';
+  document.body.appendChild(w); try { sfx.pick(); } catch (e) { }
+  w.querySelector('.pvyes').addEventListener('click', () => { const I = PVP.inv; w.remove(); if (!I) return; PVP.q = null; PVP.party = { pid: I.pid, mode: I.mode, host: I.peer, mem: [I.peer, MP.me], tm: {}, nm: {} }; pvpSend('pvpj', { to: I.peer, pid: I.pid, n: S.name || '幸存者' }); feed('已加入 ' + I.hn + ' 的队伍，等队长开始', '#7de0ff'); });
+  w.querySelector('.pvno').addEventListener('click', () => { const I = PVP.inv; w.remove(); if (I) pvpSend('pvpn', { to: I.peer, pid: I.pid }); PVP.inv = null; });
+  setTimeout(() => { if (w.parentNode) w.remove(); }, 25000); }
+function pvpOnJoin(m) { const d = m && m.data, P = PVP.party; if (!d || d.to !== MP.me || !P || P.host !== MP.me || d.pid !== P.pid) return; const C = PVP_MODES[P.mode];
+  if (P.mem.length >= (C.size || C.max) || P.mem.includes(m.peer)) return; P.mem.push(m.peer); P.nm[m.peer] = cleanName(d.n) || pvpName(m.peer);
+  if (C.teams) { const n0 = P.mem.filter(p => P.tm[p] === 0).length, n1 = P.mem.filter(p => P.tm[p] === 1).length; P.tm[MP.me] = P.tm[MP.me] != null ? P.tm[MP.me] : 0; P.tm[m.peer] = n0 <= n1 ? 0 : 1; if (P.tm[m.peer] === 0 && n0 === 0) P.tm[m.peer] = 1; }
+  feed(P.nm[m.peer] + ' 加入了队伍', '#7de0ff'); pvpPartySync(); renderPvpPage(); }
+function pvpOnNo(m) { const d = m && m.data; if (!d || d.to !== MP.me) return; feed(pvpName(m.peer) + ' 拒绝了邀请', '#ff9b8a'); }
+function pvpPartySync() { const P = PVP.party; if (!P) return; pvpSend('pvpt', { pid: P.pid, mode: P.mode, mem: P.mem, tm: P.tm, nm: P.nm }); }
+function pvpOnParty(m) { const d = m && m.data, P = PVP.party; if (!d || !P || d.pid !== P.pid || m.peer !== P.host) return;
+  if (!Array.isArray(d.mem) || !d.mem.includes(MP.me)) { PVP.party = null; feed('你已经不在队伍里了', '#ff9b8a'); renderPvpPage(); return; }
+  P.mem = d.mem.map(String).slice(0, 8); P.tm = d.tm || {}; P.nm = d.nm || {}; renderPvpPage(); }
+function pvpOnLeaveParty(m) { const d = m && m.data, P = PVP.party; if (!d || !P || d.pid !== P.pid) return;
+  if (P.host === MP.me) { P.mem = P.mem.filter(p => p !== m.peer); delete P.tm[m.peer]; feed(pvpName(m.peer) + ' 离开了队伍', '#c1a597'); pvpPartySync(); }
+  else if (m.peer === P.host) { PVP.party = null; feed('队长解散了队伍', '#c1a597'); }
+  renderPvpPage(); }
+function pvpLeaveParty() { const P = PVP.party; if (!P) return; pvpSend('pvpl', { pid: P.pid }); PVP.party = null; renderPvpPage(); }
+function pvpPartyOk() { const P = PVP.party; if (!P || P.host !== MP.me) return ''; const C = PVP_MODES[P.mode], here = P.mem.filter(p => p === MP.me || MP.others.has(p));
+  if (C.size && here.length !== C.size) return '需要 ' + C.size + ' 人（现在 ' + here.length + ' 人）';
+  if (!C.size && here.length < 2) return '至少 2 人';
+  if (C.teams) { const a = here.filter(p => P.tm[p] === 0).length, b = here.filter(p => P.tm[p] === 1).length; if (a !== b) return '两队人数要一样（红 ' + a + ' · 蓝 ' + b + '）'; }
+  return 'ok'; }
+function pvpPartyStart() { const P = PVP.party; if (pvpPartyOk() !== 'ok') return; const here = P.mem.filter(p => p === MP.me || MP.others.has(p)), tm = {}, nm = {};
+  here.forEach(p => { tm[p] = PVP_MODES[P.mode].teams ? (P.tm[p] | 0) : -1; nm[p] = P.nm[p] || pvpName(p); }); const mid = dsepId();
+  const mode = P.mode; pvpSend('pvgo', { m: mid, mode, ps: here, tm, nm, pid: P.pid }); if (!PVP.m) pvpGo(mid, mode, here, tm, nm); }
+
+/* ---------- screens ---------- */
+function pvpHud() { let h = $('pvpHud'); if (!pvpIn() || !PVP.st) { if (h) h.style.display = 'none'; return; }
+  if (!h) { h = document.createElement('div'); h.id = 'pvpHud'; document.body.appendChild(h); } h.style.display = '';
+  const st = PVP.st, C = pvpCfg(), myT = pvpTeam(MP.me); let s = '<b>' + C.n + '</b>';
+  if (PVP.mode === 'duel') s += '<span class="pvsc"><i class="me">' + st.sc[myT] + '</i> : <i class="en">' + st.sc[1 - myT] + '</i></span><small>第 ' + st.r + ' 局 · 先赢 2 局</small>';
+  else if (C.teams) s += '<span class="pvsc"><i class="' + (myT === 0 ? 'me' : 'en') + ' red">红 ' + st.sc[0] + '</i> : <i class="' + (myT === 1 ? 'me' : 'en') + ' blue">蓝 ' + st.sc[1] + '</i></span><small>先拿 ' + C.goal + ' 个击倒' + (st.ph === 'fight' ? ' · ' + pvpClock(st.t) : '') + '</small>';
+  else s += '<span class="pvsc">还活着 ' + (st.al || []).length + ' 人</span><small>击倒 ' + ((st.k || {})[MP.me] || 0) + (st.ph === 'fight' && st.fT < 20 ? ' · ' + Math.ceil(20 - st.fT) + ' 秒后开始缩圈' : '') + '</small>';
+  if (st.ph === 'wait') s += '<small>等其他人进场……</small>'; if (st.ph === 'count') s += '<small>准备</small>';
+  if (h.innerHTML !== s) h.innerHTML = s; }
+const pvpClock = t => { t = Math.max(0, Math.ceil(t)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
+function pvpResult(st) { if (PVP.shown) return; PVP.shown = true; PVP.done = true; const C = pvpCfg(), myT = pvpTeam(MP.me);
+  const win = st.win == null ? null : C.teams ? st.win === myT : st.win === MP.me, t = win == null ? (st.why ? '比赛结束' : '平局') : win ? '胜利！' : '失败';
+  const rows = PVP.ps.map(p => '<div class="pvrow' + (p === MP.me ? ' me' : '') + '"><span class="' + (C.teams ? (pvpTeam(p) === 0 ? 'red' : 'blue') : '') + '">' + pvpName(p) + '</span><span>击倒 ' + ((st.k || {})[p] || 0) + '</span><span>倒下 ' + ((st.dn || {})[p] || 0) + '</span></div>').join('');
+  const sc = PVP.mode === 'duel' ? st.sc[myT] + ' : ' + st.sc[1 - myT] : C.teams ? '红 ' + st.sc[0] + ' : ' + st.sc[1] + ' 蓝' : '';
+  const w = document.createElement('div'); w.id = 'pvpRes'; w.className = win ? 'win' : win === false ? 'lose' : '';
+  w.innerHTML = '<div class="pvrb"><h2>' + t + '</h2>' + (sc ? '<p class="pvbig">' + sc + '</p>' : '') + (st.why ? '<p>' + st.why + '</p>' : '') + '<div class="pvrows">' + rows + '</div><p class="pvdim">你打出的伤害 ≈ 对手 ' + Math.round(PVP.dealt) + '% 的生命 · PvP 不给奖励也不扣东西</p><div class="pvinvr"><button class="sbtn ghostb pvback">回海岛</button><button class="go pvagain">再来一局</button></div></div>';
+  document.body.appendChild(w); const mode = PVP.mode;
+  w.querySelector('.pvback').addEventListener('click', () => { w.remove(); pvpLeave(); });
+  w.querySelector('.pvagain').addEventListener('click', () => { w.remove(); pvpLeave(); setTimeout(() => { pvpQueue(mode); }, 2600); });
+  try { win ? sfx.build() : sfx.hurt(); } catch (e) { }
+  const mid = PVP.m; setTimeout(() => { if (PVP.m === mid && pvpIn()) { const r = $('pvpRes'); if (r) r.remove(); pvpLeave(); } }, 45000); }
+function closePvpPage() { const m = $('pvpM'); if (m) m.remove(); }
+function openPvpPage() { try { audioInit(); } catch (e) { } closePvpPage(); const m = document.createElement('div'); m.id = 'pvpM'; m.className = 'overlay show'; document.body.appendChild(m);
+  m.addEventListener('click', e => { if (e.target === m) closePvpPage(); }); renderPvpPage(); }
+function renderPvpPage() { const m = $('pvpM'); if (!m) return; const sel = PVP.sel, C = PVP_MODES[sel], P = PVP.party;
+  let h = '<div class="pvpg"><div class="pvhd"><b>竞技场 · PvP</b><button class="sbtn ghostb pvx">✕</button></div>';
+  h += '<p class="pvdim">用你自己的武器、装备、等级和技能。只为好玩：不给奖励，也不扣东西（子弹、医疗包出来会还给你）。大厅在线 ' + (MP.on ? MP.others.size + 1 : 0) + ' 人。</p>';
+  h += '<div class="pvmodes">' + PVP_ORDER.filter(k => PVP_OPEN.includes(k)).map(k => { const M = PVP_MODES[k], qn = pvpQueued(k).length; return '<button class="pvmd' + (k === sel ? ' on' : '') + '" data-k="' + k + '"><b>' + M.n + '</b><small>' + M.d + '</small><i>' + (qn ? qn + ' 人在匹配' : '') + '</i></button>'; }).join('') + '</div>';
+  if (!MP.on) h += '<p class="pvwarn">没有连上网络，联网后才能 PvP。</p>';
+  else if (PVP.q) { const w = Math.max(0, Math.round(S.t - PVP.qSince)); h += '<div class="pvq"><span>正在匹配「' + PVP_MODES[PVP.q].n + '」· ' + w + ' 秒 · 队列 ' + pvpQueued(PVP.q).length + ' / ' + (PVP_MODES[PVP.q].size || PVP_MODES[PVP.q].min) + '</span><button class="sbtn ghostb pvcan">取消匹配</button></div>'; }
+  else if (!P || P.mem.length < 2) h += '<div class="pvacts"><button class="go pvmatch">自动匹配</button></div>';
+  if (P) { const host = P.host === MP.me, ok = host ? pvpPartyOk() : '';
+    h += '<div class="pvparty"><b>' + (host ? '我的队伍' : pvpName(P.host) + ' 的队伍') + ' · ' + PVP_MODES[P.mode].n + '</b>' + P.mem.map(p => { const t = P.tm[p]; return '<div class="pvrow"><span>' + (P.nm[p] || pvpName(p)) + (p === P.host ? '（队长）' : '') + '</span>' + (PVP_MODES[P.mode].teams ? '<button class="pvtm ' + (t === 1 ? 'blue' : 'red') + '" data-p="' + p + '"' + (host ? '' : ' disabled') + '>' + (t === 1 ? '蓝队' : '红队') + '</button>' : '') + '</div>'; }).join('');
+    h += host ? '<div class="pvinvr"><button class="sbtn ghostb pvdis">解散</button><button class="go pvstart"' + (ok === 'ok' ? '' : ' disabled') + '>' + (ok === 'ok' ? '开始比赛' : ok) + '</button></div>' : '<div class="pvinvr"><span class="pvdim">等队长开始……</span><button class="sbtn ghostb pvdis">离开队伍</button></div>';
+    h += '</div>'; }
+  if (MP.on && !PVP.q && (!P || P.host === MP.me)) { const fr = pvpFriendUids(), L = [...MP.others.entries()].filter(([p, o]) => !o.pv && !(P && P.mem.includes(p))).sort((a, b) => (fr.has(b[1].u) ? 1 : 0) - (fr.has(a[1].u) ? 1 : 0) || (a[1].name < b[1].name ? -1 : 1)).slice(0, 40);
+    h += '<div class="pvlist"><b>邀请玩家（' + C.n + '）</b>' + (L.length ? L.map(([p, o]) => '<div class="pvrow"><span>' + (fr.has(o.u) ? '★ ' : '') + o.name + ' · Lv.' + o.lv + (o.cp ? ' · 战力 ' + Math.round(o.cp) : '') + '</span><button class="sbtn pvinv" data-p="' + p + '">邀请</button></div>').join('') : '<p class="pvdim">现在大厅里没有别的玩家。可以先点「自动匹配」等人。</p>') + '</div>'; }
+  h += '</div>'; const sc0 = m.querySelector('.pvpg') ? m.querySelector('.pvpg').scrollTop : 0; m.innerHTML = h; m.querySelector('.pvpg').scrollTop = sc0;
+  m.querySelector('.pvx').addEventListener('click', closePvpPage);
+  m.querySelectorAll('.pvmd').forEach(b => b.addEventListener('click', () => { PVP.sel = b.dataset.k; renderPvpPage(); }));
+  const q = m.querySelector('.pvmatch'); if (q) q.addEventListener('click', () => pvpQueue(PVP.sel));
+  const c = m.querySelector('.pvcan'); if (c) c.addEventListener('click', pvpUnqueue);
+  m.querySelectorAll('.pvinv').forEach(b => b.addEventListener('click', () => pvpInvite(b.dataset.p)));
+  const ds = m.querySelector('.pvdis'); if (ds) ds.addEventListener('click', () => { if (PVP.party && PVP.party.host === MP.me) { pvpSend('pvpt', { pid: PVP.party.pid, mode: PVP.party.mode, mem: [] }); PVP.party = null; renderPvpPage(); } else pvpLeaveParty(); });
+  const sb = m.querySelector('.pvstart'); if (sb) sb.addEventListener('click', pvpPartyStart);
+  m.querySelectorAll('.pvtm').forEach(b => b.addEventListener('click', () => { const P2 = PVP.party; if (!P2 || P2.host !== MP.me) return; P2.tm[b.dataset.p] = P2.tm[b.dataset.p] === 1 ? 0 : 1; pvpPartySync(); renderPvpPage(); })); }
+function pvpFriendUids() { const s = new Set(); try { if (typeof FR !== 'undefined' && FR.list) for (const k of Object.keys(FR.list)) s.add(k); } catch (e) { } return s; }
+/* refresh the page while it is open (queue counts, online list) */
+setInterval(() => { try { if ($('pvpM') && !document.querySelector('#pvpM button:active')) renderPvpPage(); } catch (e) { } }, 2000);
+/* the way in: a row at the top of the pier menu */
+renderPort = (o => function () { o(); try { const box = $('portList'); if (!box) return; const row = shopRow('竞技场 · PvP', '1v1 决斗 · 2v2 / 3v3 团队战 · 大乱斗 · 用自己的装备和玩家对打（只为好玩，不给奖励）', '#ff8a7a');
+  row.classList.add('dunrow'); const go = document.createElement('button'); go.className = 'sbtn'; go.textContent = '进入'; go.addEventListener('click', () => { closePanel('port'); openPvpPage(); }); row.appendChild(go); box.insertBefore(row, box.firstChild); } catch (e) { console.warn(e); } })(renderPort);
+/* the "you fell" strip */
+(() => { try { const d = document.createElement('div'); d.id = 'pvpDown'; d.innerHTML = '<b></b><span></span><button class="sbtn ghostb">离开比赛</button>'; document.body.appendChild(d); d.querySelector('button').addEventListener('click', () => { d.classList.remove('on'); pvpLeave(); });
+  const st = document.createElement('style'); st.textContent =
+  '#pvpHud{position:fixed;top:calc(env(safe-area-inset-top) + 8px);left:50%;transform:translateX(-50%);z-index:30;display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 16px;border-radius:14px;background:rgba(20,16,24,.78);border:1px solid rgba(255,200,120,.35);color:#f4e6d0;pointer-events:none;font-size:13px;max-width:70vw;text-align:center}' +
+  '#pvpHud b{font-size:12px;color:#ffc46b;letter-spacing:1px}#pvpHud .pvsc{font-size:20px;font-weight:900}#pvpHud small{font-size:11px;color:#c8b8a8}#pvpHud i{font-style:normal}#pvpHud .me{color:#7de0a0}#pvpHud .en{color:#ff7a6a}#pvpHud .red{color:#ff7a6a}#pvpHud .blue{color:#7ab0ff}#pvpHud .me.red,#pvpHud .me.blue{text-decoration:underline}' +
+  '#pvpDown{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:31;display:none;flex-direction:column;align-items:center;padding:14px 26px;border-radius:16px;background:rgba(40,8,12,.82);border:2px solid #ff5a4a;color:#ffe0d8;pointer-events:none}#pvpDown.on{display:flex}#pvpDown button{display:none;margin-top:8px;pointer-events:auto}#pvpDown.out button{display:block}#pvpDown b{font-size:22px}#pvpDown span{font-size:13px;color:#ffb8a8}' +
+  '#pvpM .pvpg{width:min(560px,100%);max-height:88vh;overflow-y:auto;overflow-x:hidden;margin:auto;padding:14px;border-radius:16px;background:#1d1a22;border:2px solid #6a4a3a;color:#efe2d0;box-sizing:border-box}' +
+  '.pvhd{display:flex;justify-content:space-between;align-items:center}.pvhd b{font-size:18px;color:#ffb07a}.pvdim{color:#a89a8a;font-size:12px;margin:6px 0}.pvwarn{color:#ff9b8a}' +
+  '.pvmodes{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin:8px 0}.pvmd{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:10px;border-radius:12px;border:2px solid #4a3a34;background:#2a2430;color:#efe2d0;text-align:left}.pvmd.on{border-color:#ff8a5a;background:#3a2a2a}.pvmd b{font-size:15px}.pvmd small{font-size:11px;color:#b8a898;line-height:1.35}.pvmd i{font-style:normal;font-size:11px;color:#7de0a0}' +
+  '.pvacts{display:flex;justify-content:center;margin:8px 0}.pvacts .go{min-width:160px}.pvq{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:10px;background:#2a3a30;color:#bff0c8;font-size:13px;margin:8px 0}' +
+  '.pvparty,.pvlist{margin-top:10px;padding:10px;border-radius:12px;background:#26222c}.pvrow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid #3a3440;font-size:13px}.pvrow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pvrow.me{color:#ffd27a}' +
+  '.pvtm{border:0;border-radius:8px;padding:4px 10px;color:#fff;font-weight:700}.pvtm.red,.pvrow .red{background:none;color:#ff7a6a}.pvtm.red{background:#8a2a2a;color:#fff}.pvtm.blue{background:#2a4a8a;color:#fff}.pvrow .blue{color:#7ab0ff}' +
+  '.pvinvr{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px}.pvinvr .go[disabled]{opacity:.55}' +
+  '#pvpInvM{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 70px);transform:translateX(-50%);z-index:60;width:min(380px,92vw)}.pvinvb{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border-radius:14px;background:#231c26;border:2px solid #ff8a5a;color:#f4e6d0;font-size:14px}.pvinvb small{color:#b8a898;font-size:11px}' +
+  '#pvpRes{position:fixed;inset:0;z-index:62;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:16px;box-sizing:border-box}.pvrb{width:min(440px,100%);padding:16px;border-radius:18px;background:#1d1a22;border:3px solid #8a7a6a;color:#efe2d0;text-align:center;box-sizing:border-box}' +
+  '#pvpRes.win .pvrb{border-color:#ffc94a;box-shadow:0 0 40px rgba(255,200,80,.35)}#pvpRes.lose .pvrb{border-color:#8a3a3a}.pvrb h2{margin:0;font-size:30px;letter-spacing:4px}#pvpRes.win h2{color:#ffd27a}#pvpRes.lose h2{color:#ff8a7a}.pvbig{font-size:26px;font-weight:900;margin:4px 0}.pvrows{text-align:left;margin:8px 0}';
+  (document.head || document.body).appendChild(st); } catch (e) { } })();
+/* ============ 大陆野外 PvP 区 — PROTOTYPE, switched OFF (owner 19 Nov: "only open 1v1; build the rest but don't put it in
+   the game, I'll add it bit by bit — give me a working base") ============
+   Turn on with PVPZ_ON = true. What it does now:
+   - mainland regions of tier PVPZ_TIER and higher are PvP regions: entering one shows a warning banner and a red tag
+     under the region name; your presence carries `pz: 1` while you are in one
+   - two players who are both in a PvP region can hit each other with everything they have (same "hidden target" trick
+     as the arena in z_pvp.js; message 'pzh'), within PVPZ_R metres; the hit player's own game applies the damage through
+     takeDamage, divided by pvpM() like in the arena
+   - being knocked down there is a normal death (you wake up on the island) — the owner chose no rewards, so nothing is
+     taken from you and the attacker gets nothing
+   Not done yet (ideas for later): a 'peaceful' switch, a safe zone around villages, kill counts / a wanted mark. */
+const PVPZ_ON = false, PVPZ_TIER = 8, PVPZ_R = 70;
+const PVPZ = { in: false, tgt: new Map(), hq: new Map(), tH: 0, warnT: 0 };
+const pvpzHere = () => PVPZ_ON && S.started && !S.isl && !S.dun && !S.dead && (() => { try { return tierAt(player.pos.x, player.pos.z) >= PVPZ_TIER; } catch (e) { return false; } })();
+mpInit = (o => async function () { const r = await o.apply(this, arguments);
+  try { const R = MP.room; if (R && R.presence && !R.__pvpz) { const pr = R.presence.bind(R); R.presence = obj => pr(Object.assign(obj || {}, PVPZ.in ? { pz: 1 } : {})); R.__pvpz = 1; } } catch (e) { }
+  return r; })(mpInit);
+syncRemote = (o => function (p) { const r = o.apply(this, arguments); try { const R = MP.others.get(p.peer); if (R) R.pz = !!(p.presence && p.presence.pz); } catch (e) { } return r; })(syncRemote);
+coopWire = (o => function (r) { o(r); r.on('pzh', pvpzOnHit); })(coopWire);
+function pvpzOnHit(m) { const d = m && m.data; if (!PVPZ_ON || !d || !Array.isArray(d.h) || !PVPZ.in || S.dead) return; const o = MP.others.get(m.peer); if (!o || !o.pz) return;
+  let n = 0; for (const e of d.h) if (Array.isArray(e) && e[0] === MP.me) n += clamp(+e[1] || 0, 0, 5e6); if (!n) return;
+  takeDamage(n / pvpM(), { pvp: m.peer }); try { MP.lt = -99; MP.tPres = 0; } catch (e) { } }
+function pvpzTick(dt) { if (!PVPZ_ON) return; const was = PVPZ.in; PVPZ.in = pvpzHere();
+  if (PVPZ.in !== was) { try { MP.lt = -99; MP.tPres = 0; } catch (e) { } if (PVPZ.in) banner('进入 PvP 区域', '这里其他玩家可以攻击你，你也可以攻击他们', 3); else feed('离开了 PvP 区域', '#7de0ff'); }
+  const want = new Set();
+  if (PVPZ.in && MP.on) for (const [p, o] of MP.others) { if (!o.pz || o.dead || o.isl) continue; if (Math.hypot(o.g.position.x - player.pos.x, o.g.position.z - player.pos.z) > PVPZ_R) continue; want.add(p);
+    let z = PVPZ.tgt.get(p); if (!z || z.removed) { z = pvpMakeTgt(p, o); if (!z) continue; z.pvpz = 1; PVPZ.tgt.set(p, z); } z.hp = Math.max(1, o.ph || 100); z.lv = o.lv || 1; z.dead = false; }
+  for (const [p, z] of PVPZ.tgt) if (!want.has(p)) { pvpDropTgt(z); PVPZ.tgt.delete(p); }
+  PVPZ.tH -= dt; if (PVPZ.tH <= 0 && PVPZ.hq.size) { PVPZ.tH = .12; try { coopSend('pzh', { h: [...PVPZ.hq].slice(0, 8).map(([p, d]) => [p, Math.round(d)]) }); } catch (e) { } PVPZ.hq.clear(); } }
+/* hits on field targets go to 'pzh' instead of the arena's 'pvh' (the arena wrapper only takes hits during a match fight) */
+coopHit = (o => function (z, dmg) { if (z && z.pvpz) { PVPZ.hq.set(z.pvp, (PVPZ.hq.get(z.pvp) || 0) + dmg); z.hitT = S.t; return; } return o(z, dmg); })(coopHit);
+/* in the field your presence must carry your life too, so the others' bars are right */
+mpInit = (o => async function () { const r = await o.apply(this, arguments);
+  try { const R = MP.room; if (R && R.presence && !R.__pvpzh) { const pr = R.presence.bind(R); R.presence = obj => pr(Object.assign(obj || {}, PVPZ.in ? { ph: Math.max(0, Math.round(S.hp / Math.max(1, S.maxHp) * 100)) } : {})); R.__pvpzh = 1; } } catch (e) { }
+  return r; })(mpInit);
+petsTick = (o => function (dt) { const r = o.apply(this, arguments); try { pvpzTick(dt); } catch (e) { } return r; })(petsTick);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -24563,4 +24975,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795065385').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795067161').catch(()=>{});</script></body></html>
