@@ -11169,7 +11169,7 @@ function attTransPick(u) { const a = attById(u); if (!a) return; const lv = a[4]
       b[4] = lv; a[4] = 1; m.remove(); try { sfx.build(); } catch (e) { } feed(T2('等级转移：', 'Level moved: ') + K.n + ' → Lv.' + lv, GQ[b[3]].c); S.magSize = magSizeNow(); refreshHud(); saveGame(); try { renderAttPick(); renderWeapon(); } catch (e) { } });
     box.appendChild(r); });
   m.querySelector('.stx').addEventListener('click', () => m.remove()); m.addEventListener('click', e => { if (e.target === m) m.remove(); }); document.body.appendChild(m); }
-(() => { try { const st = document.createElement('style'); st.textContent = '.attTrL{display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow:auto}.attTrR{display:flex;align-items:center;gap:8px;text-align:left;padding:6px 8px;border-radius:10px;border:2px solid #44535e;background:#0f161b;color:#fff}.attTrR .attic{width:40px;height:40px;flex:0 0 40px}.attTrR .attic svg,.attTrR .attic img{width:100%;height:100%}.attTrR small{display:block;font-size:12px;color:#c8d2da}.attTrR.sure{border-color:#ffc94a;box-shadow:0 0 0 2px rgba(255,201,74,.35)}.attTrR.sure small::after{content:"  · 再点一次确认";color:#ffc94a;font-weight:800}';
+(() => { try { const st = document.createElement('style'); st.textContent = '@media(max-width:640px){.attrow{flex-wrap:wrap}.attrow .sn{flex:1 1 calc(100% - 70px)!important}.attrow>.sbtn{flex:1 1 0;min-width:0;padding-left:4px;padding-right:4px;white-space:nowrap}}.attTrL{display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow:auto}.attTrR{display:flex;align-items:center;gap:8px;text-align:left;padding:6px 8px;border-radius:10px;border:2px solid #44535e;background:#0f161b;color:#fff}.attTrR .attic{width:40px;height:40px;flex:0 0 40px}.attTrR .attic svg,.attTrR .attic img{width:100%;height:100%}.attTrR small{display:block;font-size:12px;color:#c8d2da}.attTrR.sure{border-color:#ffc94a;box-shadow:0 0 0 2px rgba(255,201,74,.35)}.attTrR.sure small::after{content:"  · 再点一次确认";color:#ffc94a;font-weight:800}';
   document.head.appendChild(st); } catch (e) { } })();
 
 /* ============ online play over Firebase Realtime Database ============
@@ -25297,4 +25297,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795076458').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795081613').catch(()=>{});</script></body></html>
