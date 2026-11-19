@@ -8017,6 +8017,7 @@ function skinPTick(dt) {
     if (k >= 1) { scene.remove(q.m); q.m.material.dispose(); SKP.p.splice(i, 1); continue; }
     q.m.position.addScaledVector(q.vel, dt); q.m.position.x += SKFX.dx || 0; q.m.position.z += SKFX.dz || 0; q.m.rotation.y += dt * 5; q.m.scale.setScalar(Math.max(.002, q.s * (k < .15 ? k / .15 : 1 - (k - .15) / .85))); q.m.material.opacity = 1 - k * .6; }
 }
+var WFLAP_SP = 7.5;   // wing beats per 2π seconds while flying over water (z_fash2.js WFLY); ≈ 1.2 beats a second
 const _capeMv = () => { try { return Math.min(1, Math.hypot(input.mx || 0, input.mz || 0)); } catch (e) { return 0; } };
 // animate one outfit's moving parts (halo, wings, rings, motes)
 function skinAnimate(out, T) {
@@ -8026,7 +8027,7 @@ function skinAnimate(out, T) {
       o.rotation.x = lift; o.rotation.z = .035 * Math.sin(T * 1.9 - i * .7); }
     else if (u.fx === 'halo') o.rotation.z = T * .8;
     else if (u.fx === 'bob') o.position.y = u.y0 + Math.sin(T * 2.2 + u.ph) * .05, o.rotation.y = T * 1.5;
-    else if (u.fx === 'wingL' || u.fx === 'wingR') { const f = Math.sin(T * 2 + u.ph) * .09; o.rotation.z = (u.r0 || 0) + (u.fx === 'wingL' ? -f : f); o.position.z = u.z0 - Math.abs(f) * .3; }
+    else if (u.fx === 'wingL' || u.fx === 'wingR') { const fl = typeof WFLY !== 'undefined' && WFLY.on, f = fl ? Math.sin(performance.now() / 1000 * WFLAP_SP) * .32 : Math.sin(T * 2 + u.ph) * .09; /* flying: all parts beat together */ o.rotation.z = (u.r0 || 0) + (u.fx === 'wingL' ? -f : f); o.position.z = u.z0 - Math.abs(f) * .3; }
     else if (u.fx === 'aura') { o.rotation.z = T * .6; const k = 1 + Math.sin(T * 2.4) * .06; o.scale.set(k, k, 1); o.material.opacity = .38 + Math.sin(T * 2.4) * .14; }
     else if (u.fx === 'aura2') o.rotation.z = -T * 1.1;
     else if (u.fx === 'orbit') { const a = T * 1.6 + u.ph; o.position.set(Math.cos(a) * .62, 1.05 + Math.sin(T * 1.3 + u.ph) * .45, Math.sin(a) * .62); o.rotation.y = T * 3; } }
@@ -9536,7 +9537,8 @@ SKIN_BUILD.seraph = function (k) {
     for (let i = 0; i < 11; i++) { const u = .03 + i / 10 * .9, L = .24 + u * .1; feather(u, L, .17, i % 2 ? MG : MW, .045 + i * .002, -.05 + u * .5, false); }
     const bone0 = piv.children[0];
     bone0.onBeforeRender = () => { const T = performance.now() / 1000, mv = (typeof _capeMv === 'function' ? _capeMv() : 0);
-      const sp = 1.4 + mv * 3.6, amp = .07 + mv * .22; piv.rotation.y = s * (.28 + .14 * mv); piv.rotation.z = s * (amp * Math.sin(T * sp) + .04 * mv); piv.rotation.x = -.08; };   // half spread and swept a little back; beats harder when you move
+      const fl = typeof WFLY !== 'undefined' && WFLY.on, sp = fl ? WFLAP_SP : 1.4 + mv * 3.6, amp = fl ? .55 : .07 + mv * .22;   // flying over water: big beats, moving or not
+      piv.rotation.y = s * (fl ? .1 : .28 + .14 * mv); piv.rotation.z = s * (amp * Math.sin(T * sp) + (fl ? .12 : .04 * mv)); piv.rotation.x = -.08; };   // half spread and swept a little back; beats harder when you move
   });
   // arms and legs
   sleeves(R2, GO); both((s, L, a) => { bx(.29, .32, .29, W, 0, -.56, 0, a); bx(.3, .04, .3, GO, 0, -.42, 0, a); bx(.3, .03, .3, F, 0, -.7, 0, a); });
@@ -15226,9 +15228,9 @@ function wingOn(h) {
   wingBuild(h);
 }
 function wingAnim(list, T) {
-  const mv = typeof _capeMv === 'function' ? _capeMv() : 0, sp = 1.8 + mv * 4.2, amp = .12 + mv * .2;
+  const mv = typeof _capeMv === 'function' ? _capeMv() : 0, fl = typeof WFLY !== 'undefined' && WFLY.on, sp = fl ? WFLAP_SP : 1.8 + mv * 4.2, amp = fl ? .5 : .12 + mv * .2;   // flying over water: big beats
   if (WG.upM) WG.upM.opacity = .56 + .08 * Math.sin(T * 1.6);
-  list.forEach(p => { const u = p.userData; if (!u.wing) return; p.rotation.y = u.s * (u.base + mv * .15 + amp * Math.sin(T * sp + u.ph)); p.rotation.z = u.s * .07 * Math.sin(T * sp * .5 + u.ph);
+  list.forEach(p => { const u = p.userData; if (!u.wing) return; p.rotation.y = u.s * (u.base + mv * .15 + amp * Math.sin(T * sp + (fl ? 0 : u.ph))); p.rotation.z = u.s * .07 * Math.sin(T * sp * .5 + u.ph);
     p.children[0].children.forEach(t => { if (t.userData.tw != null) t.scale.setScalar(.4 + .9 * Math.max(0, Math.sin(T * 2.4 + t.userData.tw))); }); });
 }
 
@@ -19951,6 +19953,29 @@ renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!bo
   const r2 = document.createElement('div'); r2.className = 'setrow'; r2.innerHTML = '<span>' + T2('音乐音量', 'Music volume') + '</span>'; const inp = document.createElement('input'), vb = document.createElement('b');
   inp.type = 'range'; inp.min = 0; inp.max = 100; inp.value = Math.round((VOL.mus == null ? .4 : VOL.mus) * 100); vb.className = 'val'; vb.textContent = inp.value;
   inp.addEventListener('input', () => { VOL.mus = inp.value / 100; vb.textContent = inp.value; audioInit(); applyVol(); }); r2.appendChild(inp); r2.appendChild(vb); r.after(r2); } catch (e) { console.warn('music settings', e); } })(renderSettings);
+// ---- waterfalls you built make a waterfall sound (owner 19 Nov) ----
+// a rushing roar (band of noise round 700 Hz), a low rumble where the water lands and a fine hiss of spray; louder the closer
+// you are (up to ~24 m), the big 瀑布 louder than the 小瀑布, the water flutters a little, and it sits left/right of you as you
+// turn. Uses the 环境音 volume, like the sea.
+const WFS = { n: null, list: [], lt: 0 };
+function wfsInit() { if (WFS.n || !AC || !AMB.master) return; const src = snd2Loop(4), mid = AC.createBiquadFilter(), lo = AC.createBiquadFilter(), hi = AC.createBiquadFilter(), gm = AC.createGain(), gl = AC.createGain(), gh = AC.createGain(), out = AC.createGain(), pan = AC.createStereoPanner ? AC.createStereoPanner() : null;
+  mid.type = 'bandpass'; mid.frequency.value = 700; mid.Q.value = .5; lo.type = 'lowpass'; lo.frequency.value = 180; hi.type = 'highpass'; hi.frequency.value = 4500;
+  gm.gain.value = .9; gl.gain.value = 1.4; gh.gain.value = .25; out.gain.value = 0;
+  src.connect(mid); mid.connect(gm); gm.connect(out); src.connect(lo); lo.connect(gl); gl.connect(out); src.connect(hi); hi.connect(gh); gh.connect(out);
+  if (pan) { out.connect(pan); pan.connect(AMB.master); } else out.connect(AMB.master); src.start(); WFS.n = { out, pan, gm, mid }; }
+function wfsTick(dt) { WFS.lt -= dt; if (WFS.lt <= 0) { WFS.lt = 1; WFS.list = (S.isl && !S.dun && typeof builds !== 'undefined') ? builds.filter(b => (b.type === 'wfall' || b.type === 'wfall2') && b.hp > 0) : []; }
+  if (!WFS.list.length && !WFS.n) return; wfsInit(); if (!WFS.n) return;
+  const now = AC.currentTime, px = player.pos.x, pz = player.pos.z; let lv = 0, sx = 0, sw = 0;
+  for (const b of WFS.list) { const d = Math.hypot(b.x - px, b.z - pz), R = b.type === 'wfall' ? 26 : 18; if (d >= R) continue;
+    const k = (1 - d / R) ** 2 * (b.type === 'wfall' ? 1 : .65); lv = 1 - (1 - lv) * (1 - k);   // several waterfalls add up, never past 1
+    // left / right: which side of the camera's view the waterfall is on
+    const e = camera.matrixWorld.elements, rl = Math.hypot(e[0], e[2]) || 1, rx = (e[0] * (b.x - px) + e[2] * (b.z - pz)) / rl;   // camera's right-hand direction
+    sx += Math.max(-1, Math.min(1, rx / Math.max(3, d))) * k; sw += k; }
+  if (S.paused) lv *= .6; if (S.dead) lv *= .5;
+  const fl = 1 + .08 * Math.sin(SND2.t * 7.3) + .05 * Math.sin(SND2.t * 13.1);   // the water flutters
+  WFS.n.out.gain.setTargetAtTime(.55 * lv * fl, now, .2); WFS.n.mid.frequency.setTargetAtTime(650 + 120 * Math.sin(SND2.t * .7), now, .3);
+  if (WFS.n.pan) WFS.n.pan.pan.setTargetAtTime(sw ? Math.max(-.8, Math.min(.8, sx / sw * .8)) : 0, now, .2); }
+ambTick = (o => function (dt) { o(dt); if (!AC || !AMB.on) return; try { wfsTick(dt); } catch (e) { } })(ambTick);
 /* ============ every weapon skin sounds like itself ============
    The weapon's normal sound stays underneath; the skin adds its own layer when you fire / swing (fire) and when it lands (hit).
    Gun impacts: a hit on a monster within 0.4 s of your shot plays the skin's hit layer (at most ~14 a second).
@@ -22769,6 +22794,20 @@ swn2Tick = (o => function (dt) { if (!hasWings()) { WFLY.on = false; return o(dt
   const mv = Math.hypot(input.mx || 0, input.mz || 0) > .1; WFLY.bt -= dt;
   if (WFLY.bt <= 0) { WFLY.bt = mv ? .08 : .5; burst(player.pos.x + rand(-.25, .25), lvl + .04, player.pos.z + rand(-.25, .25), mv ? 0xdff6ff : 0xfff0c8, mv ? 3 : 2, mv ? 2 : 1); } })(swn2Tick);
 terOff = (o => function () { return WFLY.on ? WFLY.y : o(); })(terOff);
+// owner 19 Nov: over water the wings BEAT (also while hovering still), every beat makes a sound, and the down-draught
+// ripples the water under you. All wing kinds read WFLY.on and beat at WFLAP_SP with the same clock (performance.now), so
+// the sound and the rings land on the down-stroke of what you see.
+const WFL2 = { k: -1 };
+function wflapTick() { if (!WFLY.on) { WFL2.k = -1; return; }
+  const T = performance.now() / 1000, ph = T * WFLAP_SP / (Math.PI * 2) + .25, k = Math.floor(ph);   // +.25: the beat lands as the wing sweeps down
+  if (k === WFL2.k) return; const first = WFL2.k < 0; WFL2.k = k; if (first) return;
+  const px = player.pos.x, pz = player.pos.z, lvl = WFLY.y - .35, mv = Math.hypot(input.mx || 0, input.mz || 0) > .1;
+  try { if (AC) {   // whoosh of air + a soft low thump
+    sfxNoise(.26, .1, 1300, { type: 'bandpass', q: .8, f1: 380 }); sfxNoise(.18, .05, 2400, { type: 'bandpass', q: 1.2, delay: .04 }); sfxTone(95, 55, .16, .07, 'sine'); } } catch (e) { }
+  try { fxRing(px, pz, .4, mv ? 2.2 : 3, .9, 0xe8f8ff, .7, lvl - .06);                      // the down-draught pushes a ring out over the water
+    setTimeout(() => { try { if (WFLY.on) fxRing(px, pz, .3, mv ? 1.6 : 2.2, .8, 0xbfe8f4, .45, lvl - .06); } catch (e) { } }, 160);
+    burst(px + rand(-.4, .4), lvl + .05, pz + rand(-.4, .4), 0xeaf8ff, 4, 2); } catch (e) { } }
+petsTick = (o => function (dt) { const r = o(dt); try { wflapTick(); } catch (e) { } return r; })(petsTick);
 /* ============ weapon skins 2.0 (owner 18 Nov: "不只是时装，还有枪的皮肤" — the old skins were only a recolour) ============
    The seven gacha weapon skins that fit every weapon get their own hand-placed parts and moving effects on top of the
    recolour (sized from the weapon's bounding box, so they fit guns and melee weapons alike):
@@ -24241,4 +24280,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795052618').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795054861').catch(()=>{});</script></body></html>
