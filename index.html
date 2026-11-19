@@ -23446,12 +23446,18 @@ updateLoot = (o => function (dt) {
   try { return o(dt); } finally { bagRoom = B; gain = G;
     if (before.length !== loot.length) { const still = new Set(loot); for (const l of before) if (!still.has(l)) try { l.m.traverse(m => { if (m.geometry) m.geometry.dispose(); }); } catch (e) { } } }
 })(updateLoot);
+/* owner 19 Nov: "two zombies, a whole pile of purple things" — every drop was its own piece (each rarer material with a 16 m
+   light beam), so a few kills close together covered the ground. Now a drop joins a piece of the same kind lying within
+   LOOT_JOIN m (same amount, one piece, one beam); past LOOT_MAX it joins the nearest one anywhere. */
+const LOOT_JOIN = 3.5;
 spawnLoot = (o => function (type, x, z, amt, spread) {
-  if (loot.length >= LOOT_MAX) { let best = null, bd = 1e9;
-    for (const l of loot) { if (l.type !== type || l.life <= 0) continue; const d = Math.hypot(l.m.position.x - x, l.m.position.z - z); if (d < bd) { bd = d; best = l; } }
-    if (best) { best.amt += amt; best.life = Math.max(best.life, 60); return; } }
+  let best = null, bd = 1e9;
+  for (const l of loot) { if (l.type !== type || l.life <= 0) continue; const d = Math.hypot(l.m.position.x - x, l.m.position.z - z); if (d < bd) { bd = d; best = l; } }
+  if (best && (bd < LOOT_JOIN || loot.length >= LOOT_MAX)) { best.amt += amt; best.life = Math.max(best.life, 60); return; }
   return o.apply(this, arguments);
 })(spawnLoot);
+/* a zombie dies (and drops) only once, whatever hits it after it fell */
+killZombie = (o => function (z) { if (z && z.dead && !z.animal) return; return o.apply(this, arguments); })(killZombie);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -24486,4 +24492,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795062679').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795063165').catch(()=>{});</script></body></html>
