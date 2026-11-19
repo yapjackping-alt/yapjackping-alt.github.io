@@ -24118,9 +24118,17 @@ function ksdTaper(pts, r, pw) { const cv = new THREE.CatmullRomCurve3(pts), TS =
     v.set(p.getX(i), p.getY(i), p.getZ(i)).sub(c).multiplyScalar(k).add(c); p.setXYZ(i, v.x, v.y, v.z); }
   g.computeVertexNormals(); return g; }
 function ksdHead(head, M) { const hsk = new THREE.MeshPhongMaterial({ color: 0xd2d8e0, specular: 0xffffff, shininess: 55 }), mouthM = new THREE.MeshBasicMaterial({ color: 0x5a1a18 }), goldA = new THREE.MeshPhongMaterial({ color: 0xd9a032, emissive: 0x2a1600, specular: 0xffe0a0, shininess: 80 });
-  if (M.list) M.list.push(hsk, mouthM, goldA);
-  head.add(new THREE.Mesh(ksdShape(1.3, -.36, .36, .12, .3, .09), hsk));
-  const jaw = new THREE.Group(); jaw.position.set(0, -.08, -.1); head.add(jaw); jaw.add(new THREE.Mesh(ksdShape(1.08, -.12, .28, .1, .1, .05, true), hsk));
+  M.dark = new THREE.MeshBasicMaterial({ color: 0x14100c }); M.brow = new THREE.MeshPhongMaterial({ color: 0xa8b0bc, specular: 0xffffff, shininess: 40 }); if (M.list) M.list.push(M.brow); M.goldA = goldA; if (M.list) M.list.push(hsk, mouthM, goldA, M.dark);
+  head.add(new THREE.Mesh(ksdShape(1.24, -.36, .36, .22, .3, .13), hsk));
+  // the nose: a broad FLAT pad on top of the muzzle end, sculpted (owner: a real dragon's nose is flat with relief, not a ball)
+  const pad = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), hsk); pad.scale.set(.2, .045, .13); pad.position.set(0, .13, .76); head.add(pad);
+  for (const sd of [-1, 1]) { const cu = new THREE.Mesh(new THREE.TorusGeometry(.055, .02, 6, 14, Math.PI * 1.35), hsk); cu.position.set(sd * .1, .16, .8); cu.rotation.set(-Math.PI / 2 + .25, 0, sd > 0 ? -.4 : Math.PI + .4); head.add(cu);
+    
+    // upper lip ridge along each side
+    head.add(new THREE.Mesh(ksdTaper([new THREE.Vector3(sd * .25, .07, .66), new THREE.Vector3(sd * .29, .03, .45), new THREE.Vector3(sd * .32, -.02, .2)], .03, .3), hsk)); }
+  // ridges up the bridge of the nose to the forehead
+  for (let i = 0; i < 4; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 6), hsk); b.scale.set(.09 - i * .008, .03, .06); b.position.set(0, .15 + i * .025, .6 - i * .13); head.add(b); }
+  const jaw = new THREE.Group(); jaw.position.set(0, -.08, -.1); head.add(jaw); jaw.add(new THREE.Mesh(ksdShape(1.02, -.12, .28, .18, .1, .06, true), hsk));
   const tongue = new THREE.Mesh(ksdShape(.8, 0, .2, .07, .04, .02), mouthM); tongue.position.y = -.02; jaw.add(tongue);
   for (let i = 0; i < 4; i++) for (const sd of [-1, 1]) { const f = .3 + i * .17, w = .24 - i * .035;
     const tt = new THREE.Mesh(new THREE.ConeGeometry(.016, .06, 4), M.white); tt.position.set(sd * w * .8, .02, f); jaw.add(tt);
@@ -24131,8 +24139,14 @@ function ksdHead(head, M) { const hsk = new THREE.MeshPhongMaterial({ color: 0xd
       pts.push(new THREE.Vector3(x + Math.sin(ax) * len * t + w * .4, y + Math.sin(ay) * len * t + w + (t * t) * len * -.12, z - Math.cos(ax) * Math.cos(ay) * len * t)); }
     const c = new THREE.Mesh(ksdTaper(pts, wd), m || M.hair); par.add(c); return c; };
   for (const sd of [-1, 1]) {
-    const e = new THREE.Mesh(new THREE.SphereGeometry(.06, 10, 8), M.eyeM); e.position.set(sd * .2, .15, .2); e.scale.set(1, .65, 1.2); head.add(e);
-    lock(head, sd * .2, .22, .34, .5, .06, sd * -.5, .35);
+    // FIERCE eyes: narrow slanted almond, glowing with a slit pupil, dark rim, sunk under a heavy brow that dives toward the nose
+    const eg = new THREE.Group(); eg.position.set(sd * .22, .17, .22); eg.rotation.set(0, sd * -.35, sd * .38); head.add(eg);
+    const rim = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), M.dark); rim.scale.set(.062, .036, .105); eg.add(rim);
+    const e = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), M.eyeM); e.scale.set(.06, .03, .095); e.position.x = sd * .012; eg.add(e);
+    const pu = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), M.dark); pu.scale.set(.008, .024, .008); pu.position.set(sd * .066, 0, .015); eg.add(pu);
+    head.add(new THREE.Mesh(ksdTaper([new THREE.Vector3(sd * .06, .19, .42), new THREE.Vector3(sd * .17, .235, .3), new THREE.Vector3(sd * .29, .29, .12), new THREE.Vector3(sd * .37, .4, -.12)], .075, .25), M.brow));
+    head.add(new THREE.Mesh(ksdTaper([new THREE.Vector3(sd * .08, .225, .4), new THREE.Vector3(sd * .19, .265, .27), new THREE.Vector3(sd * .31, .32, .06), new THREE.Vector3(sd * .38, .44, -.16)], .03, .4), M.goldA));
+    lock(head, sd * .33, .34, -.02, .55, .06, sd * .45, .55); lock(head, sd * .3, .3, .02, .45, .05, sd * .7, .25);
     // gold antlers: short, thick, sweeping back like flames
     try { const pts = [[0, 0, 0], [.03, .2, -.12], [.04, .34, -.36], [.06, .42, -.62], [.05, .45, -.82]].map(q => new THREE.Vector3(sd * q[0], q[1], q[2]));
       const an = new THREE.Group(); an.position.set(sd * .13, .22, -.06); an.rotation.z = sd * -.3; head.add(an);
@@ -24155,7 +24169,7 @@ function ksDragon(path, life, gy) { const NR = KSD.NR, NA = KSD.NA, t0 = perform
   const silver = new THREE.MeshPhongMaterial({ color: 0xc4ccd6, specular: 0xaab4c4, shininess: 50 });
   const gold = new THREE.MeshPhongMaterial({ color: 0xe8b84a, emissive: 0x3a2404, specular: 0xffe8a0, shininess: 90, flatShading: true }), horn = gold, white = new THREE.MeshPhongMaterial({ color: 0xf8f4ea, shininess: 60 });
   const hair = new THREE.MeshPhongMaterial({ color: 0xe8ecf2, specular: 0x9aa4b4, shininess: 20, flatShading: true });
-  const eyeM = new THREE.MeshBasicMaterial({ color: 0xff9a28 }), fireM = new THREE.MeshBasicMaterial({ color: 0xffb040 }), coreM = new THREE.MeshBasicMaterial({ color: 0xfff2b0 });
+  const eyeM = new THREE.MeshBasicMaterial({ color: 0xffb428 }), fireM = new THREE.MeshBasicMaterial({ color: 0xffb040 }), coreM = new THREE.MeshBasicMaterial({ color: 0xfff2b0 });
   const haloM = new THREE.MeshBasicMaterial({ color: 0xff8a20, transparent: true, opacity: .35, blending: THREE.AdditiveBlending, depthWrite: false });
   const mats = [skin, silver, gold, white, hair, eyeM, fireM, coreM, haloM];
   // body tube
@@ -26058,4 +26072,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795110209').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795110588').catch(()=>{});</script></body></html>
