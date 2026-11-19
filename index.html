@@ -11191,10 +11191,12 @@ function netRoom(code) {
     on(topic, fn) { (subs[topic] = subs[topic] || []).push(fn); },
     onPeers(fn) { peersFns.push(fn); fire(); },
     async emit(topic, data) { if (!alive) return; const t = await fbToken(); const slot = topic + (seq++ % 12);
-      const r = await fetch(base + '/ev/' + me + '/' + slot + '.json?auth=' + t, { method: 'PUT', body: JSON.stringify({ t: topic, d: data, n: seq }) }); if (!r.ok) throw { code: 'net_' + r.status }; },
-    async presence(obj) { if (!alive) return; const t = await fbToken(); const r = await fetch(base + '/p/' + me + '.json?auth=' + t, { method: 'PUT', body: JSON.stringify(Object.assign({}, obj, { u: FB.uid || '' })) }); if (!r.ok) throw { code: 'net_' + r.status }; },
+      if (!alive) return; const r = await fetch(base + '/ev/' + me + '/' + slot + '.json?print=silent&auth=' + t, { method: 'PUT', body: JSON.stringify({ t: topic, d: data, n: seq }) }); if (!r.ok) throw { code: 'net_' + r.status }; },
+    async presence(obj) { if (!alive) return; const t = await fbToken(); if (!alive) return; const r = await fetch(base + '/p/' + me + '.json?print=silent&auth=' + t, { method: 'PUT', body: JSON.stringify(Object.assign({}, obj, { u: FB.uid || '' })) }); if (!r.ok) throw { code: 'net_' + r.status }; },
+    /* only the fields that changed (position, life): the others get a small 'patch' event instead of the whole presence */
+    async patch(obj) { if (!alive) return; const t = await fbToken(); if (!alive) return; const r = await fetch(base + '/p/' + me + '.json?print=silent&auth=' + t, { method: 'PATCH', body: JSON.stringify(obj) }); if (!r.ok) throw { code: 'net_' + r.status }; },
     async join(c) { return netRoom(c); },
-    leave() { alive = false; try { es && es.close(); } catch (e) { } clearInterval(R._iv); netBye(base, me); }
+    leave() { alive = false; netBye(base, me); try { es && es.close(); } catch (e) { } try { clearInterval(R._iv); } catch (e) { } }
   };
   function fire() { const peers = [{ peer: me, kind: 'viewer', isMe: true, sameTab: true, presence: {} }];
     for (const [peer, o] of P) peers.push({ peer, kind: 'viewer', isMe: false, presence: o.presence });
@@ -11209,7 +11211,7 @@ function netRoom(code) {
       if (!patch) P.clear(); const p = data && data.p; if (p) for (const k in p) setPeer(k, p[k]); fire(); return; }
     if (seg[0] === 'p') {
       if (seg.length === 1) { if (!patch) P.clear(); if (data) for (const k in data) setPeer(k, data[k]); fire(); return; }
-      if (seg.length === 2) { setPeer(seg[1], data); fire(); return; }
+      if (seg.length === 2) { const o0 = P.get(seg[1]); if (patch && o0 && data && typeof data === 'object') { Object.assign(o0.presence, data); o0.seen = Date.now(); } else if (patch && data && !o0) return; else setPeer(seg[1], data); fire(); return; }
       const o = P.get(seg[1]); if (o) { o.presence[seg[2]] = data; o.seen = Date.now(); fire(); } return; }
     if (seg[0] === 'ev' && ready) {
       if (seg.length === 3) { dispatch(seg[1], data); return; }
@@ -11518,6 +11520,170 @@ try { const box = $('chatBox'); if (box && box.querySelector) { const hd = box.q
 // the chat button is always there once you play (friends work without a room)
 chatTick = (o => function (dt) { o(dt); const btn = $('bChat'); if (btn && S.started) btn.style.display = 'block';
   FR.hb -= dt; if (S.started && FR.hb <= 0) { FR.hb = 60; frBeat(); frStream(); } })(chatTick);
+/* ============ online play 2: you only receive the players you can actually see (owner 19 Nov: "改全部改好；自己的海岛也只有
+   自己能用能去能看到，没必要上传") ============
+   Before: everyone in the public lobby streamed everyone else's position ~5×/s — traffic grew with players², the free
+   Firebase plan (≈360 MB/day) ran out in minutes with 10-20 players. Now (only when the Firebase REST network is used;
+   the claude.ai page's own room service keeps the old single room):
+   1. AREA ROOM (live stream, the only one): MP.room is a proxy (`AREA`) that sits in ONE small room at a time:
+        on your island / at sea ...... no room at all — nothing about you goes up, nothing comes down
+        on the mainland .............. 'g_<cx>_<cz>' = a 600 m square (60 m hysteresis at the edge)
+        in a dungeon / ship / arena .. 'd_<instance>' (only the people in that run / match)
+        private room code ............ 'r_<code>' (small groups; on the island only a 5 s heartbeat)
+      Co-op, shots, trading, dungeon sync, PvP fighting all ride in it unchanged.
+   2. BOARD (no stream): rooms/zlobby/p/<peer> = name, level, power, uid, where — written every 30 s, READ only when a
+      list is on screen (party panel, PvP page, dungeon invite).
+   3. MAIL (polled every 3 s): rooms/zmail/<peer>/<key> — invites, match starts, party messages addressed to one player.
+      AREA.emit routes those topics here, so the game code still just "emits".
+   4. QUEUE (polled every 2.5 s, only while queued or while the PvP page is open): rooms/zq/<mode>/<peer>.
+   5. CHAT (global, polled): rooms/zchat/v is a tiny stamp checked every 4 s; the last 30 lines are fetched only when it
+      changed.
+   Presence in an area room: one full update every 3 s (look, weapon …) and small PATCHes (position, life) at most
+   every .3 s while you move; nothing while you stand still. Writes use print=silent (no echo back).
+   Limits that stay (told to the owner): players on either side of a 600 m line don't see each other until one crosses;
+   old app versions (still on the old lobby) can't meet the new one. */
+const NET2 = { rest: false, cell: null, full: -99, look: '', board: {}, boardAt: -99, boardW: -99, boardKey: '', q: {}, qInfo: {}, qAt: -99,
+  mailAt: 0, mailBusy: false, chatAt: 0, chatV: null, chatSeen: '', chatBusy: false, qSelf: null, sent: 0, recv: 0 };
+const AREA_CELL = 600, AREA_HYS = 60;
+const PRES_X = [];             // extra presence fields from other features (PvP …): functions returning objects
+const presX = () => { const o = {}; for (const f of PRES_X) try { Object.assign(o, f() || {}); } catch (e) { } return o; };
+async function n2Req(path, method, body) { const t = await fbToken(); const m = method || 'GET';
+  const r = await fetch(RTDB + '/' + path + '.json?auth=' + t + (m !== 'GET' ? '&print=silent' : ''), body === undefined ? { method: m } : { method: m, body: JSON.stringify(body) });
+  if (!r.ok) throw { code: 'net_' + r.status }; NET2.sent++; if (m === 'GET') return r.json(); return null; }
+const n2Safe = s => String(s || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
+const SVT = { '.sv': 'timestamp' };
+/* ---- 1. the area room ---- */
+function n2AreaKey() {
+  if (!S.started) return null;
+  if (MP.code) return 'r_' + n2Safe(MP.code).toLowerCase();
+  if (S.dun) return DUN.inst ? 'd_' + n2Safe(DUN.inst).toLowerCase() : null;
+  if (S.isl) return null;
+  const x = player.pos.x, z = player.pos.z, c = NET2.cell;
+  if (c && x > c[0] * AREA_CELL - AREA_HYS && x < (c[0] + 1) * AREA_CELL + AREA_HYS && z > c[1] * AREA_CELL - AREA_HYS && z < (c[1] + 1) * AREA_CELL + AREA_HYS) return 'g_' + c[0] + '_' + c[1];
+  NET2.cell = [Math.floor(x / AREA_CELL), Math.floor(z / AREA_CELL)]; return 'g_' + NET2.cell[0] + '_' + NET2.cell[1]; }
+const meOnly = () => ({ peers: [{ peer: NET.peer, kind: 'viewer', isMe: true, sameTab: true, presence: {} }] });
+const AREA = { key: null, R: null, subs: {}, pf: [],
+  on(t, fn) { (this.subs[t] = this.subs[t] || []).push(fn); if (this.R) this.R.on(t, fn); },
+  onPeers(fn) { this.pf.push(fn); if (this.R) this.R.onPeers(fn); else try { fn(meOnly()); } catch (e) { } },
+  async emit(t, d) { n2AreaSync(); if (n2Route(t, d)) return; if (this.R) return this.R.emit(t, d); },
+  async presence(o) { n2AreaSync(); if (this.R) return this.R.presence(o); },
+  async patch(o) { if (this.R) return this.R.patch(o); },
+  async join(c) { return netRoom(c); },
+  leave() { const R = this.R; this.R = null; this.key = null; NET.room = null; if (R) try { R.leave(); } catch (e) { } } };
+function n2AreaSync() { if (!NET2.rest || !MP.on) return; const k = n2AreaKey(); if (k === AREA.key) return;
+  AREA.leave(); AREA.key = k;
+  if (k) { const R = netRoom(k); for (const t in AREA.subs) for (const fn of AREA.subs[t]) R.on(t, fn); AREA.R = R; NET.room = R; for (const fn of AREA.pf) R.onPeers(fn); }
+  else for (const fn of AREA.pf) try { fn(meOnly()); } catch (e) { }
+  NET2.full = -99; MP.tPres = 0; MP.lt = -99; NET2.boardW = -99; }
+/* the topics that must reach someone who may be in another area go by mail (or to the global chat) */
+function n2Route(t, d) { if (!NET2.rest || !d) return false; const me = MP.me;
+  const to = L => { const S2 = new Set((L || []).map(String).filter(p => p && p !== me && p !== '~bot')); for (const p of S2) n2Mail(p, t, d); return true; };
+  if (t === 'chat') { n2ChatPost(d); return true; }
+  if (t === 'pvgo') return to(d.ps);
+  if (t === 'pvinv' || t === 'pvpj' || t === 'pvpn' || t === 'pvpl') return to([d.to]);
+  if (t === 'pvpt') return to((d.mem || []).concat(d.was || []));
+  if (t === 'dunI' && d.op === 'inv') { n2DunInvite(d); return true; }
+  return false; }
+/* ---- 2. the board ---- */
+function n2BoardEntry() { const isl = S.isl && !S.dun; let a = '';
+  try { a = S.dun ? (typeof PVP_ID !== 'undefined' && DUN.id === PVP_ID ? 'pvp' : 'dun') : isl ? 'isl' : 'r' + tierAt(player.pos.x, player.pos.z); } catch (e) { }
+  let cp = 0; try { cp = typeof _cpC !== 'undefined' ? _cpC : 0; } catch (e) { }
+  return { n: S.name || '幸存者', lv: S.level | 0, cp: cp | 0, u: FB.uid || '', a, x: isl || S.dun ? 0 : Math.round(player.pos.x), z: isl || S.dun ? 0 : Math.round(player.pos.z), t: SVT }; }
+function n2BoardTick() { if (S.t - NET2.boardW < 30) { const k = n2BoardEntry().a + (S.level | 0); if (k === NET2.boardKey) return; }
+  NET2.boardW = S.t; const e = n2BoardEntry(); NET2.boardKey = e.a + e.lv; n2Req('rooms/zlobby/p/' + MP.me, 'PUT', e).catch(() => { }); }
+/* read it (cached 4 s); entries 90 s older than the newest are gone, 10 min older ones are deleted */
+async function n2Board(force) { if (!NET2.rest) return {}; if (!force && S.t - NET2.boardAt < 4) return NET2.board; NET2.boardAt = S.t;
+  try { const all = (await n2Req('rooms/zlobby/p')) || {}; let mx = 0; for (const k in all) mx = Math.max(mx, +((all[k] || {}).t) || 0);
+    const out = {}, del = {}; for (const k in all) { const e = all[k]; if (!e || typeof e !== 'object') continue; const age = mx - (+e.t || 0); if (age > 600000) del[k] = null; else if (age < 90000 && k !== MP.me) out[k] = e; }
+    if (Object.keys(del).length) n2Req('rooms/zlobby/p', 'PATCH', del).catch(() => { });
+    NET2.board = out; } catch (e) { } return NET2.board; }
+/* ---- 3. mail ---- */
+function n2Mail(peer, t, d) { const key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  n2Req('rooms/zmail/' + n2Safe(peer) + '/' + key, 'PUT', { t, d, f: MP.me, ts: SVT }).catch(() => { }); }
+const MAILR = { subs: {}, on(t, fn) { (this.subs[t] = this.subs[t] || []).push(fn); }, onPeers() { }, emit() { return Promise.resolve(); }, presence() { return Promise.resolve(); } };
+async function n2MailTick() { if (NET2.mailBusy || S.t - NET2.mailAt < 3) return; NET2.mailAt = S.t; NET2.mailBusy = true;
+  try { const box = await n2Req('rooms/zmail/' + n2Safe(MP.me)); if (box && typeof box === 'object') { const keys = Object.keys(box).sort(), del = {};
+      for (const k of keys) { del[k] = null; const v = box[k]; if (!v || !v.t) continue; const L = MAILR.subs[v.t] || []; NET2.recv++;
+        for (const fn of L) try { fn({ peer: String(v.f || ''), isMe: false, data: v.d }); } catch (e) { console.warn(e); } }
+      n2Req('rooms/zmail/' + n2Safe(MP.me), 'PATCH', del).catch(() => { }); } } catch (e) { } finally { NET2.mailBusy = false; } }
+/* ---- 4. the PvP queue ---- */
+function n2QueueSet(mode) { const old = NET2.qSelf; NET2.qSelf = mode || null;
+  if (old && old !== mode) n2Req('rooms/zq/' + old + '/' + MP.me, 'DELETE').catch(() => { });
+  if (mode) { let cp = 0; try { cp = combatPower() | 0; } catch (e) { } NET2.qBody = { n: S.name || '幸存者', cp, u: FB.uid || '', lv: S.level | 0 };
+    n2Req('rooms/zq/' + mode + '/' + MP.me, 'PUT', Object.assign({ t: SVT, hb: SVT }, NET2.qBody)).catch(() => { }); NET2.qHb = S.t; NET2.qAt = -99; } }
+async function n2QueuePoll(force) { if (!NET2.rest) return; if (!force && S.t - NET2.qAt < 2.5) return; NET2.qAt = S.t;
+  if (NET2.qSelf && S.t - (NET2.qHb || 0) > 15) { NET2.qHb = S.t; n2Req('rooms/zq/' + NET2.qSelf + '/' + MP.me + '/hb', 'PUT', SVT).catch(() => { }); }
+  try { const all = (await n2Req('rooms/zq')) || {}; const q = {}, info = {};
+    for (const mode in all) { const L = all[mode] || {}; let mx = 0; for (const p in L) mx = Math.max(mx, +((L[p] || {}).hb) || 0);
+      const del = {}; q[mode] = Object.keys(L).filter(p => { const e = L[p]; if (!e || typeof e !== 'object') return false; if (mx - (+e.hb || 0) > 40000) { del[p] = null; return false; } info[p] = e; return true; })
+        .sort((a, b) => (+L[a].t || 0) - (+L[b].t || 0) || (a < b ? -1 : 1));
+      if (Object.keys(del).length) n2Req('rooms/zq/' + mode, 'PATCH', del).catch(() => { }); }
+    NET2.q = q; NET2.qInfo = info; } catch (e) { } }
+function n2QueueDrop(mode, peers) { const del = {}; for (const p of peers) del[p] = null; n2Req('rooms/zq/' + mode, 'PATCH', del).catch(() => { }); for (const p of peers) { const L = NET2.q[mode]; if (L) { const i = L.indexOf(p); if (i >= 0) L.splice(i, 1); } } }
+/* ---- 5. global chat ---- */
+function n2ChatPost(d) { const key = (Date.now() + 1e13).toString(36) + MP.me.slice(-4);
+  n2Req('rooms/zchat/m/' + key, 'PUT', { n: String(d.n || '').slice(0, 16), t: String(d.t || '').slice(0, 120), f: MP.me }).catch(() => { });
+  n2Req('rooms/zchat/v', 'PUT', SVT).catch(() => { }); NET2.chatSeen = key > NET2.chatSeen ? key : NET2.chatSeen; }
+async function n2ChatTick() { if (NET2.chatBusy || S.t - NET2.chatAt < 4) return; NET2.chatAt = S.t; NET2.chatBusy = true;
+  try { const v = await n2Req('rooms/zchat/v'); if (!NET2.chatInit || v !== NET2.chatV) { const first = !NET2.chatInit; NET2.chatInit = true; NET2.chatV = v;
+      const t = await fbToken(); const r = await fetch(RTDB + '/rooms/zchat/m.json?auth=' + t + '&orderBy=%22%24key%22&limitToLast=30'); const m = r.ok ? (await r.json()) || {} : {};
+      const keys = Object.keys(m).sort();
+      if (first) NET2.chatSeen = keys[keys.length - 1] || '';
+      else for (const k of keys) { if (k <= NET2.chatSeen) continue; NET2.chatSeen = k; const e = m[k]; if (!e || e.f === MP.me) continue;
+        try { onChat({ peer: String(e.f || ''), isMe: false, data: { n: e.n, t: e.t } }); } catch (er) { } }
+      if (keys.length >= 30 && Math.random() < .2) { const del = {}; const all = await n2Req('rooms/zchat/m'); const ks = Object.keys(all || {}).sort(); for (const k of ks.slice(0, Math.max(0, ks.length - 40))) del[k] = null; if (Object.keys(del).length) n2Req('rooms/zchat/m', 'PATCH', del).catch(() => { }); } } }
+  catch (e) { } finally { NET2.chatBusy = false; } }
+/* ---- dungeon invites: online friends + the people in your area ---- */
+async function n2DunInvite(d) { const B = await n2Board(true), fr = new Set(); try { if (typeof FR !== 'undefined' && FR.list) for (const u of Object.keys(FR.list)) fr.add(u); } catch (e) { }
+  const L = new Set(); for (const p in B) if (B[p] && fr.has(B[p].u)) L.add(p); for (const p of MP.others.keys()) if (p !== '~bot') L.add(p);
+  for (const p of L) n2Mail(p, 'dunI', d);
+  if (!L.size) feed('现在没有在线的好友或附近的人可以邀请', '#ff9b8a'); }
+/* ---- going online ---- */
+mpInit = (o => async function (code) {
+  MP.why = ''; const bad = await netCheck();
+  if (bad) { NET2.rest = false; const r = await o(code); try { const R = MP.room; if (R && R.presence && !R.__px) { const pr = R.presence.bind(R); R.presence = obj => pr(Object.assign(obj || {}, presX())); R.__px = 1; } } catch (e) { } return r; }
+  try { AREA.leave(); } catch (e) { } try { if (NET.room && NET.room !== AREA.R && NET.room.leave) NET.room.leave(); } catch (e) { }
+  for (const [, ob] of MP.others) scene.remove(ob.g); MP.others.clear();
+  const c = code && /^[a-z0-9][a-z0-9_.-]{0,47}$/.test(code) ? code : '';
+  if (code && !c) feed('房间码只能用小写字母和数字，已进入公共大厅', '#ff9b8a');
+  NET2.rest = true; MP.lobby = AREA; MP.room = AREA; MP.on = true; MP.code = c; MP.me = NET.peer; MP.lx = player.pos.x; MP.lz = player.pos.z; MP.tPres = 0; MP.net = true;
+  if (!AREA.wired) { AREA.wired = 1; AREA.on('shot', onRemoteShot); coopWire(AREA); AREA.onPeers(onPeersChange); coopWire(MAILR); }
+  NET2.full = -99; n2AreaSync(); NET2.boardW = -99;
+  feed(c ? '已加入房间 ' + c : '已连上联机', '#7de0ff'); })(mpInit);
+/* presence: nothing on your island; in a room a full update every 3 s and small position updates while you move */
+mpTick = (o => function (dt) { if (!NET2.rest) return o(dt); if (!MP.on || !S.started) return;
+  n2AreaSync(); n2BoardTick(); n2MailTick(); n2ChatTick(); if (NET2.qSelf || document.getElementById('pvpM')) n2QueuePoll();
+  if (!AREA.R) return;
+  MP.tPres -= dt; if (MP.tPres > 0) return;
+  const isl = S.isl && !S.dun, now = S.t, force = MP.lt === -99;
+  if (isl) { if (now - NET2.full < 5) return; NET2.full = now; MP.tPres = 1; AREA.presence({ n: S.name, lv: S.level, i: 1, d: S.dead ? 1 : 0 }).catch(() => { }); return; }
+  const dx = player.pos.x - MP.lx, dz = player.pos.z - MP.lz, moved = Math.hypot(dx, dz) > .15, el = Math.max(.05, now - (MP.lt > 0 ? MP.lt : now - .3));
+  const vx = moved ? clamp(dx / el, -20, 20) : 0, vz = moved ? clamp(dz / el, -20, 20) : 0;
+  if (now - (NET2.cpT || -9) > 3) { NET2.cpT = now; try { _cpC = combatPower(); } catch (e) { } }
+  const look = { n: S.name, lv: S.level, cp: _cpC, w: S.wp, wt: wTier(Math.max(1, wLv(S.wp))), ws: (S.wsk && S.wsk[S.wp]) || '', sk: S.skin || '', gl: myLook() }, lk = JSON.stringify(look);
+  const pos = Object.assign({ x: +player.pos.x.toFixed(1), z: +player.pos.z.toFixed(1), vx: +vx.toFixed(1), vz: +vz.toFixed(1), f: +player.face.toFixed(2), mv: moved ? 1 : 0, d: S.dead ? 1 : 0, i: 0 }, presX());
+  if (lk !== NET2.look || now - NET2.full > 3) { NET2.look = lk; NET2.full = now; AREA.presence(Object.assign(look, pos)).catch(() => { }); }
+  else if (moved || force || (MP.wasMv && !moved)) AREA.patch(pos).catch(() => { });
+  else return;
+  MP.wasMv = moved; MP.tPres = .3; MP.lt = now; MP.lx = player.pos.x; MP.lz = player.pos.z; })(mpTick);
+/* leaving the page: out of the room, off the board and the queue */
+window.addEventListener('pagehide', () => { try { if (!NET2.rest || !MP.me) return; fbToken().then(t => { const u = p => fetch(RTDB + '/' + p + '.json?auth=' + t, { method: 'DELETE', keepalive: true });
+  u('rooms/zlobby/p/' + MP.me); if (NET2.qSelf) u('rooms/zq/' + NET2.qSelf + '/' + MP.me); }); } catch (e) { } });
+/* the online line under the life bar counts the people around you now */
+coopElect = (o => function (dt) { const r = o(dt); try { if (NET2.rest) { const e = $('coopTxt'); if (e && /人在线/.test(e.textContent)) e.textContent = e.textContent.replace('人在线', '人在附近'); } } catch (er) { } return r; })(coopElect);
+/* the party panel lists everyone online from the board (your area only has the people near you) */
+renderParty = (o => function () { o(); if (!NET2.rest) return; const box = $('partyBox'); if (!box) return;
+  n2Board().then(B => { if (!$('partyBox')) return; const head = box.querySelector('.snote'); const n = Object.keys(B).length + 1;
+    if (head) head.innerHTML = '当前：<b style="color:#7de0ff">' + (MP.code ? '房间 ' + MP.code : '公共大厅') + '</b> · 在线 ' + n + ' 人 · 身边 ' + Math.max(1, S.mpn || 1) + ' 人';
+    box.querySelectorAll('.n2row').forEach(r => r.remove()); const nb = box.querySelector('.snote:last-child'); if (nb && /还没有别人/.test(nb.textContent)) nb.remove();
+    for (const p in B) { if (MP.others.has(p)) continue; const e = B[p], where = e.a === 'isl' ? '在自己的海岛上' : e.a === 'dun' ? '在副本里' : e.a === 'pvp' ? '在竞技场' : (/^r\d+/.test(e.a) ? regionLabel(+e.a.slice(1)) : '大陆');
+      const r2 = shopRow((cleanName(e.n) || '幸存者') + ' · Lv.' + (e.lv | 0), where, '#7de0ff'); r2.classList.add('n2row'); const b = document.createElement('button'); b.className = 'sbtn';
+      const can = /^r\d+/.test(e.a) && (e.x || e.z); b.textContent = can ? '去找他' : e.a === 'isl' ? '他在海岛上' : '去不了'; b.disabled = !can;
+      b.addEventListener('click', () => { closePanel('party'); fadeThen(() => goGround(e.x + 2.5, e.z + 2.5)); }); r2.appendChild(b); box.appendChild(r2); } }); })(renderParty);
+/* dungeon page: the 组队 box shows even when nobody is near you (friends anywhere can be invited) */
+dunPartyAdd = (o => function () { if (!NET2.rest || !MP.on || MP.others.size) return o.apply(this, arguments);
+  const keep = MP.others; MP.others = new Map([['_', {}]]); try { o.apply(this, arguments); } finally { MP.others = keep; }
+  try { const m = $('dunPageM'), b = m && m.querySelector('.dunparty'); if (b) { const s = b.querySelector('span'); if (s) s.textContent = '邀请在线的好友和你附近的人一起进'; const g = b.querySelector('.dunpgo'); if (g && !g.disabled) g.textContent = '组队进入（邀请好友和附近的人）'; } } catch (e) { } })(dunPartyAdd);
 /* ============ more building pieces ============
    石墙 / 石窗 (stone blocks in relief), 玻璃墙 (a single clear pane like one side of the fish tank: only the outline
    shows, and glass walls in a row join into one long pane), 半墙 (half height), 矮墙 (a quarter of a wall) and a
@@ -23567,8 +23733,10 @@ const pvpCfg = () => PVP_MODES[PVP.mode] || PVP_MODES.duel;
 const pvpM = () => Math.max(1, 8 * (1.5 + .047 * (Math.max(1, S.level) - 1)));
 const pvpTeam = p => (PVP.tm && PVP.tm[p] != null ? PVP.tm[p] : -1);
 const pvpEnemy = p => p !== MP.me && PVP.ps.includes(p) && (pvpCfg().teams === 0 || pvpTeam(p) !== pvpTeam(MP.me));
-const pvpName = p => (p === MP.me ? (S.name || '我') : (PVP.names[p] || (MP.others.get(p) || {}).name || '玩家'));
-const pvpSend = (t, d) => { try { coopSend(t, d); } catch (e) { } };
+const pvpName = p => { if (p === MP.me) return S.name || '我'; if (PVP.names[p]) return PVP.names[p]; const o = MP.others.get(p); if (o && o.name) return o.name;
+  /* online play 2: people from the queue / the board */
+  try { const e = (NET2.qInfo || {})[p] || (NET2.board || {})[p]; if (e && e.n) return cleanName(e.n) || '玩家'; } catch (er) { } return '玩家'; };
+const pvpSend = (t, d) => { try { if (t === 'pvgo' && d && Array.isArray(d.ps) && typeof NET2 !== 'undefined' && NET2.rest && PVP_MODES[d.mode]) n2QueueDrop(d.mode, d.ps); coopSend(t, d); } catch (e) { } };
 /* who of this match is in the arena right now (presence says so), me included */
 function pvpHere() { const L = []; if (pvpIn() && !PVP.left) L.push(MP.me);
   for (const [p, o] of MP.others) if (o.pv && o.pv[0] === PVP.m) L.push(p); return L.filter(p => PVP.ps.includes(p)); }
@@ -23578,9 +23746,7 @@ function pvpPres() { const o = {};
   if (PVP.q && !PVP.m) o.pq = PVP.q + ':' + PVP.qt;
   if (pvpIn()) { o.pv = [PVP.m, pvpTeam(MP.me)]; o.ph = Math.max(0, Math.round(S.hp / Math.max(1, S.maxHp) * 100)); }
   return o; }
-mpInit = (o => async function () { const r = await o.apply(this, arguments);
-  try { const R = MP.room; if (R && R.presence && !R.__pvp) { const pr = R.presence.bind(R); R.presence = obj => pr(Object.assign(obj || {}, pvpPres())); R.__pvp = 1; } } catch (e) { }
-  return r; })(mpInit);
+PRES_X.push(pvpPres);
 syncRemote = (o => function (p) { const r = o.apply(this, arguments);
   try { const pr = p.presence || {}, R = MP.others.get(p.peer); if (R) { R.pq = typeof pr.pq === 'string' ? pr.pq.slice(0, 30) : ''; R.pv = Array.isArray(pr.pv) ? [String(pr.pv[0] || '').slice(0, 24), pr.pv[1] | 0] : null;
     R.ph = clamp(+pr.ph || 0, 0, 100); R.cp = +pr.cp || 0; R.u = pr.u || ''; } } catch (e) { }
@@ -23797,7 +23963,7 @@ function pvpQueueTick(dt) { if (!PVP.q || PVP.m || !MP.on) return; const C = PVP
   const tm = {}, nm = {}; if (C.teams) { const byCp = grp.slice().sort((a, b) => pvpCp(b) - pvpCp(a)); byCp.forEach((p, i) => { tm[p] = [0, 1, 1, 0][i % 4]; }); } else grp.forEach(p => { tm[p] = -1; });
   grp.forEach(p => { nm[p] = pvpName(p); }); const mid = dsepId(), mode = PVP.q;
   pvpSend('pvgo', { m: mid, mode, ps: grp, tm, nm }); if (!PVP.m) pvpGo(mid, mode, grp, tm, nm); }
-const pvpCp = p => (p === MP.me ? (typeof combatPower === 'function' ? combatPower() : 0) : ((MP.others.get(p) || {}).cp || 0));
+const pvpCp = p => { if (p === MP.me) return typeof combatPower === 'function' ? combatPower() : 0; const o = MP.others.get(p); if (o && o.cp) return o.cp; try { const e = (NET2.qInfo || {})[p] || (NET2.board || {})[p]; if (e) return +e.cp || 0; } catch (er) { } return 0; };
 
 /* ---------- 邀请好友 / 组队 ---------- */
 function pvpInvite(peer) { if (!MP.on || !PVP_OPEN.includes(PVP.sel)) return; const mode = PVP.sel, C = PVP_MODES[mode];
@@ -23826,7 +23992,7 @@ function pvpOnLeaveParty(m) { const d = m && m.data, P = PVP.party; if (!d || !P
   if (P.host === MP.me) { P.mem = P.mem.filter(p => p !== m.peer); delete P.tm[m.peer]; feed(pvpName(m.peer) + ' 离开了队伍', '#c1a597'); pvpPartySync(); }
   else if (m.peer === P.host) { PVP.party = null; feed('队长解散了队伍', '#c1a597'); }
   renderPvpPage(); }
-function pvpLeaveParty() { const P = PVP.party; if (!P) return; pvpSend('pvpl', { pid: P.pid }); PVP.party = null; renderPvpPage(); }
+function pvpLeaveParty() { const P = PVP.party; if (!P) return; pvpSend('pvpl', { pid: P.pid, to: P.host }); PVP.party = null; renderPvpPage(); }
 function pvpPartyOk() { const P = PVP.party; if (!P || P.host !== MP.me) return ''; const C = PVP_MODES[P.mode], here = P.mem.filter(p => p === MP.me || MP.others.has(p));
   if (C.size && here.length !== C.size) return '需要 ' + C.size + ' 人（现在 ' + here.length + ' 人）';
   if (!C.size && here.length < 2) return '至少 2 人';
@@ -23860,9 +24026,9 @@ function pvpResult(st) { if (PVP.shown) return; PVP.shown = true; PVP.done = tru
 function closePvpPage() { const m = $('pvpM'); if (m) m.remove(); }
 function openPvpPage() { try { audioInit(); } catch (e) { } closePvpPage(); const m = document.createElement('div'); m.id = 'pvpM'; m.className = 'overlay show'; document.body.appendChild(m);
   m.addEventListener('click', e => { if (e.target === m) closePvpPage(); }); renderPvpPage(); }
-function renderPvpPage() { const m = $('pvpM'); if (!m) return; const sel = PVP.sel, C = PVP_MODES[sel], P = PVP.party;
+function renderPvpPage() { const m = $('pvpM'); if (!m) return; if (pvpRest() && S.t - NET2.boardAt >= 4) n2Board().then(() => { if ($('pvpM')) renderPvpPage(); }); const sel = PVP.sel, C = PVP_MODES[sel], P = PVP.party;
   let h = '<div class="pvpg"><div class="pvhd"><b>竞技场 · PvP</b><button class="sbtn ghostb pvx">✕</button></div>';
-  h += '<p class="pvdim">用你自己的武器、装备、等级和技能。只为好玩：不给奖励，也不扣东西（子弹、医疗包出来会还给你）。大厅在线 ' + (MP.on ? MP.others.size + 1 : 0) + ' 人。</p>';
+  h += '<p class="pvdim">用你自己的武器、装备、等级和技能。只为好玩：不给奖励，也不扣东西（子弹、医疗包出来会还给你）。大厅在线 ' + (MP.on ? (pvpRest() ? Object.keys(NET2.board).length : MP.others.size) + 1 : 0) + ' 人。</p>';
   h += '<div class="pvmodes">' + PVP_ORDER.filter(k => PVP_OPEN.includes(k)).map(k => { const M = PVP_MODES[k], qn = pvpQueued(k).length; return '<button class="pvmd' + (k === sel ? ' on' : '') + '" data-k="' + k + '"><b>' + M.n + '</b><small>' + M.d + '</small><i>' + (qn ? qn + ' 人在匹配' : '') + '</i></button>'; }).join('') + '</div>';
   if (!MP.on) h += '<p class="pvwarn">没有连上网络，联网后才能 PvP。</p>';
   else if (PVP.q) { const w = Math.max(0, Math.round(S.t - PVP.qSince)); h += '<div class="pvq"><span>正在匹配「' + PVP_MODES[PVP.q].n + '」· ' + w + ' 秒 · 队列 ' + pvpQueued(PVP.q).length + ' / ' + (PVP_MODES[PVP.q].size || PVP_MODES[PVP.q].min) + '</span><button class="sbtn ghostb pvcan">取消匹配</button></div>'; }
@@ -23871,7 +24037,7 @@ function renderPvpPage() { const m = $('pvpM'); if (!m) return; const sel = PVP.
     h += '<div class="pvparty"><b>' + (host ? '我的队伍' : pvpName(P.host) + ' 的队伍') + ' · ' + PVP_MODES[P.mode].n + '</b>' + P.mem.map(p => { const t = P.tm[p]; return '<div class="pvrow"><span>' + (P.nm[p] || pvpName(p)) + (p === P.host ? '（队长）' : '') + '</span>' + (PVP_MODES[P.mode].teams ? '<button class="pvtm ' + (t === 1 ? 'blue' : 'red') + '" data-p="' + p + '"' + (host ? '' : ' disabled') + '>' + (t === 1 ? '蓝队' : '红队') + '</button>' : '') + '</div>'; }).join('');
     h += host ? '<div class="pvinvr"><button class="sbtn ghostb pvdis">解散</button><button class="go pvstart"' + (ok === 'ok' ? '' : ' disabled') + '>' + (ok === 'ok' ? '开始比赛' : ok) + '</button></div>' : '<div class="pvinvr"><span class="pvdim">等队长开始……</span><button class="sbtn ghostb pvdis">离开队伍</button></div>';
     h += '</div>'; }
-  if (MP.on && !PVP.q && (!P || P.host === MP.me)) { const fr = pvpFriendUids(), L = [...MP.others.entries()].filter(([p, o]) => !o.pv && !(P && P.mem.includes(p))).sort((a, b) => (fr.has(b[1].u) ? 1 : 0) - (fr.has(a[1].u) ? 1 : 0) || (a[1].name < b[1].name ? -1 : 1)).slice(0, 40);
+  if (MP.on && !PVP.q && (!P || P.host === MP.me)) { const fr = pvpFriendUids(), L = (pvpRest() ? Object.entries(NET2.board).map(([p, e]) => [p, { name: cleanName(e.n) || '幸存者', lv: e.lv | 0, cp: e.cp | 0, u: e.u || '', pv: e.a === 'pvp' ? 1 : null }]) : [...MP.others.entries()]).filter(([p, o]) => p !== '~bot' && !o.pv && !(P && P.mem.includes(p))).sort((a, b) => (fr.has(b[1].u) ? 1 : 0) - (fr.has(a[1].u) ? 1 : 0) || (a[1].name < b[1].name ? -1 : 1)).slice(0, 40);
     h += '<div class="pvlist"><b>邀请玩家（' + C.n + '）</b>' + (L.length ? L.map(([p, o]) => '<div class="pvrow"><span>' + (fr.has(o.u) ? '★ ' : '') + o.name + ' · Lv.' + o.lv + (o.cp ? ' · 战力 ' + Math.round(o.cp) : '') + '</span><button class="sbtn pvinv" data-p="' + p + '">邀请</button></div>').join('') : '<p class="pvdim">现在大厅里没有别的玩家。可以先点「自动匹配」等人。</p>') + '</div>'; }
   h += '</div>'; const sc0 = m.querySelector('.pvpg') ? m.querySelector('.pvpg').scrollTop : 0; m.innerHTML = h; m.querySelector('.pvpg').scrollTop = sc0;
   m.querySelector('.pvx').addEventListener('click', closePvpPage);
@@ -23879,7 +24045,7 @@ function renderPvpPage() { const m = $('pvpM'); if (!m) return; const sel = PVP.
   const q = m.querySelector('.pvmatch'); if (q) q.addEventListener('click', () => pvpQueue(PVP.sel));
   const c = m.querySelector('.pvcan'); if (c) c.addEventListener('click', pvpUnqueue);
   m.querySelectorAll('.pvinv').forEach(b => b.addEventListener('click', () => pvpInvite(b.dataset.p)));
-  const ds = m.querySelector('.pvdis'); if (ds) ds.addEventListener('click', () => { if (PVP.party && PVP.party.host === MP.me) { pvpSend('pvpt', { pid: PVP.party.pid, mode: PVP.party.mode, mem: [] }); PVP.party = null; renderPvpPage(); } else pvpLeaveParty(); });
+  const ds = m.querySelector('.pvdis'); if (ds) ds.addEventListener('click', () => { if (PVP.party && PVP.party.host === MP.me) { pvpSend('pvpt', { pid: PVP.party.pid, mode: PVP.party.mode, mem: [], was: PVP.party.mem.slice() }); PVP.party = null; renderPvpPage(); } else pvpLeaveParty(); });
   const sb = m.querySelector('.pvstart'); if (sb) sb.addEventListener('click', pvpPartyStart);
   m.querySelectorAll('.pvtm').forEach(b => b.addEventListener('click', () => { const P2 = PVP.party; if (!P2 || P2.host !== MP.me) return; P2.tm[b.dataset.p] = P2.tm[b.dataset.p] === 1 ? 0 : 1; pvpPartySync(); renderPvpPage(); })); }
 function pvpFriendUids() { const s = new Set(); try { if (typeof FR !== 'undefined' && FR.list) for (const k of Object.keys(FR.list)) s.add(k); } catch (e) { } return s; }
@@ -23910,6 +24076,12 @@ renderPort = (o => function () { o(); try { const box = $('portList'); if (!box)
 zombieVoice = (o => function (z) { if (z && z.pvp) return; return o.apply(this, arguments); })(zombieVoice);
 zombieAudio = (o => function (dt) { const L = []; for (let i = zombies.length - 1; i >= 0; i--) if (zombies[i] && zombies[i].pvp) L.push(zombies.splice(i, 1)[0]);
   try { return o.apply(this, arguments); } finally { for (const z of L) zombies.push(z); } })(zombieAudio);
+/* ---- online play 2 (z_net2.js): queue, names, lists from the queue path and the board instead of everyone's presence ---- */
+const pvpRest = () => typeof NET2 !== 'undefined' && NET2.rest;
+pvpQueue = (o => function (mode) { const r = o.apply(this, arguments); if (pvpRest() && PVP.q === mode) { n2QueueSet(mode); n2QueuePoll(true); } return r; })(pvpQueue);
+pvpUnqueue = (o => function () { const r = o.apply(this, arguments); if (pvpRest()) n2QueueSet(null); return r; })(pvpUnqueue);
+pvpGo = (o => function () { if (pvpRest() && NET2.qSelf) n2QueueSet(null); return o.apply(this, arguments); })(pvpGo);
+pvpQueued = (o => function (mode) { if (!pvpRest()) return o(mode); return (NET2.q[mode] || []).slice(); })(pvpQueued);
 /* ============ PvP 人机 (owner 19 Nov: "匹配不到就放人机进去") ============
    Queued for 1v1 and nobody found within PVP_BOT_WAIT seconds → a match against a computer opponent starts, in your own
    private arena. The bot is honest about what it is: its name ends in 「（人机）」.
@@ -24073,9 +24245,7 @@ renderPvpPage = (o => function () { o(); try { const m = $('pvpM'); if (!m || MP
 const PVPZ_ON = false, PVPZ_TIER = 8, PVPZ_R = 70;
 const PVPZ = { in: false, tgt: new Map(), hq: new Map(), tH: 0, warnT: 0 };
 const pvpzHere = () => PVPZ_ON && S.started && !S.isl && !S.dun && !S.dead && (() => { try { return tierAt(player.pos.x, player.pos.z) >= PVPZ_TIER; } catch (e) { return false; } })();
-mpInit = (o => async function () { const r = await o.apply(this, arguments);
-  try { const R = MP.room; if (R && R.presence && !R.__pvpz) { const pr = R.presence.bind(R); R.presence = obj => pr(Object.assign(obj || {}, PVPZ.in ? { pz: 1 } : {})); R.__pvpz = 1; } } catch (e) { }
-  return r; })(mpInit);
+PRES_X.push(() => (PVPZ.in ? { pz: 1 } : {}));
 syncRemote = (o => function (p) { const r = o.apply(this, arguments); try { const R = MP.others.get(p.peer); if (R) R.pz = !!(p.presence && p.presence.pz); } catch (e) { } return r; })(syncRemote);
 coopWire = (o => function (r) { o(r); r.on('pzh', pvpzOnHit); })(coopWire);
 function pvpzOnHit(m) { const d = m && m.data; if (!PVPZ_ON || !d || !Array.isArray(d.h) || !PVPZ.in || S.dead) return; const o = MP.others.get(m.peer); if (!o || !o.pz) return;
@@ -24091,9 +24261,7 @@ function pvpzTick(dt) { if (!PVPZ_ON) return; const was = PVPZ.in; PVPZ.in = pvp
 /* hits on field targets go to 'pzh' instead of the arena's 'pvh' (the arena wrapper only takes hits during a match fight) */
 coopHit = (o => function (z, dmg) { if (z && z.pvpz) { PVPZ.hq.set(z.pvp, (PVPZ.hq.get(z.pvp) || 0) + dmg); z.hitT = S.t; return; } return o(z, dmg); })(coopHit);
 /* in the field your presence must carry your life too, so the others' bars are right */
-mpInit = (o => async function () { const r = await o.apply(this, arguments);
-  try { const R = MP.room; if (R && R.presence && !R.__pvpzh) { const pr = R.presence.bind(R); R.presence = obj => pr(Object.assign(obj || {}, PVPZ.in ? { ph: Math.max(0, Math.round(S.hp / Math.max(1, S.maxHp) * 100)) } : {})); R.__pvpzh = 1; } } catch (e) { }
-  return r; })(mpInit);
+PRES_X.push(() => (PVPZ.in ? { ph: Math.max(0, Math.round(S.hp / Math.max(1, S.maxHp) * 100)) } : {}));
 petsTick = (o => function (dt) { const r = o.apply(this, arguments); try { pvpzTick(dt); } catch (e) { } return r; })(petsTick);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
@@ -25129,4 +25297,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795074285').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795076458').catch(()=>{});</script></body></html>
