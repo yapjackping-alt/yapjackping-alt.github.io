@@ -23608,6 +23608,7 @@ function skSkinFx(id, K) { const T = SKT[K.key]; if (!T || !player) return; let 
   const C = { px: player.pos.x, pz: player.pos.z, gy: skGY(), dx, dz, K };
   try { T.snd && T.snd(C); } catch (e) { }
   const spotsRing = (x, z, r, n, s) => { for (let i = 0; i < n; i++) { const a = i / n * 6.283; skL(i * 25, () => T.spot(C, x + Math.cos(a) * r, z + Math.sin(a) * r, s)); } };
+  if (T.full) { T.full(C, id); return; }
   if (id === 'pistol' || id === 'rifle' || id === 'sniper') { (T.self || (() => spotsRing(C.px, C.pz, 2, 6, 1)))(C); return; }
   if (id === 'shotgun') { const an = Math.atan2(dz, dx); for (let row = 1; row <= 3; row++) { const r = row * 2.8, k = row + 1; for (let j = 0; j < k; j++) { const a = an + (j / (k - 1) - .5) * .9; skL((row - 1) * 80, () => T.spot(C, C.px + Math.cos(a) * r, C.pz + Math.sin(a) * r, .8 + row * .15)); } } return; }
   if (id === 'blade') { const ax = C.px - dx * 6, az = C.pz - dz * 6; if (T.line) T.line(C, ax, az); else for (let i = 0; i <= 5; i++) { const f = i / 5; skL(i * 40, () => T.spot(C, ax + (C.px - ax) * f, az + (C.pz - az) * f, 1)); } return; }
@@ -23615,6 +23616,234 @@ function skSkinFx(id, K) { const T = SKT[K.key]; if (!T || !player) return; let 
   if (id === 'pick') { if (T.ring) T.ring(C, C.px, C.pz, 5); else { T.spot(C, C.px, C.pz, 1.6); spotsRing(C.px, C.pz, 3.6, 8, 1); } return; }
   if (T.self) T.self(C); }
 ws2Cast = (o => function (id) { const r = o.apply(this, arguments); try { const K = wsSkinK(id); if (K) skSkinFx(id, K); } catch (e) { console.warn('skin skill fx', e); } return r; })(ws2Cast);
+/* ============ three new mythic weapon skins (owner 20 Nov: "手枪、镐子、斧头都没什么皮肤 — 斧头设计一款盘古斧，开天劈地，
+   非常魁梧霸气；手枪和镐子你自己想") ============
+   盘古斧 (axe, key pangu): a huge ancient bronze broad-axe; the curved edge glows with primordial white-gold light, a gold rim,
+     a sun disc and a crack of light on each cheek, a taotie hammer on the back with glowing eyes, a thick bronze haft with gold
+     bands; three rocks and gold motes circle the head. Swing = a tall gold crescent + the ground cracks open in front of you
+     with light shining out. SKILL 开天辟地: a giant golden phantom axe sweeps round with your three spins, then rises and
+     slams down in front: the ground splits along a 14 m fissure, light bursts up out of it, a tear of light runs down from the
+     sky, clear qi rises and turbid qi sinks, shockwaves, rocks fly, a heavy boom and the screen shakes.
+   流光时轮 (pistol, key chrono): a navy and rose-gold revolver with a real clock face on the side (the hands turn), turning
+     gears and a glowing muzzle ring. Shots leave a time echo (a second faint tracer a moment later) and a clock ring
+     spinning backwards where they land. SKILL 时停领域: a giant clock face on the ground with the hands spinning backwards,
+     gears floating up, a warm sepia flash and three chimes.
+   龙脉晶镐 (pick, key longmai): a pick head of two faceted violet crystals with gold edges on a dark stone haft with glowing
+     teal dragon veins and a gold collar. Swing = crystals burst out of the ground where you strike. SKILL 龙脉爆发: glowing
+     veins crack outward from the smash, a ring of big crystal clusters erupts, then shatters into shards.
+   Same stats as the other mythic skins; sold in the skin shop's direct sale (mythic price); one owner code gives all three
+   (hash only). The generic mythic package (aura, kill finisher, equip flourish, hit sparks) works for them automatically. */
+const MY3_ON = true, MY3_CODE = 546953035;   /* owner's code for all three: hash only */
+const MY3 = { M: null };
+WSKINS.pangu = { only: 'axe', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '盘古斧', r: 5, custom: true,
+  base: 0x5a3a1a, mid: 0xe8b84a, acc: 0xfff0b0, glow: 0xffd870, tr: 0xffd870, tr2: 0xfff4d0,
+  d: '传说中盘古开天辟地用的那把巨斧。古铜斧身大得吓人，弧形斧刃亮着混沌初开的白金色光芒，两面刻着太阳纹和一道裂开的天光，斧背是兽面锤，眼里冒着火光，三块山石和金色光点绕着斧头转。\n普通挥砍：一道高高的金色斧光劈下，前方地面裂开，光从裂缝里透出来。\n技能「开天辟地」：转身的三圈里，一把巨大的金色斧影跟着你横扫；最后斧影高高举起、一斧劈下——大地沿着 14 米裂开，光从裂缝里冲天而起，天上也裂开一道光，清气上升、浊气下沉，冲击波和碎石四散，整个画面跟着震动。' };
+WSKINS.chrono = { only: 'pistol', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '流光时轮', r: 5, custom: true,
+  base: 0x1a2240, mid: 0xe0a070, acc: 0xffe6b0, glow: 0x7ae8ff, tr: 0x7ae8ff, tr2: 0xffd08a,
+  d: '深蓝配玫瑰金的左轮手枪，枪身侧面嵌着一个真的钟面，指针一直在走，后面的小齿轮跟着转，枪口亮着一圈青光。\n开枪：子弹后面会留下一道「时间残影」，稍后又闪过一次；打中的地方会出现一个倒着转的钟环。\n技能「时停领域」：脚下展开一个巨大的钟面，指针飞快倒转，齿轮从地上浮起，画面染上一层暖黄色，响起三声钟鸣。' };
+WSKINS.longmai = { only: 'pick', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '龙脉晶镐', r: 5, custom: true,
+  base: 0x2a2630, mid: 0x9a5aff, acc: 0xffd060, glow: 0x5afff0, tr: 0xb07aff, tr2: 0x5afff0,
+  d: '镐头是两根带金边的紫色多面水晶，镐柄是黑色岩石，上面流着青色的龙脉光纹，金色镐箍上镶着宝石。\n挥镐：敲下去的地方会冒出一丛水晶。\n技能「龙脉爆发」：砸地的瞬间，青色的龙脉光纹从脚下向四周裂开，一圈巨大的水晶簇破土而出，然后碎成漫天晶片。' };
+/* ---------------- shared materials ---------------- */
+function my3Mats() { if (MY3.M) return MY3.M; const L = (c, e) => new THREE.MeshLambertMaterial({ color: c, emissive: e || 0, flatShading: true }), B = (c, o) => new THREE.MeshBasicMaterial(o == null ? { color: c } : { color: c, transparent: true, opacity: o, depthWrite: false, blending: THREE.AdditiveBlending });
+  return (MY3.M = { bronze: L(0x6a4420, 0x1c0e04), bronzeD: L(0x3a2412, 0x0c0602), gold: L(0xe8b84a, 0x4a3008), light: B(0xfff0b0), lightG: B(0xffd870, .35), eye: B(0xff4a1a), rock: L(0x6a5a4a),
+    navy: L(0x1a2240, 0x060a18), rose: L(0xe0a070, 0x3a1c0c), brass: L(0xd8a84a, 0x3a2408), ivory: L(0xf4ead0, 0x2a2618), cyan: B(0x7ae8ff), cyanG: B(0x7ae8ff, .4), hand: L(0x1a1a24),
+    stone: L(0x2a2630, 0x08060c), vein: B(0x5afff0), crys: new THREE.MeshLambertMaterial({ color: 0x9a5aff, emissive: 0x3a1a7a, flatShading: true, transparent: true, opacity: .92 }),
+    crysT: new THREE.MeshLambertMaterial({ color: 0x5afff0, emissive: 0x0a5a50, flatShading: true }), edge: new THREE.LineBasicMaterial({ color: 0xffd060 }), gem: B(0xb07aff) }); }
+const my3Add = (g, geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x || 0, y || 0, z || 0); g.add(o); return o; };
+/* a flat outline in the weapon's (z, y) plane, extruded across x */
+function my3Shape(pts, depth, m, g, x, bevel) { let geo; try { const s = new THREE.Shape(); s.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) s.lineTo(pts[i][0], pts[i][1]);
+    geo = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: !!bevel, bevelThickness: bevel || 0, bevelSize: bevel || 0, bevelSegments: 1 }); geo.translate(0, 0, -depth / 2); geo.rotateY(-Math.PI / 2); }
+  catch (e) { let a = 1e9, b = -1e9, c = 1e9, d = -1e9; for (const [z, y] of pts) { a = Math.min(a, z); b = Math.max(b, z); c = Math.min(c, y); d = Math.max(d, y); } geo = new THREE.BoxGeometry(depth, d - c, b - a); geo.translate(0, (c + d) / 2, (a + b) / 2); }
+  return my3Add(g, geo, m, x || 0, 0, 0); }
+const my3Rod = (g, r0, r1, len, m, y, z, seg) => { const o = my3Add(g, new THREE.CylinderGeometry(r0, r1, len, seg || 8), m, 0, y, z); o.rotation.x = Math.PI / 2; return o; };
+/* ---------------- 盘古斧 ---------------- */
+function panguEdge() { const o = []; for (let i = 0; i <= 12; i++) { const f = i / 12; o.push([1.16 - .9 * f, .6 + .15 * Math.sin(Math.PI * f) - .04 * Math.abs(f - .5)]); } return o; }
+function panguHead(g, M, ghost) { const E = panguEdge(), body = [[.5, -.1], [.88, -.1], [.95, .08], [1.1, .34], [1.17, .58]].concat(E).concat([[.27, .58], [.34, .38], [.45, .2], [.5, .06]]);
+  my3Shape(body, .07, ghost || M.bronze, g, 0, .008);
+  if (ghost) return;
+  my3Shape(E.map(([z, y]) => [z, y - .075]).concat(E.slice().reverse().map(([z, y]) => [z, y - .13])), .076, M.gold, g, 0);   // gold rim inside the edge
+  my3Shape(E.concat(E.slice().reverse().map(([z, y]) => [z, y - .07])), .04, M.light, g, 0, .004);                              // the glowing primordial edge
+  for (const s of [-1, 1]) { const sun = my3Add(g, new THREE.CircleGeometry(.1, 16), M.gold, s * .042, .3, .74); sun.rotation.y = s * Math.PI / 2;
+    const core = my3Add(g, new THREE.CircleGeometry(.05, 12), M.light, s * .044, .3, .74); core.rotation.y = s * Math.PI / 2;
+    [[.52, .12, .62, .22], [.62, .22, .58, .34], [.58, .34, .7, .46], [.7, .46, .66, .56]].forEach(([z0, y0, z1, y1]) => { const len = Math.hypot(z1 - z0, y1 - y0), b = my3Add(g, new THREE.BoxGeometry(.004, .016, len), M.light, s * .041, (y0 + y1) / 2, (z0 + z1) / 2); b.rotation.x = -Math.atan2(y1 - y0, z1 - z0); }); }
+  my3Add(g, new THREE.BoxGeometry(.1, .2, .2), M.bronzeD, 0, -.2, .72);                                                         // taotie hammer on the back
+  my3Add(g, new THREE.BoxGeometry(.11, .05, .22), M.gold, 0, -.31, .72);
+  for (const s of [-1, 1]) for (const z of [.67, .77]) { const e = my3Add(g, new THREE.OctahedronGeometry(.022), M.eye, s * .052, -.18, z); e.scale.set(.4, 1, 1.4); }
+  my3Add(g, new THREE.BoxGeometry(.09, .16, .2), M.bronzeD, 0, 0, .7);                                                          // eye collar round the haft
+  for (const y of [-.085, .085]) my3Add(g, new THREE.BoxGeometry(.096, .025, .21), M.gold, 0, y, .7); }
+function panguBuild(g) { const M = my3Mats();
+  my3Rod(g, .046, .052, 1.12, M.bronzeD, 0, .22, 8);                                                                             // the haft
+  for (const z of [-.24, -.12, .02, .44, .58]) my3Rod(g, .058, .058, .03, M.gold, 0, z, 10);
+  for (let i = 0; i < 6; i++) { const b = my3Add(g, new THREE.BoxGeometry(.008, .012, .1), M.gold, 0, 0, -.18 + i * .1); b.position.x = Math.cos(i * 1.2) * .05; b.position.y = Math.sin(i * 1.2) * .05; }
+  my3Add(g, new THREE.OctahedronGeometry(.07), M.gold, 0, 0, -.38).scale.set(1, 1, 1.4);
+  my3Add(g, new THREE.ConeGeometry(.03, .1, 5), M.bronzeD, 0, 0, -.46).rotation.x = -Math.PI / 2;
+  panguHead(g, M);
+  // three rocks and gold motes circle the head; animated from one tiny always-drawn host
+  const rocks = []; for (let i = 0; i < 3; i++) { const r = my3Add(g, new THREE.DodecahedronGeometry(.045 + i * .008, 0), M.rock); rocks.push(r); }
+  const motes = []; for (let i = 0; i < 4; i++) motes.push(my3Add(g, new THREE.OctahedronGeometry(.018), M.light));
+  const host = my3Add(g, new THREE.BoxGeometry(.001, .001, .001), M.gold, 0, 0, .7); host.frustumCulled = false;
+  host.onBeforeRender = () => { const T = performance.now() / 1000;
+    rocks.forEach((r, i) => { const a = T * (.9 + i * .2) + i * 2.1; r.position.set(Math.cos(a) * .28, .3 + Math.sin(a) * .42, .72 + Math.sin(a * 1.3) * .12); r.rotation.set(T + i, T * .7, 0); });
+    motes.forEach((m, i) => { const a = -T * 1.6 + i * 1.57; m.position.set(Math.sin(a * 1.4) * .2, .3 + Math.cos(a) * .55, .72 + Math.sin(a) * .5); m.scale.setScalar(.7 + .5 * Math.sin(T * 5 + i)); });
+    M.lightG.opacity = .3 + .12 * Math.sin(T * 3); };
+  return g; }
+/* ---------------- 流光时轮 ---------------- */
+function chronoBuild(g) { const M = my3Mats();
+  my3Add(g, new THREE.BoxGeometry(.1, .12, .3), M.navy, 0, .02, .1);                                                             // frame
+  my3Rod(g, .034, .038, .3, M.rose, .04, .33, 10);                                                                                 // barrel
+  my3Add(g, new THREE.BoxGeometry(.02, .03, .28), M.rose, 0, .09, .32);                                                            // top rib
+  const mz = my3Add(g, new THREE.TorusGeometry(.042, .01, 6, 18), M.cyan, 0, .04, .48);                                            // glowing muzzle ring
+  my3Rod(g, .072, .072, .11, M.brass, .02, .08, 12);                                                                                // the drum
+  const grip = new THREE.Group(); grip.position.set(0, -.14, -.05); grip.rotation.x = .28; g.add(grip);
+  my3Add(grip, new THREE.BoxGeometry(.09, .27, .12), M.navy); my3Add(grip, new THREE.BoxGeometry(.094, .03, .125), M.gold, 0, .06, 0); my3Add(grip, new THREE.BoxGeometry(.094, .03, .125), M.gold, 0, -.08, 0);
+  my3Add(grip, new THREE.OctahedronGeometry(.03), M.cyan, 0, -.16, 0);
+  my3Add(g, new THREE.BoxGeometry(.03, .05, .04), M.gold, 0, .1, -.06);                                                            // hammer
+  my3Add(g, new THREE.BoxGeometry(.03, .03, .08), M.rose, 0, -.06, .05);                                                           // trigger guard
+  // the clock face on both sides, with turning hands
+  const hands = []; for (const s of [-1, 1]) { const C = new THREE.Group(); C.position.set(s * .057, .02, .02); C.rotation.y = s * Math.PI / 2; g.add(C);
+    my3Add(C, new THREE.CircleGeometry(.068, 24), M.ivory); my3Add(C, new THREE.TorusGeometry(.068, .007, 5, 24), M.gold, 0, 0, .002);
+    for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283, t = my3Add(C, new THREE.BoxGeometry(.006, i % 3 ? .012 : .02, .004), M.hand, Math.sin(a) * .055, Math.cos(a) * .055, .004); t.rotation.z = -a; }
+    const hh = new THREE.Group(), mm = new THREE.Group(); my3Add(hh, new THREE.BoxGeometry(.008, .035, .004), M.hand, 0, .016, .006); my3Add(mm, new THREE.BoxGeometry(.005, .052, .004), M.rose, 0, .024, .008);
+    C.add(hh); C.add(mm); my3Add(C, new THREE.OctahedronGeometry(.009), M.cyan, 0, 0, .01); hands.push([hh, mm, s]); }
+  // two gears on top at the back
+  const gears = []; for (const [y, z, r] of [[.1, .01, .036], [.115, -.045, .024]]) { const G = new THREE.Group(); G.position.set(0, y, z); g.add(G);
+    const disc = my3Add(G, new THREE.CylinderGeometry(r, r, .016, 12), M.brass); disc.rotation.z = Math.PI / 2;
+    for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283; my3Add(G, new THREE.BoxGeometry(.016, .012, .012), M.brass, 0, Math.cos(a) * (r + .006), Math.sin(a) * (r + .006)).rotation.x = -a; } gears.push([G, r]); }
+  mz.frustumCulled = false;
+  mz.onBeforeRender = () => { const T = performance.now() / 1000; hands.forEach(([hh, mm, s]) => { hh.rotation.z = -s * T * .5; mm.rotation.z = -s * T * 6; });
+    gears.forEach(([G, r], i) => { G.rotation.x = (i ? -1 : 1) * T * 2.2 * .036 / r; }); M.cyanG.opacity = .3 + .15 * Math.sin(T * 4); };
+  return g; }
+/* ---------------- 龙脉晶镐 ---------------- */
+function my3Crystal(g, M, y0, z0, y1, z1, r, mat) { const L = Math.hypot(y1 - y0, z1 - z0), G = new THREE.Group(); G.position.set(0, y0, z0); G.rotation.x = Math.atan2(z1 - z0, y1 - y0); g.add(G);
+  const body = new THREE.CylinderGeometry(r * .8, r, L * .78, 6); body.translate(0, L * .39, 0); const tip = new THREE.ConeGeometry(r * .8, L * .22, 6); tip.translate(0, L * .89, 0);
+  for (const geo of [body, tip]) { G.add(new THREE.Mesh(geo, mat || M.crys)); try { G.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), M.edge)); } catch (e) { } } return G; }
+function longmaiBuild(g) { const M = my3Mats();
+  my3Rod(g, .036, .042, 1, M.stone, 0, .22, 7);                                                                                     // dark stone haft
+  const vz = [[-.24, .02], [-.12, -.02], [0, .025], [.12, -.015], [.24, .02], [.36, -.02], [.48, .015], [.6, 0]];
+  for (const s of [-1, 1]) for (let i = 0; i < vz.length - 1; i++) { const [z0, y0] = vz[i], [z1, y1] = vz[i + 1], b = my3Add(g, new THREE.BoxGeometry(.006, .008, Math.hypot(z1 - z0, y1 - y0) + .006), M.vein, s * .04, (y0 + y1) / 2, (z0 + z1) / 2); b.rotation.x = -Math.atan2(y1 - y0, z1 - z0); }
+  my3Rod(g, .05, .046, .06, M.gold, 0, -.3, 8); my3Add(g, new THREE.OctahedronGeometry(.04), M.crysT, 0, 0, -.36);                  // butt cap + crystal
+  my3Add(g, new THREE.BoxGeometry(.1, .15, .17), M.gold, 0, 0, .7);                                                                  // gold collar
+  for (const s of [-1, 1]) my3Add(g, new THREE.OctahedronGeometry(.035), M.gem, s * .055, 0, .7).scale.set(.5, 1.3, 1);
+  my3Crystal(g, M, .06, .7, .56, .56, .095);                                                                                           // chisel side (+y)
+  my3Crystal(g, M, -.06, .7, -.66, .52, .1);                                                                                         // point side (-y)
+  for (let i = 0; i < 3; i++) { const a = i / 3 * 6.283 + .5; my3Crystal(g, M, Math.cos(a) * .06, .7 + Math.sin(a) * .05, Math.cos(a) * .22, .84 + Math.sin(a) * .07, .04, M.crysT); }
+  const motes = []; for (let i = 0; i < 3; i++) motes.push(my3Add(g, new THREE.OctahedronGeometry(.016), M.vein));
+  const host = my3Add(g, new THREE.BoxGeometry(.001, .001, .001), M.gold, 0, 0, .7); host.frustumCulled = false;
+  host.onBeforeRender = () => { const T = performance.now() / 1000; M.crys.emissive.setRGB(.2 + .1 * Math.sin(T * 2.5), .08, .45 + .15 * Math.sin(T * 2.5)); M.vein.color.setHSL(.47, 1, .6 + .12 * Math.sin(T * 4));
+    motes.forEach((m, i) => { const a = T * 2 + i * 2.09; m.position.set(Math.cos(a) * .12, Math.sin(a) * .5, .66 + Math.sin(a * 2) * .06); }); };
+  return g; }
+const MY3_BUILD = { pangu: ['axe', panguBuild], chrono: ['pistol', chronoBuild], longmai: ['pick', longmaiBuild] };
+buildWeapon = (orig => function (id, t, skin) { const g = orig.apply(this, arguments), k = skin !== undefined ? skin : (S.wsk && S.wsk[id]), B = MY3_ON && MY3_BUILD[k];
+  if (B && B[0] === id) try { for (const c of g.children.slice()) g.remove(c); B[1](g); } catch (e) { console.warn('myth3 model', e); }
+  return g; })(buildWeapon);
+
+/* ---------------- sounds ---------------- */
+const my3T = (a, b, c, d, e, f) => { try { sfxTone(a, b, c, d, e, f); } catch (er) { } }, my3N = (a, b, c, d) => { try { sfxNoise(a, b, c, d); } catch (er) { } };
+const my3Boom = big => { my3T(big ? 55 : 80, big ? 26 : 40, big ? 1.1 : .45, big ? .3 : .16, 'sine'); my3N(big ? .9 : .3, big ? .22 : .1, big ? 260 : 500, { type: 'lowpass' }); if (big) my3T(110, 40, .8, .12, 'sawtooth', { delay: .03 }); };
+const my3Chime = (f, d) => { my3T(f, f * .995, 1.2, .07, 'sine', { delay: d || 0 }); my3T(f * 2.76, f * 2.7, .6, .025, 'sine', { delay: d || 0 }); };
+try { WSK_SND.pangu = { fire() { my3N(.22, .1, 900, { type: 'bandpass', q: .8, f1: 300 }); my3T(140, 60, .25, .06, 'sawtooth'); }, hit() { my3Boom(false); my3N(.12, .08, 2200, { type: 'bandpass', q: 2 }); } };
+  WSK_SND.longmai = { fire() { my3N(.16, .07, 1800, { type: 'bandpass', q: 1 }); }, hit() { for (let i = 0; i < 3; i++) my3T(2600 + i * 700, 2400 + i * 600, .25, .04, 'sine', { delay: i * .04 }); my3T(90, 50, .2, .08, 'sine'); } };
+  WSK_SND.chrono = { fire() { }, hit() { my3Chime(1568); } };
+  WSK_GUN.chrono = { fire() { my3T(3200, 3200, .015, .04, 'square', { delay: .05 }); my3T(2400, 2400, .015, .03, 'square', { delay: .16 }); }, hit() { my3T(2093, 2090, .25, .03, 'sine'); } }; } catch (e) { }
+
+/* ---------------- normal attacks ---------------- */
+// 盘古斧: a tall gold crescent (the generic one) + the ground cracks open ahead with light shining out
+mythSwing = (orig => function (K) { const r = orig.apply(this, arguments); if (!K || !MY3_ON) return r;
+  try { if (K.key === 'pangu') panguChop(); else if (K.key === 'longmai') longmaiStrike(); } catch (e) { } return r; })(mythSwing);
+function panguChop() { const [dx, dz] = aimDir(), d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d, gy = skGY(), x0 = player.pos.x + ux * 1.1, z0 = player.pos.z + uz * 1.1, an = Math.atan2(ux, uz), G = skGeo();
+  setTimeout(() => { try { panguCrack(x0, z0, ux, uz, gy, 3.4, .55, an); skRing(x0, gy + .08, z0, .2, 1.8, .45, 0xffd870, .8);
+    for (let i = 0; i < 5; i++) skThrow(G.oct, i % 2 ? 0x8a7a6a : 0xffe8a0, x0, gy + .2, z0, (Math.random() - .5) * 3, 3 + Math.random() * 2, (Math.random() - .5) * 3, .6, 1.4, 12, 8);
+    S.shake = Math.max(S.shake || 0, .12); } catch (e) { } }, 130); }
+// a crack in the ground: dark jagged segments with light shining up out of them
+function panguCrack(x0, z0, ux, uz, gy, len, life, an, big) { const G = skGeo(), n = Math.max(3, Math.round(len / .9)), nx = -uz, nz = ux; let px = x0, pz = z0;
+  for (let i = 0; i < n; i++) { const f = (i + 1) / n, j = (Math.random() - .5) * (big ? .9 : .5), qx = x0 + ux * len * f + nx * j, qz = z0 + uz * len * f + nz * j, cx = (px + qx) / 2, cz = (pz + qz) / 2, L = Math.hypot(qx - px, qz - pz), a = Math.atan2(qx - px, qz - pz), dl = i * (big ? 28 : 18);
+    const w = big ? 1.1 : .3;
+    skL(dl, () => { skP(G.box, 0x1a0e06, cx, gy + .03, cz, life * 1.6, (k, m) => { m.rotation.set(0, a, 0); m.scale.set(w * Math.min(1, k * 6), .02, L + .05); m.material.opacity = k < .7 ? 1 : (1 - k) / .3; });
+      skP(G.box, 0xfff0b0, cx, gy + .05, cz, life * 1.4, (k, m) => { m.rotation.set(0, a, 0); m.scale.set(w * .45 * Math.min(1, k * 6), .02, L); m.material.opacity = k < .6 ? 1 : (1 - k) / .4; });
+      skP(G.box, 0xffd870, cx, gy, cz, life, (k, m) => { m.rotation.set(0, a, 0); const h = (big ? 3.2 : .9) * Math.sin(Math.min(1, k * 1.6) * Math.PI); m.scale.set(w * .5, h, L * .7); m.position.y = gy + h / 2; m.material.opacity = .55 * (1 - k); }, .55); });
+    px = qx; pz = qz; } }
+function longmaiStrike() { const [dx, dz] = aimDir(), d = Math.hypot(dx, dz) || 1, x0 = player.pos.x + dx / d * 1.3, z0 = player.pos.z + dz / d * 1.3, gy = skGY();
+  setTimeout(() => { try { longmaiCluster(x0, z0, gy, .7, 3); } catch (e) { } }, 120); }
+function longmaiCluster(x, z, gy, s, n) { const G = skGeo();
+  for (let i = 0; i < n; i++) { const ox = (Math.random() - .5) * .9 * s, oz = (Math.random() - .5) * .9 * s, h = (1.1 + Math.random() * .8) * s, tx = (Math.random() - .5) * .7, tz = (Math.random() - .5) * .7, c = i % 3 ? 0xb07aff : 0x5afff0;
+    skP(G.spike, c, x + ox, gy, z + oz, 1, (k, m) => { const e = Math.min(1, k * 6); m.rotation.set(tx, 0, tz); m.scale.set(1.3 * s, h * e, 1.3 * s); m.material.opacity = k < .7 ? .95 : (1 - k) / .3 * .95; });
+    skP(G.spike, 0xffd060, x + ox, gy, z + oz, .6, (k, m) => { const e = Math.min(1, k * 6); m.rotation.set(tx, 0, tz); m.scale.set(1.45 * s, h * e * 1.02, 1.45 * s); m.material.opacity = .35 * (1 - k); }); }
+  for (let i = 0; i < 5; i++) skThrow(G.oct, i % 2 ? 0xb07aff : 0x5afff0, x, gy + .5, z, (Math.random() - .5) * 3, 2.5 + Math.random() * 2, (Math.random() - .5) * 3, .7, 1.3, 9, 10); }
+// 流光时轮: a time echo of the tracer and a backwards-turning clock ring where it lands
+mythShot = (orig => function (K, ox, oz, dx, dz, end, hit, fm, pel) { const r = orig.apply(this, arguments); if (!MY3_ON || !K || K.key !== 'chrono') return r;
+  try { const PY = (typeof playerY === 'function' && playerY()) || 0, ex = ox + dx * end, ez = oz + dz * end, ey = 1.45 + PY, sx = fm ? fm.x : ox, sy = fm ? fm.y : 1.55 + PY, sz = fm ? fm.z : oz;
+    setTimeout(() => { try { mythBeam(sx, sy, sz, ex, ey, ez, 0xffd08a, .12, .18); } catch (e) { } }, 140);
+    chronoRing(ex, ey, ez, hit ? 1 : .6); } catch (e) { } return r; })(mythShot);
+function chronoRing(x, y, z, s) { const G = skGeo(), t0 = Math.random() * 6;
+  skP(G.ring, 0xffd08a, x, y, z, .55, (k, m) => { skCam(m); const r = s * (.35 + k * .45); m.scale.set(r, r, r); m.material.opacity = .9 * (1 - k); });
+  for (let i = 0; i < 12; i++) skP(G.box, i % 3 ? 0x7ae8ff : 0xffffff, x, y, z, .55, (k, m) => { const a = i / 12 * 6.283 - k * 4 + t0, r = s * (.35 + k * .45); skCam(m); m.translateX(Math.cos(a) * r); m.translateY(Math.sin(a) * r); m.rotateZ(a); m.scale.set(.02, i % 3 ? .07 : .12, .02); m.material.opacity = 1 - k; });
+  skP(G.box, 0xffffff, x, y, z, .55, (k, m) => { skCam(m); m.rotateZ(-k * 9); m.translateY(s * .15); m.scale.set(.025, s * .3, .02); m.material.opacity = 1 - k; }); }
+
+/* ---------------- skills (z_wsskin2.js runs SKT[key] in the skill's shape; `full` replaces the shape) ---------------- */
+// 盘古斧 · 开天辟地
+SKT.pangu = { snd() { my3T(70, 45, .9, .12, 'sawtooth'); my3N(.8, .08, 600, { type: 'bandpass', q: .7, f1: 1400 }); },
+  spot(C, x, z, s) { panguCrack(x, z, C.dx, C.dz, C.gy, 1.6 * s, .5, 0); },
+  full(C) { const G = skGeo(), M = my3Mats();
+    // the giant phantom axe: the real head, glowing gold, five times the size
+    let ph = null; try { ph = new THREE.Group(); const pm2 = new THREE.MeshBasicMaterial({ color: 0xffd870, transparent: true, opacity: .55, depthWrite: false, side: THREE.DoubleSide });
+      const head = new THREE.Group(); panguHead(head, M, pm2); const edge = new THREE.Group(); my3Shape(panguEdge().concat(panguEdge().slice().reverse().map(([z, y]) => [z, y - .08])), .09, new THREE.MeshBasicMaterial({ color: 0xfff4d0, transparent: true, opacity: .9, depthWrite: false }), edge, 0);
+      head.add(edge); my3Rod(head, .05, .05, 1.2, pm2, 0, .2, 6); head.scale.setScalar(5.2); ph.add(head); ph.traverse(o => { o.frustumCulled = false; }); scene.add(ph); ph.userData.mat = pm2; } catch (e) { ph = null; }
+    const t0 = performance.now(), an0 = Math.atan2(C.dx, C.dz), SLAM = 900, END = 1500;
+    if (ph) { const host = ph.children[0].children[0]; host.onBeforeRender = () => { const t = (performance.now() - t0) / SKX.ts, px = player.pos.x, pz = player.pos.z, gy = skGY();
+        if (t < 700) { const a = an0 + t / 300 * 6.283; ph.position.set(px, gy + 1.2, pz); ph.rotation.set(0, a, 0); ph.children[0].rotation.set(-Math.PI / 2 + .25, 0, 0); ph.children[0].position.set(0, 0, -1.2); ph.userData.mat.opacity = .45; }
+        else if (t < SLAM) { const k = (t - 700) / (SLAM - 700); ph.position.set(px, gy + 1.2, pz); ph.rotation.set(0, an0, 0); ph.children[0].position.set(0, 0, 0); ph.children[0].rotation.set(-1.9 * k + .5 * (1 - k) - .2, 0, Math.PI); ph.userData.mat.opacity = .5 + k * .3; }
+        else { const k = Math.min(1, (t - SLAM) / 140); ph.position.set(px, gy + 1.2, pz); ph.rotation.set(0, an0, 0); ph.children[0].rotation.set(-1.9 + 2.0 * k, 0, Math.PI); ph.userData.mat.opacity = .8 * (1 - Math.max(0, (t - SLAM - 200) / (END - SLAM - 200))); } };
+      setTimeout(() => { try { scene.remove(ph); ph.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } catch (e) { } }, END * SKX.ts); }
+    // the three spins: golden wind + flying rocks
+    for (let k = 0; k < 3; k++) skL(k * 300, () => { const x = player.pos.x, z = player.pos.z, gy = skGY(); skRing(x, gy + .1, z, 1, 4.6, .45, 0xffd870, .8); skRing(x, gy + .14, z, .6, 3.2, .4, 0xfff4d0, .5);
+      for (let i = 0; i < 6; i++) { const a = k * 1.1 + i * 1.047; skThrow(G.oct, i % 2 ? 0x8a7a6a : 0xffd870, x + Math.cos(a) * 1.5, gy + .6, z + Math.sin(a) * 1.5, Math.cos(a) * 5, 2, Math.sin(a) * 5, .6, 1.8, 6, 9); } });
+    // the slam: a 14 m fissure, light bursting up, a tear from the sky, shockwaves, rocks, boom
+    skL(SLAM + 60, () => { const ux = C.dx, uz = C.dz, x0 = player.pos.x + ux * 1.4, z0 = player.pos.z + uz * 1.4, gy = skGY(), an = Math.atan2(ux, uz), L = 14;
+      panguCrack(x0, z0, ux, uz, gy, L, 1.4, an, true);
+      for (let i = 0; i < 7; i++) skL(i * 45, () => { const f = (i + .5) / 7; skPillar(x0 + ux * L * f, gy, z0 + uz * L * f, .6 - f * .25, 7 - f * 3, .9, i % 2 ? 0xfff0b0 : 0xffd870, .7); });
+      const mx = x0 + ux * L * .45, mz = z0 + uz * L * .45;
+      skP(G.box, 0xfff8e0, mx, gy + 16, mz, 1, (k, m) => { m.rotation.set(0, an, 0); const e = Math.min(1, k * 5); m.scale.set(.25 * (1 - k * .7), 32 * e, L * .9); m.position.y = gy + 32 - 16 * e; m.material.opacity = .85 * (1 - k); }, .85);
+      skP(G.box, 0xffd870, mx, gy + 16, mz, 1.2, (k, m) => { m.rotation.set(0, an, 0); const e = Math.min(1, k * 4); m.scale.set(1.2 * (1 - k * .6), 32 * e, L); m.position.y = gy + 32 - 16 * e; m.material.opacity = .3 * (1 - k); }, .3);
+      for (let i = 0; i < 4; i++) skL(i * 90, () => skRing(x0 + ux * 3, gy + .1, z0 + uz * 3, .5, 7 + i * 2.5, .7, i % 2 ? 0xfff4d0 : 0xffd870, .75));
+      for (let i = 0; i < 18; i++) { const f = Math.random(), px2 = x0 + ux * L * f, pz2 = z0 + uz * L * f; skThrow(G.oct, i % 3 ? 0x7a6a5a : 0xffe8a0, px2, gy + .3, pz2, (Math.random() - .5) * 6, 5 + Math.random() * 5, (Math.random() - .5) * 6, 1.1, 2.4, 14, 7); }
+      // 清气上升，浊气下沉
+      for (let i = 0; i < 16; i++) { const f = Math.random(), x = x0 + ux * L * f + (Math.random() - .5) * 2, z = z0 + uz * L * f + (Math.random() - .5) * 2, up = i % 2 === 0;
+        skP(G.ico, up ? 0xfff8e0 : 0x3a2a1a, x, gy + (up ? .4 : 4), z, 1.6, (k, m) => { m.position.y = up ? gy + .4 + k * 7 : gy + 4 - k * 4; m.scale.setScalar((up ? .5 : .7) * (1 - k * .5)); m.material.opacity = (up ? .9 : .6) * (1 - k); }); }
+      try { fxFlash(0xfff4d0, .45, .5); } catch (e) { } S.shake = Math.max(S.shake || 0, .75); my3Boom(true); setTimeout(() => my3N(1.4, .1, 180, { type: 'lowpass' }), 300); });
+    skRing(C.px, C.gy + .08, C.pz, .5, 5, .9, 0xffd870, .8); } };
+// 流光时轮 · 时停领域
+SKT.chrono = { snd() { my3Chime(1318); my3Chime(1046, .35); my3Chime(784, .7); for (let i = 0; i < 6; i++) my3T(3000, 3000, .012, .04, 'square', { delay: i * .12 }); },
+  spot(C, x, z, s) { chronoRing(x, C.gy + 1, z, s); },
+  self(C) { const G = skGeo(), R = 4.2, x = C.px, z = C.pz, y = C.gy + .07, life = 2.2;
+    skP(G.disc, 0xffe6b0, x, y - .01, z, life, (k, m) => { skFlat(m); const r = R * Math.min(1, k * 6); m.scale.set(r, r, r); m.material.opacity = .22 * (k < .8 ? 1 : (1 - k) / .2); });
+    for (const rr of [1, .93]) skP(G.ring, rr === 1 ? 0xffd08a : 0x7ae8ff, x, y, z, life, (k, m) => { skFlat(m); const r = R * rr * Math.min(1, k * 6); m.scale.set(r, r, r); m.material.opacity = .9 * (k < .8 ? 1 : (1 - k) / .2); });
+    for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283; skP(G.box, i % 3 ? 0xffd08a : 0xffffff, x + Math.sin(a) * R * .8, y + .01, z + Math.cos(a) * R * .8, life, (k, m) => { m.rotation.set(0, a, 0); const e = Math.min(1, k * 5); m.scale.set(.12 * e, .02, (i % 3 ? .45 : .8) * e); m.material.opacity = k < .8 ? 1 : (1 - k) / .2; }); }
+    for (const [len, sp, w, c] of [[R * .55, -9, .16, 0x1a2240], [R * .78, -26, .09, 0xe0a070]]) skP(G.box, c, x, y + .02, z, life, (k, m) => { const a = k * sp; m.rotation.set(0, a, 0); m.position.set(x + Math.sin(a) * len / 2, y + .02, z + Math.cos(a) * len / 2); m.scale.set(w, .025, len * Math.min(1, k * 5)); m.material.opacity = k < .8 ? 1 : (1 - k) / .2; });
+    for (let i = 0; i < 8; i++) { const a = Math.random() * 6.283, r = 1 + Math.random() * 2.8, gx = x + Math.cos(a) * r, gz = z + Math.sin(a) * r, sp = (Math.random() < .5 ? -1 : 1) * (3 + Math.random() * 3);
+      skL(i * 70, () => skP(G.ring, i % 2 ? 0xd8a84a : 0x7ae8ff, gx, y, gz, 1.6, (k, m) => { m.position.y = y + k * 3; m.rotation.set(-Math.PI / 2 + Math.sin(k * 3 + i) * .5, 0, k * sp); const s2 = .35 + (i % 3) * .1; m.scale.set(s2, s2, s2); m.material.opacity = k < .7 ? .9 : (1 - k) / .3 * .9; }, .9)); }
+    try { fxFlash(0xffe0a0, .25, .6); } catch (e) { } } };
+// 龙脉晶镐 · 龙脉爆发
+SKT.longmai = { snd() { my3T(60, 35, .9, .2, 'sine'); for (let i = 0; i < 6; i++) my3T(1800 + i * 420, 1600 + i * 380, .5, .035, 'sine', { delay: .25 + i * .05 }); my3N(.4, .06, 5000, { type: 'highpass', delay: .9 }); },
+  spot(C, x, z, s) { longmaiCluster(x, z, C.gy, s, 3); },
+  full(C, id) { const G = skGeo(), x = C.px, z = C.pz, gy = C.gy;
+    // glowing veins crack outward, branching
+    for (let b = 0; b < 8; b++) { const a0 = b / 8 * 6.283 + Math.random() * .3; let px = x, pz = z, a = a0;
+      for (let i = 0; i < 5; i++) { const L = .9 + Math.random() * .4; a += (Math.random() - .5) * .7; const qx = px + Math.sin(a) * L, qz = pz + Math.cos(a) * L, cx = (px + qx) / 2, cz = (pz + qz) / 2, aa = a;
+        skL(i * 40, () => skP(G.box, 0x5afff0, cx, gy + .04, cz, 1.4, (k, m) => { m.rotation.set(0, aa, 0); m.scale.set(.12 * (1 - k * .5), .02, L * Math.min(1, k * 8)); m.material.opacity = k < .6 ? 1 : (1 - k) / .4; }));
+        if (i === 2 && b % 2) { const bx = qx, bz = qz, ba = a + (Math.random() < .5 ? .9 : -.9); skL(120, () => skP(G.box, 0x5afff0, bx + Math.sin(ba) * .4, gy + .04, bz + Math.cos(ba) * .4, 1.1, (k, m) => { m.rotation.set(0, ba, 0); m.scale.set(.08, .02, .8 * Math.min(1, k * 8)); m.material.opacity = 1 - k; })); }
+        px = qx; pz = qz; } }
+    skRing(x, gy + .08, z, .4, 5.2, .6, 0xb07aff, .85); skRing(x, gy + .1, z, .3, 3.4, .7, 0x5afff0, .6);
+    // a ring of big crystal clusters erupts, then shatters
+    for (let i = 0; i < 9; i++) { const a = i / 9 * 6.283, r = i % 2 ? 3.8 : 2.6; skL(150 + i * 35, () => longmaiCluster(x + Math.cos(a) * r, z + Math.sin(a) * r, gy, 1.5, 4)); }
+    skL(220, () => longmaiCluster(x, z, gy, 2.1, 5));
+    skL(1000, () => { for (let i = 0; i < 26; i++) { const a = Math.random() * 6.283, r = Math.random() * 4; skThrow(G.oct, [0xb07aff, 0x5afff0, 0xffd060][i % 3], x + Math.cos(a) * r, gy + 1, z + Math.sin(a) * r, Math.cos(a) * 3, 3 + Math.random() * 3, Math.sin(a) * 3, 1, 1.8, 9, 12); } });
+    S.shake = Math.max(S.shake || 0, .3); } };
+
+/* ---------------- shop + owner code ---------------- */
+try { for (const [k, id] of [['pangu', 'axe'], ['chrono', 'pistol'], ['longmai', 'pick']]) if (!WSK_DIRECT.some(p => p[0] === k)) WSK_DIRECT.push([k, id]); } catch (e) { }
+try { RDM[MY3_CODE] = { id: 'myth3', n: '盘古斧 · 流光时轮 · 龙脉晶镐', f() { const L = [['pangu', 'axe'], ['chrono', 'pistol'], ['longmai', 'pick']].filter(([k, id]) => !S.wskOwn.includes(k + ':' + id));
+  if (!L.length) { feed('三款皮肤都已经有了', '#ff9b8a'); return false; } for (const [k, id] of L) giveWSkin(k, id); return true; } }; } catch (e) { }
 /* ============ 深渊商店: spend 深渊币 with the diver of the 深渊号 (owner 18 Nov: "add a trade system to the abyss") ============
    Opened from the abyss page (button 深渊商店 next to 下潜). The trader is the brass-helmet diver who stands on the sub.
    Tabs: 升级材料 (now) · 皮肤 (empty: the owner will hand over skin code later, then they go in ABYSHOP_SKINS).
@@ -25452,4 +25681,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795100630').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795105095').catch(()=>{});</script></body></html>
