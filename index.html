@@ -23623,13 +23623,13 @@ const MY3_ON = true;
 const MY3 = { M: null };
 WSKINS.pangu = { only: 'axe', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '开天斧', r: 5, custom: true,
   base: 0x5a3a1a, mid: 0xe8b84a, acc: 0xfff0b0, glow: 0xffd870, tr: 0xffd870, tr2: 0xfff4d0,
-  d: '盘古开天辟地用的那把巨斧。古铜铸成的弯月形大斧刃，两角向后卷，刃口亮着混沌初开的白金色光芒；斧面铸满云雷纹，镶着金边、金线和太阳纹铆钉，斧背是獠牙兽首锤，双眼冒火，顶上一支金枪尖，斧柄盘着一条金龙。\n普通挥砍：一斧劈开空气，前方撕开一道发光的空间裂口，冲击波往外炸开，然后裂口合上。\n技能「开天辟地」：转身的三圈里，一把巨大的金色斧影跟着你横扫；最后斧影高高举起、一斧劈下——大地沿着 14 米裂开，光从裂缝里冲天而起，天上也裂开一道光，清气上升、浊气下沉，冲击波和碎石四散，整个画面跟着震动。' };
+  d: '盘古开天辟地时用的那把最原始的巨斧：一整块山岩敲打成的斧头，粗糙的石面上满是敲凿的棱面，岩缝里透出开天时的天光；刃口被打得锋利发白，光从刃边漏出来。斧头用粗藤和兽筋绑在一根古老的虬枝上，斧背插着两根弯弯的兽牙，柄上套着骨环，柄尾是一颗缠着藤的圆石，几块碎石和光点绕着斧头转。\n普通挥砍：一斧劈开空气，前方撕开一道发光的空间裂口，冲击波往外炸开，然后裂口合上。\n技能「开天辟地」：转身的三圈里，一把巨大的金色斧影跟着你横扫；最后斧影高高举起、一斧劈下——大地沿着 14 米裂开，光从裂缝里冲天而起，天上也裂开一道光，清气上升、浊气下沉，冲击波和碎石四散，整个画面跟着震动。' };
 WSKINS.chrono = { only: 'pistol', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '流光时轮', r: 5, custom: true,
   base: 0x1a2240, mid: 0xe0a070, acc: 0xffe6b0, glow: 0x7ae8ff, tr: 0x7ae8ff, tr2: 0xffd08a,
   d: '深蓝配玫瑰金的左轮手枪，枪身侧面嵌着一个真的钟面，指针一直在走，后面的小齿轮跟着转，枪口亮着一圈青光。\n开枪：子弹后面会留下一道「时间残影」，稍后又闪过一次；打中的地方会出现一个倒着转的钟环。\n技能「时停领域」：脚下展开一个巨大的钟面，指针飞快倒转，齿轮从地上浮起，画面染上一层暖黄色，响起三声钟鸣。' };
-WSKINS.longmai = { only: 'pick', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '龙脉晶镐', r: 5, custom: true,
+WSKINS.longmai = { only: 'pick', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '开山神镐', r: 5, custom: true,
   base: 0x2a2630, mid: 0x9a5aff, acc: 0xffd060, glow: 0x5afff0, tr: 0xb07aff, tr2: 0x5afff0,
-  d: '镐头是两根带金边的紫色多面水晶，镐柄是黑色岩石，上面流着青色的龙脉光纹，金色镐箍上镶着宝石。\n挥镐：敲下去的地方会冒出一丛水晶。\n技能「龙脉爆发」：砸地的瞬间，青色的龙脉光纹从脚下向四周裂开，一圈巨大的水晶簇破土而出，然后碎成漫天晶片。' };
+  d: '开山神镐：真正镐子的样子，青铜铸成、刻满云雷纹，镐身里流着青色龙脉光纹；一边是往后弯的长尖，一边是加宽的扁凿，两道外沿镶着凸起的金边，凿口包金、亮着青光，尖端是金尖。镐头正中一圈金环，四根金爪扣着一颗发光的龙脉晶石；镐柄盘着一条金龙，握把缠皮，柄尾是金球和一小颗晶石。\n挥镐：敲下去的地方会冒出一丛水晶。\n技能「龙脉爆发」：砸地的瞬间，青色的龙脉光纹从脚下向四周裂开，一圈巨大的水晶簇破土而出，然后碎成漫天晶片。' };
 /* ---------------- shared materials ---------------- */
 function my3Mats() { if (MY3.M) return MY3.M; const L = (c, e) => new THREE.MeshLambertMaterial({ color: c, emissive: e || 0, flatShading: true }), B = (c, o) => new THREE.MeshBasicMaterial(o == null ? { color: c } : { color: c, transparent: true, opacity: o, depthWrite: false, blending: THREE.AdditiveBlending });
   return (MY3.M = { bronze: L(0x6a4420, 0x1c0e04), bronzeD: L(0x3a2412, 0x0c0602), gold: L(0xe8b84a, 0x4a3008), light: B(0xfff0b0), lightG: B(0xffd870, .35), eye: B(0xff4a1a), rock: L(0x6a5a4a),
@@ -23680,6 +23680,18 @@ const MY3TEX = {
   vein: x => { const w = 64, h = 256; x.fillStyle = '#000'; x.fillRect(0, 0, w, h); x.strokeStyle = '#5afff0'; x.shadowColor = '#5afff0'; x.shadowBlur = 6; x.lineWidth = 2;
     for (let k = 0; k < 5; k++) { let px = my3R(0, w), py = 0; x.beginPath(); x.moveTo(px, py); while (py < h) { px += my3R(-10, 10); py += my3R(8, 18); x.lineTo(px, py); if (Math.random() < .15) { x.moveTo(px, py); } } x.stroke(); } x.shadowBlur = 0; },
   scale: x => { my3Brush(x, 128, 128, '#e8b84a', '#fff0b0', '#a87820'); x.strokeStyle = 'rgba(110,60,8,.7)'; x.lineWidth = 2; for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) { x.beginPath(); x.arc(c * 16 + (r % 2) * 8, r * 16, 9, 0, Math.PI); x.stroke(); } },
+  rock: x => { const w = 256, h = 256; x.fillStyle = '#6e665c'; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 40; i++) { const cx = my3R(0, w), cy = my3R(0, h), r = my3R(10, 50), rg = x.createRadialGradient(cx, cy, 0, cx, cy, r), c = ['90,84,74', '120,110,96', '70,64,58', '104,98,88'][i % 4]; rg.addColorStop(0, 'rgba(' + c + ',.6)'); rg.addColorStop(1, 'rgba(' + c + ',0)'); x.fillStyle = rg; x.fillRect(cx - r, cy - r, r * 2, r * 2); }
+    for (let i = 0; i < 7; i++) { const cx = my3R(0, w), cy = my3R(0, h), r = my3R(8, 22), rg = x.createRadialGradient(cx, cy, 0, cx, cy, r); rg.addColorStop(0, 'rgba(120,140,70,.55)'); rg.addColorStop(1, 'rgba(120,140,70,0)'); x.fillStyle = rg; x.fillRect(cx - r, cy - r, r * 2, r * 2); }
+    my3Speck(x, w, h, 1400, 'rgba(255,250,240,A)', 2); my3Speck(x, w, h, 1200, 'rgba(0,0,0,A)', 3);
+    x.strokeStyle = 'rgba(30,26,22,.55)'; x.lineWidth = 1.5; for (let i = 0; i < 18; i++) { let px = my3R(0, w), py = my3R(0, h); x.beginPath(); x.moveTo(px, py); for (let k = 0; k < 5; k++) { px += my3R(-14, 14); py += my3R(-14, 14); x.lineTo(px, py); } x.stroke(); } },
+  crack: x => { const w = 256, h = 256; x.fillStyle = '#000'; x.fillRect(0, 0, w, h); x.lineCap = 'round';
+    const br = (px, py, a, len, lw, d) => { if (d > 4 || lw < .6) return; x.lineWidth = lw; x.beginPath(); x.moveTo(px, py); let qx = px, qy = py; for (let k = 0; k < len; k++) { a += my3R(-.5, .5); qx += Math.cos(a) * 9; qy += Math.sin(a) * 9; x.lineTo(qx, qy); if (Math.random() < .18) { x.stroke(); br(qx, qy, a + my3R(-1.2, 1.2), len * .6, lw * .6, d + 1); x.beginPath(); x.moveTo(qx, qy); } } x.stroke(); };
+    x.shadowColor = '#ffe8a0'; x.shadowBlur = 8; x.strokeStyle = '#fff0b8'; for (let i = 0; i < 4; i++) br(my3R(0, w), my3R(0, h), my3R(0, 6.28), 14, 3.5, 0); x.shadowBlur = 0; },
+  bark: x => { const w = 64, h = 256; x.fillStyle = '#4a3624'; x.fillRect(0, 0, w, h); for (let i = 0; i < 40; i++) { x.strokeStyle = 'rgba(' + (Math.random() < .5 ? '30,20,12' : '110,84,56') + ',.6)'; x.lineWidth = my3R(1, 3); const px = my3R(0, w); x.beginPath(); x.moveTo(px, 0); for (let y = 0; y < h; y += 16) x.lineTo(px + my3R(-4, 4), y); x.stroke(); }
+    for (let i = 0; i < 4; i++) { const cx = my3R(0, w), cy = my3R(0, h), rg = x.createRadialGradient(cx, cy, 0, cx, cy, 14); rg.addColorStop(0, 'rgba(110,130,60,.6)'); rg.addColorStop(1, 'rgba(110,130,60,0)'); x.fillStyle = rg; x.fillRect(cx - 14, cy - 14, 28, 28); } },
+  vine: x => { const w = 64, h = 64; x.fillStyle = '#3e5a22'; x.fillRect(0, 0, w, h); x.strokeStyle = 'rgba(20,34,10,.7)'; x.lineWidth = 3; for (let i = -2; i < 6; i++) { x.beginPath(); x.moveTo(0, i * 14); x.lineTo(w, i * 14 + 20); x.stroke(); } my3Speck(x, w, h, 120, 'rgba(180,200,110,A)', 2); },
+  bone: x => { const w = 64, h = 128, g = x.createLinearGradient(0, 0, w, 0); g.addColorStop(0, '#d8ccae'); g.addColorStop(.5, '#f4ecd6'); g.addColorStop(1, '#c8b896'); x.fillStyle = g; x.fillRect(0, 0, w, h); x.strokeStyle = 'rgba(120,100,70,.35)'; for (let i = 0; i < 10; i++) { x.beginPath(); const y = my3R(0, h); x.moveTo(0, y); x.lineTo(w, y + my3R(-6, 6)); x.stroke(); } },
   crys: x => { const w = 64, h = 128, g = x.createLinearGradient(0, 0, w, 0); g.addColorStop(0, '#6a3ad8'); g.addColorStop(.5, '#d8b8ff'); g.addColorStop(1, '#7a4ae8'); x.fillStyle = g; x.fillRect(0, 0, w, h);
     for (let i = 0; i < 8; i++) { x.fillStyle = 'rgba(255,255,255,' + my3R(.12, .35).toFixed(2) + ')'; x.fillRect(my3R(0, w), 0, my3R(1, 4), h); } my3Speck(x, w, h, 80, 'rgba(255,255,255,A)', 2); } };
 function my3Pretty(M) { if (typeof document === 'undefined' || !document.createElement) return; const T = (k, w, h, rx, ry) => my3Cv(k + rx + ry, w, h, MY3TEX[k], rx, ry);
@@ -23695,9 +23707,15 @@ function my3Pretty(M) { if (typeof document === 'undefined' || !document.createE
     ivory: new THREE.MeshPhongMaterial({ map: T('clock', 256, 256, 1, 1), specular: 0xffffff, shininess: 100, emissive: 0x1a1810 }),
     stone: P(T('stone', 64, 256, 1, 3), { emissiveMap: T('vein', 64, 256, 1, 3), emissive: 0xffffff, specular: 0x403848, shininess: 20 }),
     scale: P(T('scale', 128, 128, 1.5, 1.5), { specular: 0xffe8a0, shininess: 90, emissive: 0x2a1804 }),
+    rock: P(T('rock', 256, 256, 1.6, 1.6), { emissiveMap: T('crack', 256, 256, 1.4, 1.4), emissive: 0xffd890, specular: 0x302820, shininess: 8 }),
+    rockE: P(T('rock', 256, 256, 3, 3), { color: 0xd8d0c4, specular: 0x605848, shininess: 20, emissive: 0x1a1408 }),
+    bark: P(T('bark', 64, 256, 1, 2), { specular: 0x201810, shininess: 6 }),
+    vine: P(T('vine', 64, 64, 2, 6), { specular: 0x203010, shininess: 10 }),
+    bone: P(T('bone', 64, 128, 1, 1), { specular: 0xffffff, shininess: 50 }),
+    bronzeV: P(T('bronze', 256, 256, 1.5, 1.5), { emissiveMap: T('vein', 64, 256, 2, 2), emissive: 0x5afff0, specular: 0x8a6030, shininess: 40 }),
     crys: new THREE.MeshPhongMaterial({ map: T('crys', 64, 128, 1, 1), color: 0xffffff, emissive: 0x3a1a7a, specular: 0xffffff, shininess: 120, flatShading: true, transparent: true, opacity: .9 }) };
   Object.assign(M, nm); }
-my3Mats = (o => function () { if (MY3.M) return MY3.M; const M = o(); M.sun = M.gold; M.scale = M.gold; try { my3Pretty(M); } catch (e) { } return M; })(my3Mats);
+my3Mats = (o => function () { if (MY3.M) return MY3.M; const M = o(); M.sun = M.gold; M.scale = M.gold; M.rockE = M.rock; M.bark = new THREE.MeshLambertMaterial({ color: 0x4a3624, flatShading: true }); M.vine = new THREE.MeshLambertMaterial({ color: 0x3e5a22, flatShading: true }); M.bone = new THREE.MeshLambertMaterial({ color: 0xe8dcc0, flatShading: true }); M.bronzeV = M.bronze; try { my3Pretty(M); } catch (e) { } return M; })(my3Mats);
 const my3Add = (g, geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x || 0, y || 0, z || 0); g.add(o); return o; };
 /* a flat outline in the weapon's (z, y) plane, extruded across x */
 function my3Shape(pts, depth, m, g, x, bevel) { let geo; try { const s = new THREE.Shape(); s.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) s.lineTo(pts[i][0], pts[i][1]);
@@ -23706,50 +23724,56 @@ function my3Shape(pts, depth, m, g, x, bevel) { let geo; try { const s = new THR
   return my3Add(g, geo, m, x || 0, 0, 0); }
 const my3Rod = (g, r0, r1, len, m, y, z, seg) => { const o = my3Add(g, new THREE.CylinderGeometry(r0, r1, len, seg || 8), m, 0, y, z); o.rotation.x = Math.PI / 2; return o; };
 /* ---------------- 盘古斧 ---------------- */
-/* 开天斧 head: a huge crescent (钺) bit whose two horns sweep back toward the haft, a glowing edge band that stands proud of
-   the bronze, a raised gold rim and an inner gold line, a domed sun emblem with rivets on each cheek, a beast-head hammer
-   with fangs and glowing eyes on the back, a gold spear point on top; points are (z along the haft, y toward the edge) */
-const PG = { R: .64, cz: .72, A0: .33, A1: Math.PI - .33 };
-const pgArc = (r, n) => { const o = []; n = n || 18; for (let i = 0; i <= n; i++) { const t = PG.A0 + (PG.A1 - PG.A0) * i / n; o.push([PG.cz + r * Math.cos(t), r * Math.sin(t)]); } return o; };
-function panguBand(dr0, dr1) { const a = pgArc(PG.R + dr0), b = pgArc(PG.R + dr1); return a.concat(b.reverse()); }
-function panguBody() { return pgArc(PG.R).concat([[.2, .13], [.31, .2], [.43, .17], [.5, .07], [.5, -.085], [.94, -.085], [.94, .07], [1.01, .17], [1.13, .2], [1.25, .13]]); }
+/* 开天斧 (owner 20 Nov picked 古朴石斧): one slab of mountain rock knapped into a giant axe head — an irregular chipped outline,
+   raised knapped facets on both cheeks, a paler sharpened edge with heaven-light leaking out of it, glowing white-gold cracks
+   running through the stone (emissive crack map); lashed to an ancient gnarled branch with thick crossing vines (with leaves),
+   two curved beast tusks on the back, a bone ring, leather grip wraps, a round stone pommel bound with vine. (z = along the
+   haft, y = toward the edge) */
+const PGE = [[1.28, .74], [1.2, .8], [1.08, .85], [.95, .875], [.82, .885], [.68, .875], [.55, .85], [.43, .81], [.32, .76], [.22, .7]];
+/* the inner line where the flat stone ends and the sharpened bevel starts */
+const pgIn = (d) => { const c = [.75, .3]; return PGE.map(([z, y]) => { const dz = z - c[0], dy = y - c[1], l = Math.hypot(dz, dy); return [z - dz / l * d, y - dy / l * d]; }); };
+function panguBody(full) { return [[.6, -.27], [.76, -.29], [.9, -.26], [.94, -.12], [.97, .05], [1.04, .22], [1.13, .42], [1.22, .6]].concat(full ? PGE : pgIn(.17)).concat([[.3, .52], [.4, .34], [.48, .18], [.54, .04], [.57, -.12]]); }
+/* the sharpened edge: a real wedge, both faces sloping from the slab's thickness down to a thin cutting line */
+function panguWedge(M, g) { const I = pgIn(.17), O = PGE, h = .08, e = .006, P = [], idx = [];
+  const v = (x, zy) => { P.push(x, zy[1], zy[0]); return P.length / 3 - 1; };
+  for (let i = 0; i < O.length; i++) { v(h, I[i]); v(-h, I[i]); v(e, O[i]); v(-e, O[i]); }
+  for (let i = 0; i < O.length - 1; i++) { const a = i * 4, b = a + 4; idx.push(a, a + 2, b, b, a + 2, b + 2, a + 1, b + 1, a + 3, b + 1, b + 3, a + 3, a + 2, a + 3, b + 2, b + 2, a + 3, b + 3); }
+  const L = (O.length - 1) * 4; idx.push(0, 1, 2, 1, 3, 2, L, L + 2, L + 1, L + 1, L + 2, L + 3);
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setIndex(idx); geo.computeVertexNormals();
+  const uv = []; for (let i = 0; i < P.length; i += 3) uv.push(P[i + 2] * 1.5, P[i + 1] * 1.5); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  const m = my3Add(g, geo, M.rockE); m.material.side = THREE.DoubleSide; return m; }
+function panguBand() { const c = [.75, .3], inn = PGE.map(([z, y]) => { const dz = z - c[0], dy = y - c[1], l = Math.hypot(dz, dy); return [z - dz / l * .07, y - dy / l * .07]; }); return PGE.concat(inn.reverse()); }
 function panguHead(g, M, ghost) {
-  my3Shape(panguBody(), .085, ghost || M.bronze, g, 0, .012);
-  if (ghost) return;
-  my3Shape(panguBand(.016, -.055), .046, M.light, g, 0, .006);                                                          // glowing edge, sticks out past the bronze
-  my3Shape(panguBand(-.055, -.1), .094, M.gold, g, 0, .006);                                                            // raised gold rim
-  my3Shape(panguBand(-.2, -.225), .094, M.gold, g, 0);                                                                  // inner gold line
-  // the domed sun emblem + a ring of rivets on both cheeks
-  let emb; try { const sh = new THREE.Shape(); sh.absarc(0, 0, .085, 0, Math.PI * 2, false); emb = new THREE.ExtrudeGeometry(sh, { depth: .1, bevelEnabled: true, bevelThickness: .018, bevelSize: .012, bevelSegments: 2 }); emb.translate(0, 0, -.05); emb.rotateY(Math.PI / 2); } catch (e) { emb = new THREE.CylinderGeometry(.085, .085, .12, 16); emb.rotateZ(Math.PI / 2); }
-  my3Add(g, emb, M.gold, 0, .33, PG.cz);
-  for (const sd of [-1, 1]) { const sun = my3Add(g, new THREE.CircleGeometry(.07, 20), M.sun, sd * .081, .33, PG.cz); sun.rotation.y = sd * Math.PI / 2;
-    for (let i = 0; i < 7; i++) { const t = PG.A0 + .12 + (PG.A1 - PG.A0 - .24) * i / 6, r = PG.R - .145; my3Add(g, new THREE.SphereGeometry(.014, 6, 4), M.gold, sd * .045, r * Math.sin(t), PG.cz + r * Math.cos(t)); } }
-  // beast-head hammer with fangs on the back
-  my3Shape([[.58, -.07], [.86, -.07], [.88, -.2], [.84, -.33], [.79, -.28], [.75, -.36], [.71, -.28], [.67, -.36], [.63, -.28], [.58, -.33], [.56, -.2]], .13, M.bronzeD, g, 0, .01);
-  my3Shape([[.57, -.1], [.87, -.1], [.875, -.135], [.565, -.135]], .14, M.gold, g, 0);
-  for (const sd of [-1, 1]) for (const z of [.65, .79]) { const e = my3Add(g, new THREE.OctahedronGeometry(.024), M.eye, sd * .068, -.2, z); e.scale.set(.4, 1, 1.5); }
-  for (const z of [.67, .75, .83]) my3Add(g, new THREE.ConeGeometry(.012, .06, 4), M.light, 0, -.34, z).rotation.x = Math.PI;
-  // collar round the haft + the spear point on top
-  my3Add(g, new THREE.BoxGeometry(.12, .2, .3), M.bronzeD, 0, 0, PG.cz);
-  for (const z of [PG.cz - .13, PG.cz + .13]) my3Add(g, new THREE.BoxGeometry(.13, .21, .03), M.gold, 0, 0, z);
-  const tip = my3Add(g, new THREE.ConeGeometry(.06, .3, 4), M.gold, 0, 0, 1.02); tip.rotation.x = Math.PI / 2; tip.rotation.y = Math.PI / 4;
-  my3Add(g, new THREE.OctahedronGeometry(.035), M.light, 0, 0, .9); }
+  if (ghost) { my3Shape(panguBody(true), .16, ghost, g, 0, .025); return; }
+  my3Shape(panguBody(), .16, M.rock, g, 0, .02);
+  panguWedge(M, g);                                                                                                         // the sharpened bevel
+  const lit = PGE.map(([z, y]) => [z, y]), c = [.75, .3], out = PGE.map(([z, y]) => { const dz = z - c[0], dy = y - c[1], l = Math.hypot(dz, dy); return [z + dz / l * .018, y + dy / l * .018]; });
+  my3Shape(lit.concat(out.reverse()), .012, M.light, g, 0);                                                                // the cutting line glows: heaven-light leaking from the edge
+  for (const sd of [-1, 1]) for (const pts of [[[.63, -.2], [.87, -.2], [.9, .04], [.6, .04]], [[.55, .12], [.96, .1], [1.06, .38], [.8, .5], [.48, .36]], [[.38, .45], [.62, .5], [.68, .64], [.46, .66], [.36, .58]], [[.86, .55], [1.06, .5], [1.1, .6], [.95, .66]]])
+    my3Shape(pts, .035, M.rock, g, sd * .088, .01);                                                                       // knapped facets standing proud on both cheeks
+  // vines lashing the head to the haft: two crossing helices with leaves
+  try { for (const dir of [1, -1]) { const pts = []; for (let i = 0; i <= 40; i++) { const t = i / 40, a = dir * t * Math.PI * 9; pts.push(new THREE.Vector3(Math.cos(a) * .13, Math.sin(a) * .1 - .06, .4 + t * .58)); }
+      my3Add(g, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 80, .018, 5, false), M.vine); }
+    for (let i = 0; i < 6; i++) { const a = i * 1.9, lf = my3Add(g, new THREE.PlaneGeometry(.06, .12), M.vine, Math.cos(a) * .15, Math.sin(a) * .12 - .06, .45 + i * .09); lf.rotation.set(a, i, .6); lf.material.side = THREE.DoubleSide; } } catch (e) { }
+  // two curved beast tusks on the back
+  for (const z0 of [.66, .86]) { const P = [[-.2, z0], [-.36, z0 - .04], [-.5, z0 - .13], [-.6, z0 - .27]]; for (let i = 0; i < 3; i++) my3Seg(g, M, P[i], P[i + 1], .05 * (1 - i * .3), .05 * (1 - (i + 1) * .3) + .004, M.bone, 7, true); } }
 function panguBuild(g) { const M = my3Mats();
-  my3Rod(g, .05, .056, 1.18, M.bronzeD, 0, .2, 10);                                                                     // the haft
-  for (const z of [-.3, -.06, .44, .56]) my3Rod(g, .064, .064, .035, M.gold, 0, z, 12);
-  try { const pts = []; for (let i = 0; i <= 48; i++) { const t = i / 48, a = t * Math.PI * 6; pts.push(new THREE.Vector3(Math.cos(a) * .058, Math.sin(a) * .058, -.25 + t * .78)); }   // a gold dragon wound round the haft
-    my3Add(g, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 96, .013, 5, false), M.gold);
-    const hd = my3Add(g, new THREE.ConeGeometry(.03, .08, 5), M.gold, Math.cos(Math.PI * 6) * .062, Math.sin(Math.PI * 6) * .062, .54); hd.rotation.x = Math.PI / 2; } catch (e) { }
-  my3Add(g, new THREE.SphereGeometry(.07, 10, 8), M.gold, 0, 0, -.42);                                                  // pommel: gold ball, spike and three claws
-  my3Add(g, new THREE.ConeGeometry(.035, .14, 5), M.bronzeD, 0, 0, -.54).rotation.x = -Math.PI / 2;
-  for (let i = 0; i < 3; i++) { const a = i / 3 * 6.283, c = my3Add(g, new THREE.ConeGeometry(.016, .09, 4), M.gold, Math.cos(a) * .06, Math.sin(a) * .06, -.37); c.rotation.x = Math.PI / 2 + .5; c.rotation.z = a; }
+  // the haft: an ancient gnarled branch, slightly bent, with knots
+  const H = [[0, -.5], [.02, -.22], [-.015, .08], [.02, .38], [0, .62], [-.01, .86]];
+  for (let i = 0; i < H.length - 1; i++) my3Seg(g, M, H[i], H[i + 1], .066 - i * .003, .063 - i * .003, M.bark, 8, true);
+  for (const [y, z, r] of [[.05, -.05, .035], [-.05, .3, .03], [.055, .7, .028]]) my3Add(g, new THREE.SphereGeometry(r, 6, 5), M.bark, .04, y, z);
+  for (let i = 0; i < 5; i++) my3Rod(g, .074, .074, .035, M.bronzeD, 0, -.34 + i * .05, 8);                               // leather grip wraps
+  const ring = my3Add(g, new THREE.TorusGeometry(.075, .02, 5, 12), M.bone, 0, 0, -.06);                                     // bone ring
+  my3Add(g, new THREE.DodecahedronGeometry(.1, 0), M.rock, 0, 0, -.56).scale.set(1, 1, 1.2);                               // round stone pommel
+  const vr = my3Add(g, new THREE.TorusGeometry(.085, .016, 5, 12), M.vine, 0, 0, -.5);
   panguHead(g, M);
-  const rocks = []; for (let i = 0; i < 2; i++) rocks.push(my3Add(g, new THREE.DodecahedronGeometry(.04 + i * .01, 0), M.rock));
-  const motes = []; for (let i = 0; i < 4; i++) motes.push(my3Add(g, new THREE.OctahedronGeometry(.016), M.light));
+  const rocks = []; for (let i = 0; i < 3; i++) rocks.push(my3Add(g, new THREE.DodecahedronGeometry(.035 + i * .01, 0), M.rock));
+  const motes = []; for (let i = 0; i < 5; i++) motes.push(my3Add(g, new THREE.OctahedronGeometry(.016), M.light));
   const host = my3Add(g, new THREE.BoxGeometry(.001, .001, .001), M.gold, 0, 0, .7); host.frustumCulled = false;
   host.onBeforeRender = () => { const T = performance.now() / 1000;
-    rocks.forEach((r, i) => { const a = T * (.9 + i * .3) + i * 3.1; r.position.set(Math.cos(a) * .3, .3 + Math.sin(a) * .5, PG.cz + Math.sin(a * 1.3) * .2); r.rotation.set(T + i, T * .7, 0); });
-    motes.forEach((m, i) => { const t = PG.A0 + (PG.A1 - PG.A0) * (((T * .35 + i / 4) % 1)), r = PG.R + .03; m.position.set(0, r * Math.sin(t), PG.cz + r * Math.cos(t)); m.scale.setScalar(.6 + .6 * Math.sin(T * 6 + i)); }); };
+    rocks.forEach((r, i) => { const a = T * (.8 + i * .3) + i * 2.1; r.position.set(Math.cos(a) * .32, .3 + Math.sin(a) * .55, .75 + Math.sin(a * 1.3) * .25); r.rotation.set(T + i, T * .7, 0); });
+    motes.forEach((m, i) => { const t = ((T * .3 + i / 5) % 1), p = PGE[Math.floor(t * (PGE.length - 1))]; m.position.set(Math.sin(T * 3 + i) * .05, p[1] + .04 + t * .1, p[0]); m.scale.setScalar(.6 + .6 * Math.sin(T * 6 + i)); });
+    try { M.rock.emissiveIntensity = .75 + .25 * Math.sin(T * 2.2); } catch (e) { } };
   return g; }
 /* ---------------- 流光时轮 ---------------- */
 function chronoBuild(g) { const M = my3Mats();
@@ -23782,29 +23806,43 @@ function chronoBuild(g) { const M = my3Mats();
    the joints, gold edge lines), the point side ends in a long faceted spike, the chisel side in a flat wedge; the head sits in
    a gold dragon-claw mount that holds a glowing teal heart crystal; stone haft with glowing veins, gold bands, a wrapped grip
    and a crystal cluster on the butt */
-function my3Seg(g, M, a, b, r0, r1, mat, sides) { const L = Math.hypot(b[0] - a[0], b[1] - a[1]), G = new THREE.Group(); G.position.set(0, a[0], a[1]); G.rotation.x = Math.atan2(b[1] - a[1], b[0] - a[0]); g.add(G);
-  const geo = new THREE.CylinderGeometry(r1, r0, L, sides || 6); geo.translate(0, L / 2, 0); G.add(new THREE.Mesh(geo, mat || M.crys)); try { G.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), M.edge)); } catch (e) { } return G; }
-function longmaiArm(g, M, side) { const C = y => .7 - .5 * y * y, N = 4, Y = side > 0 ? .5 : .62, P = []; for (let i = 0; i <= N; i++) { const y = side * (.07 + (Y - .07) * i / N); P.push([y, C(y)]); }
-  for (let i = 0; i < N; i++) { const r0 = .085 * (1 - i * .16), r1 = .085 * (1 - (i + 1) * .16); my3Seg(g, M, P[i], P[i + 1], r0, r1);
-    if (i) { const band = my3Add(g, new THREE.TorusGeometry(r0 + .006, .009, 4, 12), M.gold, 0, P[i][0], P[i][1]); band.rotation.set(Math.atan2(-(P[i + 1][0] - P[i][0]), P[i + 1][1] - P[i][1]), 0, 0); } }
-  const end = P[N], prev = P[N - 1], d = [end[0] - prev[0], end[1] - prev[1]], dl = Math.hypot(d[0], d[1]);
-  if (side < 0) my3Seg(g, M, end, [end[0] + d[0] / dl * .2, end[1] + d[1] / dl * .2], .085 * .36, .002, M.crys);          // long spike
-  else { const w = my3Seg(g, M, end, [end[0] + d[0] / dl * .1, end[1] + d[1] / dl * .1], .085 * .36, .07, M.crys, 4); w.scale.set(.35, 1, 1.4); } }   // flat chisel wedge
+function my3Seg(g, M, a, b, r0, r1, mat, sides, noEdge) { const L = Math.hypot(b[0] - a[0], b[1] - a[1]), G = new THREE.Group(); G.position.set(0, a[0], a[1]); G.rotation.x = Math.atan2(b[1] - a[1], b[0] - a[0]); g.add(G);
+  const geo = new THREE.CylinderGeometry(r1, r0, L, sides || 6); geo.translate(0, L / 2, 0); G.add(new THREE.Mesh(geo, mat || M.crys)); if (!noEdge) try { G.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), M.edge)); } catch (e) { } return G; }
+/* 开山神镐 (owner 20 Nov picked it): a real pickaxe silhouette in bronze cast with 云雷纹 and glowing teal dragon veins: a
+   curved head, thick in the middle, a long sharp point sweeping back on one side and a flared flat chisel on the other, raised
+   gold rims along both outlines, a gold-cased glowing chisel edge, a gold point tip; in the middle a gold socket ring holding a
+   glowing dragon-vein crystal with four gold prongs; a gold collar with dragon scales; the haft wound with a gold dragon,
+   leather grip, gold pommel with a small crystal. (z along the haft, y across the head) */
+function kaishanHead(g, M) { const C = y => .74 - .42 * y * y, N = 20, top = [], bot = [];
+  const h = y => y < 0 ? .1 * (1 - Math.pow(Math.abs(y) / .66, 1.25)) + .006 : .1 - .028 * (y / .5) + (y > .42 ? (y - .42) * .9 : 0);
+  for (let i = 0; i <= N; i++) { const y = -.66 + 1.18 * i / N; top.push([C(y) + h(y), y]); bot.push([C(y) - h(y), y]); }
+  my3Shape(top.concat(bot.slice().reverse()), .075, M.bronzeV, g, 0, .014);
+  const rim = (L, off) => L.slice(1).map(([z, y]) => [z + off, y]);
+  for (const [L, s1] of [[top, 1], [bot, -1]]) my3Shape(L.slice(1, N).concat(rim(L, s1 * .022).slice(0, N - 1).reverse()), .085, M.gold, g, 0);   // raised gold rims
+  const ye = .52; my3Shape([[C(ye) + h(ye) + .02, ye], [C(ye) + h(ye) + .02, ye + .03], [C(ye) - h(ye) - .02, ye + .03], [C(ye) - h(ye) - .02, ye]], .08, M.gold, g, 0);   // gold-cased chisel edge
+  my3Add(g, new THREE.BoxGeometry(.088, .012, 2 * h(ye) + .02), M.vein, 0, ye + .036, C(ye));                              // the glowing edge line
+  const tip = my3Add(g, new THREE.ConeGeometry(.022, .12, 5), M.gold, 0, -.7, C(-.7) - .02); tip.rotation.x = Math.PI + .5;      // gold point tip
+  // the socket ring with the dragon-vein crystal and its gold prongs
+  for (const sd of [-1, 1]) { const r = my3Add(g, new THREE.TorusGeometry(.085, .02, 6, 18), M.gold, sd * .045, 0, C(0)); r.rotation.y = Math.PI / 2; }
+  const cr = my3Add(g, new THREE.OctahedronGeometry(.075), M.crysT, 0, 0, C(0)); cr.scale.set(.75, 1.3, 1.3);
+  const halo = my3Add(g, new THREE.OctahedronGeometry(.1), M.cyanG, 0, 0, C(0)); halo.scale.set(.75, 1.3, 1.3);
+  for (let i = 0; i < 4; i++) { const a = i / 4 * 6.283 + .785, pr = my3Add(g, new THREE.ConeGeometry(.013, .06, 4), M.gold, 0, Math.cos(a) * .085, C(0) + Math.sin(a) * .085); pr.rotation.x = -a + Math.PI / 2; }
+  return [cr, halo]; }
 function longmaiBuild(g) { const M = my3Mats();
-  my3Rod(g, .038, .044, 1.02, M.stone, 0, .2, 8);                                                                         // stone haft (glowing veins in its texture)
-  for (const z of [-.3, -.04, .22, .5]) my3Rod(g, .05, .05, .03, M.scale, 0, z, 10);
-  for (let i = 0; i < 5; i++) my3Rod(g, .048, .048, .035, M.bronzeD, 0, -.26 + i * .045, 8);                            // wrapped grip
-  for (let i = 0; i < 4; i++) { const a = i / 4 * 6.283; my3Seg(g, M, [Math.cos(a) * .02, -.33], [Math.cos(a) * .07, -.45 - (i % 2) * .05], .022, .004, i % 2 ? M.crysT : M.crys); }   // crystal cluster on the butt
-  // the gold dragon-claw mount and its glowing heart crystal
-  my3Add(g, new THREE.BoxGeometry(.11, .16, .2), M.scale, 0, 0, .7);
-  for (const sd of [-1, 1]) for (let i = 0; i < 3; i++) { const c = my3Add(g, new THREE.ConeGeometry(.018, .13, 4), M.gold, sd * .06, -.06 + i * .06, .78); c.rotation.x = -.4; c.rotation.z = sd * .5; }
-  const heart = my3Add(g, new THREE.OctahedronGeometry(.06), M.crysT, 0, 0, .86); heart.scale.set(1, 1, 1.5);
-  const halo = my3Add(g, new THREE.OctahedronGeometry(.085), M.cyanG, 0, 0, .86); halo.scale.set(1, 1, 1.5);
-  longmaiArm(g, M, 1); longmaiArm(g, M, -1);
+  my3Rod(g, .042, .048, 1.08, M.bronzeD, 0, .2, 10);                                                                         // the haft
+  try { const pts = []; for (let i = 0; i <= 48; i++) { const t = i / 48, a = t * Math.PI * 6; pts.push(new THREE.Vector3(Math.cos(a) * .05, Math.sin(a) * .05, -.22 + t * .78)); }
+    my3Add(g, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 96, .012, 5, false), M.gold);
+    const hd = my3Add(g, new THREE.ConeGeometry(.026, .07, 5), M.gold, .052, 0, .58); hd.rotation.x = Math.PI / 2; } catch (e) { }
+  for (let i = 0; i < 5; i++) my3Rod(g, .056, .056, .035, M.bronzeD, 0, -.34 + i * .05, 8);                                 // leather grip
+  for (const z of [-.08, .6]) my3Rod(g, .058, .058, .03, M.scale, 0, z, 10);
+  my3Add(g, new THREE.SphereGeometry(.06, 10, 8), M.gold, 0, 0, -.43); my3Add(g, new THREE.OctahedronGeometry(.04), M.crysT, 0, 0, -.5).scale.set(1, 1, 1.5);
+  my3Add(g, new THREE.BoxGeometry(.1, .14, .14), M.scale, 0, 0, .67);                                                         // gold collar with dragon scales
+  const [cr, halo] = kaishanHead(g, M);
   const motes = []; for (let i = 0; i < 3; i++) motes.push(my3Add(g, new THREE.OctahedronGeometry(.016), M.vein));
   const host = my3Add(g, new THREE.BoxGeometry(.001, .001, .001), M.gold, 0, 0, .7); host.frustumCulled = false;
-  host.onBeforeRender = () => { const T = performance.now() / 1000; M.crys.emissive.setRGB(.2 + .1 * Math.sin(T * 2.5), .08, .45 + .15 * Math.sin(T * 2.5)); heart.rotation.z = T; halo.rotation.z = -T * .7; halo.scale.set(1 + .15 * Math.sin(T * 4), 1 + .15 * Math.sin(T * 4), 1.5);
-    motes.forEach((m, i) => { const a = T * 2 + i * 2.09; m.position.set(Math.cos(a) * .14, Math.sin(a) * .5, .66 + Math.sin(a * 2) * .06); }); };
+  host.onBeforeRender = () => { const T = performance.now() / 1000; cr.rotation.x = T; halo.rotation.x = -T * .7; const p = 1 + .15 * Math.sin(T * 4); halo.scale.set(.75 * p, 1.3 * p, 1.3 * p);
+    try { M.bronzeV.emissiveIntensity = .6 + .4 * Math.sin(T * 2.5); } catch (e) { }
+    motes.forEach((m, i) => { const a = T * 2 + i * 2.09; m.position.set(Math.cos(a) * .14, Math.sin(a) * .55, .66 + Math.sin(a * 2) * .06); }); };
   return g; }
 const MY3_BUILD = { pangu: ['axe', panguBuild], chrono: ['pistol', chronoBuild], longmai: ['pick', longmaiBuild] };
 buildWeapon = (orig => function (id, t, skin) { const g = orig.apply(this, arguments), k = skin !== undefined ? skin : (S.wsk && S.wsk[id]), B = MY3_ON && MY3_BUILD[k];
@@ -25813,4 +25851,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795107371').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795108126').catch(()=>{});</script></body></html>
