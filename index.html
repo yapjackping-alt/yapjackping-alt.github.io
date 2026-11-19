@@ -23497,6 +23497,38 @@ cgBuild = (o => function () { const old = CG.h ? CG.h.g : null, r = o.apply(this
 wskPreview = (o => function () { const old = SKPV.h ? [SKPV.h.g] : [], sp = (SKPV.sp || []).map(p => p.m), r = o.apply(this, arguments);
   if (!SKPV.h || old[0] !== SKPV.h.g) memGone(old); memGone(sp); return r; })(wskPreview);
 wingOn = (o => function (h) { const old = h && h._wing ? h._wing.slice() : [], r = o.apply(this, arguments); memGone(old); return r; })(wingOn);
+/* ---- GPU memory collector (owner 19 Nov: "it shouldn't leak at all") ----
+   The fixes above free what we know about; this catches EVERYTHING else, now and in future features: every geometry and
+   picture (texture) the main renderer draws is noted with the time it was last drawn. Every 15 s, anything that has not
+   been drawn for 30 s and is no longer in the scene is freed (three.js uploads it again by itself if it is ever drawn
+   again, so this can never break a model). Box sizes from geo() that nobody uses any more also leave the cache (map props
+   use random sizes, so that cache grew without end). Render-target pictures are never touched. */
+const GPUGC = { g: [], t: [], now: 0, t15: 0, freedG: 0, freedT: 0, on: true };
+(function gpuGcHook() {
+  if (typeof renderer === 'undefined' || !renderer || !renderer.renderBufferDirect) return;
+  const rbd = renderer.renderBufferDirect, note = (t) => { if (!t || !t.isTexture) return; t.__gcT = GPUGC.now; if (!t.__gcIn) { t.__gcIn = 1; GPUGC.t.push(t); } };
+  renderer.renderBufferDirect = function (cam, sc, geo, mat) {
+    if (geo) { geo.__gcT = GPUGC.now; if (!geo.__gcIn) { geo.__gcIn = 1; GPUGC.g.push(geo); } }
+    if (mat) { note(mat.map); note(mat.alphaMap); note(mat.emissiveMap); }
+    return rbd.apply(this, arguments);
+  };
+})();
+const gcImgOk = t => { const im = t.image; return !!im && ((typeof HTMLCanvasElement !== 'undefined' && im instanceof HTMLCanvasElement) || (typeof HTMLImageElement !== 'undefined' && im instanceof HTMLImageElement) || (typeof ImageBitmap !== 'undefined' && im instanceof ImageBitmap)); };
+function gpuGcSweep() {
+  const stamp = {}, lg = new Set(), lt = new Set();
+  const roots = [scene]; try { if (typeof islandG !== 'undefined' && islandG && !islandG.parent) roots.push(islandG); } catch (e) { }
+  for (const R of roots) R.traverse(o => { if (o.geometry) lg.add(o.geometry); const m = o.material; if (m) for (const mm of (Array.isArray(m) ? m : [m])) { if (!mm) continue; if (mm.map) lt.add(mm.map); if (mm.alphaMap) lt.add(mm.alphaMap); if (mm.emissiveMap) lt.add(mm.emissiveMap); } });
+  const old = GPUGC.now - 30, cacheOf = new Map(); try { for (const k in geoCache) cacheOf.set(geoCache[k], k); } catch (e) { }
+  GPUGC.g = GPUGC.g.filter(g => { if (lg.has(g) || g.__gcT > old) return true;
+    try { g.dispose(); } catch (e) { } g.__gcIn = 0; GPUGC.freedG++; const k = cacheOf.get(g); if (k != null) delete geoCache[k]; return false; });
+  GPUGC.t = GPUGC.t.filter(t => { if (lt.has(t) || t.__gcT > old || !gcImgOk(t)) return true;
+    try { t.dispose(); } catch (e) { } t.__gcIn = 0; GPUGC.freedT++; return false; });
+  /* box-cache entries that were made but never drawn (e.g. built for a chunk that unloaded before you saw it) */
+  try { for (const [g, k] of cacheOf) if (!g.__gcIn && !lg.has(g) && (g.__gcMade || (g.__gcMade = GPUGC.now)) < old) { delete geoCache[k]; } } catch (e) { }
+}
+petsTick = (o => function (dt) { const r = o.apply(this, arguments);
+  /* real time, not game time: a slow phone (low FPS) must not slow the collector down */
+  if (GPUGC.on) try { const n = performance.now() / 1000; GPUGC.now = n; if (!GPUGC.t15) GPUGC.t15 = n; if (n - GPUGC.t15 >= 15) { GPUGC.t15 = n; gpuGcSweep(); } } catch (e) { } return r; })(petsTick);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -24531,4 +24563,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795063836').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795065385').catch(()=>{});</script></body></html>
