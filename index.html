@@ -23905,6 +23905,92 @@ renderPort = (o => function () { o(); try { const box = $('portList'); if (!box)
   '#pvpRes{position:fixed;inset:0;z-index:62;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:16px;box-sizing:border-box}.pvrb{width:min(440px,100%);padding:16px;border-radius:18px;background:#1d1a22;border:3px solid #8a7a6a;color:#efe2d0;text-align:center;box-sizing:border-box}' +
   '#pvpRes.win .pvrb{border-color:#ffc94a;box-shadow:0 0 40px rgba(255,200,80,.35)}#pvpRes.lose .pvrb{border-color:#8a3a3a}.pvrb h2{margin:0;font-size:30px;letter-spacing:4px}#pvpRes.win h2{color:#ffd27a}#pvpRes.lose h2{color:#ff8a7a}.pvbig{font-size:26px;font-weight:900;margin:4px 0}.pvrows{text-align:left;margin:8px 0}';
   (document.head || document.body).appendChild(st); } catch (e) { } })();
+/* ============ PvP 人机 (owner 19 Nov: "匹配不到就放人机进去") ============
+   Queued for 1v1 and nobody found within PVP_BOT_WAIT seconds → a match against a computer opponent starts, in your own
+   private arena. The bot is honest about what it is: its name ends in 「（人机）」.
+   - It is put into MP.others as a fake remote player (id '~bot', sorts after every real peer id so YOU lead the match),
+     so the arena code treats it like any enemy: a hidden target follows it, every weapon / skill hits it.
+   - Its strength follows yours: your level, your max life, a gun with PVP_BOT.dmg × your weapon's damage per second,
+     hitting PVP_BOT.acc of its shots (a little weaker than you, so a fair player usually wins, a careless one doesn't).
+   - It moves like a player: keeps its gun's range, strafes, ducks behind cover when hurt, needs a clear line to shoot
+     (bullets stop at pillars / crates / walls like yours), turns to face you, shows its shots as tracers.
+   - Nothing goes over the network for a bot match. */
+const PVP_BOT_ID = '~bot', PVP_BOT_WAIT = 20;
+const PVP_BOT = { dmg: 1.15, acc: .7, on: false, o: null, hp: 100, fireT: 1, mvT: 0, side: 1, gx: 0, gz: 0, wp: 'rifle', dodgeT: 0 };
+const PVP_BOT_NAMES = ['阿杰', '小雨', '老周', '陈默', '林子', '大熊', '阿飞', '小七', '铁头', '白鸦', '阿岚', '石头'];
+const pvpBotW = () => ({ pistol: { rng: 11, cd: .45 }, rifle: { rng: 15, cd: .16 }, shotgun: { rng: 7, cd: .9 } }[PVP_BOT.wp]);
+/* the queue: nobody for PVP_BOT_WAIT s → the bot */
+pvpQueueTick = (o => function (dt) { o(dt);
+  if (PVP.q === 'duel' && !PVP.m && (Date.now() - (PVP.qt || Date.now())) / 1000 >= PVP_BOT_WAIT && pvpQueued('duel').length < 2) pvpBotStart(); })(pvpQueueTick);
+function pvpBotStart() { if (S.dun || S.dead || (typeof ABY !== 'undefined' && ABY.on)) return;
+  if (!MP.me) MP.me = 'me';
+  const me = MP.me, nm = PVP_BOT_NAMES[Math.floor(Math.random() * PVP_BOT_NAMES.length)] + '（人机）';
+  PVP_BOT.on = true; PVP_BOT.hp = 100; PVP_BOT.wp = ['pistol', 'rifle', 'rifle', 'shotgun'][Math.floor(Math.random() * 4)];
+  feed('没有匹配到玩家，' + nm + ' 来陪你打', '#7de0ff');
+  pvpGo(dsepId(), 'duel', [me, PVP_BOT_ID], { [me]: 0, [PVP_BOT_ID]: 1 }, { [PVP_BOT_ID]: nm }); }
+/* the bot as a "remote player" */
+function pvpBotMake() { const lv = S.level | 0, o = makeRemote(PVP.names[PVP_BOT_ID] || '人机', lv, PVP_BOT_ID); o.bot = 1; o.pv = [PVP.m, 1]; o.ph = 100; o.cp = 0; o.u = '';
+  try { const q = Math.max(0, Math.min(4, Math.round((S.level || 1) / 22))); remoteDress(o, '', ['helm', 'armor', 'gloves', 'pants', 'boots', 'pack'].map(() => q + '.' + Math.floor(Math.random() * 6)).join(',')); } catch (e) { }
+  try { o.wg.add(buildWeapon(PVP_BOT.wp, Math.max(0, Math.min(4, wTier(Math.max(1, wLv(S.wp))))))); } catch (e) { }
+  const P = pvpSpawnAt(PVP_BOT_ID); o.tx = DUN.x + P.x; o.tz = DUN.z + P.z; o.tf = P.f; o.g.position.set(o.tx, 0, o.tz); o.g.rotation.y = P.f;
+  MP.others.set(PVP_BOT_ID, o); PVP_BOT.o = o; return o; }
+function pvpBotDrop() { const o = PVP_BOT.o; if (o) { try { scene.remove(o.g); } catch (e) { } if (MP.others.get(PVP_BOT_ID) === o) MP.others.delete(PVP_BOT_ID); } PVP_BOT.o = null; PVP_BOT.on = false; }
+/* the presence list is rebuilt from the network: keep the bot in it */
+onPeersChange = (o => function (ch) { const r = o.apply(this, arguments); if (PVP_BOT.o && !MP.others.has(PVP_BOT_ID)) MP.others.set(PVP_BOT_ID, PVP_BOT.o); return r; })(onPeersChange);
+/* your online id can appear (or change) after the bot match started (offline, or the lobby connected late): keep the match list on you */
+function pvpBotMe() { const me = MP.me; if (!PVP_BOT.on || !me || PVP.ps[0] === me || PVP.ps[1] !== PVP_BOT_ID) return; const old = PVP.ps[0]; PVP.ps[0] = me; PVP.tm[me] = PVP.tm[old]; delete PVP.tm[old];
+  if (PVP.st && PVP.st.k) { PVP.st.k[me] = PVP.st.k[old] || 0; PVP.st.dn[me] = PVP.st.dn[old] || 0; delete PVP.st.k[old]; delete PVP.st.dn[old]; } }
+pvpHere = (o => function () { pvpBotMe(); const L = o.apply(this, arguments); if (PVP_BOT.on && PVP_BOT.o && pvpIn() && !L.includes(PVP_BOT_ID)) L.push(PVP_BOT_ID); return L; })(pvpHere);
+/* my hits on the bot are worked out here instead of being sent */
+pvpFlushHits = (o => function (dt) { if (PVP_BOT.on && PVP.hq.has(PVP_BOT_ID)) { const d = PVP.hq.get(PVP_BOT_ID); PVP.hq.delete(PVP_BOT_ID); pvpBotHurt(d); } return o(dt); })(pvpFlushHits);
+function pvpBotHurt(d) { const b = PVP_BOT.o; if (!b || b.dead || !(PVP.st && PVP.st.ph === 'fight')) return;
+  // the bot has your life at your level, taking damage / pvpM like any player of that level
+  const pct = d / Math.max(1, pvpMOf(b.lv) * S.maxHp) * 100; PVP_BOT.hp = Math.max(0, PVP_BOT.hp - pct); b.ph = Math.round(PVP_BOT.hp);
+  if (PVP_BOT.hp < 45 && Math.random() < .5) PVP_BOT.mvT = 0;
+  if (PVP_BOT.hp <= 0) { b.dead = true; b.ph = 0; pvpOnDown({ peer: PVP_BOT_ID, data: { m: PVP.m, by: MP.me } }); } }
+/* every round the bot gets up again on its spawn */
+pvpApply = (o => function (st) { const before = PVP.lastPh, r = o.apply(this, arguments);
+  if (PVP_BOT.on && st.ph === 'count' && before !== st.ph + st.r) { const b = PVP_BOT.o || pvpBotMake(); PVP_BOT.hp = 100; b.ph = 100; b.dead = false; const P = pvpSpawnAt(PVP_BOT_ID); b.tx = DUN.x + P.x; b.tz = DUN.z + P.z; b.tf = P.f; b.g.position.set(b.tx, 0, b.tz); PVP_BOT.fireT = 1.2; }
+  return r; })(pvpApply);
+/* the bot's mind */
+function pvpBotTick(dt) { if (!PVP_BOT.on) return; if (!pvpIn()) { if (!PVP.m) pvpBotDrop(); return; }
+  const b = PVP_BOT.o || pvpBotMake(), st = PVP.st; if (!st) return;
+  if (b.dead || st.ph !== 'fight') { b.mv = false; return; }
+  const W = pvpBotW(), px = player.pos.x, pz = player.pos.z, dx = px - b.tx, dz = pz - b.tz, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
+  // can it see you? (a clear line, like your own bullets)
+  let clear = true; try { clear = rayLen(b.tx, b.tz, ux, uz, d) >= d - .6; } catch (e) { }
+  // where to go: hold its range, circle you, hide when hurt, come round the cover when it can't see you
+  PVP_BOT.mvT -= dt; if (PVP_BOT.mvT <= 0) { PVP_BOT.mvT = .8 + Math.random() * 1.4; if (Math.random() < .35) PVP_BOT.side *= -1; }
+  let mx = 0, mz = 0; const want = W.rng * (PVP_BOT.hp < 35 ? 1.25 : .8);
+  /* no line to you: walk round the cover (mostly sideways); stuck against it for a second → go round the other way */
+  PVP_BOT.stT = (PVP_BOT.stT || 0) + dt; if (PVP_BOT.stT > 1) { if (Math.hypot(b.tx - (PVP_BOT.sx || 0), b.tz - (PVP_BOT.sz || 0)) < .6 && !clear) { PVP_BOT.side *= -1; PVP_BOT.mvT = 1.5; } PVP_BOT.stT = 0; PVP_BOT.sx = b.tx; PVP_BOT.sz = b.tz; }
+  if (!clear) { mx = ux * .35 + (-uz) * PVP_BOT.side; mz = uz * .35 + ux * PVP_BOT.side; }
+  else { const k = d > want + 1.5 ? 1 : d < want - 2 ? -1 : 0; mx = ux * k + (-uz) * PVP_BOT.side * .4; mz = uz * k + ux * PVP_BOT.side * .4; }
+  if (S.dead) { mx = mz = 0; }
+  const ml = Math.hypot(mx, mz) || 1, sp = (PVP_BOT.dodgeT > 0 ? 7.5 : 4.6) * dt; PVP_BOT.dodgeT -= dt;
+  const pos = { x: b.tx + mx / ml * sp, z: b.tz + mz / ml * sp }; try { collide(pos, .5); } catch (e) { }
+  const H = pvpCfg().H - .8; pos.x = clamp(pos.x, DUN.x - H, DUN.x + H); pos.z = clamp(pos.z, DUN.z - H, DUN.z + H);
+  b.vx = (pos.x - b.tx) / Math.max(dt, .001); b.vz = (pos.z - b.tz) / Math.max(dt, .001); b.tx = pos.x; b.tz = pos.z; b.mv = Math.hypot(mx, mz) > .1; b.tf = Math.atan2(ux, uz);
+  // shooting: needs you in range and in sight
+  PVP_BOT.fireT -= dt; if (PVP_BOT.fireT > 0 || S.dead || !clear || d > W.rng + 1) return;
+  PVP_BOT.fireT = W.cd * (.9 + Math.random() * .4); const gap = PVP_BOT.fireT;
+  const hit = Math.random() < PVP_BOT.acc * (S.invT > 0 ? 0 : 1) * (d > W.rng * .7 ? .8 : 1);
+  const ex = hit ? px : px + (Math.random() - .5) * 3, ez = hit ? pz : pz + (Math.random() - .5) * 3;
+  try { tracer(b.tx + ux * .8, 1.5, b.tz + uz * .8, ex, 1.3, ez, 0xffd080); if (Math.random() < .5) sfxNoise(.04, .05, 900); } catch (e) { }
+  if (PVP_BOT.wp === 'shotgun') for (let i = 0; i < 2; i++) try { tracer(b.tx + ux * .8, 1.5, b.tz + uz * .8, ex + (Math.random() - .5) * 2, 1.2, ez + (Math.random() - .5) * 2, 0xffd080); } catch (e) { }
+  if (!hit) return;
+  // damage: your own weapon's damage per second × PVP_BOT.dmg, for this shot's share of a second
+  let dps = 0; try { dps = weaponDps(S.wp); } catch (e) { dps = 100; }
+  /* this shot carries the damage of the time until the next one, so its damage per second really is PVP_BOT.dmg × yours */
+  const n = dps * PVP_BOT.dmg * gap; PVP.lastBy = PVP_BOT_ID; takeDamage(n / pvpM(), { pvp: PVP_BOT_ID });
+  if (Math.random() < .12) PVP_BOT.dodgeT = .35; }
+petsTick = (o => function (dt) { const r = o.apply(this, arguments); try { pvpBotTick(dt); } catch (e) { console.warn('pvp bot', e); } return r; })(petsTick);
+dunCleanup = (o => function () { const was = DUN.on && DUN.id === PVP_ID; o(); if (was) pvpBotDrop(); })(dunCleanup);
+/* the queue line tells you when the bot comes */
+renderPvpPage = (o => function () { o(); try { const s = document.querySelector('#pvpM .pvq span'); if (s && PVP.q === 'duel') { const left = Math.max(0, Math.ceil(PVP_BOT_WAIT - (Date.now() - PVP.qt) / 1000)); s.textContent += left > 0 ? ' · ' + left + ' 秒后没人就和人机打' : ' · 人机马上来'; } } catch (e) { } })(renderPvpPage);
+/* offline (no network): the 1v1 button goes straight to a bot match */
+pvpQueue = (o => function (mode) { if (!MP.on && mode === 'duel' && !S.dun) { feed('没有联网，直接和人机打', '#7de0ff'); closePvpPage(); pvpBotStart(); return; } return o.apply(this, arguments); })(pvpQueue);
+renderPvpPage = (o => function () { o(); try { const m = $('pvpM'); if (!m || MP.on) return; const w = m.querySelector('.pvwarn'); if (w && !m.querySelector('.pvbotgo')) { w.textContent = '没有连上网络，不能和真人打，但可以和人机练习。'; const b = document.createElement('button'); b.className = 'go pvbotgo'; b.textContent = '和人机打'; b.addEventListener('click', () => pvpQueue('duel')); const d = document.createElement('div'); d.className = 'pvacts'; d.appendChild(b); w.after(d); } } catch (e) { } })(renderPvpPage);
 /* ============ 大陆野外 PvP 区 — PROTOTYPE, switched OFF (owner 19 Nov: "only open 1v1; build the rest but don't put it in
    the game, I'll add it bit by bit — give me a working base") ============
    Turn on with PVPZ_ON = true. What it does now:
@@ -24975,4 +25061,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795067161').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795070077').catch(()=>{});</script></body></html>
