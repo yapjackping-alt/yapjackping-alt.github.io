@@ -23650,6 +23650,68 @@ function my3Mats() { if (MY3.M) return MY3.M; const L = (c, e) => new THREE.Mesh
     navy: L(0x1a2240, 0x060a18), rose: L(0xe0a070, 0x3a1c0c), brass: L(0xd8a84a, 0x3a2408), ivory: L(0xf4ead0, 0x2a2618), cyan: B(0x7ae8ff), cyanG: B(0x7ae8ff, .4), hand: L(0x1a1a24),
     stone: L(0x2a2630, 0x08060c), vein: B(0x5afff0), crys: new THREE.MeshLambertMaterial({ color: 0x9a5aff, emissive: 0x3a1a7a, flatShading: true, transparent: true, opacity: .92 }),
     crysT: new THREE.MeshLambertMaterial({ color: 0x5afff0, emissive: 0x0a5a50, flatShading: true }), edge: new THREE.LineBasicMaterial({ color: 0xffd060 }), gem: B(0xb07aff) }); }
+/* ---------------- 贴膜: hand-painted canvas textures + shiny metal (owner 20 Nov: "皮肤要做漂亮，不只是特效，贴膜也要漂亮") ----------------
+   盘古斧: dark bronze with cast 云雷纹 (square thunder spirals) picked out in gold, verdigris patches and wear; brushed gold;
+   a sun disc with rays; the haft wound with a gold spiral. 流光时轮: navy enamel with gold filigree curls and tiny stars,
+   brushed rose gold, a real clock face (Roman numerals, minute ticks, a small sub-dial). 龙脉晶镐: dark stone whose cracks glow
+   teal (emissive map), gold with dragon scales, crystals with inner light streaks. Metals are Phong so they catch a highlight. */
+const MY3T = {};
+function my3Cv(key, w, h, draw, rx, ry) { if (MY3T[key]) return MY3T[key]; const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); if (!x || !x.fillRect) throw 0;
+  draw(x, w, h); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx || 1, ry || 1); t.anisotropy = 4; MY3T[key] = t; return t; }
+const my3R = (a, b) => a + Math.random() * (b - a);
+function my3Speck(x, w, h, n, col, r) { for (let i = 0; i < n; i++) { x.fillStyle = col.replace('A', my3R(.04, .16).toFixed(2)); x.fillRect(my3R(0, w), my3R(0, h), my3R(1, r), my3R(1, r)); } }
+function my3Brush(x, w, h, base, lite, dark) { x.fillStyle = base; x.fillRect(0, 0, w, h); for (let i = 0; i < h; i += 1) { x.fillStyle = Math.random() < .5 ? lite : dark; x.globalAlpha = my3R(.05, .22); x.fillRect(0, i, w, 1); } x.globalAlpha = 1; }
+const MY3TEX = {
+  bronze: x => { const w = 256, h = 256, g = x.createLinearGradient(0, 0, w, h); g.addColorStop(0, '#7a4e22'); g.addColorStop(.5, '#5a3818'); g.addColorStop(1, '#6e4520'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    // verdigris patches
+    for (let i = 0; i < 9; i++) { const cx = my3R(0, w), cy = my3R(0, h), r = my3R(14, 40), rg = x.createRadialGradient(cx, cy, 0, cx, cy, r); rg.addColorStop(0, 'rgba(70,150,120,.45)'); rg.addColorStop(1, 'rgba(70,150,120,0)'); x.fillStyle = rg; x.fillRect(cx - r, cy - r, r * 2, r * 2); }
+    // 云雷纹: square spirals on a 64 px grid, engraved (dark under, gold over)
+    const spiral = (ox, oy, s, flip) => { const P = []; let x0 = 0, y0 = 0, d = s, dir = 0; P.push([x0, y0]); for (let k = 0; k < 7; k++) { const L = d - Math.floor(k / 2) * (s / 4); if (L <= 2) break; const [dx, dy] = [[1, 0], [0, 1], [-1, 0], [0, -1]][dir]; x0 += dx * L; y0 += dy * L; P.push([x0, y0]); dir = (dir + 1) % 4; }
+      x.beginPath(); P.forEach(([a, b], i) => { const X = ox + (flip ? s - a : a), Y = oy + b; i ? x.lineTo(X, Y) : x.moveTo(X, Y); }); x.stroke(); };
+    for (const [col, off, lw] of [['rgba(20,10,4,.75)', 1.5, 5], ['#d8a848', 0, 3]]) { x.strokeStyle = col; x.lineWidth = lw; x.lineJoin = 'miter';
+      for (let gy = 0; gy < h; gy += 64) for (let gx = 0; gx < w; gx += 64) spiral(gx + 8 + off, gy + 8 + off, 48, ((gx + gy) / 64) % 2); }
+    my3Speck(x, w, h, 900, 'rgba(255,220,160,A)', 2); my3Speck(x, w, h, 600, 'rgba(0,0,0,A)', 3);
+    x.strokeStyle = 'rgba(255,230,180,.18)'; x.lineWidth = 1; for (let i = 0; i < 30; i++) { x.beginPath(); const a = my3R(0, w), b = my3R(0, h); x.moveTo(a, b); x.lineTo(a + my3R(-30, 30), b + my3R(-8, 8)); x.stroke(); } },
+  gold: x => { my3Brush(x, 128, 128, '#e8b84a', '#fff0b0', '#a87820'); for (let i = 0; i < 10; i++) { x.strokeStyle = 'rgba(120,70,10,.35)'; x.lineWidth = 1.5; x.beginPath(); x.arc(my3R(0, 128), my3R(0, 128), my3R(6, 14), 0, 4); x.stroke(); } },
+  haft: x => { const w = 64, h = 256; x.fillStyle = '#2c1a0c'; x.fillRect(0, 0, w, h); my3Speck(x, w, h, 500, 'rgba(255,200,140,A)', 2);
+    x.strokeStyle = '#d8a848'; x.lineWidth = 5; for (let i = -4; i < 12; i++) { x.beginPath(); x.moveTo(0, i * 32); x.lineTo(w, i * 32 + 40); x.stroke(); }
+    x.strokeStyle = 'rgba(0,0,0,.5)'; x.lineWidth = 2; for (let i = -4; i < 12; i++) { x.beginPath(); x.moveTo(0, i * 32 + 4); x.lineTo(w, i * 32 + 44); x.stroke(); } },
+  sun: x => { const w = 128, c = 64, rg = x.createRadialGradient(c, c, 0, c, c, 64); rg.addColorStop(0, '#fff8d8'); rg.addColorStop(.35, '#ffd060'); rg.addColorStop(1, '#a86a10'); x.fillStyle = rg; x.fillRect(0, 0, w, w);
+    x.strokeStyle = '#6a3a08'; x.lineWidth = 3; for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283; x.beginPath(); x.moveTo(c + Math.cos(a) * 30, c + Math.sin(a) * 30); x.lineTo(c + Math.cos(a) * 60, c + Math.sin(a) * 60); x.stroke(); }
+    x.beginPath(); x.arc(c, c, 26, 0, 6.283); x.stroke(); x.beginPath(); x.arc(c, c, 61, 0, 6.283); x.stroke(); },
+  navy: x => { const w = 256, h = 256; const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#22305a'); g.addColorStop(1, '#141a36'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    my3Speck(x, w, h, 120, 'rgba(255,255,255,A)', 2);
+    x.strokeStyle = '#e8c070'; x.lineWidth = 2.2; for (let i = 0; i < 14; i++) { const cx = my3R(0, w), cy = my3R(0, h), r = my3R(10, 22), a0 = my3R(0, 6.28); x.beginPath(); for (let t = 0; t < 3.2; t += .1) { const rr = r * (1 - t / 4); x.lineTo(cx + Math.cos(a0 + t * 2) * rr, cy + Math.sin(a0 + t * 2) * rr); } x.stroke();
+      x.beginPath(); x.moveTo(cx + Math.cos(a0) * r, cy + Math.sin(a0) * r); x.quadraticCurveTo(cx + my3R(-40, 40), cy + my3R(-40, 40), cx + my3R(-50, 50), cy + my3R(-50, 50)); x.stroke(); } },
+  rose: x => { my3Brush(x, 128, 128, '#e0a070', '#ffd8b8', '#a86040'); },
+  clock: x => { const w = 256, c = 128; const rg = x.createRadialGradient(c, c, 10, c, c, 128); rg.addColorStop(0, '#fffaf0'); rg.addColorStop(1, '#e8dcc0'); x.fillStyle = rg; x.fillRect(0, 0, w, w);
+    x.strokeStyle = '#c89040'; x.lineWidth = 10; x.beginPath(); x.arc(c, c, 120, 0, 6.283); x.stroke(); x.strokeStyle = '#1a2240'; x.lineWidth = 2; x.beginPath(); x.arc(c, c, 112, 0, 6.283); x.stroke();
+    for (let i = 0; i < 60; i++) { const a = i / 60 * 6.283, r0 = i % 5 ? 104 : 98; x.lineWidth = i % 5 ? 1.5 : 3; x.beginPath(); x.moveTo(c + Math.sin(a) * r0, c - Math.cos(a) * r0); x.lineTo(c + Math.sin(a) * 110, c - Math.cos(a) * 110); x.stroke(); }
+    x.fillStyle = '#1a2240'; x.font = 'bold 22px serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; ['XII', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'].forEach((t, i) => { const a = i / 12 * 6.283; x.fillText(t, c + Math.sin(a) * 80, c - Math.cos(a) * 80); });
+    x.strokeStyle = '#c89040'; x.lineWidth = 2; x.beginPath(); x.arc(c, c + 42, 20, 0, 6.283); x.stroke(); for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283; x.beginPath(); x.moveTo(c + Math.sin(a) * 15, c + 42 - Math.cos(a) * 15); x.lineTo(c + Math.sin(a) * 19, c + 42 - Math.cos(a) * 19); x.stroke(); }
+    x.fillStyle = '#7ad8f0'; x.beginPath(); x.arc(c, c - 40, 6, 0, 6.283); x.fill(); },
+  stone: x => { const w = 64, h = 256; x.fillStyle = '#26222c'; x.fillRect(0, 0, w, h); my3Speck(x, w, h, 700, 'rgba(160,150,180,A)', 3); my3Speck(x, w, h, 400, 'rgba(0,0,0,A)', 4); },
+  vein: x => { const w = 64, h = 256; x.fillStyle = '#000'; x.fillRect(0, 0, w, h); x.strokeStyle = '#5afff0'; x.shadowColor = '#5afff0'; x.shadowBlur = 6; x.lineWidth = 2;
+    for (let k = 0; k < 5; k++) { let px = my3R(0, w), py = 0; x.beginPath(); x.moveTo(px, py); while (py < h) { px += my3R(-10, 10); py += my3R(8, 18); x.lineTo(px, py); if (Math.random() < .15) { x.moveTo(px, py); } } x.stroke(); } x.shadowBlur = 0; },
+  scale: x => { my3Brush(x, 128, 128, '#e8b84a', '#fff0b0', '#a87820'); x.strokeStyle = 'rgba(110,60,8,.7)'; x.lineWidth = 2; for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) { x.beginPath(); x.arc(c * 16 + (r % 2) * 8, r * 16, 9, 0, Math.PI); x.stroke(); } },
+  crys: x => { const w = 64, h = 128, g = x.createLinearGradient(0, 0, w, 0); g.addColorStop(0, '#6a3ad8'); g.addColorStop(.5, '#d8b8ff'); g.addColorStop(1, '#7a4ae8'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 8; i++) { x.fillStyle = 'rgba(255,255,255,' + my3R(.12, .35).toFixed(2) + ')'; x.fillRect(my3R(0, w), 0, my3R(1, 4), h); } my3Speck(x, w, h, 80, 'rgba(255,255,255,A)', 2); } };
+function my3Pretty(M) { if (typeof document === 'undefined' || !document.createElement) return; const T = (k, w, h, rx, ry) => my3Cv(k + rx + ry, w, h, MY3TEX[k], rx, ry);
+  const P = (map, o) => new THREE.MeshPhongMaterial(Object.assign({ map, flatShading: true, shininess: 40, specular: 0x6a5030 }, o || {}));
+  const nm = {
+    bronze: P(T('bronze', 256, 256, 1.3, 1.3), { specular: 0x8a6030, shininess: 30, emissive: 0x140a02 }),
+    bronzeD: P(T('haft', 64, 256, 1, 3), { specular: 0x6a4a20, shininess: 25 }),
+    gold: P(T('gold', 128, 128, 3, 3), { specular: 0xffe8a0, shininess: 90, emissive: 0x2a1804 }),
+    sun: P(T('sun', 128, 128, 1, 1), { specular: 0xffe8a0, shininess: 80, emissive: 0x3a2008 }),
+    navy: P(T('navy', 256, 256, 3, 3), { specular: 0x8090c0, shininess: 70, emissive: 0x04060e }),
+    rose: P(T('rose', 128, 128, 2, 2), { specular: 0xffd8b8, shininess: 90 }),
+    brass: P(T('gold', 128, 128, 2, 2), { specular: 0xffe0a0, shininess: 80 }),
+    ivory: new THREE.MeshPhongMaterial({ map: T('clock', 256, 256, 1, 1), specular: 0xffffff, shininess: 100, emissive: 0x1a1810 }),
+    stone: P(T('stone', 64, 256, 1, 3), { emissiveMap: T('vein', 64, 256, 1, 3), emissive: 0xffffff, specular: 0x403848, shininess: 20 }),
+    scale: P(T('scale', 128, 128, 1.5, 1.5), { specular: 0xffe8a0, shininess: 90, emissive: 0x2a1804 }),
+    crys: new THREE.MeshPhongMaterial({ map: T('crys', 64, 128, 1, 1), color: 0xffffff, emissive: 0x3a1a7a, specular: 0xffffff, shininess: 120, flatShading: true, transparent: true, opacity: .9 }) };
+  Object.assign(M, nm); }
+my3Mats = (o => function () { if (MY3.M) return MY3.M; const M = o(); M.sun = M.gold; M.scale = M.gold; try { my3Pretty(M); } catch (e) { } return M; })(my3Mats);
 const my3Add = (g, geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x || 0, y || 0, z || 0); g.add(o); return o; };
 /* a flat outline in the weapon's (z, y) plane, extruded across x */
 function my3Shape(pts, depth, m, g, x, bevel) { let geo; try { const s = new THREE.Shape(); s.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) s.lineTo(pts[i][0], pts[i][1]);
@@ -23664,8 +23726,8 @@ function panguHead(g, M, ghost) { const E = panguEdge(), body = [[.5, -.1], [.88
   if (ghost) return;
   my3Shape(E.map(([z, y]) => [z, y - .075]).concat(E.slice().reverse().map(([z, y]) => [z, y - .13])), .076, M.gold, g, 0);   // gold rim inside the edge
   my3Shape(E.concat(E.slice().reverse().map(([z, y]) => [z, y - .07])), .04, M.light, g, 0, .004);                              // the glowing primordial edge
-  for (const s of [-1, 1]) { const sun = my3Add(g, new THREE.CircleGeometry(.1, 16), M.gold, s * .042, .3, .74); sun.rotation.y = s * Math.PI / 2;
-    const core = my3Add(g, new THREE.CircleGeometry(.05, 12), M.light, s * .044, .3, .74); core.rotation.y = s * Math.PI / 2;
+  for (const s of [-1, 1]) { const sun = my3Add(g, new THREE.CircleGeometry(.1, 16), M.sun, s * .042, .3, .74); sun.rotation.y = s * Math.PI / 2;
+    const core = my3Add(g, new THREE.CircleGeometry(.022, 12), M.light, s * .044, .3, .74); core.rotation.y = s * Math.PI / 2;
     [[.52, .12, .62, .22], [.62, .22, .58, .34], [.58, .34, .7, .46], [.7, .46, .66, .56]].forEach(([z0, y0, z1, y1]) => { const len = Math.hypot(z1 - z0, y1 - y0), b = my3Add(g, new THREE.BoxGeometry(.004, .016, len), M.light, s * .041, (y0 + y1) / 2, (z0 + z1) / 2); b.rotation.x = -Math.atan2(y1 - y0, z1 - z0); }); }
   my3Add(g, new THREE.BoxGeometry(.1, .2, .2), M.bronzeD, 0, -.2, .72);                                                         // taotie hammer on the back
   my3Add(g, new THREE.BoxGeometry(.11, .05, .22), M.gold, 0, -.31, .72);
@@ -23703,7 +23765,7 @@ function chronoBuild(g) { const M = my3Mats();
   // the clock face on both sides, with turning hands
   const hands = []; for (const s of [-1, 1]) { const C = new THREE.Group(); C.position.set(s * .057, .02, .02); C.rotation.y = s * Math.PI / 2; g.add(C);
     my3Add(C, new THREE.CircleGeometry(.068, 24), M.ivory); my3Add(C, new THREE.TorusGeometry(.068, .007, 5, 24), M.gold, 0, 0, .002);
-    for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283, t = my3Add(C, new THREE.BoxGeometry(.006, i % 3 ? .012 : .02, .004), M.hand, Math.sin(a) * .055, Math.cos(a) * .055, .004); t.rotation.z = -a; }
+    if (!M.ivory.map) for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283, t = my3Add(C, new THREE.BoxGeometry(.006, i % 3 ? .012 : .02, .004), M.hand, Math.sin(a) * .055, Math.cos(a) * .055, .004); t.rotation.z = -a; }
     const hh = new THREE.Group(), mm = new THREE.Group(); my3Add(hh, new THREE.BoxGeometry(.008, .035, .004), M.hand, 0, .016, .006); my3Add(mm, new THREE.BoxGeometry(.005, .052, .004), M.rose, 0, .024, .008);
     C.add(hh); C.add(mm); my3Add(C, new THREE.OctahedronGeometry(.009), M.cyan, 0, 0, .01); hands.push([hh, mm, s]); }
   // two gears on top at the back
@@ -23721,9 +23783,9 @@ function my3Crystal(g, M, y0, z0, y1, z1, r, mat) { const L = Math.hypot(y1 - y0
 function longmaiBuild(g) { const M = my3Mats();
   my3Rod(g, .036, .042, 1, M.stone, 0, .22, 7);                                                                                     // dark stone haft
   const vz = [[-.24, .02], [-.12, -.02], [0, .025], [.12, -.015], [.24, .02], [.36, -.02], [.48, .015], [.6, 0]];
-  for (const s of [-1, 1]) for (let i = 0; i < vz.length - 1; i++) { const [z0, y0] = vz[i], [z1, y1] = vz[i + 1], b = my3Add(g, new THREE.BoxGeometry(.006, .008, Math.hypot(z1 - z0, y1 - y0) + .006), M.vein, s * .04, (y0 + y1) / 2, (z0 + z1) / 2); b.rotation.x = -Math.atan2(y1 - y0, z1 - z0); }
+  if (!M.stone.emissiveMap) for (const s of [-1, 1]) for (let i = 0; i < vz.length - 1; i++) { const [z0, y0] = vz[i], [z1, y1] = vz[i + 1], b = my3Add(g, new THREE.BoxGeometry(.006, .008, Math.hypot(z1 - z0, y1 - y0) + .006), M.vein, s * .04, (y0 + y1) / 2, (z0 + z1) / 2); b.rotation.x = -Math.atan2(y1 - y0, z1 - z0); }
   my3Rod(g, .05, .046, .06, M.gold, 0, -.3, 8); my3Add(g, new THREE.OctahedronGeometry(.04), M.crysT, 0, 0, -.36);                  // butt cap + crystal
-  my3Add(g, new THREE.BoxGeometry(.1, .15, .17), M.gold, 0, 0, .7);                                                                  // gold collar
+  my3Add(g, new THREE.BoxGeometry(.1, .15, .17), M.scale, 0, 0, .7);                                                                  // gold collar
   for (const s of [-1, 1]) my3Add(g, new THREE.OctahedronGeometry(.035), M.gem, s * .055, 0, .7).scale.set(.5, 1.3, 1);
   my3Crystal(g, M, .06, .7, .56, .56, .095);                                                                                           // chisel side (+y)
   my3Crystal(g, M, -.06, .7, -.66, .52, .1);                                                                                         // point side (-y)
@@ -25681,4 +25743,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795105095').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795105531').catch(()=>{});</script></body></html>
