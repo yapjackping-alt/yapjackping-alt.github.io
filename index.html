@@ -21150,6 +21150,9 @@ abyOnHit = (o => function (z, D) { const f0 = z && z.abyFz, r = o.apply(this, ar
   '.a3flash{position:fixed;inset:0;pointer-events:none;z-index:5;background:radial-gradient(circle at 50% 50%,color-mix(in srgb,var(--qc) 70%,#fff) 0%,color-mix(in srgb,var(--qc) 40%,transparent) 35%,transparent 70%);animation:a3fl .56s ease-out both}' +
   '@keyframes a3fl{0%{opacity:0}30%{opacity:.95}100%{opacity:0}}';
   (document.head || document.body).appendChild(st); })();
+// owner 19 Nov 'eating in the abyss does not fill you up': inside, hunger is held at the value you came in with (ABY.snap.food,
+// put back every frame and again when you leave), so food eaten there was used up and then undone. Eating now moves that value.
+eatFood = (o => function (k) { const r = o.apply(this, arguments); try { if (r && ABY.on && ABY.snap) ABY.snap.food = S.food; } catch (e) { } return r; })(eatFood);
 /* ============ 走上船：老钱的商船 → 收藏馆，深渊号 → 潜艇舱内 ============
    - Both gangplanks are walkable now. Walk up to the deck end and you are taken inside (a 3D room, built with the dungeon engine
      as DUNS[10] / DUNS[11] at the far-away dungeon spot, so nothing outside can wander in). Walk to the door to come back out
@@ -23057,7 +23060,7 @@ const ABYSHOP = [
   ['eluck', 1, 250, 2], ['crystal', 1, 300, 2], ['elock', 1, 400, 1], ['heart', 1, 450, 1], ['core', 1, 525, 1]
 ];
 // 萌鬼 mythic skins (z_ghostskin.js), one per weapon. Price: a mythic 晶石 skin is 1680; at ABY_GEM .25 that is 6720 深渊币, so 7000 (≈ 3 months of first runs)
-const ABY_SKIN_PRICE = 7000;
+const ABY_SKIN_PRICE = 15000;   // owner 19 Nov: raise it (was 7000); ≈ half a year of weekly abyss coins
 const ABYSHOP_SKINS = (typeof GH_LIST !== 'undefined' ? GH_LIST : []).map(G => ({ key: G.k, wid: G.wid, price: ABY_SKIN_PRICE }));
 // owner 18 Nov: you may only buy a weapon's skin after reaching floor ABY_SKIN_FLOOR of the abyss WITH THAT WEAPON (S.abyss.bestBy)
 const ABY_SKIN_FLOOR = 20;
@@ -24215,4 +24218,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795021442').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795049265').catch(()=>{});</script></body></html>
