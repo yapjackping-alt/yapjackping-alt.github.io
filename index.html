@@ -23431,6 +23431,27 @@ let _g2pT = 0;
 petsTick = (o => function (dt) { const r = o(dt); try { _g2pT += dt; if (_g2pT >= .5) { const t = _g2pT, pm = elMul('pois'); _g2pT = 0;
   for (const z of zombies) { if (z.dead || !(z.g2pT > 0)) continue; const n = Math.min(t, z.g2pT); z.g2pT -= t; hurtZombie(z, z.g2pD * n * pm, 0, 0);
     if (Math.random() < .25) burst(z.pos.x, 1.2 * z.sc, z.pos.z, 0x8fd84a, 2, 1.5); if (!(z.g2pT > 0)) z.g2pD = 0; } } } catch (e) { } return r; })(petsTick);
+/* ============ loot on the ground can no longer freeze the game (owner 19 Nov: "lots of drops, then it froze") ============
+   With a full backpack nothing is picked up, so every kill left more pieces lying around (they last 110 s). Each piece asked
+   "how much room is left for this?" every frame, and that question walks the whole item list — hundreds of pieces × the item
+   list, every frame, is what froze the phone. Also every piece was its own new mesh that was never freed.
+   - the room per item type is asked once per frame (and again only after something is picked up)
+   - at most LOOT_MAX pieces lie around: past that a new drop joins the nearest piece of the same kind (same amount, fewer meshes)
+   - picked-up / expired pieces free their geometry */
+const LOOT_MAX = 40;
+updateLoot = (o => function (dt) {
+  const B = bagRoom, G = gain, memo = {}, before = loot.slice();
+  bagRoom = k => (k in memo ? memo[k] : (memo[k] = B(k)));
+  gain = function () { for (const k in memo) delete memo[k]; return G.apply(this, arguments); };
+  try { return o(dt); } finally { bagRoom = B; gain = G;
+    if (before.length !== loot.length) { const still = new Set(loot); for (const l of before) if (!still.has(l)) try { l.m.traverse(m => { if (m.geometry) m.geometry.dispose(); }); } catch (e) { } } }
+})(updateLoot);
+spawnLoot = (o => function (type, x, z, amt, spread) {
+  if (loot.length >= LOOT_MAX) { let best = null, bd = 1e9;
+    for (const l of loot) { if (l.type !== type || l.life <= 0) continue; const d = Math.hypot(l.m.position.x - x, l.m.position.z - z); if (d < bd) { bd = d; best = l; } }
+    if (best) { best.amt += amt; best.life = Math.max(best.life, 60); return; } }
+  return o.apply(this, arguments);
+})(spawnLoot);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -24465,4 +24486,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795061864').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795062679').catch(()=>{});</script></body></html>
