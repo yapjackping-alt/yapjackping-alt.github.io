@@ -23621,9 +23621,9 @@ ws2Cast = (o => function (id) { const r = o.apply(this, arguments); try { const 
    Same stats as the other mythic skins; sold in the skin shop's direct sale (mythic price); no redeem code (owner 20 Nov). The generic mythic package (aura, kill finisher, equip flourish, hit sparks) works for them automatically. */
 const MY3_ON = true;
 const MY3 = { M: null };
-WSKINS.pangu = { only: 'axe', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '盘古斧', r: 5, custom: true,
+WSKINS.pangu = { only: 'axe', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '开天斧', r: 5, custom: true,
   base: 0x5a3a1a, mid: 0xe8b84a, acc: 0xfff0b0, glow: 0xffd870, tr: 0xffd870, tr2: 0xfff4d0,
-  d: '传说中盘古开天辟地用的那把巨斧。古铜斧身大得吓人，弧形斧刃亮着混沌初开的白金色光芒，两面刻着太阳纹和一道裂开的天光，斧背是兽面锤，眼里冒着火光，三块山石和金色光点绕着斧头转。\n普通挥砍：一道高高的金色斧光劈下，前方地面裂开，光从裂缝里透出来。\n技能「开天辟地」：转身的三圈里，一把巨大的金色斧影跟着你横扫；最后斧影高高举起、一斧劈下——大地沿着 14 米裂开，光从裂缝里冲天而起，天上也裂开一道光，清气上升、浊气下沉，冲击波和碎石四散，整个画面跟着震动。' };
+  d: '盘古开天辟地用的那把巨斧。古铜铸成的弯月形大斧刃，两角向后卷，刃口亮着混沌初开的白金色光芒；斧面铸满云雷纹，镶着金边、金线和太阳纹铆钉，斧背是獠牙兽首锤，双眼冒火，顶上一支金枪尖，斧柄盘着一条金龙。\n普通挥砍：一斧劈开空气，前方撕开一道发光的空间裂口，冲击波往外炸开，然后裂口合上。\n技能「开天辟地」：转身的三圈里，一把巨大的金色斧影跟着你横扫；最后斧影高高举起、一斧劈下——大地沿着 14 米裂开，光从裂缝里冲天而起，天上也裂开一道光，清气上升、浊气下沉，冲击波和碎石四散，整个画面跟着震动。' };
 WSKINS.chrono = { only: 'pistol', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '流光时轮', r: 5, custom: true,
   base: 0x1a2240, mid: 0xe0a070, acc: 0xffe6b0, glow: 0x7ae8ff, tr: 0x7ae8ff, tr2: 0xffd08a,
   d: '深蓝配玫瑰金的左轮手枪，枪身侧面嵌着一个真的钟面，指针一直在走，后面的小齿轮跟着转，枪口亮着一圈青光。\n开枪：子弹后面会留下一道「时间残影」，稍后又闪过一次；打中的地方会出现一个倒着转的钟环。\n技能「时停领域」：脚下展开一个巨大的钟面，指针飞快倒转，齿轮从地上浮起，画面染上一层暖黄色，响起三声钟鸣。' };
@@ -23706,35 +23706,50 @@ function my3Shape(pts, depth, m, g, x, bevel) { let geo; try { const s = new THR
   return my3Add(g, geo, m, x || 0, 0, 0); }
 const my3Rod = (g, r0, r1, len, m, y, z, seg) => { const o = my3Add(g, new THREE.CylinderGeometry(r0, r1, len, seg || 8), m, 0, y, z); o.rotation.x = Math.PI / 2; return o; };
 /* ---------------- 盘古斧 ---------------- */
-function panguEdge() { const o = []; for (let i = 0; i <= 12; i++) { const f = i / 12; o.push([1.16 - .9 * f, .6 + .15 * Math.sin(Math.PI * f) - .04 * Math.abs(f - .5)]); } return o; }
-function panguHead(g, M, ghost) { const E = panguEdge(), body = [[.5, -.1], [.88, -.1], [.95, .08], [1.1, .34], [1.17, .58]].concat(E).concat([[.27, .58], [.34, .38], [.45, .2], [.5, .06]]);
-  my3Shape(body, .07, ghost || M.bronze, g, 0, .008);
+/* 开天斧 head: a huge crescent (钺) bit whose two horns sweep back toward the haft, a glowing edge band that stands proud of
+   the bronze, a raised gold rim and an inner gold line, a domed sun emblem with rivets on each cheek, a beast-head hammer
+   with fangs and glowing eyes on the back, a gold spear point on top; points are (z along the haft, y toward the edge) */
+const PG = { R: .64, cz: .72, A0: .33, A1: Math.PI - .33 };
+const pgArc = (r, n) => { const o = []; n = n || 18; for (let i = 0; i <= n; i++) { const t = PG.A0 + (PG.A1 - PG.A0) * i / n; o.push([PG.cz + r * Math.cos(t), r * Math.sin(t)]); } return o; };
+function panguBand(dr0, dr1) { const a = pgArc(PG.R + dr0), b = pgArc(PG.R + dr1); return a.concat(b.reverse()); }
+function panguBody() { return pgArc(PG.R).concat([[.2, .13], [.31, .2], [.43, .17], [.5, .07], [.5, -.085], [.94, -.085], [.94, .07], [1.01, .17], [1.13, .2], [1.25, .13]]); }
+function panguHead(g, M, ghost) {
+  my3Shape(panguBody(), .085, ghost || M.bronze, g, 0, .012);
   if (ghost) return;
-  my3Shape(E.map(([z, y]) => [z, y - .075]).concat(E.slice().reverse().map(([z, y]) => [z, y - .13])), .076, M.gold, g, 0);   // gold rim inside the edge
-  my3Shape(E.concat(E.slice().reverse().map(([z, y]) => [z, y - .07])), .04, M.light, g, 0, .004);                              // the glowing primordial edge
-  for (const s of [-1, 1]) { const sun = my3Add(g, new THREE.CircleGeometry(.1, 16), M.sun, s * .042, .3, .74); sun.rotation.y = s * Math.PI / 2;
-    const core = my3Add(g, new THREE.CircleGeometry(.022, 12), M.light, s * .044, .3, .74); core.rotation.y = s * Math.PI / 2;
-    [[.52, .12, .62, .22], [.62, .22, .58, .34], [.58, .34, .7, .46], [.7, .46, .66, .56]].forEach(([z0, y0, z1, y1]) => { const len = Math.hypot(z1 - z0, y1 - y0), b = my3Add(g, new THREE.BoxGeometry(.004, .016, len), M.light, s * .041, (y0 + y1) / 2, (z0 + z1) / 2); b.rotation.x = -Math.atan2(y1 - y0, z1 - z0); }); }
-  my3Add(g, new THREE.BoxGeometry(.1, .2, .2), M.bronzeD, 0, -.2, .72);                                                         // taotie hammer on the back
-  my3Add(g, new THREE.BoxGeometry(.11, .05, .22), M.gold, 0, -.31, .72);
-  for (const s of [-1, 1]) for (const z of [.67, .77]) { const e = my3Add(g, new THREE.OctahedronGeometry(.022), M.eye, s * .052, -.18, z); e.scale.set(.4, 1, 1.4); }
-  my3Add(g, new THREE.BoxGeometry(.09, .16, .2), M.bronzeD, 0, 0, .7);                                                          // eye collar round the haft
-  for (const y of [-.085, .085]) my3Add(g, new THREE.BoxGeometry(.096, .025, .21), M.gold, 0, y, .7); }
+  my3Shape(panguBand(.016, -.055), .046, M.light, g, 0, .006);                                                          // glowing edge, sticks out past the bronze
+  my3Shape(panguBand(-.055, -.1), .094, M.gold, g, 0, .006);                                                            // raised gold rim
+  my3Shape(panguBand(-.2, -.225), .094, M.gold, g, 0);                                                                  // inner gold line
+  // the domed sun emblem + a ring of rivets on both cheeks
+  let emb; try { const sh = new THREE.Shape(); sh.absarc(0, 0, .085, 0, Math.PI * 2, false); emb = new THREE.ExtrudeGeometry(sh, { depth: .1, bevelEnabled: true, bevelThickness: .018, bevelSize: .012, bevelSegments: 2 }); emb.translate(0, 0, -.05); emb.rotateY(Math.PI / 2); } catch (e) { emb = new THREE.CylinderGeometry(.085, .085, .12, 16); emb.rotateZ(Math.PI / 2); }
+  my3Add(g, emb, M.gold, 0, .33, PG.cz);
+  for (const sd of [-1, 1]) { const sun = my3Add(g, new THREE.CircleGeometry(.07, 20), M.sun, sd * .081, .33, PG.cz); sun.rotation.y = sd * Math.PI / 2;
+    for (let i = 0; i < 7; i++) { const t = PG.A0 + .12 + (PG.A1 - PG.A0 - .24) * i / 6, r = PG.R - .145; my3Add(g, new THREE.SphereGeometry(.014, 6, 4), M.gold, sd * .045, r * Math.sin(t), PG.cz + r * Math.cos(t)); } }
+  // beast-head hammer with fangs on the back
+  my3Shape([[.58, -.07], [.86, -.07], [.88, -.2], [.84, -.33], [.79, -.28], [.75, -.36], [.71, -.28], [.67, -.36], [.63, -.28], [.58, -.33], [.56, -.2]], .13, M.bronzeD, g, 0, .01);
+  my3Shape([[.57, -.1], [.87, -.1], [.875, -.135], [.565, -.135]], .14, M.gold, g, 0);
+  for (const sd of [-1, 1]) for (const z of [.65, .79]) { const e = my3Add(g, new THREE.OctahedronGeometry(.024), M.eye, sd * .068, -.2, z); e.scale.set(.4, 1, 1.5); }
+  for (const z of [.67, .75, .83]) my3Add(g, new THREE.ConeGeometry(.012, .06, 4), M.light, 0, -.34, z).rotation.x = Math.PI;
+  // collar round the haft + the spear point on top
+  my3Add(g, new THREE.BoxGeometry(.12, .2, .3), M.bronzeD, 0, 0, PG.cz);
+  for (const z of [PG.cz - .13, PG.cz + .13]) my3Add(g, new THREE.BoxGeometry(.13, .21, .03), M.gold, 0, 0, z);
+  const tip = my3Add(g, new THREE.ConeGeometry(.06, .3, 4), M.gold, 0, 0, 1.02); tip.rotation.x = Math.PI / 2; tip.rotation.y = Math.PI / 4;
+  my3Add(g, new THREE.OctahedronGeometry(.035), M.light, 0, 0, .9); }
 function panguBuild(g) { const M = my3Mats();
-  my3Rod(g, .046, .052, 1.12, M.bronzeD, 0, .22, 8);                                                                             // the haft
-  for (const z of [-.24, -.12, .02, .44, .58]) my3Rod(g, .058, .058, .03, M.gold, 0, z, 10);
-  for (let i = 0; i < 6; i++) { const b = my3Add(g, new THREE.BoxGeometry(.008, .012, .1), M.gold, 0, 0, -.18 + i * .1); b.position.x = Math.cos(i * 1.2) * .05; b.position.y = Math.sin(i * 1.2) * .05; }
-  my3Add(g, new THREE.OctahedronGeometry(.07), M.gold, 0, 0, -.38).scale.set(1, 1, 1.4);
-  my3Add(g, new THREE.ConeGeometry(.03, .1, 5), M.bronzeD, 0, 0, -.46).rotation.x = -Math.PI / 2;
+  my3Rod(g, .05, .056, 1.18, M.bronzeD, 0, .2, 10);                                                                     // the haft
+  for (const z of [-.3, -.06, .44, .56]) my3Rod(g, .064, .064, .035, M.gold, 0, z, 12);
+  try { const pts = []; for (let i = 0; i <= 48; i++) { const t = i / 48, a = t * Math.PI * 6; pts.push(new THREE.Vector3(Math.cos(a) * .058, Math.sin(a) * .058, -.25 + t * .78)); }   // a gold dragon wound round the haft
+    my3Add(g, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 96, .013, 5, false), M.gold);
+    const hd = my3Add(g, new THREE.ConeGeometry(.03, .08, 5), M.gold, Math.cos(Math.PI * 6) * .062, Math.sin(Math.PI * 6) * .062, .54); hd.rotation.x = Math.PI / 2; } catch (e) { }
+  my3Add(g, new THREE.SphereGeometry(.07, 10, 8), M.gold, 0, 0, -.42);                                                  // pommel: gold ball, spike and three claws
+  my3Add(g, new THREE.ConeGeometry(.035, .14, 5), M.bronzeD, 0, 0, -.54).rotation.x = -Math.PI / 2;
+  for (let i = 0; i < 3; i++) { const a = i / 3 * 6.283, c = my3Add(g, new THREE.ConeGeometry(.016, .09, 4), M.gold, Math.cos(a) * .06, Math.sin(a) * .06, -.37); c.rotation.x = Math.PI / 2 + .5; c.rotation.z = a; }
   panguHead(g, M);
-  // three rocks and gold motes circle the head; animated from one tiny always-drawn host
-  const rocks = []; for (let i = 0; i < 3; i++) { const r = my3Add(g, new THREE.DodecahedronGeometry(.045 + i * .008, 0), M.rock); rocks.push(r); }
-  const motes = []; for (let i = 0; i < 4; i++) motes.push(my3Add(g, new THREE.OctahedronGeometry(.018), M.light));
+  const rocks = []; for (let i = 0; i < 2; i++) rocks.push(my3Add(g, new THREE.DodecahedronGeometry(.04 + i * .01, 0), M.rock));
+  const motes = []; for (let i = 0; i < 4; i++) motes.push(my3Add(g, new THREE.OctahedronGeometry(.016), M.light));
   const host = my3Add(g, new THREE.BoxGeometry(.001, .001, .001), M.gold, 0, 0, .7); host.frustumCulled = false;
   host.onBeforeRender = () => { const T = performance.now() / 1000;
-    rocks.forEach((r, i) => { const a = T * (.9 + i * .2) + i * 2.1; r.position.set(Math.cos(a) * .28, .3 + Math.sin(a) * .42, .72 + Math.sin(a * 1.3) * .12); r.rotation.set(T + i, T * .7, 0); });
-    motes.forEach((m, i) => { const a = -T * 1.6 + i * 1.57; m.position.set(Math.sin(a * 1.4) * .2, .3 + Math.cos(a) * .55, .72 + Math.sin(a) * .5); m.scale.setScalar(.7 + .5 * Math.sin(T * 5 + i)); });
-    M.lightG.opacity = .3 + .12 * Math.sin(T * 3); };
+    rocks.forEach((r, i) => { const a = T * (.9 + i * .3) + i * 3.1; r.position.set(Math.cos(a) * .3, .3 + Math.sin(a) * .5, PG.cz + Math.sin(a * 1.3) * .2); r.rotation.set(T + i, T * .7, 0); });
+    motes.forEach((m, i) => { const t = PG.A0 + (PG.A1 - PG.A0) * (((T * .35 + i / 4) % 1)), r = PG.R + .03; m.position.set(0, r * Math.sin(t), PG.cz + r * Math.cos(t)); m.scale.setScalar(.6 + .6 * Math.sin(T * 6 + i)); }); };
   return g; }
 /* ---------------- 流光时轮 ---------------- */
 function chronoBuild(g) { const M = my3Mats();
@@ -23763,23 +23778,33 @@ function chronoBuild(g) { const M = my3Mats();
     gears.forEach(([G, r], i) => { G.rotation.x = (i ? -1 : 1) * T * 2.2 * .036 / r; }); M.cyanG.opacity = .3 + .15 * Math.sin(T * 4); };
   return g; }
 /* ---------------- 龙脉晶镐 ---------------- */
-function my3Crystal(g, M, y0, z0, y1, z1, r, mat) { const L = Math.hypot(y1 - y0, z1 - z0), G = new THREE.Group(); G.position.set(0, y0, z0); G.rotation.x = Math.atan2(z1 - z0, y1 - y0); g.add(G);
-  const body = new THREE.CylinderGeometry(r * .8, r, L * .78, 6); body.translate(0, L * .39, 0); const tip = new THREE.ConeGeometry(r * .8, L * .22, 6); tip.translate(0, L * .89, 0);
-  for (const geo of [body, tip]) { G.add(new THREE.Mesh(geo, mat || M.crys)); try { G.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), M.edge)); } catch (e) { } } return G; }
+/* 龙脉晶镐: each arm of the head is a CURVED crystal (four hexagonal segments following the pick's arc, tapering, gold bands at
+   the joints, gold edge lines), the point side ends in a long faceted spike, the chisel side in a flat wedge; the head sits in
+   a gold dragon-claw mount that holds a glowing teal heart crystal; stone haft with glowing veins, gold bands, a wrapped grip
+   and a crystal cluster on the butt */
+function my3Seg(g, M, a, b, r0, r1, mat, sides) { const L = Math.hypot(b[0] - a[0], b[1] - a[1]), G = new THREE.Group(); G.position.set(0, a[0], a[1]); G.rotation.x = Math.atan2(b[1] - a[1], b[0] - a[0]); g.add(G);
+  const geo = new THREE.CylinderGeometry(r1, r0, L, sides || 6); geo.translate(0, L / 2, 0); G.add(new THREE.Mesh(geo, mat || M.crys)); try { G.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), M.edge)); } catch (e) { } return G; }
+function longmaiArm(g, M, side) { const C = y => .7 - .5 * y * y, N = 4, Y = side > 0 ? .5 : .62, P = []; for (let i = 0; i <= N; i++) { const y = side * (.07 + (Y - .07) * i / N); P.push([y, C(y)]); }
+  for (let i = 0; i < N; i++) { const r0 = .085 * (1 - i * .16), r1 = .085 * (1 - (i + 1) * .16); my3Seg(g, M, P[i], P[i + 1], r0, r1);
+    if (i) { const band = my3Add(g, new THREE.TorusGeometry(r0 + .006, .009, 4, 12), M.gold, 0, P[i][0], P[i][1]); band.rotation.set(Math.atan2(-(P[i + 1][0] - P[i][0]), P[i + 1][1] - P[i][1]), 0, 0); } }
+  const end = P[N], prev = P[N - 1], d = [end[0] - prev[0], end[1] - prev[1]], dl = Math.hypot(d[0], d[1]);
+  if (side < 0) my3Seg(g, M, end, [end[0] + d[0] / dl * .2, end[1] + d[1] / dl * .2], .085 * .36, .002, M.crys);          // long spike
+  else { const w = my3Seg(g, M, end, [end[0] + d[0] / dl * .1, end[1] + d[1] / dl * .1], .085 * .36, .07, M.crys, 4); w.scale.set(.35, 1, 1.4); } }   // flat chisel wedge
 function longmaiBuild(g) { const M = my3Mats();
-  my3Rod(g, .036, .042, 1, M.stone, 0, .22, 7);                                                                                     // dark stone haft
-  const vz = [[-.24, .02], [-.12, -.02], [0, .025], [.12, -.015], [.24, .02], [.36, -.02], [.48, .015], [.6, 0]];
-  if (!M.stone.emissiveMap) for (const s of [-1, 1]) for (let i = 0; i < vz.length - 1; i++) { const [z0, y0] = vz[i], [z1, y1] = vz[i + 1], b = my3Add(g, new THREE.BoxGeometry(.006, .008, Math.hypot(z1 - z0, y1 - y0) + .006), M.vein, s * .04, (y0 + y1) / 2, (z0 + z1) / 2); b.rotation.x = -Math.atan2(y1 - y0, z1 - z0); }
-  my3Rod(g, .05, .046, .06, M.gold, 0, -.3, 8); my3Add(g, new THREE.OctahedronGeometry(.04), M.crysT, 0, 0, -.36);                  // butt cap + crystal
-  my3Add(g, new THREE.BoxGeometry(.1, .15, .17), M.scale, 0, 0, .7);                                                                  // gold collar
-  for (const s of [-1, 1]) my3Add(g, new THREE.OctahedronGeometry(.035), M.gem, s * .055, 0, .7).scale.set(.5, 1.3, 1);
-  my3Crystal(g, M, .06, .7, .56, .56, .095);                                                                                           // chisel side (+y)
-  my3Crystal(g, M, -.06, .7, -.66, .52, .1);                                                                                         // point side (-y)
-  for (let i = 0; i < 3; i++) { const a = i / 3 * 6.283 + .5; my3Crystal(g, M, Math.cos(a) * .06, .7 + Math.sin(a) * .05, Math.cos(a) * .22, .84 + Math.sin(a) * .07, .04, M.crysT); }
+  my3Rod(g, .038, .044, 1.02, M.stone, 0, .2, 8);                                                                         // stone haft (glowing veins in its texture)
+  for (const z of [-.3, -.04, .22, .5]) my3Rod(g, .05, .05, .03, M.scale, 0, z, 10);
+  for (let i = 0; i < 5; i++) my3Rod(g, .048, .048, .035, M.bronzeD, 0, -.26 + i * .045, 8);                            // wrapped grip
+  for (let i = 0; i < 4; i++) { const a = i / 4 * 6.283; my3Seg(g, M, [Math.cos(a) * .02, -.33], [Math.cos(a) * .07, -.45 - (i % 2) * .05], .022, .004, i % 2 ? M.crysT : M.crys); }   // crystal cluster on the butt
+  // the gold dragon-claw mount and its glowing heart crystal
+  my3Add(g, new THREE.BoxGeometry(.11, .16, .2), M.scale, 0, 0, .7);
+  for (const sd of [-1, 1]) for (let i = 0; i < 3; i++) { const c = my3Add(g, new THREE.ConeGeometry(.018, .13, 4), M.gold, sd * .06, -.06 + i * .06, .78); c.rotation.x = -.4; c.rotation.z = sd * .5; }
+  const heart = my3Add(g, new THREE.OctahedronGeometry(.06), M.crysT, 0, 0, .86); heart.scale.set(1, 1, 1.5);
+  const halo = my3Add(g, new THREE.OctahedronGeometry(.085), M.cyanG, 0, 0, .86); halo.scale.set(1, 1, 1.5);
+  longmaiArm(g, M, 1); longmaiArm(g, M, -1);
   const motes = []; for (let i = 0; i < 3; i++) motes.push(my3Add(g, new THREE.OctahedronGeometry(.016), M.vein));
   const host = my3Add(g, new THREE.BoxGeometry(.001, .001, .001), M.gold, 0, 0, .7); host.frustumCulled = false;
-  host.onBeforeRender = () => { const T = performance.now() / 1000; M.crys.emissive.setRGB(.2 + .1 * Math.sin(T * 2.5), .08, .45 + .15 * Math.sin(T * 2.5)); M.vein.color.setHSL(.47, 1, .6 + .12 * Math.sin(T * 4));
-    motes.forEach((m, i) => { const a = T * 2 + i * 2.09; m.position.set(Math.cos(a) * .12, Math.sin(a) * .5, .66 + Math.sin(a * 2) * .06); }); };
+  host.onBeforeRender = () => { const T = performance.now() / 1000; M.crys.emissive.setRGB(.2 + .1 * Math.sin(T * 2.5), .08, .45 + .15 * Math.sin(T * 2.5)); heart.rotation.z = T; halo.rotation.z = -T * .7; halo.scale.set(1 + .15 * Math.sin(T * 4), 1 + .15 * Math.sin(T * 4), 1.5);
+    motes.forEach((m, i) => { const a = T * 2 + i * 2.09; m.position.set(Math.cos(a) * .14, Math.sin(a) * .5, .66 + Math.sin(a * 2) * .06); }); };
   return g; }
 const MY3_BUILD = { pangu: ['axe', panguBuild], chrono: ['pistol', chronoBuild], longmai: ['pick', longmaiBuild] };
 buildWeapon = (orig => function (id, t, skin) { const g = orig.apply(this, arguments), k = skin !== undefined ? skin : (S.wsk && S.wsk[id]), B = MY3_ON && MY3_BUILD[k];
@@ -23799,18 +23824,48 @@ try { WSK_SND.pangu = { fire() { my3N(.22, .1, 900, { type: 'bandpass', q: .8, f
 // 盘古斧: a tall gold crescent (the generic one) + the ground cracks open ahead with light shining out
 mythSwing = (orig => function (K) { const r = orig.apply(this, arguments); if (!K || !MY3_ON) return r;
   try { if (K.key === 'pangu') panguChop(); else if (K.key === 'longmai') longmaiStrike(); } catch (e) { } return r; })(mythSwing);
-function panguChop() { const [dx, dz] = aimDir(), d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d, gy = skGY(), x0 = player.pos.x + ux * 1.1, z0 = player.pos.z + uz * 1.1, an = Math.atan2(ux, uz), G = skGeo();
-  setTimeout(() => { try { panguCrack(x0, z0, ux, uz, gy, 3.4, .55, an); skRing(x0, gy + .08, z0, .2, 1.8, .45, 0xffd870, .8);
-    for (let i = 0; i < 5; i++) skThrow(G.oct, i % 2 ? 0x8a7a6a : 0xffe8a0, x0, gy + .2, z0, (Math.random() - .5) * 3, 3 + Math.random() * 2, (Math.random() - .5) * 3, .6, 1.4, 12, 8);
-    S.shake = Math.max(S.shake || 0, .12); } catch (e) { } }, 130); }
-// a crack in the ground: dark jagged segments with light shining up out of them
-function panguCrack(x0, z0, ux, uz, gy, len, life, an, big) { const G = skGeo(), n = Math.max(3, Math.round(len / .9)), nx = -uz, nz = ux; let px = x0, pz = z0;
-  for (let i = 0; i < n; i++) { const f = (i + 1) / n, j = (Math.random() - .5) * (big ? .9 : .5), qx = x0 + ux * len * f + nx * j, qz = z0 + uz * len * f + nz * j, cx = (px + qx) / 2, cz = (pz + qz) / 2, L = Math.hypot(qx - px, qz - pz), a = Math.atan2(qx - px, qz - pz), dl = i * (big ? 28 : 18);
-    const w = big ? 1.1 : .3;
-    skL(dl, () => { skP(G.box, 0x1a0e06, cx, gy + .03, cz, life * 1.6, (k, m) => { m.rotation.set(0, a, 0); m.scale.set(w * Math.min(1, k * 6), .02, L + .05); m.material.opacity = k < .7 ? 1 : (1 - k) / .3; });
-      skP(G.box, 0xfff0b0, cx, gy + .05, cz, life * 1.4, (k, m) => { m.rotation.set(0, a, 0); m.scale.set(w * .45 * Math.min(1, k * 6), .02, L); m.material.opacity = k < .6 ? 1 : (1 - k) / .4; });
-      skP(G.box, 0xffd870, cx, gy, cz, life, (k, m) => { m.rotation.set(0, a, 0); const h = (big ? 3.2 : .9) * Math.sin(Math.min(1, k * 1.6) * Math.PI); m.scale.set(w * .5, h, L * .7); m.position.y = gy + h / 2; m.material.opacity = .55 * (1 - k); }, .55); });
-    px = qx; pz = qz; } }
+/* 开天斧 normal attack: the chop TEARS THE AIR in front of you: a jagged vertical rift opens from top to bottom (a dark void
+   with a white-gold glowing lip), shock rings burst out of it, little shards are sucked in, then it seals */
+function panguChop() { const [dx, dz] = aimDir(), d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d, gy = skGY();
+  setTimeout(() => { try { panguTear(player.pos.x + ux * 1.7, gy + 1.5, player.pos.z + uz * 1.7, 3.2, .55); S.shake = Math.max(S.shake || 0, .1); } catch (e) { } }, 110); }
+function panguTearGeo(H, W) { const n = 14, L = [], R = []; for (let i = 0; i <= n; i++) { const t = i / n, y = H / 2 - H * t, w = W * Math.pow(Math.sin(Math.PI * t), .8) * (i % 2 ? .6 : 1) + .004, j = (Math.random() - .5) * W * .7; L.push([-w + j, y]); R.push([w + j, y]); }
+  const sh = new THREE.Shape(); sh.moveTo(L[0][0], L[0][1]); L.forEach(p => sh.lineTo(p[0], p[1])); R.reverse().forEach(p => sh.lineTo(p[0], p[1])); return new THREE.ShapeGeometry(sh); }
+function panguTear(x, y, z, H, life) { const G = skGeo(); let gGlow, gVoid; try { gGlow = panguTearGeo(H, .75); gVoid = panguTearGeo(H * .9, .38); } catch (e) { return; }
+  const face = m => { try { const a = Math.atan2(camera.position.x - x, camera.position.z - z); m.rotation.set(0, a, 0); } catch (e) { } };
+  const open = k => k < .35 ? k / .35 : k < .7 ? 1 : 1 - (k - .7) / .3;
+  const g1 = skP(gGlow, 0xfff0b0, x, y, z, life, (k, m) => { face(m); const o = open(k); m.scale.set(o * 1.15, .3 + .7 * Math.min(1, k * 5), 1); m.material.opacity = .95 * Math.min(1, o * 1.5); });
+  const g2 = skP(gVoid, 0x1a0a24, x, y, z, life, (k, m) => { face(m); m.position.set(x, y, z); m.translateZ(.02); const o = open(k); m.scale.set(o, .3 + .7 * Math.min(1, k * 5), 1); m.material.opacity = .95 * Math.min(1, o * 1.5); });
+  setTimeout(() => { try { gGlow.dispose(); gVoid.dispose(); } catch (e) { } }, life * 1000 * SKX.ts + 80);
+  skP(G.box, 0xffffff, x, y, z, life * .5, (k, m) => { face(m); m.scale.set(.06 * (1 - k), H * 1.1 * Math.min(1, k * 6), .02); m.material.opacity = 1 - k; });
+  for (let i = 0; i < 3; i++) skL(60 + i * 70, () => skP(G.ring, i % 2 ? 0xfff4d0 : 0xffd870, x, y, z, .4, (k, m) => { face(m); const r = .4 + k * (2 + i); m.scale.set(r * .6, r, r); m.material.opacity = .7 * (1 - k); }));
+  for (let i = 0; i < 10; i++) { const a = Math.random() * 6.283, r = 1.4 + Math.random(), sx = x + Math.cos(a) * r, sy = y + (Math.random() - .5) * H, sz = z + Math.sin(a) * r;
+    skP(G.oct, i % 2 ? 0xffe8a0 : 0xffffff, sx, sy, sz, .4, (k, m) => { const e = k * k; m.position.set(sx + (x - sx) * e, sy + (y - sy) * e * .6, sz + (z - sz) * e); m.scale.setScalar(1.2 * (1 - k)); m.material.opacity = 1 - k * .5; }); } }
+/* 开天辟地 fissure: one jagged strip of glowing molten light (bright core, dark-orange edges) inside a wider dark broken rim,
+   torn open from the near end outward, with branching side cracks, broken slabs tilted up along both banks and a glow
+   rising out of it */
+function panguFissure(x0, z0, ux, uz, gy, L, life) { const nx = -uz, nz = ux, n = 40, rows = []; let off = 0;
+  for (let i = 0; i <= n; i++) { const t = i / n; off += (Math.random() - .5) * .5; off *= .85; const w = 1.1 * Math.pow(Math.sin(Math.PI * Math.min(1, t * 1.15 + .02)), .55) * (.7 + Math.random() * .5) + .05; rows.push([x0 + ux * L * t + nx * off, z0 + uz * L * t + nz * off, w]); }
+  const strip = (wk, yy, cIn, cOut) => { const P = [], Cc = [], I = []; rows.forEach(([x, z, w], i) => { const ww = w * wk; P.push(x - nx * ww, yy, z - nz * ww, x, yy, z, x + nx * ww, yy, z + nz * ww); Cc.push(...cOut, ...cIn, ...cOut);
+      if (i) { const a = (i - 1) * 3, b = i * 3; I.push(a, b, a + 1, b, b + 1, a + 1, a + 1, b + 1, a + 2, b + 1, b + 2, a + 2); } });
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(Cc, 3)); geo.setIndex(I); return geo; };
+  const mk = (geo, add, op) => new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: op, depthWrite: false, side: THREE.DoubleSide, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending }));
+  const rim = mk(strip(1.8, gy + .03, [.08, .04, .02], [.25, .16, .1]), false, .95), core = mk(strip(1, gy + .05, [1, .97, .82], [1, .45, .08]), false, 1);
+  // glow sheet rising out of the crack: bright gold at the ground, fading to nothing above
+  const P = [], Cc = [], I = []; rows.forEach(([x, z, w], i) => { P.push(x, gy + .05, z, x, gy + 3.2 + Math.random() * 1.2, z); Cc.push(1, .8, .35, 0, 0, 0); if (i) { const a = (i - 1) * 2, b = i * 2; I.push(a, b, a + 1, b, b + 1, a + 1); } });
+  const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); sg.setAttribute('color', new THREE.Float32BufferAttribute(Cc, 3)); sg.setIndex(I); const sheet = mk(sg, true, .9);
+  const all = [rim, core, sheet], t0 = performance.now(), dur = life * 1000 * SKX.ts;
+  all.forEach(m => { m.frustumCulled = false; m.renderOrder = 2; scene.add(m); m.geometry.setDrawRange(0, 0); });
+  core.onBeforeRender = () => { const k = Math.min(1, (performance.now() - t0) / dur), open = Math.min(1, k * 5), rowsOn = Math.max(1, Math.floor(n * open));
+    rim.geometry.setDrawRange(0, rowsOn * 12); core.geometry.setDrawRange(0, rowsOn * 12); sheet.geometry.setDrawRange(0, rowsOn * 6);
+    const fade = k < .65 ? 1 : 1 - (k - .65) / .35; rim.material.opacity = .95 * fade; core.material.opacity = fade; sheet.material.opacity = .9 * fade * (1 - k * .5); };
+  core.geometry.setDrawRange(0, 12);
+  setTimeout(() => { all.forEach(m => { try { scene.remove(m); m.geometry.dispose(); m.material.dispose(); } catch (e) { } }); }, dur + 60);
+  // branching side cracks + broken slabs tilted up along the banks
+  const G = skGeo();
+  for (let b = 0; b < 9; b++) { const r = rows[3 + Math.floor(Math.random() * (n - 6))], sd = Math.random() < .5 ? -1 : 1, a = Math.atan2(ux, uz) + sd * (.6 + Math.random() * .6), len = .8 + Math.random() * 1.4;
+    skL(b * 30, () => skP(G.box, 0xffb040, r[0] + Math.sin(a) * len / 2, gy + .045, r[1] + Math.cos(a) * len / 2, life, (k, m) => { m.rotation.set(0, a, 0); m.scale.set(.07, .02, len * Math.min(1, k * 6)); m.material.opacity = k < .65 ? 1 : (1 - k) / .35; })); }
+  for (let i = 0; i < 16; i++) { const r = rows[2 + Math.floor(Math.random() * (n - 4))], sd = i % 2 ? 1 : -1, ox = r[0] + nx * sd * (r[2] * 1.3 + .1), oz = r[1] + nz * sd * (r[2] * 1.3 + .1), sz = .35 + Math.random() * .4, tilt = sd * (.4 + Math.random() * .4), yaw = Math.atan2(ux, uz);
+    skL(i * 22, () => skP(G.box, i % 3 ? 0x5a4a3a : 0x7a6a5a, ox, gy, oz, life, (k, m) => { const e = Math.min(1, k * 6); m.rotation.set(0, yaw, 0); m.rotateZ(-tilt * e); m.scale.set(sz, .12, sz * 1.4); m.position.y = gy + .05 + .12 * e; m.material.opacity = k < .7 ? 1 : (1 - k) / .3; })); } }
 function longmaiStrike() { const [dx, dz] = aimDir(), d = Math.hypot(dx, dz) || 1, x0 = player.pos.x + dx / d * 1.3, z0 = player.pos.z + dz / d * 1.3, gy = skGY();
   setTimeout(() => { try { longmaiCluster(x0, z0, gy, .7, 3); } catch (e) { } }, 120); }
 function longmaiCluster(x, z, gy, s, n) { const G = skGeo();
@@ -23831,11 +23886,11 @@ function chronoRing(x, y, z, s) { const G = skGeo(), t0 = Math.random() * 6;
 /* ---------------- skills (z_wsskin2.js runs SKT[key] in the skill's shape; `full` replaces the shape) ---------------- */
 // 盘古斧 · 开天辟地
 SKT.pangu = { snd() { my3T(70, 45, .9, .12, 'sawtooth'); my3N(.8, .08, 600, { type: 'bandpass', q: .7, f1: 1400 }); },
-  spot(C, x, z, s) { panguCrack(x, z, C.dx, C.dz, C.gy, 1.6 * s, .5, 0); },
+  spot(C, x, z, s) { panguTear(x, C.gy + 1.3, z, 2 * s, .45); },
   full(C) { const G = skGeo(), M = my3Mats();
     // the giant phantom axe: the real head, glowing gold, five times the size
     let ph = null; try { ph = new THREE.Group(); const pm2 = new THREE.MeshBasicMaterial({ color: 0xffd870, transparent: true, opacity: .55, depthWrite: false, side: THREE.DoubleSide });
-      const head = new THREE.Group(); panguHead(head, M, pm2); const edge = new THREE.Group(); my3Shape(panguEdge().concat(panguEdge().slice().reverse().map(([z, y]) => [z, y - .08])), .09, new THREE.MeshBasicMaterial({ color: 0xfff4d0, transparent: true, opacity: .9, depthWrite: false }), edge, 0);
+      const head = new THREE.Group(); panguHead(head, M, pm2); const edge = new THREE.Group(); my3Shape(panguBand(.016, -.07), .09, new THREE.MeshBasicMaterial({ color: 0xfff4d0, transparent: true, opacity: .9, depthWrite: false }), edge, 0);
       head.add(edge); my3Rod(head, .05, .05, 1.2, pm2, 0, .2, 6); head.scale.setScalar(5.2); ph.add(head); ph.traverse(o => { o.frustumCulled = false; }); scene.add(ph); ph.userData.mat = pm2; } catch (e) { ph = null; }
     const t0 = performance.now(), an0 = Math.atan2(C.dx, C.dz), SLAM = 900, END = 1500;
     if (ph) { const host = ph.children[0].children[0]; host.onBeforeRender = () => { const t = (performance.now() - t0) / SKX.ts, px = player.pos.x, pz = player.pos.z, gy = skGY();
@@ -23848,7 +23903,7 @@ SKT.pangu = { snd() { my3T(70, 45, .9, .12, 'sawtooth'); my3N(.8, .08, 600, { ty
       for (let i = 0; i < 6; i++) { const a = k * 1.1 + i * 1.047; skThrow(G.oct, i % 2 ? 0x8a7a6a : 0xffd870, x + Math.cos(a) * 1.5, gy + .6, z + Math.sin(a) * 1.5, Math.cos(a) * 5, 2, Math.sin(a) * 5, .6, 1.8, 6, 9); } });
     // the slam: a 14 m fissure, light bursting up, a tear from the sky, shockwaves, rocks, boom
     skL(SLAM + 60, () => { const ux = C.dx, uz = C.dz, x0 = player.pos.x + ux * 1.4, z0 = player.pos.z + uz * 1.4, gy = skGY(), an = Math.atan2(ux, uz), L = 14;
-      panguCrack(x0, z0, ux, uz, gy, L, 1.4, an, true);
+      panguFissure(x0, z0, ux, uz, gy, L, 2.2);
       for (let i = 0; i < 7; i++) skL(i * 45, () => { const f = (i + .5) / 7; skPillar(x0 + ux * L * f, gy, z0 + uz * L * f, .6 - f * .25, 7 - f * 3, .9, i % 2 ? 0xfff0b0 : 0xffd870, .7); });
       const mx = x0 + ux * L * .45, mz = z0 + uz * L * .45;
       skP(G.box, 0xfff8e0, mx, gy + 16, mz, 1, (k, m) => { m.rotation.set(0, an, 0); const e = Math.min(1, k * 5); m.scale.set(.25 * (1 - k * .7), 32 * e, L * .9); m.position.y = gy + 32 - 16 * e; m.material.opacity = .85 * (1 - k); }, .85);
@@ -25727,4 +25782,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795105864').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795106602').catch(()=>{});</script></body></html>
