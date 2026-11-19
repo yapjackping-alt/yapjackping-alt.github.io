@@ -23460,6 +23460,161 @@ try { const D0 = WSKINS.jian9b.d; Object.defineProperty(WSKINS.jian9b, 'd', { co
     '\n（一刀砍中好几只时，最近的那只吃到全部效果，其他的吃剑气和属性）'; } }); } catch (e) { }
 // long skin texts (the 九霄 skins list every element): the preview card's text keeps its line breaks and scrolls inside the card
 try { const st = document.createElement('style'); st.textContent = '.skpvt span{white-space:pre-line}.skpvt{max-height:calc(92vh - 40px);overflow-y:auto;overscroll-behavior:contain}.skpvbox{overflow:hidden}'; (document.head || document.body).appendChild(st); } catch (e) { }
+/* ============ weapon SKILL effects per skin (owner 19 Nov: "装了皮肤，武器技能特效也要跟着变 — 你全部没有，比如那个剑") ============
+   z_wsskin.js only recoloured the normal skill. Now every skin adds its OWN themed effect on top, shaped like that weapon's
+   skill: pistol / rifle / sniper (a buff on yourself) = a big effect round you; shotgun = along the 9 m cone; 武士刀 = along
+   the 6 m dash; axe = round you on each of the 3 spins; pick = a ring round the smash.
+   Themes: 龙鳞 fire dragon coiling up, 霓虹 neon squares + holo hexes, 熔岩 cracks + lava fountains, 天穹 halo + falling
+   feathers + light pillar, 黑金 coin fountain + star flares, 寒冰 ice spikes, 樱花 petal storm, 凤鸣 phoenix wings of fire,
+   星河 star trail + galaxy disc, 苍月龙翼 crescent moon + silver dragon, 雷鸣 lightning from the sky, 星轨 orbiting stars,
+   九霄剑阵 nine elemental swords fanning out then flying forward, 九霄剑诀 nine elemental sword-qi slashes along the dash
+   and a final cross slash. 萌鬼 skins keep their ghost swarm (z_wsskin.js). What the skill DOES is unchanged. */
+const SKX = { n: 0, max: 170, G: null, ts: 1 };   /* ts = slow motion, for checking only */
+function skGeo() { if (SKX.G) return SKX.G; const k = g => { g.userData.keep = 1; return g; };
+  const sp = new THREE.ConeGeometry(.2, 1, 5); sp.translate(0, .5, 0);
+  SKX.G = { ico: k(new THREE.IcosahedronGeometry(.22, 1)), ring: k(new THREE.RingGeometry(.86, 1, 40)), hex: k(new THREE.RingGeometry(.88, 1, 6)), box: k(new THREE.BoxGeometry(1, 1, 1)),
+    oct: k(new THREE.OctahedronGeometry(.09)), petal: k(new THREE.CircleGeometry(.09, 5)), feather: k(new THREE.PlaneGeometry(.09, .34)), coin: k(new THREE.CylinderGeometry(.1, .1, .025, 10)),
+    spike: k(sp), arc: k(new THREE.TorusGeometry(1, .07, 4, 22, 2.6)), disc: k(new THREE.CircleGeometry(1, 28)), cres: k(skCres()) };
+  return SKX.G; }
+/* a filled crescent (blade of sword-qi): outer arc radius 1, inner arc pushed back, bulging toward +y */
+function skCres() { const sh = new THREE.Shape(), n = 18, A = 1.25; for (let i = 0; i <= n; i++) { const a = -A + 2 * A * i / n; const x = Math.sin(a), y = Math.cos(a); i ? sh.lineTo(x, y) : sh.moveTo(x, y); }
+  for (let i = n; i >= 0; i--) { const a = -A + 2 * A * i / n; sh.lineTo(Math.sin(a) * .92, Math.cos(a) * .92 - .32 * Math.cos(a * 1.25)); } return new THREE.ShapeGeometry(sh); }
+const skMat = (c, o) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o == null ? 1 : o, depthWrite: false, side: THREE.DoubleSide });
+/* one short-lived piece; f(k, mesh) with k 0..1 runs every frame it is drawn (and once at once, so it never flashes at full size) */
+function skP(geo, c, x, y, z, life, f, op) { if (SKX.n >= SKX.max || typeof scene === 'undefined') return null; SKX.n++;
+  const m = new THREE.Mesh(geo, skMat(c, op)); m.position.set(x, y, z); m.frustumCulled = false; scene.add(m); const t0 = performance.now();
+  m.onBeforeRender = () => { const k = Math.min(1, (performance.now() - t0) / (life * 1000 * SKX.ts)); try { f(k, m); } catch (e) { } };
+  try { f(0, m); } catch (e) { }
+  setTimeout(() => { try { scene.remove(m); m.material.dispose(); } catch (e) { } SKX.n--; }, life * 1000 * SKX.ts + 40); return m; }
+const skL = (ms, f) => setTimeout(() => { try { f(); } catch (e) { } }, ms * SKX.ts);
+const skCam = m => { try { m.lookAt(camera.position); } catch (e) { } };
+const skFlat = m => { m.rotation.set(-Math.PI / 2, 0, 0); };
+const skT = (a, b, c, d, e, f) => { try { sfxTone(a, b, c, d, e, f); } catch (er) { } };
+/* thrown piece with gravity: starts at x,y,z, velocity v, spins, fades */
+function skThrow(geo, c, x, y, z, vx, vy, vz, life, sc, g, spin) { g = g == null ? 9 : g; spin = spin || 0; const r0 = Math.random() * 6;
+  return skP(geo, c, x, y, z, life, (k, m) => { const t = k * life; m.position.set(x + vx * t, y + vy * t - g * t * t / 2, z + vz * t); m.rotation.set(r0 + t * spin, r0 * 2 + t * spin * .7, 0); m.scale.setScalar(sc * (k < .1 ? k / .1 : 1)); m.material.opacity = k > .6 ? (1 - k) / .4 : 1; }); }
+/* a flat ring on the ground that grows */
+function skRing(x, y, z, r0, r1, life, c, a, geo) { return skP(geo || skGeo().ring, c, x, y, z, life, (k, m) => { skFlat(m); const r = r0 + (r1 - r0) * (1 - (1 - k) * (1 - k)); m.scale.set(r, r, r); m.material.opacity = (a == null ? .85 : a) * (1 - k); }); }
+/* a jagged bolt between two points */
+function skBolt(x0, y0, z0, x1, y1, z1, c, life) { const G = skGeo(), n = 6, pts = [[x0, y0, z0]]; life = life || .32;
+  for (let i = 1; i < n; i++) { const t = i / n, j = 1.1; pts.push([x0 + (x1 - x0) * t + (Math.random() - .5) * j, y0 + (y1 - y0) * t, z0 + (z1 - z0) * t + (Math.random() - .5) * j]); } pts.push([x1, y1, z1]);
+  for (let i = 0; i < n; i++) { const a = pts[i], b = pts[i + 1], len = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+    for (const [w, col] of [[.2, c], [.07, 0xffffff]]) skP(G.box, col, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, life, (k, m) => { m.lookAt(b[0], b[1], b[2]); m.scale.set(w, w, len); m.material.opacity = k < .5 ? 1 : (1 - k) * 2; }); } }
+/* a vertical light pillar */
+function skPillar(x, y, z, r, h, life, c, a) { const G = skGeo(); return skP(G.box, c, x, y + h / 2, z, life, (k, m) => { m.scale.set(r * (1 - k * .6), h * (.4 + k * .6), r * (1 - k * .6)); m.material.opacity = (a || .6) * (1 - k); }, .6); }
+/* a crescent slash standing up, facing the direction (dx,dz), turned by tilt */
+function skSlash(x, y, z, dx, dz, r, c, life, tilt) { const G = skGeo(), an = Math.atan2(dx, dz), sw = (tilt || 0) * .6;
+  return skP(G.cres, c, x, y, z, life, (k, m) => { m.rotation.order = 'YXZ'; m.rotation.set(-Math.PI / 2 + (tilt || 0) * .35, an + Math.PI, sw - .5 + k * 1); const s = r * (.7 + k * .6); m.scale.set(s * 1.25, s, s); m.material.opacity = k < .25 ? .95 : (1 - k) / .75 * .95; }); }
+function skStar(x, y, z, c, s, life) { const G = skGeo(); for (let i = 0; i < 2; i++) skP(G.box, i ? c : 0xffffff, x, y, z, life || .4, (k, m) => { skCam(m); m.rotateZ(.785 + i * 1.571 + k); const L = s * (1.4 - k); m.scale.set(.06, L, .02); m.material.opacity = 1 - k; }); }
+const skGY = () => { try { return pm.g.position.y; } catch (e) { return (player.pos.y || 0); } };
+
+/* ---------------- the themes: self(C) for the buff skills, spot(C, x, z, s) for one point of the shotgun cone / blade line / melee rings,
+   optional line(C, ax, az) for the blade dash and ring(C, x, z, r) for axe / pick; snd(C) plays once ---------------- */
+const SKT = {};
+SKT.dragon = { snd() { skT(90, 45, .7, .16, 'sawtooth'); skT(220, 110, .5, .08, 'square', { delay: .05 }); },
+  self(C) { const G = skGeo(); for (let i = 0; i < 18; i++) skL(i * 28, () => { const a0 = i * .55; skP(G.ico, i % 4 ? 0xff6a1a : 0xffd060, C.px, C.gy, C.pz, .9, (k, m) => { const a = a0 + k * 5, r = 1.6 - k * .4; m.position.set(C.px + Math.cos(a) * r, C.gy + .3 + k * 4.2, C.pz + Math.sin(a) * r); m.scale.setScalar((2.1 - i / 18 * 1.1) * (1 - k * .5)); m.material.opacity = 1 - k; }); });
+    skL(500, () => { skRing(C.px, C.gy + .08, C.pz, .5, 4.5, .6, 0xff7a1a, .8); for (let i = 0; i < 14; i++) { const a = i / 14 * 6.283; skThrow(G.ico, 0xffb040, C.px, C.gy + 4.4, C.pz, Math.cos(a) * 4, 2, Math.sin(a) * 4, .9, .5); } }); },
+  spot(C, x, z, s) { const G = skGeo(); skP(G.spike, 0xff6a1a, x, C.gy, z, .55, (k, m) => { m.scale.set(s * 2.2 * (1 - k * .5), s * 2.6 * Math.sin(k * Math.PI), s * 2.2 * (1 - k * .5)); m.material.opacity = 1 - k * .7; });
+    for (let i = 0; i < 4; i++) skThrow(G.ico, i % 2 ? 0xffd060 : 0xff4a1a, x, C.gy + .3, z, (Math.random() - .5) * 2, 3 + Math.random() * 3, (Math.random() - .5) * 2, .7, .35 * s, 4); } };
+SKT.phoenix = { snd() { skT(700, 1600, .25, .1, 'sine'); skT(1600, 500, .5, .1, 'triangle', { delay: .22 }); },
+  self(C) { const G = skGeo(), an = Math.atan2(C.dx, C.dz); skPillar(C.px, C.gy, C.pz, 1.1, 9, .8, 0xff7a2a, .55);
+    for (const s of [-1, 1]) for (let i = 0; i < 9; i++) { const fa = an + Math.PI + s * (.5 + i * .17), L = 1.6 + i * .28;
+      skL(i * 30, () => skP(G.feather, i % 3 ? 0xff7a2a : 0xffe070, C.px, C.gy + 1.6, C.pz, .9, (k, m) => { const e = Math.min(1, k * 2.4), d = L * e; m.position.set(C.px + Math.sin(fa) * d, C.gy + 1.4 + d * .55 * (1 + i * .06), C.pz + Math.cos(fa) * d); skCam(m); m.rotateZ(s * (.6 + i * .12)); m.scale.set(2.2, 2.4 + i * .18, 1); m.material.opacity = k < .6 ? 1 : (1 - k) / .4; })); }
+    for (let i = 0; i < 16; i++) { const a = Math.random() * 6.283; skThrow(G.feather, 0xffa040, C.px, C.gy + 2, C.pz, Math.cos(a) * 2.5, 4, Math.sin(a) * 2.5, 1.1, 1.4, 5, 6); } },
+  spot(C, x, z, s) { const G = skGeo(); skRing(x, C.gy + .1, z, .3, 1.6 * s, .45, 0xff7a2a, .8); for (let i = 0; i < 5; i++) { const a = Math.random() * 6.283; skThrow(G.feather, i % 2 ? 0xffe070 : 0xff5a1a, x, C.gy + .6, z, Math.cos(a) * 2, 3.5, Math.sin(a) * 2, .8, 1.2 * s, 5, 8); } } };
+SKT.lava = { snd() { skT(60, 30, .9, .2, 'sawtooth'); skT(140, 50, .4, .1, 'square', { delay: .1 }); },
+  self(C) { for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283; skL(i * 70, () => SKT.lava.spot(C, C.px + Math.cos(a) * 2.8, C.pz + Math.sin(a) * 2.8, 1.1)); }
+    const G = skGeo(); for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283; skP(G.box, 0xff5a10, C.px + Math.cos(a) * 1.6, C.gy + .05, C.pz + Math.sin(a) * 1.6, 1.1, (k, m) => { m.rotation.set(0, -a, 0); m.scale.set(3.2 * Math.min(1, k * 3), .03, .09); m.material.opacity = k < .7 ? 1 : (1 - k) / .3; }); } },
+  spot(C, x, z, s) { const G = skGeo(); for (let i = 0; i < 4; i++) { const a = Math.random() * 6.283; skP(G.box, 0xff4a0a, x, C.gy + .05, z, .9, (k, m) => { m.rotation.set(0, a, 0); m.scale.set(.07, .03, 1.6 * s * Math.min(1, k * 4)); m.material.opacity = 1 - k; }); }
+    for (let i = 0; i < 6; i++) skThrow(G.ico, i % 2 ? 0xffa020 : 0xff3a0a, x, C.gy + .2, z, (Math.random() - .5) * 2.4, 4 + Math.random() * 3, (Math.random() - .5) * 2.4, .9, .45 * s); skRing(x, C.gy + .08, z, .2, 1.3 * s, .5, 0xff6a1a); } };
+SKT.neon = { snd() { [523, 659, 784, 1046].forEach((f, i) => skT(f, f, .09, .07, 'square', { delay: i * .06 })); },
+  self(C) { const G = skGeo(); for (let i = 0; i < 4; i++) skL(i * 90, () => skRing(C.px, C.gy + .08 + i * .5, C.pz, .6, 2.2 + i * .7, .7, i % 2 ? 0xff40d0 : 0x40f0ff, .9, G.hex));
+    for (let i = 0; i < 10; i++) { const a = i / 10 * 6.283; skP(G.box, i % 2 ? 0xff40d0 : 0x40f0ff, C.px + Math.cos(a) * 1.9, C.gy, C.pz + Math.sin(a) * 1.9, .8, (k, m) => { m.scale.set(.05, 4 * k, .05); m.position.y = C.gy + 2 * k; m.material.opacity = 1 - k; }); }
+    SKT.neon.spot(C, C.px, C.pz, 1.6); },
+  spot(C, x, z, s) { const G = skGeo(); for (let j = 0; j < 2; j++) skP(G.hex, j ? 0xff40d0 : 0x40f0ff, x, C.gy + .1 + j * .05, z, .6, (k, m) => { skFlat(m); m.rotation.z = k * 2 * (j ? -1 : 1); const r = s * (.4 + k * 1.4 + j * .3); m.scale.set(r, r, r); m.material.opacity = 1 - k; }); } };
+SKT.celest = { snd() { [523, 659, 784].forEach((f, i) => skT(f, f * 1.003, 1.1, .06, 'sine', { delay: i * .04 })); },
+  self(C) { const G = skGeo(); skPillar(C.px, C.gy, C.pz, 1.3, 14, 1, 0xfff4c8, .5);
+    skP(G.ring, 0xffe8a0, C.px, C.gy + 2.5, C.pz, 1.2, (k, m) => { skFlat(m); const r = .4 + Math.min(1, k * 3) * .25; m.scale.set(r, r, r); m.material.opacity = k < .7 ? 1 : (1 - k) / .3; });
+    for (let i = 0; i < 18; i++) { const a = Math.random() * 6.283, r = .8 + Math.random() * 3, x = C.px + Math.cos(a) * r, z = C.pz + Math.sin(a) * r, ph = Math.random() * 6;
+      skP(G.feather, i % 3 ? 0xffffff : 0x8ff8ff, x, C.gy + 6, z, 1.6, (k, m) => { m.position.set(x + Math.sin(ph + k * 9) * .4, C.gy + 6 - k * 5.6, z); m.rotation.set(0, ph + k * 3, Math.sin(ph + k * 9) * .6); m.scale.set(1.5, 1.5, 1); m.material.opacity = k > .8 ? (1 - k) / .2 : 1; }); }
+    skRing(C.px, C.gy + .08, C.pz, .3, 4, .9, 0xd8a8ff, .7); },
+  spot(C, x, z, s) { skPillar(x, C.gy, z, .45 * s, 5 * s, .5, 0xfff4c8, .7); skStar(x, C.gy + 1.2, z, 0x8ff8ff, 1.2 * s, .45); } };
+SKT.gold = { snd() { [1568, 2093, 2637, 2093, 3136].forEach((f, i) => skT(f, f, .12, .05, 'triangle', { delay: i * .07 })); },
+  self(C) { const G = skGeo(); for (let i = 0; i < 26; i++) { const a = Math.random() * 6.283, sp = 1 + Math.random() * 2.4; skThrow(G.coin, i % 5 ? 0xffd040 : 0xfff2b0, C.px, C.gy + 1.4, C.pz, Math.cos(a) * sp, 5 + Math.random() * 3, Math.sin(a) * sp, 1.3, 1.3, 10, 9); }
+    for (let i = 0; i < 4; i++) skL(150 + i * 140, () => { const a = Math.random() * 6.283; skStar(C.px + Math.cos(a) * 1.4, C.gy + 1.5 + Math.random(), C.pz + Math.sin(a) * 1.4, 0xffd870, 1.4, .4); });
+    skRing(C.px, C.gy + .08, C.pz, .4, 3.6, .7, 0xe8b84a, .8); },
+  spot(C, x, z, s) { const G = skGeo(); for (let i = 0; i < 4; i++) skThrow(G.coin, 0xffd040, x, C.gy + .4, z, (Math.random() - .5) * 2, 3.5, (Math.random() - .5) * 2, .8, 1.1 * s, 10, 9); skStar(x, C.gy + 1, z, 0xffd870, s, .35); } };
+SKT.ice = { snd() { [2400, 1800, 1300, 2900].forEach((f, i) => skT(f, f * .7, .18, .06, 'square', { delay: i * .05 })); },
+  self(C) { for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283; skL(i * 40, () => SKT.ice.spot(C, C.px + Math.cos(a) * 2.2, C.pz + Math.sin(a) * 2.2, 1)); }
+    skRing(C.px, C.gy + .08, C.pz, .3, 4.2, .8, 0x9fe8ff, .9); const G = skGeo(); for (let i = 0; i < 16; i++) { const a = Math.random() * 6.283; skThrow(G.oct, 0xffffff, C.px, C.gy + 2.5, C.pz, Math.cos(a) * 2, 1.5, Math.sin(a) * 2, 1.2, 1, 2, 4); } },
+  spot(C, x, z, s) { const G = skGeo(); for (let i = 0; i < 3; i++) { const ox = (Math.random() - .5) * .8 * s, oz = (Math.random() - .5) * .8 * s, h = (1 + Math.random()) * s, tl = (Math.random() - .5) * .5;
+      skP(G.spike, i ? 0x9fe8ff : 0xe8f8ff, x + ox, C.gy, z + oz, .9, (k, m) => { const e = Math.min(1, k * 5); m.rotation.set(tl, 0, tl); m.scale.set(1.1 * s, h * e, 1.1 * s); m.material.opacity = k < .75 ? .92 : (1 - k) / .25 * .92; }); } } };
+SKT.sakura = { snd() { [784, 880, 1047, 1175, 1319].forEach((f, i) => skT(f, f * .98, .4, .05, 'triangle', { delay: i * .08 })); },
+  self(C) { const G = skGeo(); for (let i = 0; i < 40; i++) { const a0 = Math.random() * 6.283, r0 = .3 + Math.random() * .6, h0 = .3 + Math.random() * 1.5, sp = 3 + Math.random() * 3, ph = Math.random() * 6;
+      skP(G.petal, i % 4 ? 0xffb0d8 : 0xffffff, C.px, C.gy + h0, C.pz, 1.5, (k, m) => { const a = a0 + k * sp, r = r0 + k * 4; m.position.set(C.px + Math.cos(a) * r, C.gy + h0 + k * 2.2 - k * k * 1.8, C.pz + Math.sin(a) * r); m.rotation.set(ph + k * 8, ph * 2 + k * 5, 0); m.scale.setScalar(3); m.material.opacity = k > .75 ? (1 - k) / .25 : 1; }); }
+    skRing(C.px, C.gy + .08, C.pz, .3, 3.8, .9, 0xf0a0c0, .7); },
+  spot(C, x, z, s) { const G = skGeo(); for (let i = 0; i < 8; i++) { const a = Math.random() * 6.283; skThrow(G.petal, i % 3 ? 0xffb0d8 : 0xffffff, x, C.gy + .8, z, Math.cos(a) * 2 * s, 2, Math.sin(a) * 2 * s, 1, 2.8, 2, 6); } } };
+SKT.galaxy = { snd() { [880, 1320, 1760].forEach((f, i) => skT(f, f * 1.5, .6, .05, 'sine', { delay: i * .09 })); },
+  self(C) { const G = skGeo(); for (let i = 0; i < 36; i++) { const arm = i % 3, f = Math.floor(i / 3) / 12, a0 = arm * 2.094 + f * 3, r = .4 + f * 3.6;
+      skP(G.oct, [0xc89aff, 0x7ab8ff, 0xffffff][arm], C.px, C.gy + .3, C.pz, 1.2, (k, m) => { const a = a0 + k * 3; m.position.set(C.px + Math.cos(a) * r * (.3 + k * .7), C.gy + .4 + Math.sin(k * Math.PI) * .5, C.pz + Math.sin(a) * r * (.3 + k * .7)); m.scale.setScalar(1.3); m.material.opacity = 1 - k; }); }
+    skRing(C.px, C.gy + .08, C.pz, .3, 4.2, 1, 0x8a5aff, .6); },
+  spot(C, x, z, s) { skSlash(x, C.gy + 1.1, z, C.dx, C.dz, 1.1 * s, 0xc89aff, .4, (Math.random() - .5) * 1.2); const G = skGeo(); for (let i = 0; i < 4; i++) skThrow(G.oct, 0xffffff, x, C.gy + 1.1, z, (Math.random() - .5) * 3, 1.5, (Math.random() - .5) * 3, .7, 1, 2, 5); },
+  line(C, ax, az) { const n = 7; for (let i = 0; i <= n; i++) { const f = i / n; skL(i * 35, () => SKT.galaxy.spot(C, ax + (C.px - ax) * f, az + (C.pz - az) * f, 1)); } skL(280, () => SKT.galaxy.self(C)); } };
+SKT.moondragon = { snd() { skT(300, 300, 1.2, .1, 'sine'); skT(600, 602, 1.2, .05, 'sine'); skT(1500, 300, .5, .06, 'sawtooth', { delay: .25 }); },
+  self(C) { const G = skGeo(), an = Math.atan2(C.dx, C.dz);
+    skP(G.arc, 0xe8f0ff, C.px - C.dx * .8, C.gy + 2.6, C.pz - C.dz * .8, 1.3, (k, m) => { m.rotation.set(0, an, 0); m.rotateZ(.4); const s = 1.2 + Math.min(1, k * 3) * .8; m.scale.set(s, s, s * 2.5); m.material.opacity = k < .7 ? .95 : (1 - k) / .3; });
+    skPillar(C.px, C.gy, C.pz, .9, 12, .9, 0xbfd8ff, .5);
+    for (let i = 0; i < 24; i++) skL(i * 22, () => { const a0 = i * .42; skP(G.ico, i % 5 ? 0xcfe0ff : 0x7ad8ff, C.px, C.gy, C.pz, .7, (k, m) => { const a = a0 + k * 3, r = 2.2 - k * .8; m.position.set(C.px + Math.cos(a) * r, C.gy + .4 + i * .14 + k * 1.2, C.pz + Math.sin(a) * r); m.scale.setScalar((1 - i / 30) * (1 - k * .6) * .9); m.material.opacity = 1 - k; }); }); },
+  spot(C, x, z, s) { skSlash(x, C.gy + 1.2, z, C.dx, C.dz, 1.3 * s, 0xe8f0ff, .45, .3); skStar(x, C.gy + 1.2, z, 0x7ad8ff, s, .35); } };
+SKT.cosmos = { snd() { skT(120, 40, .8, .2, 'sawtooth'); skT(2400, 200, .25, .1, 'square'); skT(80, 30, 1, .15, 'sawtooth', { delay: .15 }); },
+  self(C) { for (let i = 0; i < 6; i++) skL(i * 90, () => { const a = Math.random() * 6.283, r = 1.5 + Math.random() * 2.5, x = C.px + Math.cos(a) * r, z = C.pz + Math.sin(a) * r; SKT.cosmos.spot(C, x, z, 1); });
+    skBolt(C.px, C.gy + 12, C.pz, C.px, C.gy + 2.4, C.pz, 0xb8a0ff, .4); skRing(C.px, C.gy + .08, C.pz, .3, 4, .6, 0x9a8aff, .9); try { fxFlash(0xd8d0ff, .2, .25); } catch (e) { } },
+  spot(C, x, z, s) { skBolt(x + (Math.random() - .5), C.gy + 10, z + (Math.random() - .5), x, C.gy + .1, z, 0xb8a0ff, .3); skRing(x, C.gy + .08, z, .2, 1.4 * s, .35, 0xffffff, .9); const G = skGeo(); for (let i = 0; i < 4; i++) skThrow(G.oct, 0xd8d0ff, x, C.gy + .2, z, (Math.random() - .5) * 4, 3, (Math.random() - .5) * 4, .5, 1, 6); } };
+SKT.starorbit = { snd() { [1319, 1760, 2349, 2637].forEach((f, i) => skT(f, f, .15, .05, 'sine', { delay: i * .1 })); },
+  self(C) { const G = skGeo(); for (let o = 0; o < 3; o++) { const tilt = [.3, -.5, .9][o], R = 1.4 + o * .5;
+      for (let i = 0; i < 5; i++) skP(G.oct, i ? [0xffd870, 0x8fd8ff, 0xffffff][o] : 0xffffff, C.px, C.gy + 1.3, C.pz, 1.6, (k, m) => { const a = i / 5 * 6.283 + k * (5 - o) * (o % 2 ? -1 : 1); const lx = Math.cos(a) * R, ly = Math.sin(a) * R * Math.sin(tilt), lz = Math.sin(a) * R * Math.cos(tilt);
+        m.position.set(C.px + lx, C.gy + 1.3 + ly, C.pz + lz); m.scale.setScalar((i ? 1.2 : 2) * (k < .1 ? k * 10 : 1)); m.material.opacity = k > .8 ? (1 - k) / .2 : 1; }); }
+    skRing(C.px, C.gy + .08, C.pz, .3, 3.4, .8, 0xffd870, .7); },
+  spot(C, x, z, s) { skStar(x, C.gy + 1, z, 0xffd870, 1.1 * s, .4); skRing(x, C.gy + .08, z, .2, 1.2 * s, .4, 0x8fd8ff); } };
+/* 九霄剑阵 (rifle): nine element swords fan out round you, hang a moment, then fly forward along your aim */
+SKT.jian9 = { snd() { try { j9Snd.form(); } catch (e) { } [1046, 1318, 1568].forEach((f, i) => skT(f, f, .5, .05, 'sine', { delay: .45 + i * .05 })); },
+  self(C) { if (typeof j9Sword !== 'function') return; const an = Math.atan2(C.dx, C.dz), rx = C.dz, rz = -C.dx, L = [];
+    for (let i = 0; i < 9; i++) { let sw; try { sw = j9Sword(i, 2.3); } catch (e) { continue; } sw.traverse(o => { o.frustumCulled = false; }); scene.add(sw); L.push(sw);
+      const c = J9_EL[i].c, t0 = performance.now(), o = i - 4, tx = C.px + rx * o * .55 - C.dx * .6, ty = C.gy + 2.3 - o * o * .06, tz = C.pz + rz * o * .55 - C.dz * .6;
+      sw.position.set(C.px, C.gy + 1.4, C.pz); sw.rotation.set(0, an, 0); const host = sw.children[0]; if (!host) continue;
+      host.onBeforeRender = () => { const t = (performance.now() - t0) / 1000 / SKX.ts;
+        if (t < .45) { const e = 1 - Math.pow(1 - t / .45, 3); sw.position.set(C.px + (tx - C.px) * e, C.gy + 1.4 + (ty - C.gy - 1.4) * e, C.pz + (tz - C.pz) * e); sw.rotation.set(0, an, 0); sw.rotateX(-.3 * e); }
+        else if (t < .65) { sw.position.set(tx, ty + Math.sin(t * 30 + i) * .03, tz); sw.rotation.set(0, an, 0); sw.rotateX(-.3); }
+        else { const f = (t - .65) / .45, dd = f * f * 22; sw.position.set(tx + C.dx * dd, ty + (C.gy + 1.2 - ty) * Math.min(1, f * 2), tz + C.dz * dd); sw.rotation.set(0, an, 0);
+          if (!sw.userData.tr) { sw.userData.tr = 1; skP(skGeo().box, c, tx, ty, tz, .45, (k, m) => { m.rotation.set(0, an, 0); m.scale.set(.06, .06, 3.5 * (1 - k)); m.position.set(sw.position.x - C.dx * 1.8, sw.position.y, sw.position.z - C.dz * 1.8); m.material.opacity = 1 - k; }); } } };
+      skL(i * 30 + 380, () => { try { burst(tx, ty, tz, c, 4, 2); } catch (e) { } }); }
+    skL(1150, () => { for (const sw of L) try { scene.remove(sw); } catch (e) { } });
+    skRing(C.px, C.gy + .08, C.pz, .3, 3.6, .8, 0x7affc0, .8); skL(650, () => { try { j9Snd.hit(); } catch (e) { } }); } };
+/* 九霄剑诀 (武士刀 dash): nine element sword-qi slashes run along the dash, then a big cross slash and a ring of nine colours */
+SKT.jian9b = { snd() { try { j9Snd.hit(); } catch (e) { } skT(1800, 400, .35, .08, 'sawtooth'); skT(900, 900, .9, .05, 'sine', { delay: .3 }); },
+  line(C, ax, az) { const n = 9, an = Math.atan2(C.dx, C.dz);
+    for (let i = 0; i < n; i++) { const f = (i + .5) / n, x = ax + (C.px - ax) * f, z = az + (C.pz - az) * f, c = J9_EL[i].c;
+      skL(i * 34, () => { const h = C.gy + .6 + (i % 3) * .45, tl = (i % 2 ? 1 : -1) * (.4 + (i % 3) * .3); skSlash(x, h, z, C.dx, C.dz, 2.1, c, .55, tl); skSlash(x, h + .02, z, C.dx, C.dz, 1.5, 0xffffff, .3, tl);
+        try { burst(x, C.gy + 1, z, c, 5, 3); } catch (e) { } if (i % 3 === 0) try { j9Snd.hit(); } catch (e) { } }); }
+    skL(330, () => { const x = C.px + C.dx * 1.2, z = C.pz + C.dz * 1.2; skSlash(x, C.gy + 1, z, C.dx, C.dz, 3.6, 0xe8c060, .7, .9); skSlash(x, C.gy + 1.05, z, C.dx, C.dz, 3.6, 0x7afff0, .7, -.9); skSlash(x, C.gy + 1.1, z, C.dx, C.dz, 2.4, 0xffffff, .4, 0);
+      for (let i = 0; i < 9; i++) { const a = i / 9 * 6.283; skP(skGeo().box, J9_EL[i].c, C.px, C.gy + 1, C.pz, .55, (k, m) => { const r = .6 + k * 4.5; m.position.set(C.px + Math.cos(a) * r, C.gy + 1 + Math.sin(k * Math.PI) * .4, C.pz + Math.sin(a) * r); m.rotation.set(0, -a, 0); m.scale.set(1.1 * (1 - k * .5), .06, .06); m.material.opacity = 1 - k; }); }
+      skRing(C.px, C.gy + .08, C.pz, .4, 4.6, .6, 0x7afff0, .85); try { S.shake = Math.max(S.shake || 0, .28); } catch (e) { } });
+    skL(80, () => { try { skP(skGeo().box, 0xffffff, (ax + C.px) / 2, C.gy + 1.1, (az + C.pz) / 2, .35, (k, m) => { m.rotation.set(0, an, 0); m.scale.set(.12 * (1 - k), .12 * (1 - k), Math.hypot(C.px - ax, C.pz - az)); m.material.opacity = 1 - k; }); } catch (e) { } }); },
+  spot(C, x, z, s) { const i = Math.floor(Math.random() * 9); skSlash(x, C.gy + 1.1, z, C.dx, C.dz, 1.3 * s, J9_EL[i].c, .45, (Math.random() - .5) * 1.6); },
+  self(C) { SKT.jian9b.line(C, C.px - C.dx * 3, C.pz - C.dz * 3); } };
+
+/* ---------------- run the theme in the shape of the skill ---------------- */
+function skSkinFx(id, K) { const T = SKT[K.key]; if (!T || !player) return; let [dx, dz] = aimDir(); const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
+  const C = { px: player.pos.x, pz: player.pos.z, gy: skGY(), dx, dz, K };
+  try { T.snd && T.snd(C); } catch (e) { }
+  const spotsRing = (x, z, r, n, s) => { for (let i = 0; i < n; i++) { const a = i / n * 6.283; skL(i * 25, () => T.spot(C, x + Math.cos(a) * r, z + Math.sin(a) * r, s)); } };
+  if (id === 'pistol' || id === 'rifle' || id === 'sniper') { (T.self || (() => spotsRing(C.px, C.pz, 2, 6, 1)))(C); return; }
+  if (id === 'shotgun') { const an = Math.atan2(dz, dx); for (let row = 1; row <= 3; row++) { const r = row * 2.8, k = row + 1; for (let j = 0; j < k; j++) { const a = an + (j / (k - 1) - .5) * .9; skL((row - 1) * 80, () => T.spot(C, C.px + Math.cos(a) * r, C.pz + Math.sin(a) * r, .8 + row * .15)); } } return; }
+  if (id === 'blade') { const ax = C.px - dx * 6, az = C.pz - dz * 6; if (T.line) T.line(C, ax, az); else for (let i = 0; i <= 5; i++) { const f = i / 5; skL(i * 40, () => T.spot(C, ax + (C.px - ax) * f, az + (C.pz - az) * f, 1)); } return; }
+  if (id === 'axe') { for (let k = 0; k < 3; k++) skL(k * 300, () => { const x = player.pos.x, z = player.pos.z; if (T.ring) T.ring(C, x, z, 4); else spotsRing(x, z, 3.2, 5, .9); }); return; }
+  if (id === 'pick') { if (T.ring) T.ring(C, C.px, C.pz, 5); else { T.spot(C, C.px, C.pz, 1.6); spotsRing(C.px, C.pz, 3.6, 8, 1); } return; }
+  if (T.self) T.self(C); }
+ws2Cast = (o => function (id) { const r = o.apply(this, arguments); try { const K = wsSkinK(id); if (K) skSkinFx(id, K); } catch (e) { console.warn('skin skill fx', e); } return r; })(ws2Cast);
 /* ============ 深渊商店: spend 深渊币 with the diver of the 深渊号 (owner 18 Nov: "add a trade system to the abyss") ============
    Opened from the abyss page (button 深渊商店 next to 下潜). The trader is the brass-helmet diver who stands on the sub.
    Tabs: 升级材料 (now) · 皮肤 (empty: the owner will hand over skin code later, then they go in ABYSHOP_SKINS).
@@ -25297,4 +25452,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795081613').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795100630').catch(()=>{});</script></body></html>
