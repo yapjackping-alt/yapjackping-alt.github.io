@@ -23905,6 +23905,11 @@ renderPort = (o => function () { o(); try { const box = $('portList'); if (!box)
   '#pvpRes{position:fixed;inset:0;z-index:62;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:16px;box-sizing:border-box}.pvrb{width:min(440px,100%);padding:16px;border-radius:18px;background:#1d1a22;border:3px solid #8a7a6a;color:#efe2d0;text-align:center;box-sizing:border-box}' +
   '#pvpRes.win .pvrb{border-color:#ffc94a;box-shadow:0 0 40px rgba(255,200,80,.35)}#pvpRes.lose .pvrb{border-color:#8a3a3a}.pvrb h2{margin:0;font-size:30px;letter-spacing:4px}#pvpRes.win h2{color:#ffd27a}#pvpRes.lose h2{color:#ff8a7a}.pvbig{font-size:26px;font-weight:900;margin:4px 0}.pvrows{text-align:left;margin:8px 0}';
   (document.head || document.body).appendChild(st); } catch (e) { } })();
+/* owner 19 Nov: "为什么人机是僵尸的声音" — the hidden target that takes your hits is built from a zombie, and the zombie
+   sounds (idle groans, death cries, shuffling feet) played for it. Targets are now silent. */
+zombieVoice = (o => function (z) { if (z && z.pvp) return; return o.apply(this, arguments); })(zombieVoice);
+zombieAudio = (o => function (dt) { const L = []; for (let i = zombies.length - 1; i >= 0; i--) if (zombies[i] && zombies[i].pvp) L.push(zombies.splice(i, 1)[0]);
+  try { return o.apply(this, arguments); } finally { for (const z of L) zombies.push(z); } })(zombieAudio);
 /* ============ PvP 人机 (owner 19 Nov: "匹配不到就放人机进去") ============
    Queued for 1v1 and nobody found within PVP_BOT_WAIT seconds → a match against a computer opponent starts, in your own
    private arena. The bot is honest about what it is: its name ends in 「（人机）」.
@@ -23936,7 +23941,11 @@ function pvpBotMake() { const lv = S.level | 0, o = makeRemote(PVP.names[PVP_BOT
   MP.others.set(PVP_BOT_ID, o); PVP_BOT.o = o; return o; }
 function pvpBotDrop() { const o = PVP_BOT.o; if (o) { try { scene.remove(o.g); } catch (e) { } if (MP.others.get(PVP_BOT_ID) === o) MP.others.delete(PVP_BOT_ID); } PVP_BOT.o = null; PVP_BOT.on = false; }
 /* the presence list is rebuilt from the network: keep the bot in it */
-onPeersChange = (o => function (ch) { const r = o.apply(this, arguments); if (PVP_BOT.o && !MP.others.has(PVP_BOT_ID)) MP.others.set(PVP_BOT_ID, PVP_BOT.o); return r; })(onPeersChange);
+/* owner 19 Nov: "人机居然是透明的" — online, every new player list from the server removed everyone not on it FROM THE SCENE
+   (scene.remove), the bot included; it was put back in the list but its body stayed out (still shooting, still hittable,
+   invisible). Now the bot is taken out of the list while the server list is applied, so nothing touches it. */
+onPeersChange = (o => function (ch) { const B = PVP_BOT.o; if (B) MP.others.delete(PVP_BOT_ID);
+  try { return o.apply(this, arguments); } finally { if (B && PVP_BOT.o === B) { MP.others.set(PVP_BOT_ID, B); if (!B.g.parent) scene.add(B.g); } } })(onPeersChange);
 /* your online id can appear (or change) after the bot match started (offline, or the lobby connected late): keep the match list on you */
 function pvpBotMe() { const me = MP.me; if (!PVP_BOT.on || !me || PVP.ps[0] === me || PVP.ps[1] !== PVP_BOT_ID) return; const old = PVP.ps[0]; PVP.ps[0] = me; PVP.tm[me] = PVP.tm[old]; delete PVP.tm[old];
   if (PVP.st && PVP.st.k) { PVP.st.k[me] = PVP.st.k[old] || 0; PVP.st.dn[me] = PVP.st.dn[old] || 0; delete PVP.st.k[old]; delete PVP.st.dn[old]; } }
@@ -25120,4 +25129,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795070731').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795074285').catch(()=>{});</script></body></html>
