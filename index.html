@@ -23627,9 +23627,12 @@ WSKINS.pangu = { only: 'axe', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '�
 WSKINS.chrono = { only: 'pistol', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '流光时轮', r: 5, custom: true,
   base: 0x1a2240, mid: 0xe0a070, acc: 0xffe6b0, glow: 0x7ae8ff, tr: 0x7ae8ff, tr2: 0xffd08a,
   d: '深蓝配玫瑰金的左轮手枪，枪身侧面嵌着一个真的钟面，指针一直在走，后面的小齿轮跟着转，枪口亮着一圈青光。\n开枪：子弹后面会留下一道「时间残影」，稍后又闪过一次；打中的地方会出现一个倒着转的钟环。\n技能「时停领域」：脚下展开一个巨大的钟面，指针飞快倒转，齿轮从地上浮起，画面染上一层暖黄色，响起三声钟鸣。' };
-WSKINS.longmai = { only: 'pick', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '开山神镐', r: 5, custom: true,
+WSKINS.longmai = { only: 'pick', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '龙脉晶镐', r: 5, custom: true,
   base: 0x2a2630, mid: 0x9a5aff, acc: 0xffd060, glow: 0x5afff0, tr: 0xb07aff, tr2: 0x5afff0,
-  d: '开山神镐：真正镐子的样子，青铜铸成、刻满云雷纹，镐身里流着青色龙脉光纹；一边是往后弯的长尖，一边是加宽的扁凿，两道外沿镶着凸起的金边，凿口包金、亮着青光，尖端是金尖。镐头正中一圈金环，四根金爪扣着一颗发光的龙脉晶石；镐柄盘着一条金龙，握把缠皮，柄尾是金球和一小颗晶石。\n挥镐：敲下去的地方会冒出一丛水晶。\n技能「龙脉爆发」：砸地的瞬间，青色的龙脉光纹从脚下向四周裂开，一圈巨大的水晶簇破土而出，然后碎成漫天晶片。' };
+  d: '龙脉晶镐：整个镐头是一块紫色的多面龙脉水晶，切面清楚、每条棱都镶着金线；中间一道浅色的晶脊，外沿包着凸起的金边，凿口包金、亮着紫光，尖端是一根带金棱的晶刺；镐头正中金环扣着一颗青色心晶，上面还长出一丛小晶簇。镐柄是黑石，石缝里流着青色龙脉光，金箍刻着龙鳞，柄尾是一簇水晶。\n挥镐：敲下去的地方会冒出一丛水晶。\n技能「龙脉爆发」：砸地的瞬间，青色的龙脉光纹从脚下向四周裂开，一圈巨大的水晶簇破土而出，然后碎成漫天晶片。' };
+WSKINS.kaishan = { only: 'pick', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '开山神镐', r: 5, custom: true,
+  base: 0x6a4420, mid: 0xe8b84a, acc: 0x5afff0, glow: 0xffd060, tr: 0xffd060, tr2: 0x5afff0,
+  d: '开山神镐：青铜铸成、刻满云雷纹的神镐，镐身里流着青色龙脉光纹；一边是往后弯的长尖，一边是加宽的扁凿，两道外沿镶着凸起的金边，凿口包金、亮着青光，尖端是金尖。镐头正中一圈金环，四根金爪扣着一颗发光的龙脉晶石；镐柄盘着一条金龙。\n挥镐：把镐高高抡过肩膀，整个人压下去狠狠砸地——落点盖下一个金色的「山」字印，地底的石刺一根接一根往前顶出地面，青色地脉光沿着石刺亮起，尘土飞溅。\n技能「神龙破山」：脚下亮起巨大的山字金印，一条石鳞金首的地龙从前方破土而出，绕着你盘旋升空，再一头扎回地里——落点一圈山峰轰然拔地而起、又崩塌成碎石，冲击波四散，大地震动。' };
 /* ---------------- shared materials ---------------- */
 function my3Mats() { if (MY3.M) return MY3.M; const L = (c, e) => new THREE.MeshLambertMaterial({ color: c, emissive: e || 0, flatShading: true }), B = (c, o) => new THREE.MeshBasicMaterial(o == null ? { color: c } : { color: c, transparent: true, opacity: o, depthWrite: false, blending: THREE.AdditiveBlending });
   return (MY3.M = { bronze: L(0x6a4420, 0x1c0e04), bronzeD: L(0x3a2412, 0x0c0602), gold: L(0xe8b84a, 0x4a3008), light: B(0xfff0b0), lightG: B(0xffd870, .35), eye: B(0xff4a1a), rock: L(0x6a5a4a),
@@ -23713,9 +23716,10 @@ function my3Pretty(M) { if (typeof document === 'undefined' || !document.createE
     vine: P(T('vine', 64, 64, 2, 6), { specular: 0x203010, shininess: 10 }),
     bone: P(T('bone', 64, 128, 1, 1), { specular: 0xffffff, shininess: 50 }),
     bronzeV: P(T('bronze', 256, 256, 1.5, 1.5), { emissiveMap: T('vein', 64, 256, 2, 2), emissive: 0x5afff0, specular: 0x8a6030, shininess: 40 }),
+    crysL: new THREE.MeshPhongMaterial({ map: T('crys', 64, 128, 1, 1), color: 0xf0e0ff, emissive: 0x5a3a9a, specular: 0xffffff, shininess: 140, flatShading: true, transparent: true, opacity: .82 }),
     crys: new THREE.MeshPhongMaterial({ map: T('crys', 64, 128, 1, 1), color: 0xffffff, emissive: 0x3a1a7a, specular: 0xffffff, shininess: 120, flatShading: true, transparent: true, opacity: .9 }) };
   Object.assign(M, nm); }
-my3Mats = (o => function () { if (MY3.M) return MY3.M; const M = o(); M.sun = M.gold; M.scale = M.gold; M.rockE = M.rock; M.bark = new THREE.MeshLambertMaterial({ color: 0x4a3624, flatShading: true }); M.vine = new THREE.MeshLambertMaterial({ color: 0x3e5a22, flatShading: true }); M.bone = new THREE.MeshLambertMaterial({ color: 0xe8dcc0, flatShading: true }); M.bronzeV = M.bronze; try { my3Pretty(M); } catch (e) { } return M; })(my3Mats);
+my3Mats = (o => function () { if (MY3.M) return MY3.M; const M = o(); M.crysL = new THREE.MeshLambertMaterial({ color: 0xd8b8ff, emissive: 0x4a2a8a, flatShading: true, transparent: true, opacity: .85 }); M.sun = M.gold; M.scale = M.gold; M.rockE = M.rock; M.bark = new THREE.MeshLambertMaterial({ color: 0x4a3624, flatShading: true }); M.vine = new THREE.MeshLambertMaterial({ color: 0x3e5a22, flatShading: true }); M.bone = new THREE.MeshLambertMaterial({ color: 0xe8dcc0, flatShading: true }); M.bronzeV = M.bronze; try { my3Pretty(M); } catch (e) { } return M; })(my3Mats);
 const my3Add = (g, geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x || 0, y || 0, z || 0); g.add(o); return o; };
 /* a flat outline in the weapon's (z, y) plane, extruded across x */
 function my3Shape(pts, depth, m, g, x, bevel) { let geo; try { const s = new THREE.Shape(); s.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) s.lineTo(pts[i][0], pts[i][1]);
@@ -23828,7 +23832,7 @@ function kaishanHead(g, M) { const C = y => .74 - .42 * y * y, N = 20, top = [],
   const halo = my3Add(g, new THREE.OctahedronGeometry(.1), M.cyanG, 0, 0, C(0)); halo.scale.set(.75, 1.3, 1.3);
   for (let i = 0; i < 4; i++) { const a = i / 4 * 6.283 + .785, pr = my3Add(g, new THREE.ConeGeometry(.013, .06, 4), M.gold, 0, Math.cos(a) * .085, C(0) + Math.sin(a) * .085); pr.rotation.x = -a + Math.PI / 2; }
   return [cr, halo]; }
-function longmaiBuild(g) { const M = my3Mats();
+function kaishanBuild(g) { const M = my3Mats();
   my3Rod(g, .042, .048, 1.08, M.bronzeD, 0, .2, 10);                                                                         // the haft
   try { const pts = []; for (let i = 0; i <= 48; i++) { const t = i / 48, a = t * Math.PI * 6; pts.push(new THREE.Vector3(Math.cos(a) * .05, Math.sin(a) * .05, -.22 + t * .78)); }
     my3Add(g, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 96, .012, 5, false), M.gold);
@@ -23844,7 +23848,36 @@ function longmaiBuild(g) { const M = my3Mats();
     try { M.bronzeV.emissiveIntensity = .6 + .4 * Math.sin(T * 2.5); } catch (e) { }
     motes.forEach((m, i) => { const a = T * 2 + i * 2.09; m.position.set(Math.cos(a) * .14, Math.sin(a) * .55, .66 + Math.sin(a * 2) * .06); }); };
   return g; }
-const MY3_BUILD = { pangu: ['axe', panguBuild], chrono: ['pistol', chronoBuild], longmai: ['pick', longmaiBuild] };
+/* 龙脉晶镐 (refined, owner 20 Nov: 'make it prettier, more refined'): the same real pickaxe outline, but the head is ONE faceted
+   violet crystal with gold lines on every edge (owner's skin rule: faceted crystals with gold edges), a paler raised crystal
+   ridge, raised gold rims, a gold-cased chisel with a violet glow line, a crystal spike point with gold edges, a gold socket
+   with a teal heart gem, a small crystal cluster growing from the head; dark stone haft with glowing teal veins, gold
+   dragon-scale bands, a crystal cluster on the butt */
+function kaiOutline(k) { const C = y => .74 - .42 * y * y, N = 20, top = [], bot = [], h = y => (y < 0 ? .1 * (1 - Math.pow(Math.abs(y) / .66, 1.25)) + .006 : .1 - .028 * (y / .5) + (y > .42 ? (y - .42) * .9 : 0)) * (k || 1);
+  for (let i = 0; i <= N; i++) { const y = -.66 + 1.18 * i / N; top.push([C(y) + h(y), y]); bot.push([C(y) - h(y), y]); } return { C, h, N, top, bot }; }
+function my3Edges(m, M, th) { try { const L = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry, th || 20), M.edge); L.position.copy(m.position); L.rotation.copy(m.rotation); L.scale.copy(m.scale); m.parent.add(L); return L; } catch (e) { return null; } }
+function longmaiBuild(g) { const M = my3Mats(), O = kaiOutline(1), I = kaiOutline(.45), C = O.C;
+  my3Rod(g, .04, .046, 1.06, M.stone, 0, .2, 8);                                                                             // dark stone haft with glowing veins
+  for (const z of [-.3, -.06, .2, .6]) my3Rod(g, .054, .054, .032, M.scale, 0, z, 10);
+  for (let i = 0; i < 4; i++) { const a = i / 4 * 6.283; my3Seg(g, M, [Math.cos(a) * .02, -.34], [Math.cos(a) * .075, -.46 - (i % 2) * .05], .024, .004, i % 2 ? M.crysT : M.crys); }
+  my3Add(g, new THREE.BoxGeometry(.1, .14, .14), M.scale, 0, 0, .67);
+  const body = my3Shape(O.top.concat(O.bot.slice().reverse()), .07, M.crys, g, 0, .012); my3Edges(body, M, 25);           // the crystal head, gold on every edge
+  for (const sd of [-1, 1]) { const r = my3Shape(I.top.concat(I.bot.slice().reverse()), .03, M.crysL, g, sd * .042, .008); my3Edges(r, M, 25); }   // paler raised ridge
+  const rim = (L, off) => L.slice(1).map(([z, y]) => [z + off, y]);
+  for (const [L, s1] of [[O.top, 1], [O.bot, -1]]) my3Shape(L.slice(1, O.N).concat(rim(L, s1 * .02).slice(0, O.N - 1).reverse()), .08, M.gold, g, 0);
+  const ye = .52, h = O.h; my3Shape([[C(ye) + h(ye) + .02, ye], [C(ye) + h(ye) + .02, ye + .03], [C(ye) - h(ye) - .02, ye + .03], [C(ye) - h(ye) - .02, ye]], .078, M.gold, g, 0);
+  my3Add(g, new THREE.BoxGeometry(.086, .012, 2 * h(ye) + .02), M.gem, 0, ye + .036, C(ye));
+  my3Seg(g, M, [-.63, C(-.63)], [-.8, C(-.8) - .03], .02, .002, M.crys);                                                   // crystal spike point (gold edges)
+  for (const sd of [-1, 1]) { const r = my3Add(g, new THREE.TorusGeometry(.08, .018, 6, 18), M.gold, sd * .042, 0, C(0)); r.rotation.y = Math.PI / 2; }
+  const gem = my3Add(g, new THREE.OctahedronGeometry(.07), M.crysT, 0, 0, C(0)); gem.scale.set(.75, 1.3, 1.3); my3Edges(gem, M, 1);
+  const halo = my3Add(g, new THREE.OctahedronGeometry(.095), M.cyanG, 0, 0, C(0)); halo.scale.set(.75, 1.3, 1.3);
+  for (const [y, len, r] of [[-.12, .16, .03], [-.04, .22, .035], [.05, .15, .028], [.12, .1, .022]]) my3Seg(g, M, [y, C(y) + .05], [y + (y > 0 ? .04 : -.03), C(y) + .05 + len], r, .002, Math.abs(y) < .06 ? M.crysT : M.crys);   // small cluster on top
+  const motes = []; for (let i = 0; i < 4; i++) motes.push(my3Add(g, new THREE.OctahedronGeometry(.015), i % 2 ? M.vein : M.gem));
+  const host = my3Add(g, new THREE.BoxGeometry(.001, .001, .001), M.gold, 0, 0, .7); host.frustumCulled = false;
+  host.onBeforeRender = () => { const T = performance.now() / 1000; M.crys.emissive.setRGB(.22 + .1 * Math.sin(T * 2.5), .08, .48 + .15 * Math.sin(T * 2.5)); gem.rotation.x = T; halo.rotation.x = -T * .7;
+    motes.forEach((m, i) => { const a = T * 1.8 + i * 1.57; m.position.set(Math.cos(a) * .15, Math.sin(a) * .6, .7 + Math.sin(a * 2) * .07); }); };
+  return g; }
+const MY3_BUILD = { pangu: ['axe', panguBuild], chrono: ['pistol', chronoBuild], longmai: ['pick', longmaiBuild], kaishan: ['pick', kaishanBuild] };
 buildWeapon = (orig => function (id, t, skin) { const g = orig.apply(this, arguments), k = skin !== undefined ? skin : (S.wsk && S.wsk[id]), B = MY3_ON && MY3_BUILD[k];
   if (B && B[0] === id) try { for (const c of g.children.slice()) g.remove(c); B[1](g); } catch (e) { console.warn('myth3 model', e); }
   return g; })(buildWeapon);
@@ -23862,7 +23895,7 @@ try { WSK_SND.pangu = { fire() { my3N(.22, .1, 900, { type: 'bandpass', q: .8, f
 // 盘古斧: a tall gold crescent (the generic one) + the ground cracks open ahead with light shining out
 mythSwing = (orig => function (K) { if (MY3_ON && K && K.key === 'pangu') { try { panguChop(); } catch (e) { } return; }
   const r = orig.apply(this, arguments); if (!K || !MY3_ON) return r;
-  try { if (K.key === 'longmai') longmaiStrike(); } catch (e) { } return r; })(mythSwing);
+  try { if (K.key === 'longmai') longmaiStrike(); else if (K.key === 'kaishan') kaishanSmash(); } catch (e) { } return r; })(mythSwing);
 /* 开天斧 normal attack: the chop TEARS THE AIR in front of you: a jagged vertical rift opens from top to bottom (a dark void
    with a white-gold glowing lip), shock rings burst out of it, little shards are sucked in, then it seals */
 /* 开天斧 swing (owner 20 Nov: "不要多一个特效，挥砍效果本身就是撕裂空间，要有撕裂的感觉"): the swing's own arc IS the tear —
@@ -24012,8 +24045,71 @@ SKT.longmai = { snd() { my3T(60, 35, .9, .2, 'sine'); for (let i = 0; i < 6; i++
     skL(1000, () => { for (let i = 0; i < 26; i++) { const a = Math.random() * 6.283, r = Math.random() * 4; skThrow(G.oct, [0xb07aff, 0x5afff0, 0xffd060][i % 3], x + Math.cos(a) * r, gy + 1, z + Math.sin(a) * r, Math.cos(a) * 3, 3 + Math.random() * 3, Math.sin(a) * 3, 1, 1.8, 9, 12); } });
     S.shake = Math.max(S.shake || 0, .3); } };
 
+/* ================= 开山神镐 (owner 20 Nov: new swing motion, swing effect, skill effect and sound of its own) =================
+   SWING 开山砸: the pick is heaved high over the right shoulder (body leans back and twists), then the whole body drops into
+   one heavy downward smash in front with a forward lean and a short hold on impact. Impact: a gold 「山」 seal stamped on the
+   ground, a row of rock spikes punching up one after another along your aim with teal earth-vein light under them, dust.
+   SKILL 神龙破山: a huge gold 山 seal lights under you, an earth dragon (rock-scale body, gold horned head) bursts out of the
+   ground in front, circles you as it climbs, then dives back in; where it lands a ring of mountain peaks shoots up, holds,
+   and crumbles into rocks, with shockwaves, a flash and a heavy quake. Sounds: metal-on-stone clang + rock crack + thud;
+   the skill rumbles, the dragon roars, the peaks boom. */
+const KS = { tex: null };
+const ksOn = () => { try { return S.wp === 'pick' && S.wsk && S.wsk.pick === 'kaishan'; } catch (e) { return false; } };
+const KS_RIG = { gR: .12, gL: -.22, dur: .54, hit: .55, keys: [
+  [0,   [.22, 1.42, .44], [.32, .9, .28],   [-.2, -.2, 1],   0,    0],
+  [.35, [.32, 2.32, -.12], [.15, .62, -.77], [0, .78, .62],   .38, -.2],
+  [.55, [.05, 1.0, .76],  [0, -.72, .7],    [0, -.7, -.72],  -.1,  .32],
+  [.75, [.05, 1.04, .74], [0, -.7, .71],    [0, -.71, -.7],  -.1,  .3],
+  [1,   [.22, 1.42, .44], [.32, .9, .28],   [-.2, -.2, 1],   0,    0]] };
+poseMelee = (o => function (R, k, bob, T) { if (!T && MY3_ON && R === RIG.pick && ksOn() && S.swingT > 0) return o.call(this, KS_RIG, k, bob, T); return o.apply(this, arguments); })(poseMelee);
+/* the 山 seal: a gold circle of runes with the character 山 */
+function ksSealTex() { if (KS.tex) return KS.tex; try { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'); if (!x || !x.fillText) return null;
+    x.strokeStyle = '#ffd870'; x.fillStyle = '#ffd870'; x.shadowColor = '#ffb030'; x.shadowBlur = 10; x.lineWidth = 8; x.beginPath(); x.arc(128, 128, 118, 0, 6.283); x.stroke(); x.lineWidth = 3; x.beginPath(); x.arc(128, 128, 100, 0, 6.283); x.stroke();
+    for (let i = 0; i < 24; i++) { const a = i / 24 * 6.283; x.save(); x.translate(128 + Math.cos(a) * 109, 128 + Math.sin(a) * 109); x.rotate(a); x.fillRect(-2, -5, 4, 10); x.restore(); }
+    x.font = 'bold 150px serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('山', 128, 136); KS.tex = new THREE.CanvasTexture(c); } catch (e) { KS.tex = null; } return KS.tex; }
+function ksSeal(x, y, z, R, life) { const t = ksSealTex(); if (!t) { skRing(x, y, z, .3, R, life, 0xffd870, .9); return; }
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, side: THREE.DoubleSide })); m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.renderOrder = 2; scene.add(m);
+  const t0 = performance.now(), dur = life * 1000 * SKX.ts; m.onBeforeRender = () => { const k = Math.min(1, (performance.now() - t0) / dur), e = k < .15 ? k / .15 : 1; m.scale.setScalar(R * (.6 + .4 * e) * (k < .15 ? 1.15 - .15 * e : 1)); m.rotation.z = k * .6; m.material.opacity = k < .7 ? 1 : (1 - k) / .3; };
+  m.scale.setScalar(R * .6); setTimeout(() => { try { scene.remove(m); m.geometry.dispose(); m.material.dispose(); } catch (e) { } }, dur + 40); }
+/* a rock spike punching up out of the ground with teal light under it */
+function ksSpike(x, z, gy, h, life) { const G = skGeo(), tl = (Math.random() - .5) * .35, tz = (Math.random() - .5) * .35, c = Math.random() < .5 ? 0x7a6a5a : 0x5e5246;
+  skP(G.spike, c, x, gy - .1, z, life, (k, m) => { const e = k < .2 ? k / .2 : k < .7 ? 1 : 1 - (k - .7) / .3; m.rotation.set(tl, 0, tz); m.scale.set(1.5 * h * .55, h * e, 1.5 * h * .55); });
+  skRing(x, gy + .06, z, .1, .9 * h, .5, 0x5afff0, .8);
+  for (let i = 0; i < 3; i++) skThrow(G.oct, i % 2 ? 0x8a7a6a : 0xb8a890, x, gy + .2, z, (Math.random() - .5) * 3, 2.5 + Math.random() * 2, (Math.random() - .5) * 3, .6, 1.6, 10, 9); }
+function kaishanSmash() { const [dx, dz] = aimDir(), d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d, gy = skGY(), x0 = player.pos.x + ux * 1.3, z0 = player.pos.z + uz * 1.3, G = skGeo();
+  ksSeal(x0, gy + .05, z0, 1.5, .7);
+  for (let i = 0; i < 5; i++) skL(i * 55, () => { const f = 1.5 + i * .85, x = player.pos.x + ux * f + (Math.random() - .5) * .3, z = player.pos.z + uz * f + (Math.random() - .5) * .3; ksSpike(x, z, gy, 1.1 + i * .15, .7);
+    skP(G.box, 0x5afff0, x - ux * .42, gy + .04, z - uz * .42, .5, (k, m) => { m.rotation.set(0, Math.atan2(ux, uz), 0); m.scale.set(.08, .02, .85 * Math.min(1, k * 6)); m.material.opacity = 1 - k; }); });
+  for (let i = 0; i < 8; i++) { const a = Math.random() * 6.283; skThrow(G.ico, 0xa89a88, x0, gy + .2, z0, Math.cos(a) * 2, 1.2, Math.sin(a) * 2, .6, 1.1, 2, 2); }
+  S.shake = Math.max(S.shake || 0, .16); }
+try { WSK_SND.kaishan = { fire() { my3N(.26, .08, 600, { type: 'bandpass', q: .7, f1: 250 }); },
+  hit() { my3T(1900, 1850, .5, .06, 'triangle'); my3T(3100, 3000, .35, .03, 'sine'); my3N(.12, .14, 2600, { type: 'bandpass', q: 1.5 }); my3N(.3, .1, 400, { type: 'lowpass', delay: .02 }); my3T(70, 38, .35, .16, 'sine'); } }; } catch (e) { }
+SKT.kaishan = { snd() { my3N(1.4, .1, 160, { type: 'lowpass' }); my3T(55, 40, 1.2, .14, 'sawtooth');
+    skL(300, () => { my3T(180, 90, .9, .1, 'sawtooth', { vib: 12, vibD: 20 }); my3T(260, 120, .8, .06, 'square', { delay: .05 }); }); },
+  spot(C, x, z, s) { ksSpike(x, z, C.gy, 1.2 * s, .8); },
+  full(C) { const G = skGeo(), px = C.px, pz = C.pz, gy = C.gy, ux = C.dx, uz = C.dz, Ax = px + ux * 3.2, Az = pz + uz * 3.2, Bx = px + ux * 2.2, Bz = pz + uz * 2.2;
+    ksSeal(px, gy + .05, pz, 3.6, 1.9);
+    for (let b = 0; b < 10; b++) { const a = b / 10 * 6.283; skP(G.box, 0xffd060, px + Math.cos(a) * 1.8, gy + .04, pz + Math.sin(a) * 1.8, 1.2, (k, m) => { m.rotation.set(0, -a + Math.PI / 2, 0); m.scale.set(.09, .02, 3.6 * Math.min(1, k * 5)); m.material.opacity = k < .6 ? 1 : (1 - k) / .4; }); }
+    // the earth dragon: emerges at A, circles you climbing, dives into B
+    const path = s => { if (s < .12) { const k = s / .12; return [Ax, gy - .5 + k * 2.5, Az]; }
+      if (s < .8) { const k = (s - .12) / .68, a0 = Math.atan2(Az - pz, Ax - px), a = a0 + k * Math.PI * 2.2, r = 3.2 - k * .6; return [px + Math.cos(a) * r, gy + 2 + k * 3.2, pz + Math.sin(a) * r]; }
+      const k = (s - .8) / .2, a = Math.atan2(Az - pz, Ax - px) + Math.PI * 2.2, sx = px + Math.cos(a) * 2.6, sz = pz + Math.sin(a) * 2.6; return [sx + (Bx - sx) * k, gy + 5.2 - k * 6, sz + (Bz - sz) * k]; };
+    const NS = 16, life = 1.5;
+    for (let i = 0; i < NS; i++) { const head = i === 0, sc = head ? 3.4 : 2.6 - i * .1, lag = i * .03;
+      skP(G.ico, head ? 0xffd060 : (i % 3 === 1 ? 0xc8a050 : i % 2 ? 0x6e6458 : 0x857868), Ax, gy - 2, Az, life, (k, m) => { const s = k * 1.12 - lag; if (s <= 0 || s >= 1) { m.scale.setScalar(.001); return; }
+        const [x, y, z] = path(s), [x2, y2, z2] = path(Math.min(1, s + .01)); m.position.set(x, Math.max(gy - .3, y), z); m.lookAt(x2, y2, z2); m.scale.set(sc * .9, sc * .9, sc * 1.4); m.material.opacity = 1; }); }
+    for (const sd of [-1, 1]) skP(G.spike, 0xffd060, Ax, gy - 2, Az, life, (k, m) => { const s = k * 1.12; if (s <= 0 || s >= 1) { m.scale.setScalar(.001); return; } const [x, y, z] = path(s); m.position.set(x + sd * .35, Math.max(gy - .3, y) + .6, z); m.rotation.set(-.5, 0, sd * .5); m.scale.set(1, 1.1, 1); });
+    for (let i = 0; i < 14; i++) skL(120 + i * 70, () => { const s = Math.min(1, ((i * 70 + 120) / (life * 1000)) * 1.12), [x, y, z] = path(Math.max(0, s - .05)); skThrow(G.oct, i % 2 ? 0xffd060 : 0x5afff0, x, Math.max(gy, y), z, (Math.random() - .5) * 1.5, .5, (Math.random() - .5) * 1.5, .8, 1, 3, 6); });
+    skL(80, () => { for (let i = 0; i < 6; i++) skThrow(G.ico, 0x8a7a6a, Ax, gy + .2, Az, (Math.random() - .5) * 5, 4 + Math.random() * 3, (Math.random() - .5) * 5, 1, 1.6, 12, 6); skRing(Ax, gy + .08, Az, .3, 2.6, .5, 0xa89a88, .7); });
+    // the dive: a ring of mountain peaks shoots up, holds, crumbles
+    skL(life * 1000 * .86, () => { ksSeal(Bx, gy + .06, Bz, 2.4, 1.2);
+      for (let i = 0; i < 11; i++) { const a = i / 11 * 6.283 + Math.random() * .2, r = 2.2 + (i % 2) * 1.6, x = Bx + Math.cos(a) * r, z = Bz + Math.sin(a) * r; skL(i * 25, () => ksSpike(x, z, gy, 2.2 + Math.random() * 1.6, 1.4)); }
+      skL(30, () => ksSpike(Bx, Bz, gy, 4, 1.5));
+      for (let i = 0; i < 4; i++) skL(i * 90, () => skRing(Bx, gy + .1, Bz, .5, 6 + i * 2.5, .7, i % 2 ? 0x5afff0 : 0xffd060, .8));
+      skL(1000, () => { for (let i = 0; i < 24; i++) { const a = Math.random() * 6.283, r = 1 + Math.random() * 3.5; skThrow(G.ico, i % 3 ? 0x7a6a5a : 0x9a8a78, Bx + Math.cos(a) * r, gy + 1.5 + Math.random() * 1.5, Bz + Math.sin(a) * r, Math.cos(a) * 2, 1 + Math.random() * 2, Math.sin(a) * 2, 1, 1.8, 10, 5); } my3N(.9, .1, 500, { type: 'lowpass' }); });
+      try { fxFlash(0xfff0c8, .35, .4); } catch (e) { } S.shake = Math.max(S.shake || 0, .6); my3Boom(true); }); } };
 /* ---------------- shop ---------------- */
-try { for (const [k, id] of [['pangu', 'axe'], ['chrono', 'pistol'], ['longmai', 'pick']]) if (!WSK_DIRECT.some(p => p[0] === k)) WSK_DIRECT.push([k, id]); } catch (e) { }
+try { for (const [k, id] of [['pangu', 'axe'], ['chrono', 'pistol'], ['longmai', 'pick'], ['kaishan', 'pick']]) if (!WSK_DIRECT.some(p => p[0] === k)) WSK_DIRECT.push([k, id]); } catch (e) { }
 /* ============ 深渊商店: spend 深渊币 with the diver of the 深渊号 (owner 18 Nov: "add a trade system to the abyss") ============
    Opened from the abyss page (button 深渊商店 next to 下潜). The trader is the brass-helmet diver who stands on the sub.
    Tabs: 升级材料 (now) · 皮肤 (empty: the owner will hand over skin code later, then they go in ABYSHOP_SKINS).
@@ -25851,4 +25947,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795108126').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795109058').catch(()=>{});</script></body></html>
