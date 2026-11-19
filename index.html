@@ -14609,27 +14609,18 @@ if (IMM_ON) {
         const it = makeGear(2, DUN_LV[1], q, 0); it[1] = q; x.it = it; x.r = q; x.need = .5 + Math.min(5, q) * .35 + Math.random() * .3; } } catch (e) { console.warn('z_imm cab', e); }
     return out; })(cabRoll);
 }
-/* ============ 兑换码（设置里） ============
-   码不写在代码里（只存它的指纹），每个角色每个码只能用一次。
-   码：一整套不朽装备（6 个部位各 1 件，永不损坏）· 遗物币 ×10000（可重复）· 直接升到 50 级（每个角色一次）。 */
+/* ============ 兑换码 — REMOVED (owner 20 Nov) ============
+   The redeem function and the saved list of used codes stay (old saves load fine), but there are no codes. */
 const RDM_H = s => { let x = 5381; for (const c of s) x = ((x * 33) ^ c.charCodeAt(0)) >>> 0; return x; };
-const RDM = { 2373533752: { id: 'imm6', n: '一整套不朽装备', f() {
-  if (S.ginv.length + GSLOT.length > gcap()) { feed('装备背包要空出 ' + GSLOT.length + ' 格才能领', '#ff9b8a'); return false; }
-  GSLOT.forEach((s, i) => { const it = makeGear(10, 100, 5, 0); it[0] = i; it[1] = 6; it[2] = 100; it[5] = 100; it[6] = 0; it.length = 8; it[7] = 0; try { afxGen(it); } catch (e) { } pickGear(it); });
-  banner('不朽装备 ×' + GSLOT.length, '头盔、护甲、手套、长裤、战靴、背包 · 在背包的「装备」里', 4.5); return true; } },
-  2396905243: { id: 'lv50', n: '直接升到 50 级', f() { if (S.level >= 50) { feed('这个角色已经 50 级或以上了', '#ff9b8a'); return false; }
-    const from = S.level; while (S.level < 50) { S.level++; S.tp += 1; } S.xp = 0; S.maxHp = maxHpNow(); S.hp = S.maxHp;
-    try { burst(player.pos.x, 1, player.pos.z, 0xffd27a, 24, 7); } catch (e) { } banner('升级！Lv.' + from + ' → Lv.50', '获得 ' + (50 - from) + ' 个天赋点 · 点右侧「天赋」学习', 4.5); return true; } },   // owner's code, once per character
-  1277534002: { id: 'relic10k', rep: 1, n: '遗物币 ×10000', f() { S.relic = (S.relic | 0) + 10000; banner('遗物币 +10000', '去老钱那里花吧 · 这个码可以重复使用', 4); return true; } } };   // owner's test code, can be used again and again (not counted in the weekly cap)
+/* owner 20 Nov: ALL codes removed (a 32-bit fingerprint can be brute-forced; he feared codes being cracked and sold).
+   RDM stays empty so nothing can be redeemed; the box in Settings is gone too. Never add codes again. */
+const RDM = {};
 S.rdm = {};
 function redeem(code) { const R = RDM[RDM_H(String(code || '').trim().toLowerCase())]; if (!R) { feed('兑换码不对', '#ff9b8a'); return; }
   if (!R.rep && S.rdm[R.id]) { feed('这个角色已经用过这个兑换码了', '#ff9b8a'); return; }
   if (R.f() === false) return; if (!R.rep) S.rdm[R.id] = 1; try { sfx.build(); } catch (e) { } refreshHud(); saveGame(); }
 shopSave = (o => function () { const r = o(); try { r.rdm = Object.keys(S.rdm); } catch (e) { } return r; })(shopSave);
 shopLoad = (o => function (d) { o(d); S.rdm = {}; try { const a = d && d.sh && d.sh.rdm; if (Array.isArray(a)) a.forEach(k => { if (typeof k === 'string') S.rdm[k] = 1; }); } catch (e) { } })(shopLoad);
-renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!box) return; const r = document.createElement('div'); r.className = 'setrow';
-  r.innerHTML = '<span>兑换码</span><div class="opts" style="gap:6px"><input id="rdmIn" maxlength="32" placeholder="输入兑换码" autocomplete="off" style="width:140px;padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.35);color:#fff;font-size:14px"><button class="sbtn on" id="rdmGo">兑换</button></div>';
-  box.appendChild(r); r.querySelector('#rdmGo').addEventListener('click', () => { const i = $('rdmIn'); redeem(i && i.value); if (i) i.value = ''; }); } catch (e) { console.warn(e); } })(renderSettings);
 /* ============ 修复：从副本出来后去区域，传送成功了人却又回到海岛（朋友写的补丁，原样接入） ============
    原因：副本在 x≈-19000 的假坐标上，有三条路会把副本坐标当成「上次离开的位置」S.gx/S.gz：
    在副本里存档、在副本坐标上被送回海岛、码头用 S.gx/S.gz 找最近的区域。落点歪到副本附近，又被送回海岛。
@@ -22693,8 +22684,6 @@ for (const G of GH_LIST) {
 }
 
 /* ---- owner's code: all seven 萌鬼 skins at once (only the hash is stored; once per character) ---- */
-try { RDM[3491928377] = { id: 'menggui', n: '萌鬼全套皮肤', f() { let n = 0; for (const G of GH_LIST) if (!S.wskOwn.includes(G.k + ':' + G.wid)) { S.wskOwn.push(G.k + ':' + G.wid); n++; }
-  if (!n) { feed('萌鬼皮肤已经全部拥有了', '#ff9b8a'); return false; } banner('获得萌鬼神话皮肤 ×' + n, '在背包点武器就能换上', 4); try { ghSnd.giggle(1.2); } catch (e) { } return true; } }; } catch (e) { }
 
 /* ---- 萌鬼 2: each weapon gets its own themed parts ON the weapon (owner 18 Nov: "武器本身太普通") ----
    糖糖 pistol   candy-cane stripes round the barrel, a heart gem on the grip, a lollipop charm hanging from the back
@@ -23145,7 +23134,7 @@ petsTick = (o => function (dt) { const r = o(dt); if (MWSK_ON) try { mwAuraTick(
        水 soak (+12% damage taken, slowed)   火 burns 3 s      雷 chains to 2 more      毒 poisons 4 s       冰 frozen (very slow 2 s)
        木 heals you 3% life + roots          土 quake: knock back + hurt in 2.5 m       金 armour-breaking ×1.6 damage
        合 all of the above at once + a 3.5 m sword-light burst
-   Owner's redeem code gives it (hash only); where it is sold is up to the owner. */
+   Sold in the skin shop's direct sale (no redeem code any more, owner 20 Nov). */
 const J9_EL = [
   { n: '水', c: 0x4aa8ff }, { n: '火', c: 0xff6a2a }, { n: '雷', c: 0xb08aff }, { n: '毒', c: 0x9ae03a }, { n: '冰', c: 0xbff4ff },
   { n: '木', c: 0x3ad86a }, { n: '土', c: 0xd8a040 }, { n: '金', c: 0xffe27a }, { n: '合', c: 0xffffff }];
@@ -23280,7 +23269,6 @@ const j9Snd = {
 // melee-like layer for the skin's own fire/hit sounds (guns keep their real gunshot)
 try { WSK_GUN.jian9 = { fire() { sfxTone(1800, 1500, .08, .015, 'sine', { delay: .03 }); }, hit() { } }; } catch (e) { }
 // owner's code: the skin at once (hash only)
-try { RDM[1408983399] = { id: 'jian9', n: '九霄剑阵', f() { if (S.wskOwn.includes('jian9:rifle')) { feed('已经有「九霄剑阵」了', '#ff9b8a'); return false; } giveWSkin('jian9', 'rifle'); return true; } }; } catch (e) { }
 
 /* each sword's damage written out in the skin's description (owner 18 Nov), with the numbers for your rifle right now */
 try { const D0 = WSKINS.jian9.d; Object.defineProperty(WSKINS.jian9, 'd', { configurable: true, enumerable: true, get() {
@@ -23443,7 +23431,6 @@ try { WSK_SND.jian9b = { fire() { const i = J9B.sw; sfxNoise(.18, .1, i < 0 ? 22
   hit() { const i = J9B.sw; if (i >= 0) return; const f = 760; sfxTone(f, f * .99, .5, .06, 'sine'); sfxTone(f * 2.76, f * 2.7, .3, .03, 'sine'); } }; } catch (e) { }   // element cuts ring through j9Hit (锵)
 /* ---- sold beside 九霄剑阵 in the skin shop's direct sale; owner's code (hash only) ---- */
 try { if (!WSK_DIRECT.some(p => p[0] === 'jian9b')) WSK_DIRECT.push(['jian9b', 'blade']); } catch (e) { }
-try { RDM[401902941] = { id: 'jian9b', n: '九霄剑诀', f() { if (S.wskOwn.includes('jian9b:blade')) { feed('已经有「九霄剑诀」了', '#ff9b8a'); return false; } giveWSkin('jian9b', 'blade'); return true; } }; } catch (e) { }
 /* each element's damage and move written out, with the numbers for your katana right now */
 try { const D0 = WSKINS.jian9b.d; Object.defineProperty(WSKINS.jian9b, 'd', { configurable: true, enumerable: true, get() {
   let w = 0; try { w = weaponDmg('blade'); } catch (e) { } const n = p => w ? '（约 ' + Math.round(w * p) + '）' : '';
@@ -23631,9 +23618,8 @@ ws2Cast = (o => function (id) { const r = o.apply(this, arguments); try { const 
    龙脉晶镐 (pick, key longmai): a pick head of two faceted violet crystals with gold edges on a dark stone haft with glowing
      teal dragon veins and a gold collar. Swing = crystals burst out of the ground where you strike. SKILL 龙脉爆发: glowing
      veins crack outward from the smash, a ring of big crystal clusters erupts, then shatters into shards.
-   Same stats as the other mythic skins; sold in the skin shop's direct sale (mythic price); one owner code gives all three
-   (hash only). The generic mythic package (aura, kill finisher, equip flourish, hit sparks) works for them automatically. */
-const MY3_ON = true, MY3_CODE = 546953035;   /* owner's code for all three: hash only */
+   Same stats as the other mythic skins; sold in the skin shop's direct sale (mythic price); no redeem code (owner 20 Nov). The generic mythic package (aura, kill finisher, equip flourish, hit sparks) works for them automatically. */
+const MY3_ON = true;
 const MY3 = { M: null };
 WSKINS.pangu = { only: 'axe', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%', n: '盘古斧', r: 5, custom: true,
   base: 0x5a3a1a, mid: 0xe8b84a, acc: 0xfff0b0, glow: 0xffd870, tr: 0xffd870, tr2: 0xfff4d0,
@@ -23902,10 +23888,8 @@ SKT.longmai = { snd() { my3T(60, 35, .9, .2, 'sine'); for (let i = 0; i < 6; i++
     skL(1000, () => { for (let i = 0; i < 26; i++) { const a = Math.random() * 6.283, r = Math.random() * 4; skThrow(G.oct, [0xb07aff, 0x5afff0, 0xffd060][i % 3], x + Math.cos(a) * r, gy + 1, z + Math.sin(a) * r, Math.cos(a) * 3, 3 + Math.random() * 3, Math.sin(a) * 3, 1, 1.8, 9, 12); } });
     S.shake = Math.max(S.shake || 0, .3); } };
 
-/* ---------------- shop + owner code ---------------- */
+/* ---------------- shop ---------------- */
 try { for (const [k, id] of [['pangu', 'axe'], ['chrono', 'pistol'], ['longmai', 'pick']]) if (!WSK_DIRECT.some(p => p[0] === k)) WSK_DIRECT.push([k, id]); } catch (e) { }
-try { RDM[MY3_CODE] = { id: 'myth3', n: '盘古斧 · 流光时轮 · 龙脉晶镐', f() { const L = [['pangu', 'axe'], ['chrono', 'pistol'], ['longmai', 'pick']].filter(([k, id]) => !S.wskOwn.includes(k + ':' + id));
-  if (!L.length) { feed('三款皮肤都已经有了', '#ff9b8a'); return false; } for (const [k, id] of L) giveWSkin(k, id); return true; } }; } catch (e) { }
 /* ============ 深渊商店: spend 深渊币 with the diver of the 深渊号 (owner 18 Nov: "add a trade system to the abyss") ============
    Opened from the abyss page (button 深渊商店 next to 下潜). The trader is the brass-helmet diver who stands on the sub.
    Tabs: 升级材料 (now) · 皮肤 (empty: the owner will hand over skin code later, then they go in ABYSHOP_SKINS).
@@ -25743,4 +25727,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795105531').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795105864').catch(()=>{});</script></body></html>
