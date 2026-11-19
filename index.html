@@ -18762,6 +18762,18 @@ baseGy = (o => function (x, z, type, lv) { const g = o.apply(this, arguments); c
     const hb = Math.max(at(-1), at(-1.6), at(-2.2), at(-3), at(-2.2, -.8), at(-2.2, .8)), hf = Math.min(at(.7), at(1.3));
     if (hb - hf < .6) return g;                                   // no cliff here: stands on the ground as before
     return Math.max(hb - h - .1, hf - .15); } catch (e) { return g; } })(baseGy);
+// owner 19 Nov: '还原' a pond, dig there again → the water came back. 还原 only put the ground back; the spots stayed marked as
+// water (TPAINT.p = 4), so the next dig showed the old pond again (and on finger-up the level fix dug it out again).
+// Now 还原 also takes away the water (and river water) under the brush, and 抬高 takes it away where the ground is raised to
+// the water's level or above (filled in).
+terBrush = (o => function (dt) { const r = o(dt), t = TER.tool; if ((t !== 'reset' && t !== 'up') || !buildAnchor) return r;
+  try { const a = buildAnchor, R = Math.max(TER_SIZES[TER.size] || 2.4, 1.1), N = TER_N, P = TPAINT.p, WL = TPAINT.wl; let ch = false;
+    const i0 = Math.max(1, Math.floor((a.x - HOME.x + TER_O - R) / TER_S)), i1 = Math.min(N - 2, Math.ceil((a.x - HOME.x + TER_O + R) / TER_S)), j0 = Math.max(1, Math.floor((a.z - HOME.z + TER_O - R) / TER_S)), j1 = Math.min(N - 2, Math.ceil((a.z - HOME.z + TER_O + R) / TER_S));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const k = j * N + i; if (P[k] !== 4) continue; const x = HOME.x + i * TER_S - TER_O, z = HOME.z + j * TER_S - TER_O;
+      if (Math.hypot(x - a.x, z - a.z) > R || terLockW(x, z) <= 0) continue;
+      if (t === 'reset' || terBase(Math.hypot(x - HOME.x, z - HOME.z)) + TER.h[k] >= WL[k] - .05) { P[k] = 0; ch = true; } }
+    if (ch) { for (let j = j0 - 1; j <= j1 + 1; j++) for (let i = i0 - 1; i <= i1 + 1; i++) if (i >= 0 && j >= 0 && i < N && j < N) terVert(i, j); terMeshDone(false); TPAINT.dirty = true; TER.dirty = 1; }
+    if (t === 'reset' && typeof trivErase === 'function') trivErase(a.x, a.z, R); } catch (e) { } return r; })(terBrush);
 /* ============ drawn paths (Tiny Glade style, step 2) ============
    地形 tab tools 画泥路 / 画石子路: drag a finger and a soft, curved path is laid along the line — no grid. The path is a ribbon
    that lies on the ground (smooth curve through the finger points, soft frayed edges), the stone one with pebbles on it.
@@ -24448,4 +24460,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795058034').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795061474').catch(()=>{});</script></body></html>
