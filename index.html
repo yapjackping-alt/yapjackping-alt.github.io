@@ -23458,6 +23458,45 @@ spawnLoot = (o => function (type, x, z, amt, spread) {
 })(spawnLoot);
 /* a zombie dies (and drops) only once, whatever hits it after it fell */
 killZombie = (o => function (z) { if (z && z.dead && !z.animal) return; return o.apply(this, arguments); })(killZombie);
+/* ============ free graphics memory of things that leave the world (owner 19 Nov: "like the dungeon bug, look for more") ============
+   Measured in the real build: every trip to the mainland and every walk across the map left ~600 geometries in graphics
+   memory for good (1011 → 2838 after three trips; the scene itself went back to the same size). unloadChunk only freed the
+   chunk's top-level meshes, not the houses / trees / props inside its groups; zombies, plants, crates and gear crates were
+   only taken out of the scene. Now their geometry is freed when they go.
+   The shared box cache (geo()) is never freed; any other geometry that is still used elsewhere simply uploads again the
+   next time it is drawn (three.js does that by itself), so freeing is always safe. */
+const MFREE = { zs: new Set(), gl: new Set(), t: 0 };
+geo = (o => function () { const g = o.apply(this, arguments); g.userData.keep = 1; return g; })(geo);
+try { for (const k in geoCache) geoCache[k].userData.keep = 1; } catch (e) { }
+function memFree(root) {
+  if (!root || !root.traverse) return;
+  try { root.traverse(m => { const g = m.geometry; if (g && g.dispose && !(g.userData && g.userData.keep)) g.dispose(); }); } catch (e) { }
+}
+unloadChunk = (o => function (ch) { const r = o.apply(this, arguments); for (const m of ch.meshes || []) memFree(m); return r; })(unloadChunk);
+removeCrate = (o => function (c) { const r = o.apply(this, arguments); memFree(c.g); memFree(c.beacon); return r; })(removeCrate);
+removePlant = (o => function (p) { const r = o.apply(this, arguments); memFree(p.g); return r; })(removePlant);
+/* zombies and gear crates leave from many places: every 2 s, anything that left its list and the scene is freed */
+function memFreeTick(dt) {
+  MFREE.t += dt; if (MFREE.t < 2) return; MFREE.t = 0;
+  for (const z of zombies) if (z && z.g) MFREE.zs.add(z);
+  const live = new Set(zombies);
+  for (const z of MFREE.zs) if (!live.has(z)) { MFREE.zs.delete(z); if (z.g && !z.g.parent) memFree(z.g); }
+  if (typeof gearLoot !== 'undefined') { for (const L of gearLoot) MFREE.gl.add(L); const gl = new Set(gearLoot);
+    for (const L of MFREE.gl) if (!gl.has(L)) { MFREE.gl.delete(L); if (L.g && !L.g.parent) memFree(L.g); } }
+}
+petsTick = (o => function (dt) { const r = o.apply(this, arguments); try { memFreeTick(dt); } catch (e) { } return r; })(petsTick);
+/* swapping looks (measured): 8 outfit changes left ~780 geometries behind, 8 weapon-skin changes ~330, every weapon switch
+   a few, every skin preview in the shop a whole figure. The old parts are freed once they are no longer attached. */
+const memGone = list => { for (const m of list) if (m && !m.parent) memFree(m); };
+equipModel = (o => function () { const old = wpnModel, r = o.apply(this, arguments); if (old && old !== wpnModel) memGone([old]); return r; })(equipModel);
+outfitOn = (o => function (h) { const old = h && h._outfit ? h._outfit.slice() : [], r = o.apply(this, arguments); memGone(old); return r; })(outfitOn);
+skinPreview = (o => function () { const old = SKPV.h ? [SKPV.h.g] : [], sp = (SKPV.sp || []).map(p => p.m), r = o.apply(this, arguments);
+  if (!SKPV.h || old[0] !== SKPV.h.g) memGone(old); memGone(sp); return r; })(skinPreview);
+dollBuild = (o => function () { const old = DOLL.h ? DOLL.h.g : null, r = o.apply(this, arguments); if (old && (!DOLL.h || DOLL.h.g !== old)) memGone([old]); return r; })(dollBuild);
+cgBuild = (o => function () { const old = CG.h ? CG.h.g : null, r = o.apply(this, arguments); if (old && (!CG.h || CG.h.g !== old)) memGone([old]); return r; })(cgBuild);
+wskPreview = (o => function () { const old = SKPV.h ? [SKPV.h.g] : [], sp = (SKPV.sp || []).map(p => p.m), r = o.apply(this, arguments);
+  if (!SKPV.h || old[0] !== SKPV.h.g) memGone(old); memGone(sp); return r; })(wskPreview);
+wingOn = (o => function (h) { const old = h && h._wing ? h._wing.slice() : [], r = o.apply(this, arguments); memGone(old); return r; })(wingOn);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -24492,4 +24531,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795063165').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795063836').catch(()=>{});</script></body></html>
