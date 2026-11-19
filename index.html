@@ -18033,9 +18033,14 @@ function wtrMats() {
   if (WTR.pool) return WTR;
   const tex = (draw, w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; };
   const rip = tex((x, w, h) => { x.fillStyle = '#3aa0c4'; x.fillRect(0, 0, w, h); x.strokeStyle = 'rgba(255,255,255,.35)'; x.lineWidth = 2; for (let i = 0; i < 14; i++) { x.beginPath(); const y = (i * 37) % h, o = (i * 53) % w; x.moveTo(o, y); x.bezierCurveTo(o + 20, y - 6, o + 40, y + 6, o + 60, y); x.stroke(); } }, 128, 128);
-  const fall = tex((x, w, h) => { x.fillStyle = '#7fd0ee'; x.fillRect(0, 0, w, h); for (let i = 0; i < 40; i++) { x.fillStyle = 'rgba(255,255,255,' + (.25 + (i % 5) * .1) + ')'; x.fillRect((i * 29) % w, (i * 71) % h, 2 + (i % 3), 18 + (i % 4) * 10); } }, 64, 128);
+  // falling water: deep blue in the middle, lighter towards the sides, soft see-through edges, long white streaks that run down
+  // (owner 19 Nov: the old sheet read as a flat blue panel with hard edges)
+  const fall = tex((x, w, h) => { for (let i = 0; i < w; i++) { const u = (i + .5) / w, e = Math.min(1, Math.min(u, 1 - u) / .16), a = e * e * (3 - 2 * e), m = 1 - Math.abs(u - .5) * 2;
+      x.fillStyle = 'rgba(' + Math.round(90 + 60 * (1 - m)) + ',' + Math.round(170 + 40 * (1 - m)) + ',' + Math.round(220 + 20 * (1 - m)) + ',' + (a * .92).toFixed(3) + ')'; x.fillRect(i, 0, 1, h); }
+    for (let i = 0; i < 70; i++) { const sx = 4 + ((i * 37) % (w - 8)), e = Math.min(1, Math.min(sx, w - sx) / 10); x.fillStyle = 'rgba(255,255,255,' + ((.18 + (i % 6) * .09) * e).toFixed(3) + ')'; x.fillRect(sx, (i * 53) % h, 1 + (i % 3), 20 + (i % 5) * 14); }
+    for (let i = 0; i < 14; i++) { const sx = 6 + ((i * 41) % (w - 12)); x.fillStyle = 'rgba(235,250,255,.75)'; x.fillRect(sx, (i * 89) % h, 1, 40 + (i % 3) * 20); } }, 64, 128);
   WTR.pool = new THREE.MeshLambertMaterial({ color: 0xffffff, map: rip, transparent: true, opacity: .85 });
-  WTR.fall = new THREE.MeshLambertMaterial({ color: 0xffffff, map: fall, transparent: true, opacity: .82, side: THREE.DoubleSide });
+  WTR.fall = new THREE.MeshLambertMaterial({ color: 0xffffff, map: fall, transparent: true, opacity: 1, side: THREE.DoubleSide, depthWrite: false, emissive: 0x16303a });
   WTR.foam = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .6 });
   return WTR;
 }
@@ -18679,21 +18684,28 @@ function wfExt(b) {
   const at = (lz, lx) => terH(b.x + (lx || 0) * c + lz * s, b.z - (lx || 0) * s + lz * c);   // ground at a spot given in the piece's own frame (+z = the way the water falls)
   // owner: the water must go all the way down. From the lip it falls straight down to the ground in front, then keeps running
   // down the slope as a cascade for as long as the ground keeps dropping (up to 8 m out), and splashes at the very bottom.
-  const pts = [[fz, base + .05]]; { let h = at(fz); if (base + .05 - h > .3) pts.push([fz, h + .08]); let prev = h;
+  // owner 19 Nov ('look at your screenshot, the water is weird'): set into a cliff, the straight sheet hung in the air in front of
+  // the cliff slope with the ground showing through. Then the model's sheet is hidden and the water starts at the lip and HUGS
+  // the cliff face all the way down (one strip just over the ground).
+  const cliff = Math.max(at(-1), at(-1.6), at(-2.2)) > base + sh0 * .5;
+  let pts;
+  if (cliff) { pts = [[fz, base + sh0 + .05]]; let prevY = base + sh0 + .05, flat = 0;
+    for (let d = 0; d <= 8; d += .25) { const hh = at(fz + d), y = Math.min(prevY, hh + .14); pts.push([fz + d, y]); if (prevY - y < .03) { if (++flat >= 3) break; } else flat = 0; prevY = y; } }
+  else { pts = [[fz, base + .05]]; let h = at(fz); if (base + .05 - h > .3) pts.push([fz, h + .08]); let prev = h;
     for (let d = .4; d <= 8; d += .4) { const hh = at(fz + d); if (hh > prev - .03) break; pts.push([fz + d, hh + .08]); prev = hh; } }
   const drop = pts[0][1] - pts[pts.length - 1][1];
   // the rock base behind the water: on a slope the cliff would hang in the air
   const T = BT[b.type] || {}, hw = T.hw || 1.2, hd = T.hd || 1; let gmin = 1e9;
   for (const lx of [-hw, 0, hw]) for (const lz of [-hd * 1.4, -hd * .8, -.2]) gmin = Math.min(gmin, at(lz, lx));
-  const skirt = base - gmin, key = Math.round(drop * 100) * 1000 + Math.round(skirt * 100) + pts.length * .001;
+  const skirt = cliff ? 0 : base - gmin, key = Math.round(drop * 100) * 1000 + Math.round(skirt * 100) + pts.length * .001 + (cliff ? .5 : 0);
   if (g.userData.drop === key) return; g.userData.drop = key;
-  for (const ch of g.children) if (ch.userData.baseFoam) ch.visible = drop < .5;   // the splash goes down with the water
+  for (const ch of g.children) { if (ch.userData.baseFoam) ch.visible = drop < .5 && !cliff; if (ch.geometry && ch.geometry.type === 'PlaneGeometry' && ch.material === wtrMats().fall) ch.visible = !cliff; }   // the splash goes down with the water; in a cliff the strip replaces the sheet
   if (g.userData.ext) { g.remove(g.userData.ext); g.userData.ext = null; } if (drop < .5 && skirt < .25) return;
   const W = wtrMats(), e = new THREE.Group();
   if (skirt >= .25) { const rk = new THREE.Mesh(facet(new THREE.CylinderGeometry(1, 1.12, 1, 7, 1)), gmat(0x6a645c)); rk.scale.set(hw * 1.05, skirt + .3, hd * .75); rk.position.set(0, -(skirt + .3) / 2 + .02, -hd * .8 - .1); rk.castShadow = rk.receiveShadow = true; e.add(rk); }   // behind the water, so the water falls past it
   g.add(e); g.userData.ext = e; if (drop < .5) return;
   // one strip through the points: straight down first, then along the slope
-  const pos = [], uv = [], idx = [], hw2 = w * .35; let v = 0; pts[0] = [fz, base + .05];   // owner saw a line + water going UP: the strip now sits in the sheet's own plane, overlaps its bottom and scrolls the same way
+  const pos = [], uv = [], idx = [], hw2 = w * .35; let v = 0; if (!cliff) pts[0] = [fz, base + .05];   // owner saw a line + water going UP: the strip now sits in the sheet's own plane, overlaps its bottom and scrolls the same way
   pts.forEach(([z, y], i) => { if (i) v += Math.hypot(z - pts[i - 1][0], y - pts[i - 1][1]) / sh0; const yl = y - base, zz = z + (i ? .002 : 0); pos.push(-hw2, yl, zz, hw2, yl, zz); uv.push(0, -v, 1, -v); if (i) { const a = (i - 1) * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); } });
   const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); gg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); gg.setIndex(idx); gg.computeVertexNormals();
   const sh = new THREE.Mesh(gg, W.fall); sh.userData.noCast = 1; sh.material.side = THREE.DoubleSide; e.add(sh);
@@ -24229,4 +24241,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795052389').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795052618').catch(()=>{});</script></body></html>
