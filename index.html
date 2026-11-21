@@ -25450,6 +25450,135 @@ function lowHpTick(dt) { const E = DTH.el; if (!E || !E.style) return;
   const op = S.dead ? .85 : Math.min(1, .5 + .5 * DTH.k) * (.62 + .38 * Math.min(1, beat));
   E.style.opacity = op.toFixed(3); }
 petsTick = (o => function (dt) { o(dt); try { lowHpTick(dt); } catch (e) { } })(petsTick);
+/* ============ 新地图（owner 22 Nov：地图最烂；打开地图要能拖动、缩放，其他参考别的游戏）============
+   - 全屏地图：一根手指拖动，两根手指捏合缩放（电脑：拖动 + 滚轮），缩放是连续的，不再是几档。
+   - 右边一列按钮：放大 / 缩小 / 回到我身上（定位）。拖走以后地图停在那里，点「定位」回到你身上并重新跟着你走。
+   - 左上角显示你现在在哪（区域、等级段）；左下角比例尺；「图例」和「感染度」做成按钮，点了才弹出，不再堆一大段字。
+   - 点一下地图空白处放标记（最多 6 个），点已有的标记就删掉（和以前一样）。
+   做法：drawMap 在 MAPV.on 时以 MAPV.cx/cz 为中心画（d_main.js），画在一张正方形的离屏画布上，再裁成屏幕大小。 */
+const MP2 = { c: null, x: null, off: null, ox: null, r: 240, follow: true, ptr: new Map(), pinch: null, drag: null, tap: null, dirty: false, tm: 0, sq: 0, k: 1, w: 0, h: 0, pending: null };
+const MP2_LIM = () => S.dun ? [20, 320] : S.isl ? [40, 520] : [60, 2400];
+const mp2Clamp = r => { const L = MP2_LIM(); return Math.max(L[0], Math.min(L[1], r)); };
+const MP2_IC = {
+  plus: '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>',
+  minus: '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>',
+  me: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>'
+};
+function mp2Build() { const ov = $('bigmap'); if (!ov || MP2.c || !ov.insertBefore || !ov.querySelector || !document.head) return;   /* headless tests have a fake page */
+  // keep the ✕ that d_main added, drop the old square map, buttons, legend and text
+  const keepX = ov.querySelector ? ov.querySelector('.ovx') : null, legOld = ov.querySelector ? ov.querySelector('.mapleg') : null;
+  MP2.leg = legOld ? legOld.innerHTML : '';
+  /* the old elements stay in the page (other code still looks them up), just hidden */
+  const old = document.createElement('div'); old.style.display = 'none'; Array.from(ov.children).forEach(ch => { if (ch !== keepX) old.appendChild(ch); }); ov.appendChild(old);
+  ov.classList.remove('scroll'); ov.classList.add('m2ov');
+  const c = document.createElement('canvas'); c.id = 'm2c'; ov.insertBefore(c, keepX || null);
+  const top = document.createElement('div'); top.className = 'm2top'; top.innerHTML = '<div id="m2reg"></div>'; ov.appendChild(top);
+  const side = document.createElement('div'); side.className = 'm2side';
+  side.innerHTML = '<button class="m2b" id="m2in" aria-label="放大">' + MP2_IC.plus + '</button><button class="m2b" id="m2out" aria-label="缩小">' + MP2_IC.minus + '</button><button class="m2b" id="m2me" aria-label="定位">' + MP2_IC.me + '</button>';
+  ov.appendChild(side);
+  const bot = document.createElement('div'); bot.className = 'm2bot'; bot.innerHTML = '<div id="m2scale"><i></i><span></span></div><div class="m2pills"><button class="m2p" id="m2leg">图例</button><button class="m2p" id="m2inf">感染度</button></div>'; ov.appendChild(bot);
+  const pop = document.createElement('div'); pop.id = 'm2pop'; ov.appendChild(pop);
+  MP2.c = c; MP2.x = c.getContext('2d'); MP2.off = document.createElement('canvas'); MP2.ox = MP2.off.getContext('2d');
+  $('m2in').addEventListener('click', e => { e.stopPropagation(); mp2Zoom(1 / 1.6); });
+  $('m2out').addEventListener('click', e => { e.stopPropagation(); mp2Zoom(1.6); });
+  $('m2me').addEventListener('click', e => { e.stopPropagation(); MP2.follow = true; mp2Dirty(); });
+  $('m2leg').addEventListener('click', e => { e.stopPropagation(); mp2Pop(MP2.popK === 'leg' ? null : 'leg'); });
+  $('m2inf').addEventListener('click', e => { e.stopPropagation(); mp2Pop(MP2.popK === 'inf' ? null : 'inf'); });
+  c.addEventListener('pointerdown', mp2Down); c.addEventListener('pointermove', mp2Move); c.addEventListener('pointerup', mp2Up); c.addEventListener('pointercancel', mp2Up);
+  c.addEventListener('wheel', e => { e.preventDefault(); const r = c.getBoundingClientRect(); mp2Zoom(e.deltaY > 0 ? 1.15 : 1 / 1.15, e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  const st = document.createElement('style');
+  st.textContent = '#bigmap.m2ov{padding:0;background:#0c0910;overflow:hidden;display:none}#bigmap.m2ov.show{display:block}' +
+    '#m2c{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}' +
+    '.m2top{position:absolute;left:calc(12px + env(safe-area-inset-left));top:calc(10px + env(safe-area-inset-top));pointer-events:none;max-width:calc(100% - 90px)}' +
+    '#m2reg{display:inline-block;padding:7px 12px;border-radius:12px;background:rgba(14,8,16,.78);border:1px solid rgba(255,190,140,.25);color:#fff2e4;font-weight:800;font-size:14px;line-height:1.3}#m2reg small{display:block;font-size:11px;font-weight:700}' +
+    '.m2side{position:absolute;right:calc(12px + env(safe-area-inset-right));top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px}' +
+    '.m2b{width:46px;height:46px;border-radius:14px;border:1px solid rgba(255,190,140,.3);background:rgba(20,12,20,.82);color:#ffd8b0;display:flex;align-items:center;justify-content:center;padding:0}.m2b:active{background:rgba(255,138,58,.35)}#m2me.on{color:#7de0ff;border-color:rgba(125,224,255,.6)}' +
+    '.m2bot{position:absolute;left:calc(12px + env(safe-area-inset-left));right:calc(70px + env(safe-area-inset-right));bottom:calc(12px + env(safe-area-inset-bottom));display:flex;align-items:flex-end;justify-content:space-between;gap:10px;pointer-events:none}' +
+    '#m2scale{padding:6px 10px;border-radius:10px;background:rgba(14,8,16,.75);color:#fff2e4;font-size:11px;font-weight:700;display:flex;align-items:center;gap:8px}#m2scale i{display:block;height:3px;background:#fff2e4;border-radius:2px}' +
+    '.m2pills{display:flex;gap:8px;pointer-events:auto}.m2p{padding:8px 14px;border-radius:999px;border:1px solid rgba(255,190,140,.3);background:rgba(20,12,20,.85);color:#ffd8b0;font-weight:800;font-size:13px}.m2p.on{background:rgba(255,138,58,.35)}' +
+    '#m2pop{position:absolute;right:calc(70px + env(safe-area-inset-right));bottom:calc(58px + env(safe-area-inset-bottom));width:min(320px,calc(100% - 94px));max-height:calc(100% - 130px);overflow-y:auto;overflow-x:hidden;padding:12px 14px;border-radius:14px;background:rgba(16,10,18,.94);border:1px solid rgba(255,190,140,.28);display:none;box-sizing:border-box}#m2pop.show{display:block}' +
+    '#m2pop .mapleg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:#f1e2d6}#m2pop .mapleg span{display:flex;align-items:center;gap:6px}#m2pop .mapleg i{width:12px;height:12px;border-radius:3px;display:inline-block}' +
+    '#m2pop .m2h{color:#ffd8b0;font-weight:800;font-size:14px;margin-bottom:8px}#m2pop .m2n{color:#c9b4a8;font-size:12px;margin-top:8px}#m2pop .sbtn{margin-top:8px}' +
+    '#m2pop #mapInf{width:auto!important;max-width:100%!important;margin:0!important;border:0!important;padding:0!important;background:none!important;box-shadow:none!important}' +
+    '@media (orientation:landscape){#m2pop{width:min(440px,calc(100% - 94px))}.m2bot{right:calc(70px + env(safe-area-inset-right))}}';
+  document.head.appendChild(st);
+}
+function mp2Pop(k) { MP2.popK = k; const P = $('m2pop'); if (!P) return; ['leg', 'inf'].forEach(q => { const b = $('m2' + q); if (b) b.classList.toggle('on', q === k); });
+  if (!k) { P.classList.remove('show'); return; }
+  if (k === 'leg') {
+    P.innerHTML = '<div class="m2h">图例</div><div class="mapleg">' + MP2.leg + '<span><i style="background:#ffc94a;border-radius:50%"></i>挑 今日挑战</span><span><i style="background:#ff7a5a;border-radius:50%"></i>周 周王巢穴</span><span><i style="background:#7de0ff;border-radius:50% 50% 50% 0"></i>我的标记</span></div><div class="m2n">点地图放标记（最多 6 个），点标记删掉。</div>' + (S.marks && S.marks.length ? '<button class="sbtn ghostb" id="m2clr">清除全部标记</button>' : '');
+    const b = $('m2clr'); if (b) b.addEventListener('click', () => { S.marks = []; try { saveGame(); } catch (e) { } mp2Pop('leg'); mp2Dirty(); });
+  } else {
+    try { infDecay(); } catch (e) { }
+    const here = S.isl || S.dun ? 0 : tierAt(player.pos.x, player.pos.z); let h = '<div id="mapInf"><div class="mih">区域感染度<small>打丧尸降低 · 每天回升 8%</small></div><div class="mig">';
+    for (let t = 1; t <= 10; t++) { let v = 0; try { v = Math.round(infOf(t)); } catch (e) { } const c = v <= 0 ? '#8fd16f' : v <= 50 ? '#ffd27a' : '#ff7a6a';
+      h += '<div class="mir' + (t === here ? ' here' : '') + '"><b>' + t + '</b><span>' + biomeOf(t).n + '</span><i><u style="width:' + v + '%;background:' + c + '"></u></i><em style="color:' + c + '">' + (v <= 0 ? '夺回' : v + '%') + '</em></div>'; }
+    P.innerHTML = h + '</div><div class="mif">≤50% 经验 +5% · 0% 夺回：丧尸更少、经验和币 +15%</div></div>';
+  }
+  P.classList.add('show'); }
+function mp2Size() { const c = MP2.c, w = Math.max(1, c.clientWidth || innerWidth), h = Math.max(1, c.clientHeight || innerHeight), k = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+  if (c.width !== Math.round(w * k) || c.height !== Math.round(h * k)) { c.width = Math.round(w * k); c.height = Math.round(h * k); }
+  const sq = Math.max(w, h); if (MP2.off.width !== Math.round(sq * k)) { MP2.off.width = MP2.off.height = Math.round(sq * k); }
+  Object.assign(MP2, { w, h, k, sq }); }
+// metres per CSS pixel
+const mp2Mpp = () => MP2.r / Math.min(MP2.w, MP2.h);
+function mp2World(sx, sy) { const m = mp2Mpp(); return { x: MAPV.cx + (sx - MP2.w / 2) * m, z: MAPV.cz + (sy - MP2.h / 2) * m }; }
+function mp2Draw() { MP2.dirty = false; if (!MP2.c || !$('bigmap').classList.contains('show')) return;
+  mp2Size(); if (MP2.follow) { MAPV.cx = player.pos.x; MAPV.cz = player.pos.z; }
+  const k = MP2.k, R = MP2.r * MP2.sq / Math.min(MP2.w, MP2.h);
+  MAPV.on = true; MAPV.vr = MP2.r; try { drawMap(MP2.ox, MP2.off.width, R, true, k); } catch (e) { console.warn('map2', e); } finally { MAPV.on = false; }
+  const x = MP2.x, ox = (MP2.sq - MP2.w) / 2 * k, oy = (MP2.sq - MP2.h) / 2 * k;
+  x.fillStyle = '#0c0910'; x.fillRect(0, 0, MP2.c.width, MP2.c.height); x.drawImage(MP2.off, ox, oy, MP2.c.width, MP2.c.height, 0, 0, MP2.c.width, MP2.c.height);
+  // scale bar: a round number near a fifth of the screen width
+  const mpp = mp2Mpp(), want = MP2.w * .28 * mpp, steps = [5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000]; let m = steps[0]; for (const s of steps) if (s <= want) m = s;
+  const sb = $('m2scale'); if (sb) { sb.firstChild.style.width = Math.round(m / mpp) + 'px'; sb.lastChild.textContent = m >= 1000 ? (m / 1000) + ' 公里' : m + ' 米'; }
+  const me = $('m2me'); if (me) me.classList.toggle('on', MP2.follow);
+  const rg = $('m2reg'); if (rg) { let t = '', s2 = '';
+    try { if (S.dun) { t = (DUNS[DUN.id] && (DUNS[DUN.id].n || DUNS[DUN.id].name)) || '副本'; }
+      else if (S.isl) { t = '海岛'; s2 = '没有感染'; }
+      else { const tt = tierAt(player.pos.x, player.pos.z), B = biomeOf(tt), bd = tierBand(tt); t = '区域' + tt + ' · ' + B.n; s2 = '<small style="color:hsl(' + (120 - (tt - 1) * 13) + ',85%,72%)">Lv.' + bd[0] + '-' + bd[1] + ' · ' + B.bn + '</small>'; } } catch (e) { }
+    const html = t + (s2 && s2[0] !== '<' ? '<small style="color:#9fd88a">' + s2 + '</small>' : s2); if (rg.innerHTML !== html) rg.innerHTML = html; } }
+function mp2Dirty() { if (MP2.dirty) return; MP2.dirty = true; if (typeof requestAnimationFrame === 'function') requestAnimationFrame(mp2Draw); else setTimeout(mp2Draw, 16); }
+function mp2Zoom(f, sx, sy) { if (sx == null) { sx = MP2.w / 2; sy = MP2.h / 2; } const a = mp2World(sx, sy), r0 = MP2.r; MP2.r = mp2Clamp(MP2.r * f);
+  if (MP2.r === r0) return;
+  if (!MP2.follow || sx !== MP2.w / 2 || sy !== MP2.h / 2) { MP2.follow = false; const m = mp2Mpp(); MAPV.cx = a.x - (sx - MP2.w / 2) * m; MAPV.cz = a.z - (sy - MP2.h / 2) * m; }
+  try { localStorage.setItem('ember_mapR', String(Math.round(MP2.r))); } catch (e) { }
+  mp2Dirty(); }
+function mp2Pt(e) { const r = MP2.c.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+function mp2Down(e) { e.preventDefault(); try { MP2.c.setPointerCapture(e.pointerId); } catch (er) { } const p = mp2Pt(e); MP2.ptr.set(e.pointerId, p);
+  if (MP2.popK) mp2Pop(null);
+  if (MP2.ptr.size === 1) { MP2.tap = { x: p.x, y: p.y, t: performance.now(), id: e.pointerId }; MP2.drag = { x: p.x, y: p.y }; MP2.pinch = null; }
+  else if (MP2.ptr.size === 2) { const [a, b] = [...MP2.ptr.values()]; MP2.tap = null; MP2.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, r: MP2.r, w: mp2World((a.x + b.x) / 2, (a.y + b.y) / 2) }; } }
+function mp2Move(e) { if (!MP2.ptr.has(e.pointerId)) return; const p = mp2Pt(e); MP2.ptr.set(e.pointerId, p);
+  if (MP2.tap && Math.hypot(p.x - MP2.tap.x, p.y - MP2.tap.y) > 8) MP2.tap = null;
+  if (MP2.pinch && MP2.ptr.size >= 2) { const [a, b] = [...MP2.ptr.values()], d = Math.hypot(a.x - b.x, a.y - b.y) || 1, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    MP2.r = mp2Clamp(MP2.pinch.r * MP2.pinch.d / d); MP2.follow = false; const m = mp2Mpp(); MAPV.cx = MP2.pinch.w.x - (mx - MP2.w / 2) * m; MAPV.cz = MP2.pinch.w.z - (my - MP2.h / 2) * m; mp2Dirty(); return; }
+  if (MP2.drag && MP2.ptr.size === 1 && !MP2.tap) { const m = mp2Mpp(); if (MP2.follow) { MP2.follow = false; MAPV.cx = player.pos.x; MAPV.cz = player.pos.z; }
+    MAPV.cx -= (p.x - MP2.drag.x) * m; MAPV.cz -= (p.y - MP2.drag.y) * m; MP2.drag = { x: p.x, y: p.y }; mp2Dirty(); }
+  else if (MP2.drag) MP2.drag = { x: p.x, y: p.y }; }
+function mp2Up(e) { const p = MP2.ptr.get(e.pointerId); MP2.ptr.delete(e.pointerId);
+  if (MP2.tap && MP2.tap.id === e.pointerId && p && performance.now() - MP2.tap.t < 450) mp2Mark(p.x, p.y);
+  MP2.tap = null; if (MP2.ptr.size < 2) MP2.pinch = null;
+  if (MP2.ptr.size === 1) { const q = [...MP2.ptr.values()][0]; MP2.drag = { x: q.x, y: q.y }; } else MP2.drag = null;
+  try { localStorage.setItem('ember_mapR', String(Math.round(MP2.r))); } catch (er) { } }
+// tap: a mark (same rules as before: up to 6, tap one to remove it). Not inside dungeons.
+function mp2Mark(sx, sy) { if (S.dun) return; const w = mp2World(sx, sy), hit = mp2Mpp() * 20;
+  const i = S.marks.findIndex(m => Math.hypot(m.x - w.x, m.z - (w.z + hit * .55)) < hit);
+  if (i >= 0) { S.marks.splice(i, 1); feed('已删除标记', '#c1a597'); }
+  else { if (S.marks.length >= 6) { feed('最多 6 个标记', '#ff9b8a'); return; } S.marks.push({ x: Math.round(w.x), z: Math.round(w.z), c: MARK_C[S.marks.length % MARK_C.length] }); feed('已添加标记 ' + S.marks.length, S.marks[S.marks.length - 1].c); }
+  try { sfx.pick && sfx.pick(); } catch (e) { } try { saveGame(); } catch (e) { } mp2Dirty(); }
+// the map is redrawn while open (moving dots), a few times a second
+function mp2Loop() { clearTimeout(MP2.tm); if (!$('bigmap').classList.contains('show')) { MAPV.on = false; return; } mp2Dirty(); MP2.tm = setTimeout(mp2Loop, 250); }
+renderBigMap = function () { try { mp2Build(); } catch (e) { } if (!MP2.c) return;
+  if (MP2.open) { MP2.open = false; let r = 240; try { r = +localStorage.getItem('ember_mapR') || 240; } catch (e) { } MP2.r = mp2Clamp(r);
+    if (MP2.pending) { const p = MP2.pending; MP2.pending = null; MP2.follow = false; MAPV.cx = p.x; MAPV.cz = p.z; const d = Math.hypot(p.x - player.pos.x, p.z - player.pos.z); MP2.r = mp2Clamp(Math.max(MP2.r, d * 2.4)); }
+    else MP2.follow = true;
+    mp2Pop(null); }
+  mp2Dirty(); clearTimeout(MP2.tm); MP2.tm = setTimeout(mp2Loop, 250); };
+openMap = (o => function () { MP2.open = true; return o.apply(this, arguments); })(openMap);
+try { showOnMap = (o => function (p) { if (p) MP2.pending = { x: p.x, z: p.z }; MP2.open = true; return o.apply(this, arguments); })(showOnMap); } catch (e) { }
+try { addEventListener('resize', () => { if (MP2.c && $('bigmap').classList.contains('show')) mp2Dirty(); }); } catch (e) { }
+try { mp2Build(); } catch (e) { console.warn('map2 build', e); }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -26056,11 +26185,14 @@ function mapBuilds(c, tx, tz, sc, k, big) {
       c.fillStyle = br ? '#8a7a70' : b.type === 'turret' ? '#4ac0ff' : b.type === 'fire' ? '#ffa030' : '#c08060'; c.beginPath(); c.arc(tx(b.x), tz(b.z), r, 0, 7); c.fill(); }
     else if (big && T.cat === 'fu' && b.type !== 'rug' && b.type !== 'farm') box(b, T.hw, T.hd, 'rgba(90,60,40,.8)'); }
 }
+/* MAPV: the full-screen map (z_map2.js) draws with its own centre while it is on; the radar keeps following you */
+var MAPV = { on: false, cx: 0, cz: 0 };
 function drawMap(ctx, W, range, big, k) {
-  k = k || 2; _mapK = k; mctx = ctx; const c = ctx, sc = W / range, half = range / 2 + 8, px = player.pos.x, pz = player.pos.z;
+  const FREE = big && MAPV.on, vr = FREE && MAPV.vr ? MAPV.vr : range;   /* vr: what you really see (the shorter screen side) decides how much detail is drawn */
+  k = k || 2; _mapK = k; mctx = ctx; const c = ctx, sc = W / range, half = range / 2 + 8, px = FREE ? MAPV.cx : player.pos.x, pz = FREE ? MAPV.cz : player.pos.z;
   const tx = x => W / 2 + (x - px) * sc, tz = z => W / 2 + (z - pz) * sc;
   c.clearRect(0, 0, W, W); c.save();
-  if (big) { rrect(c, 0, 0, W, W, 14 * k); c.clip(); } else { c.beginPath(); c.arc(W / 2, W / 2, W / 2 - 1, 0, 7); c.clip(); }
+  if (FREE) { } else if (big) { rrect(c, 0, 0, W, W, 14 * k); c.clip(); } else { c.beginPath(); c.arc(W / 2, W / 2, W / 2 - 1, 0, 7); c.clip(); }
   function edgeMark(o, color) {
     if (!o || o.dead) return;
     const ox = o.pos ? o.pos.x : o.x, oz = o.pos ? o.pos.z : o.z, dx = tx(ox) - W / 2, dz = tz(oz) - W / 2, d = Math.hypot(dx, dz), lim = big ? W / 2 - 16 * k : W / 2 - 8 * k;
@@ -26081,7 +26213,7 @@ function drawMap(ctx, W, range, big, k) {
     for (const o of queryObstacles(HOME.x, HOME.z, ISL_R)) if (o.t === 0 && !o.ref && o.r < 1) { c.fillStyle = '#2f5226'; c.beginPath(); c.arc(tx(o.x), tz(o.z), Math.max(1.6 * k, 1.4 * sc), 0, 7); c.fill(); }
     c.strokeStyle = '#ff8a3a'; c.lineWidth = 2.2 * k; c.beginPath(); c.arc(tx(PAD.x), tz(PAD.z), Math.max(4 * k, 3.2 * sc), 0, 7); c.stroke();
     mapBuilds(c, tx, tz, sc, k, big);
-    if (big) { c.font = '700 ' + 12 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#ffd8b0'; c.fillText('码头', tx(PAD.x), tz(PAD.z) - 4 * sc - 7 * k); c.fillStyle = 'rgba(255,230,210,.6)'; c.fillText('海岛 · 没有感染', W / 2, 22 * k); }
+    if (big) { c.font = '700 ' + 12 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#ffd8b0'; c.fillText('码头', tx(PAD.x), tz(PAD.z) - 4 * sc - 7 * k); if (!FREE) { c.fillStyle = 'rgba(255,230,210,.6)'; c.fillText('海岛 · 没有感染', W / 2, 22 * k); } }
   } else {
     // regions in their biome colours
     const r0 = Math.floor((px - half) / RS), r1 = Math.floor((px + half) / RS), c0 = Math.floor((pz - half) / RS), c1 = Math.floor((pz + half) / RS);
@@ -26098,20 +26230,20 @@ function drawMap(ctx, W, range, big, k) {
         for (const sg of sgs) { if (!sg.R.asp) continue; c.beginPath(); if (sg.h) { c.moveTo(tx(sg.a), tz(sg.c)); c.lineTo(tx(sg.b), tz(sg.c)); } else { c.moveTo(tx(sg.c), tz(sg.a)); c.lineTo(tx(sg.c), tz(sg.b)); } c.stroke(); }
         c.setLineDash([]); } }
     // building floor plans (walls are drawn from the obstacles below), unsearched cabinets as gold dots
-    if (range <= 500) for (const h of HOUSES) { if (Math.abs(h.x - px) > half + 20 || Math.abs(h.z - pz) > half + 20) continue; c.fillStyle = 'rgba(60,46,56,.92)'; c.fillRect(tx(h.x0), tz(h.z0), (h.x1 - h.x0) * sc, (h.z1 - h.z0) * sc);
-      if (range <= 260) for (const ct of h.cont) if (!ct.open) { c.fillStyle = '#ffd27a'; c.beginPath(); c.arc(tx(ct.mx), tz(ct.mz), Math.max(1.4 * k, .5 * sc), 0, 7); c.fill(); } }
+    if (vr <= 500) for (const h of HOUSES) { if (Math.abs(h.x - px) > half + 20 || Math.abs(h.z - pz) > half + 20) continue; c.fillStyle = 'rgba(60,46,56,.92)'; c.fillRect(tx(h.x0), tz(h.z0), (h.x1 - h.x0) * sc, (h.z1 - h.z0) * sc);
+      if (vr <= 260) for (const ct of h.cont) if (!ct.open) { c.fillStyle = '#ffd27a'; c.beginPath(); c.arc(tx(ct.mx), tz(ct.mz), Math.max(1.4 * k, .5 * sc), 0, 7); c.fill(); } }
     // buildings and props
-    if (range <= 500) for (const o of queryObstacles(px, pz, Math.min(range * .72, 150))) {
+    if (vr <= 500) for (const o of queryObstacles(px, pz, Math.min(Math.max(range, vr) * .72, FREE ? 300 : 150))) {
       if (o.ref || o.pass) continue;
       if (o.t === 1) { const x = tx(o.x - o.hw), y = tz(o.z - o.hd), w = o.hw * 2 * sc, h = o.hd * 2 * sc; c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(x - .8 * k, y - .8 * k, w + 1.6 * k, h + 1.6 * k); c.fillStyle = '#8a7a84'; c.fillRect(x, y, w, h); }
-      else if (range <= 260) { c.fillStyle = o.g === 'wood' ? 'rgba(20,30,14,.75)' : 'rgba(40,28,30,.75)'; c.beginPath(); c.arc(tx(o.x), tz(o.z), Math.max(1.3 * k, o.r * sc), 0, 7); c.fill(); }
+      else if (vr <= 260) { c.fillStyle = o.g === 'wood' ? 'rgba(20,30,14,.75)' : 'rgba(40,28,30,.75)'; c.beginPath(); c.arc(tx(o.x), tz(o.z), Math.max(1.3 * k, o.r * sc), 0, 7); c.fill(); }
     }
     // boss lairs
     { const n = Math.ceil(half / CH) + 1, pcx = Math.floor(px / CH), pcz = Math.floor(pz / CH);
       for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) { const l = lairAt(pcx + i, pcz + j); if (!l) continue; const lx = tx(l.x), lz = tz(l.z); if (lx < -20 || lz < -20 || lx > W + 20 || lz > W + 20) continue;
         const cd = (S.lairCd[l.id] || 0) > Date.now(); c.strokeStyle = cd ? 'rgba(160,140,140,.6)' : '#ff4a3a'; c.lineWidth = 1.8 * k; c.setLineDash([4 * k, 3 * k]); c.beginPath(); c.arc(lx, lz, Math.max(6 * k, 14 * sc), 0, 7); c.stroke(); c.setLineDash([]);
         mapPin(c, lx, lz, 5.5 * k, cd ? '#9a8a8a' : '#ff5a4a', 'B', k);
-        if (big && range <= 250 && !cd) { c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#ffd0c8'; c.fillText(l.bn + '·' + BOSS_TYPES[l.tp].name, lx, lz - 10 * k); } } }
+        if (big && vr <= 250 && !cd) { c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#ffd0c8'; c.fillText(l.bn + '·' + BOSS_TYPES[l.tp].name, lx, lz - 10 * k); } } }
     // crates by tier
     for (const cr of crates.values()) if (!cr.open) { const s2 = (4 + cr.t.id * 1.2) * k, x = tx(cr.x), y = tz(cr.z); c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(x - s2 / 2 - k, y - s2 / 2 - k, s2 + 2 * k, s2 + 2 * k); c.fillStyle = cr.t.css; c.fillRect(x - s2 / 2, y - s2 / 2, s2, s2); }
     // enemies
@@ -26133,12 +26265,12 @@ function drawMap(ctx, W, range, big, k) {
     c.fillStyle = 'rgba(0,0,0,.6)'; c.beginPath(); c.arc(zx, zz, r + k, 0, 7); c.fill(); c.fillStyle = (S.t * 4 | 0) % 2 ? '#ff2a2a' : '#ff6a4a'; c.beginPath(); c.arc(zx, zz, r, 0, 7); c.fill(); edgeMark(z, '#ff3a3a'); }
   drawExtraRadar(tx, tz, edgeMark); evRadar(c, tx, tz, k, edgeMark);
   // player: view cone + arrow
-  c.save(); c.translate(W / 2, W / 2); c.rotate(-player.face + Math.PI);
+  c.save(); c.translate(tx(player.pos.x), tz(player.pos.z)); c.rotate(-player.face + Math.PI);
   const cone = c.createRadialGradient(0, 0, 0, 0, 0, 34 * k); cone.addColorStop(0, 'rgba(125,224,255,.35)'); cone.addColorStop(1, 'rgba(125,224,255,0)');
   c.fillStyle = cone; c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, 34 * k, -Math.PI / 2 - .5, -Math.PI / 2 + .5); c.closePath(); c.fill();
   c.fillStyle = '#0c1a20'; c.beginPath(); c.moveTo(0, -9.5 * k); c.lineTo(7 * k, 7.5 * k); c.lineTo(0, 4 * k); c.lineTo(-7 * k, 7.5 * k); c.closePath(); c.fill();
   c.fillStyle = '#7de0ff'; c.beginPath(); c.moveTo(0, -7.5 * k); c.lineTo(5 * k, 5.5 * k); c.lineTo(0, 2.6 * k); c.lineTo(-5 * k, 5.5 * k); c.closePath(); c.fill(); c.restore();
-  if (big) { // scale bar + compass
+  if (big && !FREE) { // scale bar + compass
     const m = range >= 900 ? 200 : range >= 400 ? 100 : 50, bw = m * sc; c.fillStyle = 'rgba(14,8,16,.7)'; rrect(c, 10 * k, W - 30 * k, bw + 54 * k, 20 * k, 6 * k); c.fill();
     c.fillStyle = '#fff2e4'; c.fillRect(18 * k, W - 21 * k, bw, 2.5 * k); c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.textAlign = 'left'; c.fillText(m + ' 米', 24 * k + bw, W - 16 * k);
     c.fillStyle = 'rgba(14,8,16,.7)'; c.beginPath(); c.arc(W - 22 * k, 22 * k, 13 * k, 0, 7); c.fill(); c.fillStyle = '#ff8a3a'; c.font = '900 ' + 12 * k + 'px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('北', W - 22 * k, 22.5 * k); c.textBaseline = 'alphabetic';
@@ -26484,4 +26616,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795279478').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795280230').catch(()=>{});</script></body></html>
