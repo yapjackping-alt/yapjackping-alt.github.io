@@ -25158,11 +25158,20 @@ spawnBoss = (o => function () { const r = o.apply(this, arguments);
      武士刀    ≈ 223 → 136 (36 → 22; still hits up to 5 and heals a little)
    Weapon levels, skills, attachments and skins multiply on top the same way for all. */
 try { Object.assign(WEAP.pistol, { dmg: 28, rel: .9 }); Object.assign(WEAP.rifle, { dmg: 16 }); Object.assign(WEAP.shotgun, { dmg: 17, mag: 8, iv: .7, rel: 1.8 });
-  WEAP.axe.dmg = 42; WEAP.pick.dmg = 44; WEAP.blade.dmg = 22; } catch (e) { }
+  WEAP.axe.dmg = 42; WEAP.pick.dmg = 44; WEAP.blade.dmg = 22; WEAP.rifle.spr = .035; } catch (e) { }
+/* ---- melee's own strength (owner: every weapon has its own role): you fight up close, so while a melee weapon is in your
+   hands you take 30% less damage everywhere (近战护体). Measured with a bot in the abyss (no gear, Lv.40, weapon Lv.20, 6 min):
+   guns took ≈ 1000-3000 damage a minute, melee ≈ 5000-8000. */
+const MELEE_ROLE = { dr: .3, abyDr: .45, abyHp: .7 };   /* abyss: another 30% on top (crowds come at you from every side down there) */
+takeDamage = (o => function (n) { try { if (n > 0 && typeof isMelee === 'function' && isMelee() && !S.dead) { const a = Array.from(arguments); a[0] = n * (1 - MELEE_ROLE.dr) * (typeof abyOn === 'function' && abyOn() ? 1 - MELEE_ROLE.abyDr : 1); return o.apply(this, a); } } catch (e) { } return o.apply(this, arguments); })(takeDamage);
 /* ---- abyss: monster life follows what your weapon REALLY deals (reloads counted), melee and the shotgun a little less (they fight up close) ---- */
 function abyDpsRef(wp) { let d = 0; try { d = weaponDps(wp) || 0; const W = WEAP[wp];
     if (W.cls !== 'melee') { const mg = (typeof magSizeNow === 'function' ? magSizeNow(wp) : W.mag) || W.mag, iv = fireInterval(wp), rel = typeof reloadTime === 'function' && S.wp === wp ? reloadTime() : W.rel; d *= mg * iv / (mg * iv + rel); }
-    d *= W.cls === 'melee' ? .85 : wp === 'shotgun' ? .9 : 1; } catch (e) { } return d; }
+    d *= ABY_WK[wp] || 1; } catch (e) { } return d; }
+/* per weapon, from the bot test (21 Nov: a bot cleared abyss floors 1-15 three times with every weapon, Lv.40, weapon Lv.40, no gear,
+   no attachments, random cards): monster life is scaled so every weapon clears the 15 floors in about the same time
+   (before this: sniper 325 s, pistol 381, shotgun 492, katana 505, pick 512, axe 739, rifle 778). Melee also takes 30% + 30% less damage down here (MELEE_ROLE). */
+const ABY_WK = { pistol: 1.25, rifle: .62, sniper: 2.3, shotgun: 1.05, axe: .42, pick: .62, blade: .66 };
 abyHpFloor = function (z) { const d = abyDpsRef(ABY.wp), n = ABY.floor; return z.boss ? d * (10 + .5 * n) : d * (.6 + .05 * n) * (z.abyE ? 2.5 : 1); };
 const ABYF = { w: () => { try { const W = WEAP[ABY.wp || S.wp]; if (!W || W.cls === 'melee') return 1; return Math.max(.2, Math.min(1, fireInterval(ABY.wp || S.wp) / .28)); } catch (e) { return 1; } } };
 abyOnHit = (o => function (z, D) { if (!z) return o.apply(this, arguments); const w = ABYF.w();
@@ -25196,6 +25205,17 @@ function abyCloneTick(dt) { const on = typeof abyOn === 'function' && abyOn() &&
   g.rotation.copy(pm.g.rotation); g.scale.copy(pm.g.scale);
   if (ACL.hitT > 0 && ACL.hit) g.rotation.y = Math.atan2(ACL.hit.x - g.position.x, ACL.hit.z - g.position.z); }
 petsTick = (o => function (dt) { o(dt); try { abyCloneTick(dt); } catch (e) { } })(petsTick);
+/* ---- every weapon says what it is for and what to carry with it (owner 21 Nov: 各有优势，让玩家知道怎么搭配武器) ----
+   shown under the weapon's name on the weapon page; you carry two (the swap button / Q switches) */
+try { const R = (role, txt, mate) => '【' + role + '】' + txt + ' 推荐搭配：' + mate;
+  WEAP.pistol.d = R('省弹备用枪', '暴击高、换弹快、最省子弹，打远处落单的敌人很稳。', '武士刀或斧头——平时近战清怪，敌人散开或逃跑时掏手枪补枪。');
+  WEAP.rifle.d = R('中距离清怪', '全自动连射，压住一群小怪最稳，但最费子弹。', '镐子（首领交给镐子）或散弹枪（被贴脸时换散弹）。');
+  WEAP.sniper.d = R('首领 / 精英杀手', '射程最远，单发伤害最高，一枪穿透 3 个；射得慢，被围住会吃力。', '散弹枪或武士刀——被冲到身边时换它们自保。');
+  WEAP.shotgun.d = R('贴脸爆发', '近距离一枪 7 发弹丸并把敌人轰退，被围住时最好用，远了打不到。', '狙击枪或步枪——远处的敌人交给它们。');
+  WEAP.axe.d = R('近战清群', '大范围劈砍，一次最多砍中 3 个。拿着近战武器时受到的伤害 -30%。砍枯树能得木头。', '狙击枪或手枪——首领或远处的敌人用枪打。');
+  WEAP.pick.d = R('壮汉 / 首领克星', '对壮汉和首领伤害 +35%，打普通小怪比较慢。拿着近战武器时受到的伤害 -30%。敲岩石、废车能得石头和铁片。', '步枪或散弹枪——小怪群交给枪，首领出来再换镐子。');
+  WEAP.blade.d = R('灵活近战', '出刀最快、横斩范围最大，最多砍 5 个，砍中会回一点血。拿着近战武器时受到的伤害 -30%。', '手枪或狙击枪——远处的敌人用枪打。');
+} catch (e) { }
 /* ============ owner 21 Nov: small fixes ============
    1) 新手期没有尸群：新手教学和第一章（微弱的信号）期间，不会来「尸群过境」遭遇，也不会有「尸潮来袭」。
    2) 电脑上的新手任务写「按住 Shift 跑」「用 WASD 走」，不写摇杆。
@@ -26303,4 +26323,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795249754').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795257395').catch(()=>{});</script></body></html>
