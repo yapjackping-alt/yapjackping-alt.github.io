@@ -1827,10 +1827,13 @@ function hash2(a, b) { let h = (Math.imul(a, 374761393) + Math.imul(b, 668265263
    climb onto a broken OVERPASS (the 断桥 landmark, z_lmark.js: the ground road stops under it, ramps join it).
    Everything is cut into ~6 m straight pieces {ax,az,bx,bz,w,R,road}; chunks keep a cached list of the pieces near them. */
 const _lh = (a, b) => hash2(a * 7919 + 101, b * 104729 + 13);
-const RG = 170, RRING = 12;
+const RG = 220, RRING = 12, UG = 72;
 const ROADS = [ // per biome: chance a road joins two neighbouring crossings, width, surface colour, asphalt?
-  { p: .58, w: 8, c: 0x2a2630, asp: 1 }, { p: .3, w: 5, c: 0x4a3a2a }, { p: .34, w: 6, c: 0xa88a5c }, { p: .28, w: 5, c: 0x3a3424 }, { p: .34, w: 6, c: 0x8a8e98 },
-  { p: .8, w: 11, c: 0x242026, asp: 1 }, { p: .3, w: 6, c: 0x5a2c20 }, { p: .3, w: 6, c: 0x1a1214 }, { p: .34, w: 5, c: 0x241e2c }, { p: .5, w: 7, c: 0x2a1c18, asp: 1 }];
+  { p: .5, w: 8, c: 0x2a2630, asp: 1 }, { p: .26, w: 5, c: 0x4a3a2a }, { p: .3, w: 6, c: 0xa88a5c }, { p: .24, w: 5, c: 0x3a3424 }, { p: .3, w: 6, c: 0x8a8e98 },
+  { p: .6, w: 11, c: 0x242026, asp: 1 }, { p: .26, w: 6, c: 0x5a2c20 }, { p: .26, w: 6, c: 0x1a1214 }, { p: .3, w: 5, c: 0x241e2c }, { p: .4, w: 7, c: 0x2a1c18, asp: 1 }];
+/* towns (owner 22 Nov: 得有城市规划的样子): in the suburbs, the ruined city and the ember core the land between the country roads
+   is laid out as a planned street grid — straight streets every 72 m, square blocks, a few streets missing */
+const URB = { 1: { p: .62, w: 7 }, 6: { p: .86, w: 9 }, 10: { p: .5, w: 7 } };
 const roadOf = (x, z) => ROADS[tierAt(x, z) - 1];
 const _rnC = new Map(), _reC = new Map();
 function rNode(i, j) { const k = i + ',' + j; let n = _rnC.get(k); if (n) return n; n = { i, j, x: i * RG + (_lh(i * 3 + 1, j * 7 + 2) % 81) - 40, z: j * RG + (_lh(i * 5 + 3, j * 11 + 4) % 81) - 40 };
@@ -1838,10 +1841,11 @@ function rNode(i, j) { const k = i + ',' + j; let n = _rnC.get(k); if (n) return
 const _rH = (i, j, d) => _lh(i * 31 + d * 7 + 3, j * 17 + d * 5 + 11);
 // does the plain edge exist (before any trimming)? dir 0 → (i+1,j), 1 → (i,j+1), 2 → (i+1,j+1) diagonal, 3 → (i+1,j-1) diagonal
 function rEdgeOn(i, j, d) { const A = rNode(i, j), B = d === 0 ? rNode(i + 1, j) : d === 1 ? rNode(i, j + 1) : d === 2 ? rNode(i + 1, j + 1) : rNode(i + 1, j - 1), mx = (A.x + B.x) / 2, mz = (A.z + B.z) / 2;
+  if (URB[tierAt(A.x, A.z)] && URB[tierAt(B.x, B.z)]) return null;   /* inside a town only its own street grid */
   const R = roadOf(mx, mz), h = _rH(i, j, d) % 1000 / 1000; let p = R.p; if (d >= 2) { p *= .16; if (d === 3 && rEdgeOn(i, j - 1, 2)) return null; }   /* diagonals are rare and never cross */
   return h < p && !deepAt(mx, mz) && !deepAt(A.x, A.z) && !deepAt(B.x, B.z) ? { A, B, R } : null; }
 function rDeg(i, j) { let n = 0; if (rEdgeOn(i, j, 0)) n++; if (rEdgeOn(i, j, 1)) n++; if (rEdgeOn(i - 1, j, 0)) n++; if (rEdgeOn(i, j - 1, 1)) n++; return n; }
-const rRound = (i, j) => { const N = rNode(i, j), R = roadOf(N.x, N.z); return _lh(i * 13 + 5, j * 19 + 7) % 100 < (R.asp ? 45 : 22) && rDeg(i, j) >= 3 && !deepAt(N.x, N.z); };
+const rRound = (i, j) => { const N = rNode(i, j), R = roadOf(N.x, N.z); return !!R.asp && _lh(i * 13 + 5, j * 19 + 7) % 100 < 30 && rDeg(i, j) >= 3 && !deepAt(N.x, N.z); };
 function rBez(A, B, o1, o2, step) { const dx = B.x - A.x, dz = B.z - A.z, L = Math.hypot(dx, dz) || 1, nx = -dz / L, nz = dx / L;
   const c1x = A.x + dx / 3 + nx * o1 * L, c1z = A.z + dz / 3 + nz * o1 * L, c2x = A.x + dx * 2 / 3 + nx * o2 * L, c2z = A.z + dz * 2 / 3 + nz * o2 * L, N = Math.max(2, Math.ceil(L * 1.15 / step)), pts = [];
   for (let s = 0; s <= N; s++) { const t = s / N, u = 1 - t; pts.push(u * u * u * A.x + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t * t * t * B.x, u * u * u * A.z + 3 * u * u * t * c1z + 3 * u * t * t * c2z + t * t * t * B.z); }
@@ -1854,7 +1858,7 @@ function rTrim(pts, N) { const out = pts.slice(); while (out.length > 4 && Math.
 function rEdge(i, j, d) { const k = 'e' + i + ',' + j + ',' + d; if (_reC.has(k)) return _reC.get(k); let r = null;
   const E = rEdgeOn(i, j, d);
   if (E) { const h = _rH(i, j, d), L = Math.hypot(E.B.x - E.A.x, E.B.z - E.A.z), br = d < 2 && L > 140 && (h >>> 9) % 100 < 7 && !E.R.noBr;
-    const o1 = br ? 0 : ((h >>> 3) % 1000 / 1000 - .5) * .36, o2 = br ? 0 : ((h >>> 13) % 1000 / 1000 - .5) * .36;
+    const o1 = br ? 0 : ((h >>> 3) % 1000 / 1000 - .5) * .26, o2 = o1 * .4 + (br ? 0 : ((h >>> 13) % 1000 / 1000 - .5) * .1);   /* one gentle sweep, not an S */
     let pts = rBez(E.A, E.B, o1, o2, 6);
     if (rRound(E.A.i, E.A.j)) pts = rTrim(pts, E.A);
     if (rRound(E.B.i, E.B.j)) { const rv = []; for (let q = pts.length - 2; q >= 0; q -= 2) rv.push(pts[q], pts[q + 1]); pts = rTrim(rv, E.B); }
@@ -1866,15 +1870,22 @@ function rRing(i, j) { const k = 'r' + i + ',' + j; if (_reC.has(k)) return _reC
   _reC.set(k, r); return r; }
 // an oval loop road in the middle of some blocks
 function rOval(i, j) { const k = 'o' + i + ',' + j; if (_reC.has(k)) return _reC.get(k); let r = null;
-  const h = _lh(i * 41 + 9, j * 43 + 1); if (h % 100 < 9) { const A = rNode(i, j), B = rNode(i + 1, j + 1), cx = (A.x + B.x) / 2, cz = (A.z + B.z) / 2, R = roadOf(cx, cz);
+  const h = _lh(i * 41 + 9, j * 43 + 1); if (false) {   /* owner 22 Nov: the oval loops looked like scribbles */ const A = rNode(i, j), B = rNode(i + 1, j + 1), cx = (A.x + B.x) / 2, cz = (A.z + B.z) / 2, R = roadOf(cx, cz);
     const ax = 34 + (h >>> 7) % 30, az = 22 + (h >>> 12) % 22, rt = (h >>> 17) % 628 / 100, pts = []; let wet = false;
     for (let s = 0; s <= 40; s++) { const a = s / 40 * Math.PI * 2, lx = Math.cos(a) * ax, lz = Math.sin(a) * az, x = cx + lx * Math.cos(rt) - lz * Math.sin(rt), z = cz + lx * Math.sin(rt) + lz * Math.cos(rt); if (deepAt(x, z)) wet = true; pts.push(x, z); }
     if (!wet) r = rFinish({ k, pts, w: Math.max(4, R.w - 2), R, oval: true }); }
   _reC.set(k, r); return r; }
+function rStreet(i, j, d) { const k = 's' + i + ',' + j + ',' + d; if (_reC.has(k)) return _reC.get(k); let r = null;
+  const ax = i * UG, az = j * UG, bx = ax + (d ? 0 : UG), bz = az + (d ? UG : 0), mx = (ax + bx) / 2, mz = (az + bz) / 2, t = tierAt(mx, mz), U = URB[t];
+  if (U && URB[tierAt(ax, az)] && URB[tierAt(bx, bz)] && _lh(i * 53 + d * 7 + 2, j * 59 + d * 3 + 5) % 1000 / 1000 < U.p && !deepAt(mx, mz) && !deepAt(ax, az) && !deepAt(bx, bz)) {
+    const R = Object.assign({}, ROADS[t - 1], { w: U.w }), pts = []; for (let q = 0; q <= 12; q++) pts.push(ax + (bx - ax) * q / 12, az + (bz - az) * q / 12);
+    r = rFinish({ k, pts, w: U.w, R, street: true }); }
+  if (_reC.size > 20000) _reC.clear(); _reC.set(k, r); return r; }
 // every road object whose box touches the rectangle
-function roadsIn(x0, z0, x1, z1) { const out = [], i0 = Math.floor(x0 / RG) - 2, i1 = Math.floor(x1 / RG) + 1, j0 = Math.floor(z0 / RG) - 2, j1 = Math.floor(z1 / RG) + 1;
+function roadsIn(x0, z0, x1, z1, noStreets) { const out = [], i0 = Math.floor(x0 / RG) - 2, i1 = Math.floor(x1 / RG) + 1, j0 = Math.floor(z0 / RG) - 2, j1 = Math.floor(z1 / RG) + 1;
   const add = r => { if (r && r.x1 > x0 && r.x0 < x1 && r.z1 > z0 && r.z0 < z1) out.push(r); };
-  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { add(rEdge(i, j, 0)); add(rEdge(i, j, 1)); add(rEdge(i, j, 2)); add(rEdge(i, j, 3)); add(rRing(i, j)); add(rOval(i, j)); }
+  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { add(rEdge(i, j, 0)); add(rEdge(i, j, 1)); add(rEdge(i, j, 2)); add(rEdge(i, j, 3)); add(rRing(i, j)); }
+  if (!noStreets) for (let i = Math.floor(x0 / UG) - 1; i <= Math.floor(x1 / UG); i++) for (let j = Math.floor(z0 / UG) - 1; j <= Math.floor(z1 / UG); j++) { add(rStreet(i, j, 0)); add(rStreet(i, j, 1)); }
   return out; }
 // is this point of a bridge road lifted onto the overpass (so not drawn / walked on the ground)?
 const rLifted = (r, x, z) => { if (!r.br) return false; const B = r.br, ux = (B.bx - B.ax) / B.L, uz = (B.bz - B.az) / B.L, t = (x - B.ax) * ux + (z - B.az) * uz; return Math.abs(t - B.L / 2) < 49; };
@@ -1910,7 +1921,14 @@ function _vn(x, z) { const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz 
 const _rraw = (rx, rz) => .78 * _vn(rx / 5, rz / 5) + .22 * _vn(rx / 2 + 50, rz / 2 + 50);
 const REG_Q = (() => { const R = mulberry32(777), a = []; for (let i = 0; i < 6000; i++) a.push(_rraw(Math.floor(R() * 800 - 400), Math.floor(R() * 800 - 400))); a.sort((p, q) => p - q); const q = []; for (let k = 1; k < TIERS_N; k++) q.push(a[Math.floor(k / TIERS_N * a.length)]); return q; })();
 const _tierCache = new Map();
-function regionTier(rx, rz) { const k = rx + ',' + rz; let t = _tierCache.get(k); if (t) return t; const v = _rraw(rx, rz); t = 1; for (const q of REG_Q) if (v >= q) t++; if (_tierCache.size > 4000) _tierCache.clear(); _tierCache.set(k, t); return t; }
+/* owner 22 Nov (区域东一块西一块，地图乱): the ten regions are now big rings round the middle of the mainland — region 1 in the
+   centre, each next one a band about 750 m wide further out, region 10 everything beyond. Slow noise bends every ring so the
+   borders wander and the bands bulge in and out; the old patchwork (_rraw / REG_Q) is no longer used. */
+const RING_W = 750;
+function regionTier(rx, rz) { const k = rx + ',' + rz; let t = _tierCache.get(k); if (t) return t;
+  const cx = (rx + .5) * RS, cz = (rz + .5) * RS, d = Math.hypot(cx, cz), bend = (_vn(rx / 7 + 13, rz / 7 + 29) - .5) * 1.1 + (_vn(rx / 3 + 3, rz / 3 + 71) - .5) * .35;
+  t = Math.max(1, Math.min(TIERS_N, 1 + Math.floor(d / RING_W + bend * Math.min(1, d / RING_W))));
+  if (_tierCache.size > 4000) _tierCache.clear(); _tierCache.set(k, t); return t; }
 /* irregular regions: the region grid is sampled through a smooth domain warp (±80 m), so borders wander
    like coastlines instead of running in straight lines */
 const _wx = (x, z) => (_vn(x / 190 + 31, z / 190 + 7) - .5) * 330 + (_vn(x / 60 + 3, z / 60 + 91) - .5) * 90 + (_vn(x / 22 + 9, z / 22 + 3) - .5) * 22;
@@ -26506,9 +26524,12 @@ function drawMap(ctx, W, range, big, k) {
       c.strokeStyle = 'rgba(255,214,120,.8)'; c.lineWidth = 1.4 * k; c.beginPath(); c.arc(vx, vz, Math.max(5 * k, VIL_R * sc), 0, 7); c.stroke(); mapPin(c, vx, vz, 5.5 * k, '#e8b450', '村', k);
       if (big && vr <= 1000) { c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#ffe9a8'; c.fillText(vg.name, vx, vz - 10 * k); } }
     // roads: the real segments (asphalt darker with a dashed centre line; dirt / sand / snow tracks in their own colour)
-    { const rds = roadsIn(px - half, pz - half, px + half, pz + half); c.lineJoin = c.lineCap = 'round';
+    { const rds = roadsIn(px - half, pz - half, px + half, pz + half, vr > 900); c.lineJoin = c.lineCap = 'round';
       const path = r => { c.beginPath(); const p = r.pts; c.moveTo(tx(p[0]), tz(p[1])); for (let q = 2; q < p.length; q += 2) c.lineTo(tx(p[q]), tz(p[q + 1])); };
-      for (const r of rds) { c.strokeStyle = r.R.asp ? 'rgba(24,18,24,.88)' : hexCss(r.R.c, 1.25); c.lineWidth = Math.max(1.4 * k, r.w * sc); path(r); c.stroke(); }
+      /* owner 22 Nov: roads on the map must not shout — soft, thin, see-through; far out only the country roads */
+      const far = vr > 900; c.globalAlpha = far ? .45 : big ? .6 : .8;
+      for (const r of rds) { c.strokeStyle = r.R.asp ? 'rgb(24,18,24)' : hexCss(r.R.c, 1.15); c.lineWidth = Math.max((far ? .9 : 1.2) * k, r.w * sc * (big ? .6 : 1)); path(r); c.stroke(); }
+      c.globalAlpha = 1;
       if (sc > .9 * k) { c.strokeStyle = 'rgba(201,168,90,.6)'; c.lineWidth = .9 * k; c.setLineDash([3 * k, 4 * k]);
         for (const r of rds) { if (!r.R.asp || r.ring) continue; path(r); c.stroke(); }
         c.setLineDash([]); } c.lineCap = 'butt'; }
@@ -26533,14 +26554,16 @@ function drawMap(ctx, W, range, big, k) {
     for (const z of zombies) { if (z.dead || z.boss) continue; const r = (z.type === 'brute' ? 2.6 : 1.8) * k; c.fillStyle = 'rgba(0,0,0,.55)'; c.beginPath(); c.arc(tx(z.pos.x), tz(z.pos.z), r + .9 * k, 0, 7); c.fill(); c.fillStyle = z.animal ? (z.hostile || z.angry > 0 ? '#ffa040' : '#e8dcc8') : '#ff4040'; c.beginPath(); c.arc(tx(z.pos.x), tz(z.pos.z), r, 0, 7); c.fill(); }
     if (boss && !boss.dead) { const pr = 1 + Math.sin(S.t * 6) * .15; mapPin(c, tx(boss.pos.x), tz(boss.pos.z), 7 * k * pr, '#ff2a1a', 'B', k); edgeMark(boss, '#ff2a1a'); }
     // region labels
-    if (big) { c.textAlign = 'center';
-      const shown = [];
-      for (let i = r0; i <= r1; i++) for (let j = c0; j <= c1; j++) { const t = regionTier(i, j), B = biomeOf(t), bnd = tierBand(t), wxp = (i + .5) * RS, wzp = (j + .5) * RS, cx = tx(wxp), cz = tz(wzp), sz = RS * sc;
-        if (cx < -sz / 2 || cz < -sz / 2 || cx > W + sz / 2 || cz > W + sz / 2) continue;
-        if (tierAt(wxp, wzp) !== t || shown.some(q => (q[0] === t && Math.hypot(q[1] - wxp, q[2] - wzp) < Math.max(520, vr * .45)) || Math.hypot(q[1] - wxp, q[2] - wzp) < vr * .16)) continue; shown.push([t, wxp, wzp]);   // one label per area, never on the wrong side of a border
-        if (sz > 130 * k) { const t1 = '区域' + t + ' · ' + B.n, t2 = 'Lv.' + bnd[0] + '-' + bnd[1] + ' · ' + B.bn; c.font = '900 ' + 13 * k + 'px sans-serif'; const w = Math.max(c.measureText(t1).width, 110 * k) + 16 * k;
-          c.fillStyle = 'rgba(14,8,16,.72)'; rrect(c, cx - w / 2, cz - 19 * k, w, 38 * k, 8 * k); c.fill(); c.fillStyle = '#fff2e4'; c.fillText(t1, cx, cz - 3 * k); c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.fillStyle = 'hsl(' + (120 - (t - 1) * 13) + ',85%,72%)'; c.fillText(t2, cx, cz + 12 * k); }
-        else if (sz > 34 * k) { c.fillStyle = 'rgba(14,8,16,.7)'; c.beginPath(); c.arc(cx, cz, 10 * k, 0, 7); c.fill(); c.fillStyle = 'hsl(' + (120 - (t - 1) * 13) + ',85%,72%)'; c.font = '900 ' + 11 * k + 'px sans-serif'; c.textBaseline = 'middle'; c.fillText(String(t), cx, cz + .5 * k); c.textBaseline = 'alphabetic'; } } }
+    if (big) { c.textAlign = 'center'; c.textBaseline = 'middle';
+      /* region names sit on fixed spots of the world (every 4th or 8th region cell), so they never jump when you drag (owner 22 Nov) */
+      const step = vr > 1500 ? 8 : vr > 900 ? 4 : 3;
+      for (let i = Math.floor(r0 / step) * step; i <= r1; i += step) for (let j = Math.floor(c0 / step) * step; j <= c1; j += step) {
+        const wxp = (i + .5) * RS, wzp = (j + .5) * RS, t = tierAt(wxp, wzp), B = biomeOf(t), bnd = tierBand(t), cx = tx(wxp), cz = tz(wzp), col = 'hsl(' + (120 - (t - 1) * 13) + ',85%,72%)';
+        if (cx < -60 * k || cz < -30 * k || cx > W + 60 * k || cz > W + 30 * k) continue;
+        if (vr <= 900) { const t1 = '区域' + t + ' · ' + B.n, t2 = 'Lv.' + bnd[0] + '-' + bnd[1] + ' · ' + B.bn; c.font = '900 ' + 13 * k + 'px sans-serif'; c.lineWidth = 3 * k; c.strokeStyle = 'rgba(10,6,12,.85)';
+          c.strokeText(t1, cx, cz - 7 * k); c.fillStyle = '#fff2e4'; c.fillText(t1, cx, cz - 7 * k); c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.strokeText(t2, cx, cz + 9 * k); c.fillStyle = col; c.fillText(t2, cx, cz + 9 * k); }
+        else { c.font = '900 ' + 16 * k + 'px sans-serif'; c.lineWidth = 3.5 * k; c.strokeStyle = 'rgba(10,6,12,.85)'; c.strokeText(String(t), cx, cz); c.fillStyle = col; c.fillText(String(t), cx, cz); } }
+      c.textBaseline = 'alphabetic'; }
   }
   if (!S.isl) mapBuilds(c, tx, tz, sc, k, big);
   // island defence: every raider is a red dot, and an arrow on the rim points at the ones off the map
@@ -26899,4 +26922,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795281826').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795282432').catch(()=>{});</script></body></html>
