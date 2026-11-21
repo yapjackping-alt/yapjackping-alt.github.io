@@ -1833,7 +1833,12 @@ const ROADS = [ // per biome: chance a road joins two neighbouring crossings, wi
   { p: .6, w: 11, c: 0x242026, asp: 1 }, { p: .26, w: 6, c: 0x5a2c20 }, { p: .26, w: 6, c: 0x1a1214 }, { p: .3, w: 5, c: 0x241e2c }, { p: .4, w: 7, c: 0x2a1c18, asp: 1 }];
 /* towns (owner 22 Nov: 得有城市规划的样子): in the suburbs, the ruined city and the ember core the land between the country roads
    is laid out as a planned street grid — straight streets every 72 m, square blocks, a few streets missing */
-const URB = { 1: { p: .62, w: 7 }, 6: { p: .86, w: 9 }, 10: { p: .5, w: 7 } };
+/* every land has its own character (owner 22 Nov): only some have towns — a harbour town and a dock in 灰港, the big ruined
+   city filling 铁锈城, small towns in the snow, the canyon and the swamp, a ruined city in the core; the forest, the desert,
+   the lava fields and the shadow wastes are wild (the desert only has ruins). Each town: centre, radius, street chance, width. */
+const TOWNS = [[0, 6300, 650, .62, 7], [950, 7000, 260, .55, 6], [0, 1500, 1450, .86, 9], [300, 500, 420, .7, 8], [-1100, 1200, 420, .7, 8],
+  [-4300, -3700, 260, .55, 6], [5600, 300, 280, .55, 6], [-5900, 1100, 220, .5, 5], [900, -7000, 700, .5, 7]];
+const townAt = (x, z) => { for (const T of TOWNS) if (Math.hypot(x - T[0], z - T[1]) < T[2]) return T; return null; };
 const roadOf = (x, z) => ROADS[tierAt(x, z) - 1];
 const _rnC = new Map(), _reC = new Map();
 function rNode(i, j) { const k = i + ',' + j; let n = _rnC.get(k); if (n) return n; n = { i, j, x: i * RG + (_lh(i * 3 + 1, j * 7 + 2) % 81) - 40, z: j * RG + (_lh(i * 5 + 3, j * 11 + 4) % 81) - 40 };
@@ -1841,7 +1846,7 @@ function rNode(i, j) { const k = i + ',' + j; let n = _rnC.get(k); if (n) return
 const _rH = (i, j, d) => _lh(i * 31 + d * 7 + 3, j * 17 + d * 5 + 11);
 // does the plain edge exist (before any trimming)? dir 0 → (i+1,j), 1 → (i,j+1), 2 → (i+1,j+1) diagonal, 3 → (i+1,j-1) diagonal
 function rEdgeOn(i, j, d) { const A = rNode(i, j), B = d === 0 ? rNode(i + 1, j) : d === 1 ? rNode(i, j + 1) : d === 2 ? rNode(i + 1, j + 1) : rNode(i + 1, j - 1), mx = (A.x + B.x) / 2, mz = (A.z + B.z) / 2;
-  if (URB[tierAt(A.x, A.z)] && URB[tierAt(B.x, B.z)]) return null;   /* inside a town only its own street grid */
+  if (townAt(A.x, A.z) && townAt(B.x, B.z)) return null;   /* inside a town only its own street grid */
   const R = roadOf(mx, mz), h = _rH(i, j, d) % 1000 / 1000; let p = R.p; if (d >= 2) { p *= .16; if (d === 3 && rEdgeOn(i, j - 1, 2)) return null; }   /* diagonals are rare and never cross */
   return h < p && !deepAt(mx, mz) && !deepAt(A.x, A.z) && !deepAt(B.x, B.z) ? { A, B, R } : null; }
 function rDeg(i, j) { let n = 0; if (rEdgeOn(i, j, 0)) n++; if (rEdgeOn(i, j, 1)) n++; if (rEdgeOn(i - 1, j, 0)) n++; if (rEdgeOn(i, j - 1, 1)) n++; return n; }
@@ -1870,10 +1875,10 @@ function rRing(i, j) { const k = 'r' + i + ',' + j; if (_reC.has(k)) return _reC
   _reC.set(k, r); return r; }
 // an oval loop road in the middle of some blocks
 function rStreet(i, j, d) { const k = 's' + i + ',' + j + ',' + d; if (_reC.has(k)) return _reC.get(k); let r = null;
-  const ax = i * UG, az = j * UG, bx = ax + (d ? 0 : UG), bz = az + (d ? UG : 0), mx = (ax + bx) / 2, mz = (az + bz) / 2, t = tierAt(mx, mz), U = URB[t];
-  if (U && URB[tierAt(ax, az)] && URB[tierAt(bx, bz)] && _lh(i * 53 + d * 7 + 2, j * 59 + d * 3 + 5) % 1000 / 1000 < U.p && !deepAt(mx, mz) && !deepAt(ax, az) && !deepAt(bx, bz)) {
-    const R = Object.assign({}, ROADS[t - 1], { w: U.w }), pts = []; for (let q = 0; q <= 12; q++) pts.push(ax + (bx - ax) * q / 12, az + (bz - az) * q / 12);
-    r = rFinish({ k, pts, w: U.w, R, street: true }); }
+  const ax = i * UG, az = j * UG, bx = ax + (d ? 0 : UG), bz = az + (d ? UG : 0), mx = (ax + bx) / 2, mz = (az + bz) / 2, t = tierAt(mx, mz), U = townAt(mx, mz);
+  if (U && townAt(ax, az) && townAt(bx, bz) && _lh(i * 53 + d * 7 + 2, j * 59 + d * 3 + 5) % 1000 / 1000 < U[3] && !deepAt(mx, mz) && !deepAt(ax, az) && !deepAt(bx, bz)) {
+    const R = Object.assign({}, ROADS[t - 1], { w: U[4], asp: 1 }), pts = []; for (let q = 0; q <= 12; q++) pts.push(ax + (bx - ax) * q / 12, az + (bz - az) * q / 12);
+    r = rFinish({ k, pts, w: U[4], R, street: true }); }
   if (_reC.size > 20000) _reC.clear(); _reC.set(k, r); return r; }
 // every road object whose box touches the rectangle
 function roadsIn(x0, z0, x1, z1, noStreets) { const out = [], i0 = Math.floor(x0 / RG) - 2, i1 = Math.floor(x1 / RG) + 1, j0 = Math.floor(z0 / RG) - 2, j1 = Math.floor(z1 / RG) + 1;
@@ -1978,35 +1983,24 @@ const regionLabel = t => biomeOf(t).n;
 // well inside region t (not right on its border), and not on a landmark
 const _frIn = (x, z, t) => tierAt(x, z) === t && tierAt(x + 15, z) === t && tierAt(x - 15, z) === t && tierAt(x, z + 15) === t && tierAt(x, z - 15) === t;
 const _frLm = (x, z) => typeof lmNear === 'function' && !!lmNear(x, z, 4);
-function findRegion(t, x, z) {
-  const r0 = Math.floor(x / RS), c0 = Math.floor(z / RS);
-  for (let r = 0; r < 60; r++) { let best = null, bd = 1e18;
-    for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) { if (Math.max(Math.abs(i), Math.abs(j)) !== r) continue; if (regionTier(r0 + i, c0 + j) !== t) continue;
-      const cx = (r0 + i + .5) * RS, cz = (c0 + j + .5) * RS, d = (cx - x) ** 2 + (cz - z) ** 2; if (d < bd) { bd = d; best = { x: cx, z: cz }; } }
-    if (best) {
-      // land on a road inside the region, at the point farthest from any boss lair (no road at all -> the region centre)
-      const x0 = Math.floor(best.x / RS) * RS, z0 = Math.floor(best.z / RS) * RS; let bp = { x: best.x, z: best.z }, bdist = -1;
-      for (const s of segsIn(x0, z0, x0 + RS, z0 + RS)) {
-        const x = (s.ax + s.bx) / 2, z = (s.az + s.bz) / 2; if (x < x0 + 8 || x > x0 + RS - 8 || z < z0 + 8 || z > z0 + RS - 8 || !_frIn(x, z, t) || waterAt(x, z) > -.5 || villageNear(x, z, 6) || _frLm(x, z)) continue;
-        const d = lairDist(x, z); if (d > bdist) { bdist = d; bp = { x, z }; } }
-      if (!_frIn(bp.x, bp.z, t) || waterAt(bp.x, bp.z) > -.5 || _frLm(bp.x, bp.z)) {     // the warp moved the centre into a neighbour, or it's wet: look around
-        let ok = null; for (let rr = 6; rr < RS && !ok; rr += 6) for (let a = 0; a < 16 && !ok; a++) { const qx = bp.x + Math.cos(a / 16 * 6.283) * rr, qz = bp.z + Math.sin(a / 16 * 6.283) * rr;
-          if (_frIn(qx, qz, t) && waterAt(qx, qz) < -.5 && lairDist(qx, qz) > 70 && !villageNear(qx, qz, 6) && !_frLm(qx, qz)) ok = { x: qx, z: qz }; }
-        if (ok) bp = ok; }
-      return bp; } }
-  return { x, z };
-}
-// boss lairs: at most one per region (70% of regions), in one of its inner chunks; the boss sits at the top of the region's level band
-const LAIR_TYPES = 5;
-function lairAt(cx, cz) {
-  const x = cx * CH + CH / 2, z = cz * CH + CH / 2;
-  if (Math.hypot(x - HOME.x, z - HOME.z) < 400) return null;
-  const per = RS / CH, rx = Math.floor(cx / per), rz = Math.floor(cz / per), h = hash2(rx * 13 + 7, rz * 17 + 3);
-  if (h % 10 >= 7 || (((cx % per) + per) % per) !== 1 + ((h >>> 4) % 3) || (((cz % per) + per) % per) !== 1 + ((h >>> 8) % 3)) return null;
-  if (waterAt(x, z) > -1 || villageNear(x, z, 40)) return null;
-  const t = tierAt(x, z), B = biomeOf(t);
-  return { id: cx + '_' + cz, x, z, tp: BOSS_R[t - 1].b, rb: t, lv: 10 * t, bn: B.s, buff: B.buff };   // every region has its own boss
-}
+// the fixed map: you arrive in a land at its capital — on the nearest road to it that lies well inside the land
+function findRegion(t, x, z) { const C = REGC[t] || REGC[1]; let bp = null, bd = 1e18;
+  for (const s of segsIn(C[0] - 500, C[1] - 500, C[0] + 500, C[1] + 500)) { const px = (s.ax + s.bx) / 2, pz = (s.az + s.bz) / 2, d = Math.hypot(px - C[0], pz - C[1]);
+    if (d < bd && _frIn(px, pz, t) && waterAt(px, pz) < -.5 && !villageNear(px, pz, 6) && !_frLm(px, pz) && lairDist(px, pz) > 70) { bd = d; bp = { x: px, z: pz }; } }
+  if (!bp) for (let rr = 0; rr < 1500 && !bp; rr += 12) for (let a = 0; a < 16 && !bp; a++) { const qx = C[0] + Math.cos(a / 16 * 6.283) * rr, qz = C[1] + Math.sin(a / 16 * 6.283) * rr;
+    if (_frIn(qx, qz, t) && waterAt(qx, qz) < -.5 && lairDist(qx, qz) > 70 && !villageNear(qx, qz, 6) && !_frLm(qx, qz)) bp = { x: qx, z: qz }; }
+  return bp || { x: C[0], z: C[1] }; }
+/* boss lairs at FIXED places (owner 22 Nov): three in every land, set round its capital, on dry ground, away from towns,
+   villages and the named places; worked out once */
+let LAIRS = null;
+function lairsAll() { if (LAIRS) return LAIRS; LAIRS = new Map();
+  for (let t = 1; t <= TIERS_N; t++) { const C = REGC[t]; let made = 0;
+    for (let k = 0; k < 24 && made < 3; k++) { const a = t * 1.3 + made * 2.09 + k * .37, d = 900 + (k % 4) * 220, x = C[0] + Math.cos(a) * d, z = C[1] + Math.sin(a) * d, cx = Math.floor(x / CH), cz = Math.floor(z / CH), lx = cx * CH + CH / 2, lz = cz * CH + CH / 2;
+      if (tierAt(lx, lz) !== t || waterAt(lx, lz) > -1 || townAt(lx, lz) || villageNear(lx, lz, 60) || Math.hypot(lx, lz) > coastR(lx, lz) - 200) continue;
+      if ([...LAIRS.values()].some(L => Math.hypot(L.x - lx, L.z - lz) < 700)) continue;
+      const B = biomeOf(t); LAIRS.set(cx + ',' + cz, { id: cx + '_' + cz, x: lx, z: lz, tp: BOSS_R[t - 1].b, rb: t, lv: 10 * t, bn: B.s, buff: B.buff }); made++; } }
+  return LAIRS; }
+function lairAt(cx, cz) { return lairsAll().get(cx + ',' + cz) || null; }
 function lairDist(x, z) { const cx = Math.floor(x / CH), cz = Math.floor(z / CH); let d = 1e9; for (let i = -4; i <= 4; i++) for (let j = -4; j <= 4; j++) { const l = lairAt(cx + i, cz + j); if (l) d = Math.min(d, Math.hypot(l.x - x, l.z - z)); } return d; }
 function makeLairOld(x, z) {
   const meshes = [], obs = [];
@@ -2105,7 +2099,7 @@ function genChunk(cx, cz) {
   if (lair) { mark(lair.x, lair.z, 17, 17); const lm = makeLair(lair.x, lair.z, lair.rb); lm.meshes.forEach(m => ch.meshes.push(m)); lm.obs.forEach(o => ch.obs.push(o)); }
   // buildings: real-world types for this biome, set back from the road with the door facing it; every one can be entered
   const dens = .5 + .5 * Math.sin(cx * 1.7 + cz * 2.3 + Math.sin(cx * .6 - cz * .9) * 2);
-  const nb = Math.round((1.2 + dens * 2.6 + R() * 1.2) * B.bld);
+  const _town = townAt(x0 + CH / 2, z0 + CH / 2), nb = Math.round((1.2 + dens * 2.6 + R() * 1.2) * B.bld * (_town ? 2.2 : .45));   /* towns are full of buildings, the wild has few */
   ch.houses = [];
   for (let n = 0, tries = 0; n < nb && tries < 50; tries++) if (placeHouse(ch, L, W, B, x0, z0, R, rr, rp, free, mark, n)) n++;
   // biome props: trees, cacti, rocks, crystals... (axes chop the wooden ones, picks break the stone ones)
@@ -2222,9 +2216,14 @@ const ARCH = {
   ruin:      { n: '废墟', w: [7, 11], d: [6, 10], h: 2.4, roof: 'none', broken: true, floor: 0x3a3030, furn: 'ruin', cont: ['瓦砾堆', '瓦砾堆'], loot: 'ruin' }
 };
 // which buildings each biome has (repeats = more common); forests only get small cabins, only the city has towers
+/* out in the land (between towns) — owner 22 Nov: the desert has no town at all, only ruins and old temples */
 const ARCH_POOL = [
-  ['house', 'house', 'house', 'house', 'shop', 'gas'], ['cabin'], ['motel', 'gas', 'house'], ['cabin', 'cabin', 'house'], ['cabin', 'cabin', 'house'],
-  ['tower', 'tower', 'tower', 'shop', 'warehouse'], ['warehouse', 'cabin'], ['warehouse', 'ruin', 'ruin'], ['temple', 'ruin', 'house'], ['ruin', 'ruin', 'house', 'warehouse']];
+  ['house', 'cabin', 'gas', 'house'], ['cabin'], ['ruin', 'temple', 'ruin'], ['cabin', 'ruin'], ['cabin', 'cabin'],
+  ['warehouse', 'ruin', 'gas'], ['cabin', 'ruin'], ['ruin', 'ruin'], ['temple', 'ruin', 'ruin'], ['ruin', 'ruin', 'warehouse']];
+/* inside a town */
+const TOWN_POOL = [
+  ['house', 'house', 'house', 'house', 'shop', 'gas', 'motel'], ['cabin', 'house'], ['ruin', 'temple'], ['house', 'cabin', 'shop'], ['house', 'cabin', 'shop'],
+  ['tower', 'tower', 'tower', 'shop', 'warehouse', 'motel'], ['house', 'warehouse', 'shop'], ['warehouse', 'ruin'], ['temple', 'ruin'], ['ruin', 'warehouse', 'tower', 'ruin']];
 const HOUSES = []; let curHouse = null;
 const SEARCH_EP = 45;   // minutes before a searched cabinet refills
 const insideHouse = (x, z) => HOUSES.some(h => x > h.x0 - .4 && x < h.x1 + .4 && z > h.z0 - .4 && z < h.z1 + .4);
@@ -2232,7 +2231,7 @@ const houseAt = (x, z) => HOUSES.find(h => x > h.x0 && x < h.x1 && z > h.z0 && z
 const markerMat = new THREE.MeshBasicMaterial({ color: 0xffd27a });
 
 function placeHouse(ch, L, W, B, x0, z0, R, rr, rp, free, mark, idx) {
-  const t = BIOMES.indexOf(B), kind = rp(ARCH_POOL[t] || ARCH_POOL[0]), A = ARCH[kind];
+  const t = BIOMES.indexOf(B), kind = rp((townAt(x0 + CH / 2, z0 + CH / 2) ? TOWN_POOL[t] : ARCH_POOL[t]) || ARCH_POOL[0]), A = ARCH[kind];
   const w = rr(A.w[0], A.w[1]), d = rr(A.d[0], A.d[1]), extra = A.canopy ? 8 : A.fence ? 3 : 0;
   const x = x0 + rr(3, CH - 3), z = z0 + rr(3, CH - 3);
   // face the nearest road; rural buildings may stand alone in the wild
@@ -25669,9 +25668,9 @@ try { mp2Build(); } catch (e) { console.warn('map2 build', e); }
 const LMC = 300;
 const LM_CACHE = new Map(), LMB = new Map();
 S.lmSeen = S.lmSeen || {};
-const LM_POOL = [null, ['plane', 'tower', 'tree'], ['tree', 'cave', 'plane', 'tree'], ['cave', 'plane', 'tower', 'tree'], ['tree', 'cave', 'tree'], ['cave', 'tree', 'plane', 'tower'],
-  ['tower', 'plane'], ['cave', 'tower', 'cave'], ['cave', 'tree', 'plane'], ['tree', 'cave', 'tower'], ['cave', 'tower', 'plane']];
-const LM_R = { tree: 10, cave: 26, bridge: 34, plane: 17, tower: 7 };
+const LM_POOL = [null, ['plane', 'tower', 'tree'], ['tree', 'cave', 'plane', 'tree'], ['castle', 'cave', 'castle', 'plane'], ['tree', 'cave', 'tree'], ['cave', 'tree', 'plane', 'tower'],
+  ['tower', 'plane'], ['cave', 'tower', 'cave'], ['cave', 'tree', 'plane'], ['tree', 'cave', 'tower', 'castle'], ['cave', 'tower', 'plane', 'castle']];
+const LM_R = { tree: 10, cave: 26, bridge: 34, plane: 17, tower: 7, castle: 26, light: 9, mill: 22 };
 const LM_TREE_N = [null, '枯死巨树', '千年古树', '枯死巨树', '沼泽古榕', '霜冻巨杉', '枯死巨树', '枯死巨树', '焦黑巨木', '暗影古树', '焦黑巨木'];
 const LM_GLYPH = { tree: '树', cave: '洞', bridge: '桥', plane: '机', tower: '塔', light: '灯', mill: '风', castle: '堡' };
 function lmName(L) { if (L.name) return L.name; return L.type === 'tree' ? LM_TREE_N[L.t] || '巨树' : { cave: '山洞', bridge: '断桥', plane: '坠机残骸', tower: '信号塔' }[L.type]; }
@@ -26624,7 +26623,7 @@ function drawMap(ctx, W, range, big, k) {
       c.strokeStyle = 'rgba(255,214,120,.8)'; c.lineWidth = 1.4 * k; c.beginPath(); c.arc(vx, vz, Math.max(5 * k, VIL_R * sc), 0, 7); c.stroke(); mapPin(c, vx, vz, 5.5 * k, '#e8b450', '村', k);
       if (big && vr <= 1000) { c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#ffe9a8'; c.fillText(vg.name, vx, vz - 10 * k); } }
     // roads: the real segments (asphalt darker with a dashed centre line; dirt / sand / snow tracks in their own colour)
-    if (vr <= 5000) { const rds = roadsIn(px - half, pz - half, px + half, pz + half, vr > 900); c.lineJoin = c.lineCap = 'round';
+    if (vr <= 5000) { const rds = roadsIn(px - half, pz - half, px + half, pz + half, vr > 3000); c.lineJoin = c.lineCap = 'round';
       const path = r => { c.beginPath(); const p = r.pts; c.moveTo(tx(p[0]), tz(p[1])); for (let q = 2; q < p.length; q += 2) c.lineTo(tx(p[q]), tz(p[q + 1])); };
       /* owner 22 Nov: roads on the map must not shout — soft, thin, see-through; far out only the country roads */
       const far = vr > 900; c.globalAlpha = far ? .45 : big ? .6 : .8;
@@ -27015,4 +27014,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795283611').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795284544').catch(()=>{});</script></body></html>
