@@ -1926,9 +1926,23 @@ const _tierCache = new Map();
    lava fields east and north-east, the shadow wastes north, and the ember core at the far north. */
 const CONT_R = 9000;
 const REGC = [null, [0, 6300, 1], [-3300, 4500, 1.1], [3700, 4400, 1.15], [-5900, 1100, 1.05], [-4300, -3700, 1.2], [0, 1500, 1.1], [5600, 300, 1.1], [4300, -3900, 1.05], [-700, -3500, 1.05], [900, -7000, .95]];
-const coastR = (x, z) => { const a = Math.atan2(z, x); return CONT_R * (.86 + .07 * Math.sin(3 * a + 1.3) + .05 * Math.sin(7 * a + .4) + .1 * (_vn(Math.cos(a) * 3 + 50, Math.sin(a) * 3 + 50) - .5)); };
+/* coast (owner 22 Nov: 不要那么规矩): several bends of different size + slow noise give bays and capes;
+   the places that must stay on land (capitals, outer towns) push a smooth cape out round themselves */
+const COAST_KEEP = [[0, 6300, 1300], [950, 7000, 600], [900, -7000, 1300], [-4300, -3700, 900], [3700, 4400, 900], [4700, 5200, 700], [-5900, 1100, 900], [5600, 300, 900], [4300, -3900, 900], [-3300, 4500, 900], [100, -7700, 600], [-5200, -4000, 700], [6300, -400, 600]].map(([x, z, m]) => ({ a: Math.atan2(z, x), r: Math.hypot(x, z), m }));
+const COAST_GULF = [[-.38, 1700, .1], [1.15, 1000, .09], [2.62, 1400, .08], [-1.95, 1500, .045], [-2.88, 900, .06], [.55, 700, .05], [-1.2, 600, .04], [2.95, 700, .04],
+  [1.82, -1100, .07], [-.95, -800, .06], [3.12, -650, .05], [-2.25, -700, .07], [.25, -500, .05]];
+const coastR = (x, z) => { const a = Math.atan2(z, x), ca = Math.cos(a), sa = Math.sin(a);
+  let r = CONT_R * (.84 + .06 * Math.sin(2 * a + .7) + .05 * Math.sin(5 * a + 1.9) + .035 * Math.sin(9 * a + .3) + .16 * (_vn(ca * 2.2 + 50, sa * 2.2 + 50) - .5) + .06 * (_vn(ca * 8 + 20, sa * 8 + 20) - .5));
+  /* gulfs and fjords bite into the land, capes and a peninsula stick out (Δ angle, metres, width in radians) */
+  for (const G of COAST_GULF) { let d = Math.abs(a - G[0]); if (d > Math.PI) d = 2 * Math.PI - d; if (d < G[2] * 3) r -= G[1] * Math.exp(-(d / G[2]) * (d / G[2])); }
+  for (const K of COAST_KEEP) { let d = Math.abs(a - K.a); if (d > Math.PI) d = 2 * Math.PI - d; const w = (K.m + 600) / K.r; if (d < w) { const t = d / w, need = K.r + K.m * (1 - t * t) * (1 - t * t) + 200 * (1 - t); if (need > r) r = r + (need - r) * (1 - t * t); } }
+  return r; };
 function regionTier(rx, rz) { const k = rx + ',' + rz; let t = _tierCache.get(k); if (t) return t;
-  const cx = (rx + .5) * RS, cz = (rz + .5) * RS; let bd = 1e18; t = 1;
+  let cx = (rx + .5) * RS, cz = (rz + .5) * RS; let bd = 1e18; t = 1;
+  /* big slow warp: borders bend in long curves and tongues instead of straight Voronoi lines (weaker right at a capital) */
+  { let near = 1e9; for (let n = 1; n <= TIERS_N; n++) near = Math.min(near, Math.hypot(cx - REGC[n][0], cz - REGC[n][1]));
+    const k = Math.min(1, near / 1600), wx = (_vn(cx / 1900 + 3, cz / 1900 + 11) - .5) * 2600 + (_vn(cx / 640 + 7, cz / 640 + 2) - .5) * 700,
+      wz = (_vn(cx / 1900 + 41, cz / 1900 + 5) - .5) * 2600 + (_vn(cx / 640 + 19, cz / 640 + 33) - .5) * 700; cx += wx * k; cz += wz * k; }
   for (let n = 1; n <= TIERS_N; n++) { const C = REGC[n], d = Math.hypot(cx - C[0], cz - C[1]) / C[2]; if (d < bd) { bd = d; t = n; } }
   if (_tierCache.size > 4000) _tierCache.clear(); _tierCache.set(k, t); return t; }
 /* irregular regions: the region grid is sampled through a smooth domain warp (±80 m), so borders wander
@@ -1936,20 +1950,84 @@ function regionTier(rx, rz) { const k = rx + ',' + rz; let t = _tierCache.get(k)
 const _wx = (x, z) => (_vn(x / 190 + 31, z / 190 + 7) - .5) * 330 + (_vn(x / 60 + 3, z / 60 + 91) - .5) * 90 + (_vn(x / 22 + 9, z / 22 + 3) - .5) * 22;
 const _wz = (x, z) => (_vn(x / 190 + 77, z / 190 + 53) - .5) * 330 + (_vn(x / 60 + 61, z / 60 + 13) - .5) * 90 + (_vn(x / 22 + 41, z / 22 + 27) - .5) * 22;
 const tierAt = (x, z) => regionTier(Math.floor((x + _wx(x, z)) / RS), Math.floor((z + _wz(x, z)) / RS));
-/* water: seas (low ground of a very slow noise), meandering rivers and smaller streams (thin bands along the
-   mid-line of two other noises). Returns >0 inside water (roughly its depth in metres), slightly below 0 on the
-   beach / bank, and very negative on dry land. Seas deeper than 1.6 m cannot be walked; rivers and streams slow you. */
+/* WATER (owner 22 Nov: 河、海、湖要规划好): no more random seas — every river and lake is placed by hand.
+   RIVERS: control points from the source to the sea; the course is a smooth curve that meanders (offset sideways by slow
+   noise, not at the ends), the river widens and deepens downstream and its mouth runs on into the sea. A tributary
+   ('j': index of the river it flows into) ends exactly on that river. LAKES: noise-edged ellipses. The sea: past the coast
+   plus a few small islets just offshore. Swamp ponds only in 腐沼. waterAt() >0 inside water (≈ depth), a little under 0 on
+   the bank, very negative on dry land; deeper than 1.6 m cannot be walked (bridges carry the roads). */
+const RIVERS = [
+  { n: '银溪', w: [7, 30], p: [[-1450, -3950], [-500, -2200], [-300, -800], [300, 600], [400, 1500], [700, 3200], [400, 4800], [1100, 6000], [1500, 7600]] },
+  { n: '霜河', w: [6, 24], p: [[-3900, -4560], [-4700, -4500], [-5000, -2600], [-5600, -900], [-6300, 600], [-7600, 900]] },
+  { n: '赤水', w: [6, 20], p: [[3700, -3100], [3600, -1200], [5200, -200], [6400, 700], [7800, 1300]] },
+  { n: '林溪', w: [5, 15], p: [[-1800, 2600], [-2400, 4300], [-3800, 5400], [-5000, 6600]] },
+  { n: '暗溪', w: [4, 8], j: 0, p: [[-2700, -2700], [-1300, -1700], [-300, -800]] },
+  { n: '雪溪', w: [3, 6], p: [[-2700, -6100], [-3300, -5300], [-3750, -4500]] },
+  { n: '沼沟', w: [4, 9], j: 1, p: [[-5200, 1750], [-5800, 1250], [-6300, 600]] },
+  { n: '沙泉', w: [3, 5], p: [[2600, 4300], [3300, 4800]] },
+  /* small streams (owner 22 Nov: 河流有大有小): 2-5 m, shallow enough to wade */
+  { n: '柳溪', w: [2.5, 5], j: 0, p: [[1600, 3600], [1100, 4100], [600, 4700]] },
+  { n: '石涧', w: [2, 4], j: 2, p: [[6200, -1900], [5900, -900], [5300, -250]] },
+  { n: '松溪', w: [2.5, 5], j: 1, p: [[-3600, -2400], [-4300, -1700], [-5300, -1300]] },
+  { n: '苇溪', w: [2, 4], j: 3, p: [[-1100, 3500], [-1500, 3900], [-2100, 4400]] },
+  { n: '灰溪', w: [2, 4], p: [[-1700, 6000], [-1500, 6800], [-1900, 7700]] },
+  { n: '雾溪', w: [2, 3.5], j: 0, p: [[-1500, 600], [-900, 800], [-100, 1000]] },
+  { n: '余烬沟', w: [2, 4], p: [[1800, -5600], [2600, -6400], [3600, -7000]] },
+  { n: '东溪', w: [2.5, 6], p: [[2400, 2400], [3600, 2800], [5200, 2600], [6900, 2500]] },
+];
+const LAKES = [
+  { n: '黑湖', x: -1600, z: -4300, a: 360, b: 300, d: 3.2 }, { n: '冰湖', x: -3700, z: -4300, a: 380, b: 240, r: .5, d: 3 },
+  { n: '翠湖', x: -2350, z: 4250, a: 300, b: 200, r: -.4, d: 2.6 }, { n: '城北水库', x: -900, z: 2400, a: 230, b: 150, r: .3, d: 2.4 },
+  { n: '绿洲', x: 3300, z: 4800, a: 130, b: 110, d: 1.8 }, { n: '腐沼大泽', x: -5900, z: 1650, a: 270, b: 220, d: 1.5 },
+  { n: '沉沼', x: -6450, z: 150, a: 210, b: 170, r: .8, d: 1.4 }, { n: '熔湖', x: 4900, z: -4600, a: 200, b: 140, r: 1.1, d: 2.2 },
+];
+const RIV = { cell: 200, grid: new Map(), seg: [], built: false, isl: [] };
+function rivBuild() { RIV.built = true; const C = (a, b, c, d, t) => { const t2 = t * t, t3 = t2 * t; return .5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3); };
+  RIVERS.forEach((R, ri) => { const P = R.p.map(q => q.slice());
+    if (R.j != null && RIVERS[R.j].pts) { const Q = RIVERS[R.j].pts, L = P[P.length - 1]; let bi = 0, bd = 1e18; for (let k = 0; k < Q.length; k++) { const d = Math.hypot(Q[k][0] - L[0], Q[k][1] - L[1]); if (d < bd) { bd = d; bi = k; } } P[P.length - 1] = [Q[bi][0], Q[bi][1]]; }
+    else { /* the mouth runs on past the coast */ const A = P[P.length - 2], B = P[P.length - 1], dx = B[0] - A[0], dz = B[1] - A[1], l = Math.hypot(dx, dz);
+      for (let e = 0; e < 40; e++) { const L = P[P.length - 1]; if (Math.hypot(L[0], L[1]) > coastR(L[0], L[1]) + 260) break; P.push([L[0] + dx / l * 160, L[1] + dz / l * 160]); } }
+    // smooth curve through the control points, a point every ~20 m
+    const raw = []; for (let k = 0; k < P.length - 1; k++) { const a = P[Math.max(0, k - 1)], b = P[k], c = P[k + 1], d = P[Math.min(P.length - 1, k + 2)], n = Math.max(2, Math.ceil(Math.hypot(c[0] - b[0], c[1] - b[1]) / 20));
+      for (let i = 0; i < n; i++) raw.push([C(a[0], b[0], c[0], d[0], i / n), C(a[1], b[1], c[1], d[1], i / n)]); }
+    raw.push(P[P.length - 1].slice());
+    let L = 0; const sl = [0]; for (let k = 1; k < raw.length; k++) { L += Math.hypot(raw[k][0] - raw[k - 1][0], raw[k][1] - raw[k - 1][1]); sl.push(L); }
+    // meander: sideways offset from slow noise along the length, none at the source / mouth
+    const pts = raw.map((q, k) => { const a = raw[Math.max(0, k - 1)], b = raw[Math.min(raw.length - 1, k + 1)], tx = b[0] - a[0], tz = b[1] - a[1], tl = Math.hypot(tx, tz) || 1, s = sl[k];
+      const fade = Math.min(1, s / 260, (L - s) / 260), off = ((_vn(s / 520 + ri * 17.3, 3.1) - .5) * 300 + (_vn(s / 150 + ri * 9.7, 8.4) - .5) * 80) * Math.max(0, fade) * (R.j != null ? .6 : 1);
+      return [q[0] - tz / tl * off, q[1] + tx / tl * off]; });
+    R.pts = pts; let s2 = 0;
+    for (let k = 0; k < pts.length - 1; k++) { const a = pts[k], b = pts[k + 1], l = Math.hypot(b[0] - a[0], b[1] - a[1]); const f0 = s2 / (L || 1); s2 += l;
+      const w = R.w[0] + (R.w[1] - R.w[0]) * Math.pow(Math.min(1, f0), 1.15), sg = { ax: a[0], az: a[1], bx: b[0], bz: b[1], w, ri }; RIV.seg.push(sg);
+      const m = w / 2 + 30, c0 = Math.floor((Math.min(a[0], b[0]) - m) / RIV.cell), c1 = Math.floor((Math.max(a[0], b[0]) + m) / RIV.cell), d0 = Math.floor((Math.min(a[1], b[1]) - m) / RIV.cell), d1 = Math.floor((Math.max(a[1], b[1]) + m) / RIV.cell);
+      for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) { const key = cx * 7919 + cz; let A = RIV.grid.get(key); if (!A) RIV.grid.set(key, A = []); A.push(sg); } } });
+  // islets just off the coast
+  for (let k = 0; k < 64; k++) { const a = k / 64 * 6.2832 + (_lh(k * 7 + 3, 11) % 100) / 100 * .08; if (_lh(k * 13 + 1, 5) % 100 > 30) continue;
+    const r0 = coastR(Math.cos(a), Math.sin(a)), d = r0 + 160 + _lh(k, 29) % 140, r = 45 + _lh(k * 3, 17) % 90; RIV.isl.push([Math.cos(a) * d, Math.sin(a) * d, r]); } }
+function riverAt(x, z) { if (!RIV.built) rivBuild(); const A = RIV.grid.get(Math.floor(x / RIV.cell) * 7919 + Math.floor(z / RIV.cell)); if (!A) return -9;
+  // the banks wobble a little so they never look drawn with a ruler
+  const qx = x + (_vn(x / 70 + 13, z / 70 + 2) - .5) * 14, qz = z + (_vn(x / 70 + 4, z / 70 + 23) - .5) * 14; let v = -9;
+  for (const g of A) { const dx = g.bx - g.ax, dz = g.bz - g.az, l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((qx - g.ax) * dx + (qz - g.az) * dz) / l2)), d = Math.hypot(qx - g.ax - dx * t, qz - g.az - dz * t), hw = g.w / 2;
+    if (d > hw + 6) continue; const md = g.w < 18 ? 1.45 : 1.45 + (g.w - 18) * .1, u = Math.min(md, (hw - d) / 2.5); if (u > v) v = u; }
+  return v; }
+function lakeAt(x, z) { let v = -9;
+  for (const K of LAKES) { const dx = x - K.x, dz = z - K.z; if (Math.abs(dx) > K.a * 1.4 + 20 || Math.abs(dz) > K.a * 1.4 + 20) continue;
+    const c = Math.cos(K.r || 0), s = Math.sin(K.r || 0), u = dx * c + dz * s, w = -dx * s + dz * c, an = Math.atan2(w / K.b, u / K.a);
+    const rf = 1 + .34 * (_vn(Math.cos(an) * 2.4 + K.x * .001, Math.sin(an) * 2.4 + 5) - .5) + .12 * (_vn(Math.cos(an) * 7 + 9, Math.sin(an) * 7 + K.z * .001) - .5);
+    const q = Math.hypot(u / K.a, w / K.b) / rf, m = Math.min(K.a, K.b), vv = Math.min(K.d, (1 - q) * m / 30); if (vv > v) v = vv; }
+  return v; }
 const _wc = new Map();
 function waterAt(x, z) {
   const k = Math.round(x) * 100003 + Math.round(z); let v = _wc.get(k); if (v !== undefined) return v;
   if (Math.abs(z - HOME.z) < 900 && Math.abs(x - HOME.x) < 900) { v = -9; }
   else {
-    const s = .72 * _vn(x / 720 + 400, z / 720 + 400) + .28 * _vn(x / 210 + 90, z / 210 + 40), sea = (.24 - s) * 34;
-    const wx = x + (_vn(x / 140, z / 140 + 9) - .5) * 70, wz = z + (_vn(x / 140 + 5, z / 140) - .5) * 70;
-    const rv = Math.abs(_vn(wx / 460 + 200, wz / 460 + 200) - .5), riv = (.013 - rv) / .013 * 1.3;
-    const st = Math.abs(_vn(wx / 170 + 600, wz / 170 + 600) - .5), str = (.011 - st) / .011 * .55;
-    const cst = (Math.hypot(x, z) - coastR(x, z)) / 45;   /* past the coast the sea gets deep fast */
-    v = Math.max(sea, riv, str, cst > 6 ? 6 : cst);
+    // sea: past the (slightly ragged) coast it gets deep fast; small islets stay dry
+    const cw = (_vn(x / 90 + 3, z / 90 + 71) - .5) * 70 + (_vn(x / 26 + 5, z / 26 + 9) - .5) * 16;
+    let sea = (Math.hypot(x, z) + cw - coastR(x, z)) / 45;
+    if (sea > -1) { if (!RIV.built) rivBuild(); for (const I of RIV.isl) { const d = Math.hypot(x - I[0], z - I[1]); if (d < I[2] * 1.6) { const e = (d * (1 + .3 * (_vn(x / 40, z / 40) - .5)) - I[2]) / 25; if (e < sea) sea = e; } } }
+    v = Math.max(sea > 6 ? 6 : sea, riverAt(x, z), lakeAt(x, z));
+    // 腐沼: many small ponds round the swamp capital
+    { const dd = Math.hypot(x - REGC[4][0], z - REGC[4][1]); if (dd < 1900) { const n = _vn(x / 95 + 400, z / 95 + 400) * .7 + _vn(x / 30 + 7, z / 30 + 3) * .3, p = (n - .7) * 9 * Math.min(1, (1900 - dd) / 500); if (p > v) v = Math.min(p, 1.2); } }
     if (v < 0) v = Math.max(v, -2);
   }
   if (_wc.size > 60000) _wc.clear(); _wc.set(k, v); return v;
@@ -26618,6 +26696,15 @@ function drawMap(ctx, W, range, big, k) {
   } else {
     // regions in their biome colours
     { const T = terrainLayer(px, pz, half, big ? 150 : 60); if (T) { c.imageSmoothingEnabled = true; c.drawImage(T.cv, tx(T.x0), tz(T.z0), T.span * sc, T.span * sc); } }
+    // rivers: drawn as lines (a cell of the terrain layer is far wider than a river); wider downstream
+    if (typeof RIV !== 'undefined') { if (!RIV.built) rivBuild(); c.lineCap = c.lineJoin = 'round'; c.strokeStyle = 'rgb(66,116,146)'; c.globalAlpha = big ? .9 : .7; const mn = (big ? 1.1 : .8) * k;   /* muted: the same blue as the terrain layer's water, not a bright line on top */
+      for (const g of RIV.seg) { if (Math.max(g.ax, g.bx) < px - half || Math.min(g.ax, g.bx) > px + half || Math.max(g.az, g.bz) < pz - half || Math.min(g.az, g.bz) > pz + half) continue;
+        const gmx = (g.ax + g.bx) / 2, gmz = (g.az + g.bz) / 2; if (Math.hypot(gmx, gmz) > coastR(gmx, gmz) + 40) continue;   /* the mouth's run-out under the sea */
+        c.lineWidth = Math.max(mn * (.45 + g.w / 25), g.w * sc); c.beginPath(); c.moveTo(tx(g.ax), tz(g.az)); c.lineTo(tx(g.bx), tz(g.bz)); c.stroke(); } c.lineCap = 'butt';
+      /* lakes as shapes too: zoomed out a lake is only a few cells of the terrain layer */
+      c.fillStyle = 'rgb(62,112,144)'; for (const K of LAKES) { if (Math.abs(K.x - px) > half + K.a * 1.5 || Math.abs(K.z - pz) > half + K.a * 1.5) continue; const cr = Math.cos(K.r || 0), sr = Math.sin(K.r || 0); c.beginPath();
+        for (let q = 0; q <= 48; q++) { const an = q / 48 * 6.2832, rf = 1 + .34 * (_vn(Math.cos(an) * 2.4 + K.x * .001, Math.sin(an) * 2.4 + 5) - .5) + .12 * (_vn(Math.cos(an) * 7 + 9, Math.sin(an) * 7 + K.z * .001) - .5), u = K.a * Math.cos(an) * rf, w = K.b * Math.sin(an) * rf, X = K.x + u * cr - w * sr, Z = K.z + u * sr + w * cr; if (q) c.lineTo(tx(X), tz(Z)); else c.moveTo(tx(X), tz(Z)); }
+        c.fill(); } c.globalAlpha = 1; }
     // villages
     if (vr <= 2000) for (const vg of villagesNear(px, pz).concat(big ? villagesWide(px, pz, half) : [])) { const vx = tx(vg.x), vz = tz(vg.z); if (vx < -20 || vz < -20 || vx > W + 20 || vz > W + 20) continue;
       c.strokeStyle = 'rgba(255,214,120,.8)'; c.lineWidth = 1.4 * k; c.beginPath(); c.arc(vx, vz, Math.max(5 * k, VIL_R * sc), 0, 7); c.stroke(); mapPin(c, vx, vz, 5.5 * k, '#e8b450', '村', k);
@@ -26626,10 +26713,10 @@ function drawMap(ctx, W, range, big, k) {
     if (vr <= 5000) { const rds = roadsIn(px - half, pz - half, px + half, pz + half, vr > 3000); c.lineJoin = c.lineCap = 'round';
       const path = r => { c.beginPath(); const p = r.pts; c.moveTo(tx(p[0]), tz(p[1])); for (let q = 2; q < p.length; q += 2) c.lineTo(tx(p[q]), tz(p[q + 1])); };
       /* owner 22 Nov: roads on the map must not shout — soft, thin, see-through; far out only the country roads */
-      const far = vr > 900; c.globalAlpha = far ? .45 : big ? .6 : .8;
-      for (const r of rds) { c.strokeStyle = r.R.asp ? 'rgb(24,18,24)' : hexCss(r.R.c, 1.15); c.lineWidth = Math.max((far ? .9 : 1.2) * k, r.w * sc * (big ? .6 : 1)); path(r); c.stroke(); }
+      const far = vr > 900; c.globalAlpha = far ? .45 : big ? .6 : .42;   /* radar: roads sit in the picture, not on it */
+      for (const r of rds) { c.strokeStyle = r.R.asp ? 'rgb(40,36,40)' : hexCss(r.R.c, .95); c.lineWidth = Math.max((far ? .9 : 1.2) * k, r.w * sc * (big ? .6 : .7)); path(r); c.stroke(); }
       c.globalAlpha = 1;
-      if (sc > .9 * k) { c.strokeStyle = 'rgba(201,168,90,.6)'; c.lineWidth = .9 * k; c.setLineDash([3 * k, 4 * k]);
+      if (big && sc > .9 * k) { c.strokeStyle = 'rgba(201,168,90,.45)'; c.lineWidth = .9 * k; c.setLineDash([3 * k, 4 * k]);
         for (const r of rds) { if (!r.R.asp || r.ring) continue; path(r); c.stroke(); }
         c.setLineDash([]); } c.lineCap = 'butt'; }
     // building floor plans (walls are drawn from the obstacles below), unsearched cabinets as gold dots
@@ -26689,7 +26776,7 @@ function terrainLayer(px, pz, half, N) {
   const cv = (T && T.cv) || document.createElement('canvas'); cv.width = cv.height = N + 2; const g = cv.getContext('2d'); if (!g || !g.createImageData) return null;
   const im = g.createImageData(N + 2, N + 2), d = im.data, tiers = new Int8Array((N + 2) * (N + 2)); const cc = new THREE.Color();
   for (let j = 0; j < N + 2; j++) for (let i = 0; i < N + 2; i++) {
-    const x = (gx + i + .5) * cell, z = (gz + j + .5) * cell, w = waterAt(x, z), t = w > 1.6 ? 0 : tierAt(x, z), o = (j * (N + 2) + i) * 4; tiers[j * (N + 2) + i] = t;   /* t 0 = open water: no border lines across the sea */
+    const x = (gx + i + .5) * cell, z = (gz + j + .5) * cell, w0 = waterAt(x, z), w = cell > 6 && w0 > -.6 && w0 < 2.5 && typeof riverAt === 'function' && riverAt(x, z) >= w0 - .001 ? -2 : w0, t = w > 1.6 ? 0 : tierAt(x, z), o = (j * (N + 2) + i) * 4; tiers[j * (N + 2) + i] = t;   /* t 0 = open water: no border lines across the sea */
     if (w > 0 && !(cell > 6 && w < .9)) { const dk = clamp(w / 3, 0, 1);   /* zoomed out, thin streams are left off (they made the map look scribbled) */ d[o] = 70 - dk * 40; d[o + 1] = 150 - dk * 60; d[o + 2] = 190 - dk * 40; }
     else if (w > -.5 && !(cell > 6 && w < .9)) { d[o] = 190; d[o + 1] = 170; d[o + 2] = 120; }
     else { cc.setHex(biomeOf(t).g); d[o] = Math.min(255, cc.r * 330); d[o + 1] = Math.min(255, cc.g * 330); d[o + 2] = Math.min(255, cc.b * 330); }
@@ -27014,4 +27101,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795284544').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795303981').catch(()=>{});</script></body></html>
