@@ -1816,34 +1816,84 @@ const flameMat = new THREE.SpriteMaterial({ map: glowTex('rgba(255,240,170,1)', 
 const flames = [];
 
 /* ============ chunks ============ */
-const CH = 48, LOAD_R = 2, ROAD_GAP = 96;
+const CH = 48, LOAD_R = 2;
 const chunks = new Map();
 const ckey = (cx, cz) => cx + ',' + cz;
 function hash2(a, b) { let h = (Math.imul(a, 374761393) + Math.imul(b, 668265263) + 20261030) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return (h ^ (h >>> 16)) >>> 0; }
-/* ---- road network: a jittered grid where every block edge exists only with a biome-dependent chance,
-   so towns get T-junctions, dead ends and odd-shaped blocks, cities are dense, forests only have the odd dirt track ---- */
+/* ---- road network 2 (owner 22 Nov: 马路太多、太规律，一定是正方形吗？要有弯、有椭圆、有圆) ----
+   Crossroads ("nodes") sit on a loose 170 m grid, each moved up to ±40 m. A road between two neighbouring nodes exists
+   with a chance set by the region and is a smooth S-bend (a cubic curve with random side pulls), now and then a diagonal.
+   Busy crossings become ROUNDABOUTS (a ring road), some blocks get an OVAL loop road, and a few long straight roads
+   climb onto a broken OVERPASS (the 断桥 landmark, z_lmark.js: the ground road stops under it, ramps join it).
+   Everything is cut into ~6 m straight pieces {ax,az,bx,bz,w,R,road}; chunks keep a cached list of the pieces near them. */
 const _lh = (a, b) => hash2(a * 7919 + 101, b * 104729 + 13);
-const lineX = i => i * ROAD_GAP + (_lh(i, 1) % 45) - 22, lineZ = k => k * ROAD_GAP + (_lh(k, 2) % 45) - 22;
-const ROADS = [ // per biome: chance a block edge has a road, width, surface colour, asphalt?
-  /* owner 22 Nov: 马路太多 — about half as many as before (cities keep the most) */
-  { p: .5, w: 8, c: 0x2a2630, asp: 1 }, { p: .22, w: 5, c: 0x4a3a2a }, { p: .28, w: 6, c: 0xa88a5c }, { p: .2, w: 5, c: 0x3a3424 }, { p: .26, w: 6, c: 0x8a8e98 },
-  { p: .72, w: 11, c: 0x242026, asp: 1 }, { p: .22, w: 6, c: 0x5a2c20 }, { p: .24, w: 6, c: 0x1a1214 }, { p: .26, w: 5, c: 0x241e2c }, { p: .4, w: 7, c: 0x2a1c18, asp: 1 }];
+const RG = 170, RRING = 12;
+const ROADS = [ // per biome: chance a road joins two neighbouring crossings, width, surface colour, asphalt?
+  { p: .58, w: 8, c: 0x2a2630, asp: 1 }, { p: .3, w: 5, c: 0x4a3a2a }, { p: .34, w: 6, c: 0xa88a5c }, { p: .28, w: 5, c: 0x3a3424 }, { p: .34, w: 6, c: 0x8a8e98 },
+  { p: .8, w: 11, c: 0x242026, asp: 1 }, { p: .3, w: 6, c: 0x5a2c20 }, { p: .3, w: 6, c: 0x1a1214 }, { p: .34, w: 5, c: 0x241e2c }, { p: .5, w: 7, c: 0x2a1c18, asp: 1 }];
 const roadOf = (x, z) => ROADS[tierAt(x, z) - 1];
-const _segC = new Map();
-function _segOn(h, a, b) { const key = (h ? 'h' : 'v') + a + ',' + b; let v = _segC.get(key); if (v !== undefined) return v;
-  const mx = h ? (lineX(b) + lineX(b + 1)) / 2 : lineX(a), mz = h ? lineZ(a) : (lineZ(b) + lineZ(b + 1)) / 2;
-  v = (_lh(a * 31 + (h ? 7 : 3), b * 17 + (h ? 5 : 11)) % 1000) / 1000 < roadOf(mx, mz).p && !deepAt(mx, mz) ? roadOf(mx, mz) : null;
-  if (_segC.size > 20000) _segC.clear(); _segC.set(key, v); return v; }
-// road segments touching the rectangle: {h, a (start), b (end), c (the fixed coordinate), w, R}
-function segsIn(x0, z0, x1, z1) {
-  const out = [], i0 = Math.floor(x0 / ROAD_GAP) - 1, i1 = Math.floor(x1 / ROAD_GAP) + 1, k0 = Math.floor(z0 / ROAD_GAP) - 1, k1 = Math.floor(z1 / ROAD_GAP) + 1;
-  for (let k = k0; k <= k1; k++) { const zc = lineZ(k); if (zc < z0 - 8 || zc > z1 + 8) continue;
-    for (let i = i0; i <= i1; i++) { const a = lineX(i), b = lineX(i + 1); if (b < x0 - 8 || a > x1 + 8) continue; const R = _segOn(true, k, i); if (R) out.push({ h: true, a, b, c: zc, w: R.w, R }); } }
-  for (let i = i0; i <= i1; i++) { const xc = lineX(i); if (xc < x0 - 8 || xc > x1 + 8) continue;
-    for (let k = k0; k <= k1; k++) { const a = lineZ(k), b = lineZ(k + 1); if (b < z0 - 8 || a > z1 + 8) continue; const R = _segOn(false, i, k); if (R) out.push({ h: false, a, b, c: xc, w: R.w, R }); } }
-  return out;
-}
-const segPt = (s, x, z) => s.h ? [clamp(x, s.a, s.b), s.c] : [s.c, clamp(z, s.a, s.b)];
+const _rnC = new Map(), _reC = new Map();
+function rNode(i, j) { const k = i + ',' + j; let n = _rnC.get(k); if (n) return n; n = { i, j, x: i * RG + (_lh(i * 3 + 1, j * 7 + 2) % 81) - 40, z: j * RG + (_lh(i * 5 + 3, j * 11 + 4) % 81) - 40 };
+  if (_rnC.size > 20000) _rnC.clear(); _rnC.set(k, n); return n; }
+const _rH = (i, j, d) => _lh(i * 31 + d * 7 + 3, j * 17 + d * 5 + 11);
+// does the plain edge exist (before any trimming)? dir 0 → (i+1,j), 1 → (i,j+1), 2 → (i+1,j+1) diagonal, 3 → (i+1,j-1) diagonal
+function rEdgeOn(i, j, d) { const A = rNode(i, j), B = d === 0 ? rNode(i + 1, j) : d === 1 ? rNode(i, j + 1) : d === 2 ? rNode(i + 1, j + 1) : rNode(i + 1, j - 1), mx = (A.x + B.x) / 2, mz = (A.z + B.z) / 2;
+  const R = roadOf(mx, mz), h = _rH(i, j, d) % 1000 / 1000; let p = R.p; if (d >= 2) { p *= .16; if (d === 3 && rEdgeOn(i, j - 1, 2)) return null; }   /* diagonals are rare and never cross */
+  return h < p && !deepAt(mx, mz) && !deepAt(A.x, A.z) && !deepAt(B.x, B.z) ? { A, B, R } : null; }
+function rDeg(i, j) { let n = 0; if (rEdgeOn(i, j, 0)) n++; if (rEdgeOn(i, j, 1)) n++; if (rEdgeOn(i - 1, j, 0)) n++; if (rEdgeOn(i, j - 1, 1)) n++; return n; }
+const rRound = (i, j) => { const N = rNode(i, j), R = roadOf(N.x, N.z); return _lh(i * 13 + 5, j * 19 + 7) % 100 < (R.asp ? 45 : 22) && rDeg(i, j) >= 3 && !deepAt(N.x, N.z); };
+function rBez(A, B, o1, o2, step) { const dx = B.x - A.x, dz = B.z - A.z, L = Math.hypot(dx, dz) || 1, nx = -dz / L, nz = dx / L;
+  const c1x = A.x + dx / 3 + nx * o1 * L, c1z = A.z + dz / 3 + nz * o1 * L, c2x = A.x + dx * 2 / 3 + nx * o2 * L, c2z = A.z + dz * 2 / 3 + nz * o2 * L, N = Math.max(2, Math.ceil(L * 1.15 / step)), pts = [];
+  for (let s = 0; s <= N; s++) { const t = s / N, u = 1 - t; pts.push(u * u * u * A.x + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t * t * t * B.x, u * u * u * A.z + 3 * u * u * t * c1z + 3 * u * t * t * c2z + t * t * t * B.z); }
+  return pts; }
+function rFinish(r) { let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9; const p = r.pts; for (let q = 0; q < p.length; q += 2) { x0 = Math.min(x0, p[q]); x1 = Math.max(x1, p[q]); z0 = Math.min(z0, p[q + 1]); z1 = Math.max(z1, p[q + 1]); }
+  Object.assign(r, { x0: x0 - r.w, z0: z0 - r.w, x1: x1 + r.w, z1: z1 + r.w, y: (_lh(r.k.length * 7 + (r.k.charCodeAt(1) | 0), (r.pts[0] * 3) | 0) % 3) * .012 }); return r; }
+// cut the part inside a roundabout off an end, and end exactly on its ring
+function rTrim(pts, N) { const out = pts.slice(); while (out.length > 4 && Math.hypot(out[0] - N.x, out[1] - N.z) < RRING) out.splice(0, 2);
+  const a = Math.atan2(out[1] - N.z, out[0] - N.x); out.unshift(N.x + Math.cos(a) * RRING, N.z + Math.sin(a) * RRING); return out; }
+function rEdge(i, j, d) { const k = 'e' + i + ',' + j + ',' + d; if (_reC.has(k)) return _reC.get(k); let r = null;
+  const E = rEdgeOn(i, j, d);
+  if (E) { const h = _rH(i, j, d), L = Math.hypot(E.B.x - E.A.x, E.B.z - E.A.z), br = d < 2 && L > 140 && (h >>> 9) % 100 < 7 && !E.R.noBr;
+    const o1 = br ? 0 : ((h >>> 3) % 1000 / 1000 - .5) * .36, o2 = br ? 0 : ((h >>> 13) % 1000 / 1000 - .5) * .36;
+    let pts = rBez(E.A, E.B, o1, o2, 6);
+    if (rRound(E.A.i, E.A.j)) pts = rTrim(pts, E.A);
+    if (rRound(E.B.i, E.B.j)) { const rv = []; for (let q = pts.length - 2; q >= 0; q -= 2) rv.push(pts[q], pts[q + 1]); pts = rTrim(rv, E.B); }
+    r = rFinish({ k, pts, w: E.R.w, R: E.R, br: br ? { ax: E.A.x, az: E.A.z, bx: E.B.x, bz: E.B.z, L } : null }); }
+  if (_reC.size > 20000) _reC.clear(); _reC.set(k, r); return r; }
+function rRing(i, j) { const k = 'r' + i + ',' + j; if (_reC.has(k)) return _reC.get(k); let r = null;
+  if (rRound(i, j)) { const N = rNode(i, j), R = roadOf(N.x, N.z), pts = []; for (let s = 0; s <= 28; s++) { const a = s / 28 * Math.PI * 2; pts.push(N.x + Math.cos(a) * RRING, N.z + Math.sin(a) * RRING); }
+    r = rFinish({ k, pts, w: Math.min(R.w, 7), R, ring: N }); }
+  _reC.set(k, r); return r; }
+// an oval loop road in the middle of some blocks
+function rOval(i, j) { const k = 'o' + i + ',' + j; if (_reC.has(k)) return _reC.get(k); let r = null;
+  const h = _lh(i * 41 + 9, j * 43 + 1); if (h % 100 < 9) { const A = rNode(i, j), B = rNode(i + 1, j + 1), cx = (A.x + B.x) / 2, cz = (A.z + B.z) / 2, R = roadOf(cx, cz);
+    const ax = 34 + (h >>> 7) % 30, az = 22 + (h >>> 12) % 22, rt = (h >>> 17) % 628 / 100, pts = []; let wet = false;
+    for (let s = 0; s <= 40; s++) { const a = s / 40 * Math.PI * 2, lx = Math.cos(a) * ax, lz = Math.sin(a) * az, x = cx + lx * Math.cos(rt) - lz * Math.sin(rt), z = cz + lx * Math.sin(rt) + lz * Math.cos(rt); if (deepAt(x, z)) wet = true; pts.push(x, z); }
+    if (!wet) r = rFinish({ k, pts, w: Math.max(4, R.w - 2), R, oval: true }); }
+  _reC.set(k, r); return r; }
+// every road object whose box touches the rectangle
+function roadsIn(x0, z0, x1, z1) { const out = [], i0 = Math.floor(x0 / RG) - 2, i1 = Math.floor(x1 / RG) + 1, j0 = Math.floor(z0 / RG) - 2, j1 = Math.floor(z1 / RG) + 1;
+  const add = r => { if (r && r.x1 > x0 && r.x0 < x1 && r.z1 > z0 && r.z0 < z1) out.push(r); };
+  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { add(rEdge(i, j, 0)); add(rEdge(i, j, 1)); add(rEdge(i, j, 2)); add(rEdge(i, j, 3)); add(rRing(i, j)); add(rOval(i, j)); }
+  return out; }
+// is this point of a bridge road lifted onto the overpass (so not drawn / walked on the ground)?
+const rLifted = (r, x, z) => { if (!r.br) return false; const B = r.br, ux = (B.bx - B.ax) / B.L, uz = (B.bz - B.az) / B.L, t = (x - B.ax) * ux + (z - B.az) * uz; return Math.abs(t - B.L / 2) < 49; };
+const _pcC = new Map();
+// the straight pieces near one chunk (cached)
+function chunkPieces(cx, cz) { const k = cx + ',' + cz; let P = _pcC.get(k); if (P) return P; P = [];
+  const x0 = cx * CH - 10, z0 = cz * CH - 10, x1 = x0 + CH + 20, z1 = z0 + CH + 20;
+  for (const r of roadsIn(x0, z0, x1, z1)) { const p = r.pts;
+    for (let q = 0; q + 3 < p.length; q += 2) { const ax = p[q], az = p[q + 1], bx = p[q + 2], bz = p[q + 3];
+      if (Math.max(ax, bx) < x0 || Math.min(ax, bx) > x1 || Math.max(az, bz) < z0 || Math.min(az, bz) > z1) continue;
+      if (rLifted(r, (ax + bx) / 2, (az + bz) / 2)) continue;
+      P.push({ ax, az, bx, bz, w: r.w, R: r.R, road: r }); } }
+  if (_pcC.size > 3000) _pcC.clear(); _pcC.set(k, P); return P; }
+// pieces touching a rectangle (kept under the old name)
+function segsIn(x0, z0, x1, z1) { const out = [], seen = new Set();
+  for (let cx = Math.floor(x0 / CH); cx <= Math.floor(x1 / CH); cx++) for (let cz = Math.floor(z0 / CH); cz <= Math.floor(z1 / CH); cz++) for (const s of chunkPieces(cx, cz)) {
+    if (seen.has(s)) continue; if (Math.max(s.ax, s.bx) < x0 - s.w || Math.min(s.ax, s.bx) > x1 + s.w || Math.max(s.az, s.bz) < z0 - s.w || Math.min(s.az, s.bz) > z1 + s.w) continue; seen.add(s); out.push(s); }
+  return out; }
+const segPt = (s, x, z) => { const dx = s.bx - s.ax, dz = s.bz - s.az, L2 = dx * dx + dz * dz || 1, t = clamp(((x - s.ax) * dx + (z - s.az) * dz) / L2, 0, 1); return [s.ax + dx * t, s.az + dz * t]; };
 function nearestRoad(x, z, r) { let best = null; for (const s of segsIn(x - r, z - r, x + r, z + r)) { const p = segPt(s, x, z), d = Math.hypot(x - p[0], z - p[1]); if (!best || d < best.d) best = { d, s, px: p[0], pz: p[1] }; } return best; }
 // distance from (x,z) to the edge of the nearest road (negative = on the road)
 function roadDist(x, z) { const n = nearestRoad(x, z, 30); return n ? n.d - n.s.w / 2 : 99; }
@@ -1916,8 +1966,8 @@ function findRegion(t, x, z) {
     if (best) {
       // land on a road inside the region, at the point farthest from any boss lair (no road at all -> the region centre)
       const x0 = Math.floor(best.x / RS) * RS, z0 = Math.floor(best.z / RS) * RS; let bp = { x: best.x, z: best.z }, bdist = -1;
-      for (const s of segsIn(x0, z0, x0 + RS, z0 + RS)) for (let u = s.a + 8; u < s.b - 8; u += 12) {
-        const x = s.h ? u : s.c, z = s.h ? s.c : u; if (x < x0 + 8 || x > x0 + RS - 8 || z < z0 + 8 || z > z0 + RS - 8 || !_frIn(x, z, t) || waterAt(x, z) > -.5 || villageNear(x, z, 6) || _frLm(x, z)) continue;
+      for (const s of segsIn(x0, z0, x0 + RS, z0 + RS)) {
+        const x = (s.ax + s.bx) / 2, z = (s.az + s.bz) / 2; if (x < x0 + 8 || x > x0 + RS - 8 || z < z0 + 8 || z > z0 + RS - 8 || !_frIn(x, z, t) || waterAt(x, z) > -.5 || villageNear(x, z, 6) || _frLm(x, z)) continue;
         const d = lairDist(x, z); if (d > bdist) { bdist = d; bp = { x, z }; } }
       if (!_frIn(bp.x, bp.z, t) || waterAt(bp.x, bp.z) > -.5 || _frLm(bp.x, bp.z)) {     // the warp moved the centre into a neighbour, or it's wet: look around
         let ok = null; for (let rr = 6; rr < RS && !ok; rr += 6) for (let a = 0; a < 16 && !ok; a++) { const qx = bp.x + Math.cos(a / 16 * 6.283) * rr, qz = bp.z + Math.sin(a / 16 * 6.283) * rr;
@@ -1987,7 +2037,7 @@ function waterSurface(ch, x0, z0) {
     const a = j * (N + 1) + i, q = [[i, j, a], [i + 1, j, a + 1], [i + 1, j + 1, a + N + 2], [i, j + 1, a + N + 1]];
     if (Math.max(Wv[q[0][2]], Wv[q[1][2]], Wv[q[2][2]], Wv[q[3][2]]) < -.3) continue;
     for (const t of [0, 2, 1, 0, 3, 2]) { const v = q[t], x = x0 + v[0] * st, z = z0 + v[1] * st, d = clamp(Wv[v[2]], 0, 3) / 3;
-      P.push(x, WATER_Y, z); Nn.push(0, 1, 0); C.push(.42 - d * .3, .7 - d * .32, .78 - d * .2); U.push(x / 7, z / 7); }
+      P.push(x, WATER_Y, z); Nn.push(0, 1, 0); C.push(.435 - d * .313, .827 - d * .302, .812 - d * .134); U.push(x / 4, z / 4); }   /* same colours as the island's ponds (owner 22 Nov): shallow turquoise → deep blue */
   }
   if (!P.length) return;
   const g = new THREE.BufferGeometry();
@@ -2013,25 +2063,23 @@ function genChunk(cx, cz) {
   const mark = (x, z, hw, hd) => local.push({ x, z, hw, hd });
   try { if (typeof lmChunkMark === 'function') lmChunkMark(x0, z0, mark); } catch (e) { }
   // roads: the segments that cross this chunk, clipped to it; asphalt gets lane marks and sidewalks
-  const _chSegs = segsIn(x0 - 12, z0 - 12, x0 + CH + 12, z0 + CH + 12);
-  for (const sg of segsIn(x0, z0, x0 + CH, z0 + CH)) {
-    const lo = Math.max(sg.a - sg.w / 2, sg.h ? x0 : z0), hi = Math.min(sg.b + sg.w / 2, sg.h ? x0 + CH : z0 + CH); if (hi <= lo) continue;
-    const mid = (lo + hi) / 2, len = hi - lo, col = sg.R.c;
-    if (sg.h) L.box(mid, .03, sg.c, len, .06, sg.w, col); else L.box(sg.c, .06, mid, sg.w, .06, len, col);
-    // where the road crosses a river or stream: a wooden bridge
-    for (let u = Math.ceil(lo / 2) * 2; u < hi; u += 2) { const bx = sg.h ? u : sg.c, bz = sg.h ? sg.c : u; if (waterAt(bx, bz) < -.25) continue;
-      const bw = sg.w + 1.4; if (sg.h) { L.box(u, .3, sg.c, 2.05, .14, bw, 0x8a6440); L.box(u, .62, sg.c - bw / 2, 2.05, .1, .12, 0x5a3e28); L.box(u, .62, sg.c + bw / 2, 2.05, .1, .12, 0x5a3e28); if (u % 4 === 0) { L.box(u, .45, sg.c - bw / 2, .14, .5, .14, 0x4a3420); L.box(u, .45, sg.c + bw / 2, .14, .5, .14, 0x4a3420); } }
-      else { L.box(sg.c, .3, u, bw, .14, 2.05, 0x8a6440); L.box(sg.c - bw / 2, .62, u, .12, .1, 2.05, 0x5a3e28); L.box(sg.c + bw / 2, .62, u, .12, .1, 2.05, 0x5a3e28); if (u % 4 === 0) { L.box(sg.c - bw / 2, .45, u, .14, .5, .14, 0x4a3420); L.box(sg.c + bw / 2, .45, u, .14, .5, .14, 0x4a3420); } } }
-    if (sg.R.asp) {
-      for (let u = Math.ceil(lo / 6) * 6; u < hi - 2; u += 6) { if (u < sg.a + sg.w || u > sg.b - sg.w) continue; if (sg.h) L.box(u + 1.3, .065, sg.c, 2.6, .03, .22, 0xc9a85a); else L.box(sg.c, .098, u + 1.3, .22, .03, 2.6, 0xc9a85a); }
-      for (const sd of [-1, 1]) { const o = sg.c + sd * (sg.w / 2 + .8);
-        // cut the sidewalk where a road crosses it
-        const cuts = []; for (const q of _chSegs) if (q.h !== sg.h && o >= q.a - q.w / 2 && o <= q.b + q.w / 2) cuts.push([q.c - q.w / 2 - 1.6, q.c + q.w / 2 + 1.6]);
-        cuts.sort((p1, p2) => p1[0] - p2[0]); let u0 = lo;
-        const piece = (p0, p1) => { if (p1 - p0 < .2) return; const m2 = (p0 + p1) / 2, l2 = p1 - p0; if (sg.h) L.box(m2, .05, o, l2, .1, 1.5, 0x5a5458); else L.box(o, .05, m2, 1.5, .1, l2, 0x5a5458); };
-        for (const [c0, c1] of cuts) { if (c1 <= u0) continue; piece(u0, Math.min(c0, hi)); u0 = Math.max(u0, c1); if (u0 >= hi) break; } piece(u0, hi); }
-    } else for (let u = Math.ceil(lo / 4) * 4; u < hi; u += 4) if (R() < .35) { if (sg.h) L.box(u, .07, sg.c + rr(-sg.w / 3, sg.w / 3), rr(.3, .8), .05, rr(.3, .8), B.g2); else L.box(sg.c + rr(-sg.w / 3, sg.w / 3), .07, u, rr(.3, .8), .05, rr(.3, .8), B.g2); }
+  // roads: every straight piece whose middle is in this chunk (pieces overlap a little so bends have no gaps)
+  for (const sg of chunkPieces(cx, cz)) {
+    const mx = (sg.ax + sg.bx) / 2, mz = (sg.az + sg.bz) / 2; if (mx < x0 || mx >= x0 + CH || mz < z0 || mz >= z0 + CH) continue;
+    const dx = sg.bx - sg.ax, dz = sg.bz - sg.az, len = Math.hypot(dx, dz) || .01, ry = Math.atan2(dx, dz), y0 = .03 + sg.road.y, col = sg.R.c;
+    L.box(mx, y0, mz, sg.w, .06, len + Math.min(1.2, sg.w * .35), col, 0, ry, 0);
+    const wd = waterAt(mx, mz);
+    if (wd > -.25) {   // over a river or stream: a wooden bridge with rails
+      const bw = sg.w + 1.4, ox = dz / len * bw / 2, oz = -dx / len * bw / 2; L.box(mx, .3, mz, bw, .14, len + .1, 0x8a6440, 0, ry, 0);
+      for (const sd of [-1, 1]) { L.box(mx + sd * ox, .62, mz + sd * oz, .12, .1, len + .1, 0x5a3e28, 0, ry, 0); L.box(mx + sd * ox, .45, mz + sd * oz, .14, .5, .14, 0x4a3420, 0, ry, 0); } }
+    else if (sg.R.asp) { if (!sg.road.ring && (Math.round(mx * 7 + mz * 13) & 1)) L.box(mx, y0 + .045, mz, .22, .03, Math.min(2.6, len * .5), 0xc9a85a, 0, ry, 0); }   /* dashed centre line */
+    else if (R() < .3) L.box(mx + rr(-sg.w / 3, sg.w / 3) * dz / len, y0 + .04, mz - rr(-sg.w / 3, sg.w / 3) * dx / len, rr(.3, .8), .05, rr(.3, .8), B.g2, 0, rr(0, 3), 0);
   }
+  // the island in the middle of a roundabout: grass, a low kerb and a dead tree
+  { const i0 = Math.floor(x0 / RG) - 1, j0 = Math.floor(z0 / RG) - 1; for (let i = i0; i <= i0 + 2; i++) for (let j = j0; j <= j0 + 2; j++) { const r = rRing(i, j); if (!r) continue; const N = r.ring; if (N.x < x0 || N.x >= x0 + CH || N.z < z0 || N.z >= z0 + CH) continue;
+    mark(N.x, N.z, RRING + r.w / 2 + 2, RRING + r.w / 2 + 2);
+    const rr2 = RRING - r.w / 2 - .3; for (let s2 = 0; s2 < 16; s2++) { const a2 = s2 / 16 * Math.PI * 2; L.box(N.x + Math.cos(a2) * rr2, .13, N.z + Math.sin(a2) * rr2, .5, .26, rr2 * .42, 0x8a8478, 0, -a2, 0); }
+    L.box(N.x, .05, N.z, rr2 * 1.5, .06, rr2 * 1.5, B.g2, 0, .4, 0); L.box(N.x, 1.6, N.z, .5, 3.2, .5, 0x4a3a2e); L.box(N.x + .7, 2.8, N.z, 1.6, .25, .25, 0x4a3a2e, 0, 0, .5); ch.obs.push(addCircle(N.x, N.z, rr2 * .8)); } }
   villageChunk(ch, cx, cz, L, W, mark);
   const lair = lairAt(cx, cz);
   if (lair) { mark(lair.x, lair.z, 17, 17); const lm = makeLair(lair.x, lair.z, lair.rb); lm.meshes.forEach(m => ch.meshes.push(m)); lm.obs.forEach(o => ch.obs.push(o)); }
@@ -2069,9 +2117,9 @@ function genChunk(cx, cz) {
   // wrecked cars, parked or crashed along the roads that pass through
   { const sgs = segsIn(x0 + 4, z0 + 4, x0 + CH - 4, z0 + CH - 4);
     for (let n = 0, tries = 0, nc = sgs.length ? (B.tall ? 3 : R() < .7 ? 1 : 0) : 0; n < nc && tries < 20; tries++) {
-      const sg = sgs[Math.floor(R() * sgs.length)], u = rr(Math.max(sg.a, sg.h ? x0 + 4 : z0 + 4), Math.min(sg.b, sg.h ? x0 + CH - 4 : z0 + CH - 4));
-      const off = rr(-sg.w / 3, sg.w / 3), x = sg.h ? u : sg.c + off, z = sg.h ? sg.c + off : u, rot = (sg.h ? 0 : Math.PI / 2) + rr(-.35, .35) + (R() < .5 ? Math.PI : 0);
-      if (!isFinite(u) || x < x0 + 3 || x > x0 + CH - 3 || z < z0 + 3 || z > z0 + CH - 3 || nearSpecial(x, z, 14) || !free(x, z, 2.2, 2.2, 1)) continue;
+      const sg = sgs[Math.floor(R() * sgs.length)], u = R(), dx = sg.bx - sg.ax, dz = sg.bz - sg.az, ln = Math.hypot(dx, dz) || 1, off = rr(-sg.w / 3, sg.w / 3);
+      const x = sg.ax + dx * u + dz / ln * off, z = sg.az + dz * u - dx / ln * off, rot = Math.atan2(-dz, dx) + rr(-.35, .35) + (R() < .5 ? Math.PI : 0);
+      if (!isFinite(x) || x < x0 + 3 || x > x0 + CH - 3 || z < z0 + 3 || z > z0 + CH - 3 || nearSpecial(x, z, 14) || !free(x, z, 2.2, 2.2, 1)) continue;
       mark(x, z, 2.2, 2.2); n++;
       const body = rp([0x6a3a30, 0x3a4a5a, 0x5a5a4a, 0x4a3040, 0x7a6a50, 0x2a3a2a]), ca0 = L.p.length, cw0 = W.p.length, cid = 'car' + Math.round(x * 10) + '_' + Math.round(z * 10);
       L.box(x, .75, z, 4, .9, 1.9, body, 0, rot, 0); L.box(x - .2 * Math.cos(rot), 1.55, z + .2 * Math.sin(rot), 2.1, .8, 1.7, 0x1d1a22, 0, rot, 0);
@@ -16804,7 +16852,7 @@ zSpecialTick = (o => function (dt) { o(dt);
   } catch (e) { if (!QM.err) { QM.err = 1; console.warn('qmark', e); } } })(zSpecialTick);
 // on the minimap and the big map
 drawMap = (o => function (ctx, W, range, big, k) { o(ctx, W, range, big, k);
-  try { const T = QM.tg; if (!T) return; k = k || 2; const c = ctx, sc = W / range, x = W / 2 + (T.x - player.pos.x) * sc, z = W / 2 + (T.z - player.pos.z) * sc, pul = 1 + Math.sin(performance.now() / 260) * .15;
+  try { const T = QM.tg; if (!T) return; k = k || 2; const c = ctx, sc = W / range, FR = big && typeof MAPV !== 'undefined' && MAPV.on, x = W / 2 + (T.x - (FR ? MAPV.cx : player.pos.x)) * sc, z = W / 2 + (T.z - (FR ? MAPV.cz : player.pos.z)) * sc,   /* the full map can be dragged away from you */ pul = 1 + Math.sin(performance.now() / 260) * .15;
     const lim = big ? W / 2 - 16 * k : W / 2 - 9 * k, dx = x - W / 2, dz = z - W / 2, inside = big ? Math.max(Math.abs(dx), Math.abs(dz)) < lim : Math.hypot(dx, dz) < lim;
     c.save();
     if (inside) { c.translate(x, z); c.scale(pul, pul); const R = (big ? 7 : 5) * k;
@@ -25596,14 +25644,14 @@ try { mp2Build(); } catch (e) { console.warn('map2 build', e); }
      巨树（千年古树 / 枯死巨树 / 霜冻巨杉 / 焦黑巨木 / 暗影古树）、山洞（能走进去，里面有水晶和篝火）、
      断桥（一座高架桥横跨马路，走到桥底下桥面会让开，底下有幸存者的营地）、坠机残骸、信号塔。
    每个地标都有一个物资箱（青色，山洞有时是紫色），按物资箱自己的时间刷新。第一次走到地标会提示「发现地标」，
-   地图和小地图上都有它的图标；去过的写名字，没去过的是灰色问号。
+   地图和小地图上都有它的图标（去过的还写名字）；地图拉得很远时不画，免得太乱。
    位置是固定算出来的（同一个世界每次都一样），房子、树、箱子会让开它。 */
 const LMC = 300;
 const LM_CACHE = new Map(), LMB = new Map();
 S.lmSeen = S.lmSeen || {};
-const LM_POOL = [null, ['bridge', 'plane', 'tower', 'tree'], ['tree', 'cave', 'plane', 'tree'], ['cave', 'plane', 'tower', 'tree'], ['tree', 'cave', 'tree'], ['cave', 'tree', 'plane', 'tower'],
-  ['bridge', 'tower', 'plane', 'bridge'], ['cave', 'bridge', 'tower', 'cave'], ['cave', 'tree', 'plane'], ['tree', 'cave', 'tower'], ['cave', 'tower', 'plane']];
-const LM_R = { tree: 10, cave: 14, bridge: 34, plane: 17, tower: 7 };
+const LM_POOL = [null, ['plane', 'tower', 'tree'], ['tree', 'cave', 'plane', 'tree'], ['cave', 'plane', 'tower', 'tree'], ['tree', 'cave', 'tree'], ['cave', 'tree', 'plane', 'tower'],
+  ['tower', 'plane'], ['cave', 'tower', 'cave'], ['cave', 'tree', 'plane'], ['tree', 'cave', 'tower'], ['cave', 'tower', 'plane']];
+const LM_R = { tree: 10, cave: 26, bridge: 34, plane: 17, tower: 7 };
 const LM_TREE_N = [null, '枯死巨树', '千年古树', '枯死巨树', '沼泽古榕', '霜冻巨杉', '枯死巨树', '枯死巨树', '焦黑巨木', '暗影古树', '焦黑巨木'];
 const LM_GLYPH = { tree: '树', cave: '洞', bridge: '桥', plane: '机', tower: '塔' };
 function lmName(L) { return L.type === 'tree' ? LM_TREE_N[L.t] || '巨树' : { cave: '山洞', bridge: '断桥', plane: '坠机残骸', tower: '信号塔' }[L.type]; }
@@ -25612,7 +25660,6 @@ function lmAt(i, j) { const k = i + ',' + j; if (LM_CACHE.has(k)) return LM_CACH
     if (h % 100 < 55) {
       let x = (i + .5) * LMC + ((h >>> 8) % 140 - 70), z = (j + .5) * LMC + ((h >>> 16) % 140 - 70);
       const t = tierAt(x, z), pool = LM_POOL[t] || LM_POOL[1]; let type = pool[(h >>> 4) % pool.length], rot = ((h >>> 12) & 3) * Math.PI / 2;
-      if (type === 'bridge') { const n = nearestRoad(x, z, 70); if (n) { x = n.px; z = n.pz; rot = n.s.h ? Math.PI / 2 : 0; } else type = pool.find(q => q !== 'bridge') || 'tower'; }
       const R = LM_R[type];
       let ok = Math.hypot(x - HOME.x, z - HOME.z) > 600 && !(typeof inDunArea === 'function' && inDunArea(x, z)) && !villageNear(x, z, R + 12) && lairDist(x, z) > R + 30;
       if (ok) for (let a = 0; a < 8 && ok; a++) { const px = x + Math.cos(a * .785) * R, pz = z + Math.sin(a * .785) * R; if (waterAt(px, pz) > -.6 && type !== 'bridge') ok = false; }
@@ -25621,12 +25668,16 @@ function lmAt(i, j) { const k = i + ',' + j; if (LM_CACHE.has(k)) return LM_CACH
       if (ok) L = { id: 'lm' + i + '_' + j, i, j, type, x, z, rot, R, t };
     } } catch (e) { L = null; }
   if (LM_CACHE.size > 4000) LM_CACHE.clear(); LM_CACHE.set(k, L); return L; }
-function lmsIn(x0, z0, x1, z1) { const out = []; for (let i = Math.floor(x0 / LMC) - 1; i <= Math.floor(x1 / LMC) + 1; i++) for (let j = Math.floor(z0 / LMC) - 1; j <= Math.floor(z1 / LMC) + 1; j++) { const L = lmAt(i, j); if (L && L.x + L.R > x0 && L.x - L.R < x1 && L.z + L.R > z0 && L.z - L.R < z1) out.push(L); } return out; }
+/* broken overpasses are part of the road network: a few long straight roads climb onto one (roads in a2_world.js, r.br) */
+function lmBridgeOf(r) { if (r.lm !== undefined) return r.lm; const B = r.br, ux = (B.bx - B.ax) / B.L, uz = (B.bz - B.az) / B.L, x = (B.ax + B.bx) / 2, z = (B.az + B.bz) / 2;
+  r.lm = { id: 'lb' + r.k.slice(1).replace(/,/g, '_'), i: Math.floor(x), j: Math.floor(z), type: 'bridge', x, z, rot: Math.atan2(-uz, ux), R: 50, t: tierAt(x, z), w: r.w }; return r.lm; }
+function lmsIn(x0, z0, x1, z1) { const out = [];
+  try { for (const r of roadsIn(x0 - 60, z0 - 60, x1 + 60, z1 + 60)) if (r.br) { const L = lmBridgeOf(r); if (L.x + 50 > x0 && L.x - 50 < x1 && L.z + 50 > z0 && L.z - 50 < z1) out.push(L); } } catch (e) { } for (let i = Math.floor(x0 / LMC) - 1; i <= Math.floor(x1 / LMC) + 1; i++) for (let j = Math.floor(z0 / LMC) - 1; j <= Math.floor(z1 / LMC) + 1; j++) { const L = lmAt(i, j); if (L && L.x + L.R > x0 && L.x - L.R < x1 && L.z + L.R > z0 && L.z - L.R < z1) out.push(L); } return out; }
 // is (x,z) inside a landmark's ground (+ r)? the bridge only keeps its pillars and the camp under it free, not the road
 function lmNear(x, z, r) { r = r || 0; for (const L of lmsIn(x - r - 40, z - r - 40, x + r + 40, z + r + 40)) {
-    if (L.type === 'bridge') { const [lx, lz] = lmLocal(L, x, z); if (Math.abs(lx) < 34 + r && Math.abs(lz) < 7 + r) return L; continue; }
+    if (L.type === 'bridge') { const [lx, lz] = lmLocal(L, x, z); if (Math.abs(lx) < 50 + r && Math.abs(lz) < L.w / 2 + 3 + r) return L; continue; }
     if (Math.hypot(x - L.x, z - L.z) < L.R + r) return L; } return null; }
-function lmChunkMark(x0, z0, mark) { for (const L of lmsIn(x0, z0, x0 + CH, z0 + CH)) { if (L.type === 'bridge') { const sw = Math.abs(Math.sin(L.rot)) > .5; mark(L.x, L.z, sw ? 7 : 34, sw ? 34 : 7); continue; } mark(L.x, L.z, L.R, L.R); } }
+function lmChunkMark(x0, z0, mark) { for (const L of lmsIn(x0, z0, x0 + CH, z0 + CH)) { if (L.type === 'bridge') { const c = Math.abs(Math.cos(L.rot)), sn = Math.abs(Math.sin(L.rot)), hd = L.w / 2 + 3; mark(L.x, L.z, c * 50 + sn * hd, sn * 50 + c * hd); continue; } mark(L.x, L.z, L.R, L.R); } }
 // local (along, across) <-> world
 function lmWorld(L, lx, lz) { const c = Math.cos(L.rot), s = Math.sin(L.rot); return [L.x + lx * c + lz * s, L.z - lx * s + lz * c]; }
 function lmLocal(L, x, z) { const dx = x - L.x, dz = z - L.z, c = Math.cos(L.rot), s = Math.sin(L.rot); return [dx * c - dz * s, dx * s + dz * c]; }
@@ -25643,7 +25694,11 @@ function lmPut(B, L, geo, col, lx, y, lz, rx, ry, rz, sx, sy, sz) {
 const lmBox = (B, L, col, lx, y, lz, w, h, d, rx, ry, rz) => lmPut(B, L, LMG.box, col, lx, y, lz, rx, ry, rz, w, h, d);
 const LMG = { box: new THREE.BoxGeometry(1, 1, 1), rock: new THREE.DodecahedronGeometry(1, 0), ico: new THREE.IcosahedronGeometry(1, 0), cyl: new THREE.CylinderGeometry(1, 1, 1, 8), cone: new THREE.ConeGeometry(1, 1, 7), oct: new THREE.OctahedronGeometry(1, 0) };
 // world-axis obstacles from a local box (rotations are whole quarter turns)
-function lmObsBox(R, L, lx, lz, hw, hd) { const [wx, wz] = lmWorld(L, lx, lz), sw = Math.abs(Math.sin(L.rot)) > .5; R.obs.push(addBox(wx, wz, sw ? hd : hw, sw ? hw : hd)); }
+function lmObsBox(R, L, lx, lz, hw, hd) { const [wx, wz] = lmWorld(L, lx, lz);
+  if (Math.abs(Math.sin(2 * L.rot)) < .01) { const sw = Math.abs(Math.sin(L.rot)) > .5; R.obs.push(addBox(wx, wz, sw ? hd : hw, sw ? hw : hd)); return; }
+  /* turned at an odd angle (bridges follow their road): a row of circles along the long side */
+  const r = Math.min(hw, hd), n = Math.max(1, Math.ceil(Math.max(hw, hd) / r)), along = hw >= hd;
+  for (let q = 0; q < n; q++) { const o = -Math.max(hw, hd) + r + (n > 1 ? q * (2 * Math.max(hw, hd) - 2 * r) / (n - 1) : Math.max(hw, hd) - r); lmObsC(R, L, lx + (along ? o : 0), lz + (along ? 0 : o), r * 1.05); } }
 function lmObsC(R, L, lx, lz, r) { const [wx, wz] = lmWorld(L, lx, lz); R.obs.push(addCircle(wx, wz, r)); }
 function lmFlame(R, L, lx, y, lz, s) { const [wx, wz] = lmWorld(L, lx, lz), sp = new THREE.Sprite(flameMat); sp.position.set(wx, y, wz); sp.scale.set(2.2 * s, 2.6 * s, 1); scene.add(sp); R.meshes.push(sp); R.fl.push({ sp, s: Math.random() * 6, base: 2.4 * s }); }
 
@@ -25666,49 +25721,79 @@ function lmBuildTree(L, R, A, Wb) {
   if (dark) for (let k = 0; k < 8; k++) { const a = k * .8; lmPut(Wb, L, LMG.oct, 0xc08aff, Math.cos(a) * 6, H - 3 + (k % 3), Math.sin(a) * 6, 0, a, 0, .3, .5, .3); }
   if (snow) for (let k = 0; k < 5; k++) { const a = k * 1.3; lmPut(A, L, LMG.cone, 0xdff0ff, Math.cos(a) * 5.5, H - 4.5, Math.sin(a) * 5.5, Math.PI, 0, 0, .25, 1.6, .25); }
 }
+/* the cave (owner 22 Nov: 做的真一点，不要一进去就是个密室，要让玩家探索): a rock hill with a mouth; inside a winding tunnel
+   opens into a first cave with an old explorer camp, splits into a side grotto, and runs on down to a deep cavern with an
+   underground pool, glowing crystals and the crate. Walls are piled boulders; the hill above is taken away while you are inside. */
+const CAVE_SEG = [[0, 26, 1, 17, 4.4], [1, 17, -3, 9, 3.8], [-3, 9, -6, 2, 3.6], [-6, 2, -1, -6, 3.4], [-1, -6, 6, -12, 3.6], [-6, 2, -15, -4, 2.8], [-15, -4, -17, -11, 2.6]];
+const CAVE_ROOM = [[-6, 2, 6.2], [7, -13, 7.6], [-17, -12, 4.4]];
+function caveIn(lx, lz, pad) { pad = pad || 0;
+  for (const [x, z, r] of CAVE_ROOM) if (Math.hypot(lx - x, lz - z) < r + pad) return true;
+  for (const [ax, az, bx, bz, w] of CAVE_SEG) { const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz, t = Math.max(0, Math.min(1, ((lx - ax) * dx + (lz - az) * dz) / L2)); if (Math.hypot(lx - ax - dx * t, lz - az - dz * t) < w / 2 + pad) return true; }
+  return false; }
 function lmBuildCave(L, R, A, Wb, Roof) {
-  const rock = [0x5a5048, 0x6a5e52], hot = L.t === 8 || L.t === 10, snow = L.t === 5, cr = L.t === 9 ? 0xc08aff : hot ? 0xff7a2a : snow ? 0x9ae6ff : 0x7ae0c8;
-  const rc = snow ? [0x8a8e98, 0x9aa0aa] : L.t === 3 ? [0x9a7a54, 0x8a6a48] : L.t === 7 ? [0x7a3e2e, 0x6a3224] : hot ? [0x2e2626, 0x3a2e2c] : rock;
-  // the hill: boulders all round (taken away while you are inside, like a house roof), the cave mouth faces +z
-  for (let k = 0; k < 26; k++) { const a = k / 26 * Math.PI * 2, r = 9 + (k % 3) * 1.6, lx = Math.cos(a) * r, lz = Math.sin(a) * r; if (lz > 4 && Math.abs(lx) < 4.5) continue;
-    const s = 3 + (k % 4) * .8; lmPut(Roof, L, LMG.rock, rc[k % 2], lx, s * .55, lz, k, k * 1.3, k * .7, s * 1.1, s * .9, s); lmObsC(R, L, lx, lz, s * .75); }
-  lmPut(Roof, L, LMG.rock, rc[0], 0, 5.6, -1.5, .3, .5, .1, 9, 3.4, 9); lmPut(Roof, L, LMG.rock, rc[1], 2, 7.2, -2.5, .6, 1.2, .2, 5, 2.4, 5);
-  if (snow) lmPut(Roof, L, LMG.rock, 0xeef4fa, 0, 8.2, -1.8, .2, .4, 0, 6, 1.4, 6);
-  for (const sd of [-1, 1]) lmPut(Roof, L, LMG.rock, rc[0], sd * 3.4, 4, 10, .4, sd, 0, 2.6, 4, 2.6);
-  lmBox(Roof, L, rc[1], 0, 4.4, 10.2, 8, 1.6, 2.6, .1, 0, 0);
-  // inside: low dark rock walls you always see, a tunnel (x ±2) from the mouth (z 12) into a chamber (x ±5, z -6…3)
-  const wall = 0x2e2826, fl = hot ? 0x2a1a16 : 0x2a2622;
-  lmBox(A, L, fl, 0, .02, -1.5, 10, .04, 9.5); lmBox(A, L, fl, 0, .025, 7.5, 4, .04, 9);
-  const W2 = (lx, lz, hw, hd) => { lmBox(A, L, wall, lx, 1.6, lz, hw * 2, 3.2, hd * 2); lmObsBox(R, L, lx, lz, hw, hd); };
-  W2(-2.5, 7.6, .5, 4.6); W2(2.5, 7.6, .5, 4.6);            // tunnel sides
-  W2(0, -6.5, 5.5, .5); W2(-5.5, -1.7, .5, 5.3); W2(5.5, -1.7, .5, 5.3);   // chamber back + sides
-  W2(-4, 3.3, 1.5, .5); W2(4, 3.3, 1.5, .5);                 // chamber front, open in the middle
-  for (let k = 0; k < 6; k++) { const lx = (k % 2 ? 1 : -1) * (4.2 - (k % 3) * .3), lz = -5.2 + k * 1.4; lmPut(Wb, L, LMG.oct, cr, lx, .6 + (k % 3) * .25, lz, k * .4, k, .3, .32, 1.1 + (k % 2) * .5, .32); lmPut(Wb, L, LMG.oct, cr, lx * .9, .4, lz + .5, -.4, k, -.3, .22, .7, .22); }
-  for (let k = 0; k < 5; k++) lmPut(A, L, LMG.cone, wall, -3 + k * 1.5, 3.1, -4 + (k % 2) * 3, Math.PI, 0, 0, .35, 1.2 + (k % 2) * .6, .35);   // stalactites
-  lmBox(A, L, 0x3a2a20, 1.8, .2, -1.2, 1.2, .4, 1.2); lmFlame(R, L, 1.8, 1.1, -1.2, .8); lmObsC(R, L, 1.8, -1.2, .6);
-  R.inside = (lx, lz) => Math.abs(lx) < 6 && lz > -7 && lz < 13;
+  const t = L.t, hot = t === 8 || t === 10, snow = t === 5, dark = t === 9;
+  const rc = snow ? [0x7e828c, 0x8e939c, 0x6a6e78] : t === 3 ? [0x8a6c48, 0x7a5e3e, 0x6a5034] : t === 7 ? [0x7a3e2e, 0x6a3224, 0x5a2a1e] : hot ? [0x2e2626, 0x3a2e2c, 0x241e1e] : [0x5a5048, 0x6a5e52, 0x4a423a];
+  const cr = dark ? 0xc08aff : hot ? 0xff7a2a : snow ? 0x9ae6ff : 0x7ae0c8, fl = hot ? 0x2a1a16 : snow ? 0x4a4e58 : 0x2e2a26, H = (k, a) => (hash2(L.i * 7 + k * 13, L.j * 11 + a * 3) % 1000) / 1000;
+  // ---- the hill (hidden from inside): big boulders over the whole cave, an arch round the mouth ----
+  for (let k = 0; k < 46; k++) { const a = H(k, 1) * Math.PI * 2, r = Math.sqrt(H(k, 2)) * 22, lx = Math.cos(a) * r, lz = Math.sin(a) * r - 2;
+    if (lz > 18 && Math.abs(lx) < 6) continue; const s = 3.4 + H(k, 3) * 3.6 - r * .06; lmPut(Roof, L, LMG.rock, rc[k % 3], lx, s * .7 + (22 - r) * .14, lz, k, k * 1.3, k * .7, s * 1.15, s * .95, s); }
+  for (const sd of [-1, 1]) { lmPut(Roof, L, LMG.rock, rc[0], sd * 3.8, 3.2, 24.5, .4, sd, 0, 2.4, 3.6, 2.4); lmPut(Roof, L, LMG.rock, rc[1], sd * 5.4, 2, 22.5, .2, sd * 2, 0, 2.8, 2.6, 2.8); }
+  lmPut(Roof, L, LMG.rock, rc[2], 0, 5.8, 24.2, .1, .3, Math.PI / 2, 2.2, 6.2, 2.4);
+  if (snow) for (let k = 0; k < 8; k++) lmPut(Roof, L, LMG.rock, 0xeef4fa, Math.cos(k) * 8, 8.4 + (k % 3), Math.sin(k) * 8 - 2, .2, k, 0, 5, 1.2, 5);
+  // the hill's outer edge blocks you, except at the mouth
+  for (let k = 0; k < 40; k++) { const a = k / 40 * Math.PI * 2, lx = Math.cos(a) * 24, lz = Math.sin(a) * 24 - 2; if (lz > 15 && Math.abs(lx) < 7) continue; if (!caveIn(lx, lz, 1.5)) lmObsC(R, L, lx, lz, 2.2); }
+  // ---- floor along every passage and room ----
+  for (const [ax, az, bx, bz, w] of CAVE_SEG) { const mx = (ax + bx) / 2, mz = (az + bz) / 2, dx = bx - ax, dz = bz - az; lmBox(A, L, fl, mx, .03, mz, w + 1.4, .04, Math.hypot(dx, dz) + 2, 0, Math.atan2(dx, dz), 0); }
+  for (const [x, z, r] of CAVE_ROOM) lmPut(A, L, LMG.cyl, fl, x, .035, z, 0, 0, 0, r + .9, .04, r + .9);
+  // ---- walls: piled boulders along both sides of the passages and round the rooms, never across an opening ----
+  const wall = (lx, lz, k) => { if (caveIn(lx, lz, .4)) return; const s = 1.3 + H(k, 5) * 1.1; lmPut(A, L, LMG.rock, rc[k % 3], lx, s * .75, lz, k * .7, k, k * .3, s, s * 1.5, s); lmPut(A, L, LMG.rock, rc[(k + 1) % 3], lx + (H(k, 6) - .5), s * 1.9, lz + (H(k, 7) - .5), k, k * .4, 0, s * .8, s * .9, s * .8); lmObsC(R, L, lx, lz, s * .95); };
+  let kk = 0;
+  for (const [ax, az, bx, bz, w] of CAVE_SEG) { const dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz), nx = -dz / len, nz = dx / len;
+    for (let u = 0; u <= len; u += 1.7) for (const sd of [-1, 1]) { const o = w / 2 + 1.25 + H(kk, 8) * .5; wall(ax + dx * u / len + nx * o * sd, az + dz * u / len + nz * o * sd, kk++); } }
+  for (const [x, z, r] of CAVE_ROOM) for (let a = 0; a < Math.PI * 2; a += 1.7 / (r + 1.3)) { const o = r + 1.25 + H(kk, 9) * .6; wall(x + Math.cos(a) * o, z + Math.sin(a) * o, kk++); }
+  // ---- what there is to find ----
+  // first cave: an explorer's old camp (bedroll, cold fire, lantern, bones)
+  lmBox(A, L, 0x5a4a3a, -8.5, .08, 4, 2, .14, .9, 0, .5, 0); lmBox(A, L, 0x3a2a20, -5, .12, 3.5, 1, .2, 1, 0, .3, 0); lmFlame(R, L, -5, .9, 3.5, .6); lmObsC(R, L, -5, 3.5, .5);
+  lmBox(A, L, 0x8a6a3a, -9.5, .45, 1.2, .7, .9, .5); lmPut(Wb, L, LMG.box, 0xffd27a, -9.5, 1.05, 1.2, 0, 0, 0, .25, .3, .25);
+  for (let k = 0; k < 5; k++) lmBox(A, L, 0xe8e0d0, -3.4 + k * .3, .07, -.5 + (k % 2) * .4, .5, .08, .1, 0, k, 0);
+  lmPut(A, L, LMG.ico, 0xe8e0d0, -3.1, .22, .4, 0, 0, 0, .22, .2, .26);
+  // stalagmites everywhere, glowing mushrooms along the tunnels
+  for (let k = 0; k < 18; k++) { const [x, z, r] = CAVE_ROOM[k % 3], a = H(k, 11) * 6.28, d = r * (.55 + H(k, 12) * .4), lx = x + Math.cos(a) * d, lz = z + Math.sin(a) * d; const h = .8 + H(k, 13) * 1.8;
+    if (Math.hypot(lx - 7, lz + 13) < 3.6 || Math.hypot(lx + 6, lz - 2.5) < 3) continue; lmPut(A, L, LMG.cone, rc[k % 3], lx, h / 2, lz, 0, k, 0, .32 + h * .12, h, .32 + h * .12); if (h > 1.6) lmObsC(R, L, lx, lz, .35); }
+  for (let k = 0; k < 16; k++) { const S2 = CAVE_SEG[k % CAVE_SEG.length], u = H(k, 14), sd = k % 2 ? 1 : -1, dx = S2[2] - S2[0], dz = S2[3] - S2[1], len = Math.hypot(dx, dz), o = S2[4] / 2 + .3;
+    const lx = S2[0] + dx * u - dz / len * o * sd, lz = S2[1] + dz * u + dx / len * o * sd; lmBox(A, L, 0xd8d0c0, lx, .16, lz, .06, .3, .06); lmPut(Wb, L, LMG.ico, dark ? 0xff8ad8 : hot ? 0xffb03a : 0x8affc8, lx, .34, lz, 0, k, 0, .17, .09, .17); }
+  // deep cavern: an underground pool ringed with crystals
+  { const [wx, wz] = lmWorld(L, 8.4, -14.6), g = new THREE.CircleGeometry(3.2, 18); g.rotateX(-Math.PI / 2); const m = new THREE.Mesh(g, (typeof tpWaterMat === 'function' ? tpWaterMat() : waterSurfMat).clone()); m.material.vertexColors = false; m.material.color = new THREE.Color(0x2a9ac0);
+    m.position.set(wx, .07, wz); m.renderOrder = 3; scene.add(m); R.meshes.push(m); R.ownMat = (R.ownMat || []).concat(m.material); lmObsC(R, L, 8.4, -14.6, 2.6); }
+  for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2, lx = 8.4 + Math.cos(a) * 3.7, lz = -14.6 + Math.sin(a) * 3.7, h = .7 + H(k, 15) * 1.3; lmPut(Wb, L, LMG.oct, cr, lx, h * .5, lz, H(k, 16) - .5, k, H(k, 17) - .5, .28, h, .28); }
+  for (let k = 0; k < 7; k++) { const a = k * .9, lx = -17 + Math.cos(a) * 3, lz = -12 + Math.sin(a) * 3; lmPut(Wb, L, LMG.oct, cr, lx, .5 + (k % 3) * .3, lz, .3, k, -.2, .25, 1 + (k % 2) * .6, .25); }
+  R.inside = (lx, lz) => caveIn(lx, lz, 1.2);
 }
 function lmBuildBridge(L, R, A, Wb, Deck) {
-  const con = 0x7a7670, con2 = 0x5e5a56, Y = 7.4;
-  // the deck runs along local x over the road; a broken gap at x 4…10 with a fallen slab leaning down to the ground
-  const span = (a, b) => { const m = (a + b) / 2, l = b - a; lmBox(Deck, L, con, m, Y, 0, l, 1.1, 10); lmBox(Deck, L, con2, m, Y - .8, -3.2, l, .6, .9); lmBox(Deck, L, con2, m, Y - .8, 3.2, l, .6, .9);
-    lmBox(Deck, L, 0x9a948c, m, Y + .95, -4.8, l, .8, .3); lmBox(Deck, L, 0x9a948c, m, Y + .95, 4.8, l, .8, .3);
-    for (let u = Math.ceil(a / 3) * 3; u < b - 1; u += 3) lmBox(Deck, L, 0xd8c060, u + .8, Y + .57, 0, 1.6, .05, .25); };
-  span(-34, 4); span(10, 34);
-  lmBox(A, L, con, 13.5, Y * .5, -.5, 9, .9, 8.6, 0, 0, .78); lmObsBox(R, L, 12.5, -.5, 2.4, 4.2);
-  for (const e of [-24, -12, 18, 28]) for (const sd of [-1, 1]) { lmBox(A, L, con2, e, Y / 2, sd * 3.2, 1.5, Y, 1.5); lmObsBox(R, L, e, sd * 3.2, .75, .75); }
-  for (const e of [-24, -12, 18, 28]) lmBox(A, L, con2, e, Y - 1.5, 0, 1.6, 1, 7.8);
-  // rebar hanging out of the broken ends + chunks on the ground
-  for (let k = 0; k < 6; k++) { lmBox(A, L, 0x5a3a2a, 4.2, Y - .6 - k * .1, -3.5 + k * 1.4, .08, 1.8, .08, 0, 0, .4); lmBox(A, L, 0x5a3a2a, 9.8, Y - .6, -3 + k * 1.2, .08, 1.6, .08, 0, 0, -.5); }
-  for (let k = 0; k < 7; k++) lmPut(A, L, LMG.rock, con2, 5 + k * .9, .4, -4 + (k * 1.7) % 8, k, k, 0, .7, .45, .6);
-  // the camp under the deck: a tarp shelter, mattresses, a fire barrel, two wrecked cars
-  const tarp = 0x3a5a6a; lmBox(A, L, 0x4a3a2a, -16, 1, 6.2, .15, 2, .15); lmBox(A, L, 0x4a3a2a, -19, 1, 6.2, .15, 2, .15);
-  lmBox(A, L, tarp, -17.5, 1.55, 5.3, 3.6, .08, 2.2, .5, 0, 0); lmBox(A, L, 0x6a5a4a, -17.5, .12, 4.8, 2.6, .24, 1.6); lmBox(A, L, 0x8a6a5a, -14.6, .1, 4.4, 1.9, .2, .9);
-  lmBox(A, L, 0x4a3a32, -15.5, .55, 2.4, .8, 1.1, .8); lmFlame(R, L, -15.5, 1.6, 2.4, 1); lmObsC(R, L, -15.5, 2.4, .5); lmObsBox(R, L, -17.5, 5.3, 2, 1.3);
-  for (const [cx, cz, r, col] of [[-6, 6.5, .2, 0x3a4a5a], [-26, -6.5, -.3, 0x6a3a30]]) { lmBox(A, L, col, cx, .75, cz, 4, .9, 1.9, 0, r, 0); lmBox(A, L, 0x1d1a22, cx - .2, 1.55, cz, 2.1, .8, 1.7, 0, r, 0); lmObsBox(R, L, cx, cz, 2.1, 1.1); }
-  // graffiti stripes on two pillars
-  lmPut(Wb, L, LMG.box, 0xff5a8a, -12, 2.4, -2.4, 0, 0, 0, 1.52, .6, .02); lmPut(Wb, L, LMG.box, 0x5ad8ff, -24, 1.8, 2.4, 0, 0, 0, 1.52, .5, .02);
-  R.inside = (lx, lz) => Math.abs(lx) < 35 && Math.abs(lz) < 6.2;
+  const con = 0x7a7670, con2 = 0x5e5a56, Y = 7.4, hw = L.w / 2 + 1, road = biomeOf(L.t) && ROADS[L.t - 1] ? ROADS[L.t - 1].c : 0x2a2630;
+  // the road itself climbs ramps at both ends (from the ground at ±49 m to the deck at ±30 m) and runs over the deck; the middle is broken
+  const span = (a, b) => { const m = (a + b) / 2, l = b - a; lmBox(Deck, L, con, m, Y, 0, l, 1.1, hw * 2); lmBox(Deck, L, road, m, Y + .57, 0, l, .04, hw * 2 - 1.4);
+    lmBox(Deck, L, con2, m, Y - .8, -hw + 1.2, l, .6, .9); lmBox(Deck, L, con2, m, Y - .8, hw - 1.2, l, .6, .9);
+    for (const sd of [-1, 1]) lmBox(Deck, L, 0x9a948c, m, Y + .95, sd * (hw - .15), l, .8, .3);
+    for (let u = Math.ceil(a / 4) * 4; u < b - 1; u += 4) lmBox(Deck, L, 0xd8c060, u + 1, Y + .6, 0, 2, .03, .22); };
+  span(-30, 4); span(10, 30);
+  const ang = Math.atan2(Y, 19), rl = Math.hypot(Y, 19);
+  for (const sd of [-1, 1]) { const m = sd * 39.5;
+    lmBox(A, L, con, m, Y / 2 - .2, 0, rl, 1.1, hw * 2, 0, 0, -sd * ang); lmBox(A, L, road, m, Y / 2 + .38, 0, rl, .04, hw * 2 - 1.4, 0, 0, -sd * ang);
+    for (const s2 of [-1, 1]) lmBox(A, L, 0x9a948c, m, Y / 2 + .75, s2 * (hw - .15), rl, .8, .3, 0, 0, -sd * ang);
+    lmBox(A, L, con2, sd * 36, Y * .32 / 2, 0, 1.4, Y * .32, hw * 2 - 1);   /* a pier under each ramp */
+    lmObsBox(R, L, sd * 45.5, 0, 3.6, hw); }        /* the low end of each ramp is solid; higher up you can walk beneath */
+  lmBox(A, L, con, 13.5, Y * .5, -.5, 9, .9, hw * 2 - 1.5, 0, 0, .78); lmObsBox(R, L, 12.5, -.5, 2.4, hw - 1);   /* the fallen slab */
+  for (const e of [-20, -8, 18, 26]) { for (const sd of [-1, 1]) { lmBox(A, L, con2, e, Y / 2, sd * (hw - 1.6), 1.5, Y, 1.5); lmObsC(R, L, e, sd * (hw - 1.6), .9); } lmBox(A, L, con2, e, Y - 1.5, 0, 1.6, 1, hw * 2 - 1.5); }
+  for (let k = 0; k < 6; k++) { lmBox(A, L, 0x5a3a2a, 4.2, Y - .6 - k * .1, -hw + 1.5 + k * (hw * 2 - 3) / 5, .08, 1.8, .08, 0, 0, .4); lmBox(A, L, 0x5a3a2a, 9.8, Y - .6, -hw + 2 + k * (hw * 2 - 4) / 5, .08, 1.6, .08, 0, 0, -.5); }
+  for (let k = 0; k < 7; k++) lmPut(A, L, LMG.rock, con2, 5 + k * .9, .4, -hw + 1 + (k * 1.7) % (hw * 2 - 2), k, k, 0, .7, .45, .6);
+  // the camp under the deck: a tarp shelter, mattresses, a fire barrel, a wrecked car
+  const tarp = 0x3a5a6a, cz = hw - 2.4; lmBox(A, L, 0x4a3a2a, -12, 1, cz + .9, .15, 2, .15); lmBox(A, L, 0x4a3a2a, -15, 1, cz + .9, .15, 2, .15);
+  lmBox(A, L, tarp, -13.5, 1.55, cz, 3.6, .08, 2.2, .5, 0, 0); lmBox(A, L, 0x6a5a4a, -13.5, .12, cz - .4, 2.6, .24, 1.6); lmBox(A, L, 0x8a6a5a, -10.6, .1, cz - .8, 1.9, .2, .9);
+  lmBox(A, L, 0x4a3a32, -11.5, .55, -1, .8, 1.1, .8); lmFlame(R, L, -11.5, 1.6, -1, 1); lmObsC(R, L, -11.5, -1, .5); lmObsBox(R, L, -13.5, cz, 2, 1.2);
+  lmBox(A, L, 0x3a4a5a, -24, .75, -hw + 2.4, 4, .9, 1.9, 0, .2, 0); lmBox(A, L, 0x1d1a22, -24.2, 1.55, -hw + 2.4, 2.1, .8, 1.7, 0, .2, 0); lmObsBox(R, L, -24, -hw + 2.4, 2.1, 1.1);
+  lmPut(Wb, L, LMG.box, 0xff5a8a, -8, 2.4, -(hw - 2.38), 0, 0, 0, 1.52, .6, .02); lmPut(Wb, L, LMG.box, 0x5ad8ff, -20, 1.8, hw - 2.38, 0, 0, 0, 1.52, .5, .02);
+  R.inside = (lx, lz) => Math.abs(lx) < 31 && Math.abs(lz) < hw + 1;
 }
 function lmBuildPlane(L, R, A, Wb) {
   const hull = 0xa8aeb4, dark = 0x4a4e54, burnt = 0x2a2624, red = 0xb03a2a;
@@ -25741,11 +25826,11 @@ function lmBuild(L) { if (LMB.has(L.id)) return;
   for (const [B, mat, key] of [[A, chunkMatL], [Wb, chunkMatW], [Roof, chunkMatL, 'roof'], [Deck, chunkMatL, 'roof']]) { const m = B.mesh(mat); if (!m) continue; scene.add(m); R.meshes.push(m); if (key) R.roof = m; }
   // its supply crate (own id: L,<landmark>,<tier>,<epoch> so the normal crate clean-up keeps it)
   try { const tier = L.type === 'cave' && hash2(L.i * 3 + 1, L.j * 5 + epochOf(TIERS[2])) % 100 < 30 ? 2 : 1, T = TIERS[tier], id = 'L,' + L.id + ',' + tier + ',' + epochOf(T);
-    const spot = { tree: [3.5, 4.2], cave: [-2.2, -4.6], bridge: [-13, 4.8], plane: [1, 3.6], tower: [3, 2.2] }[L.type], [cx, cz] = lmWorld(L, spot[0], spot[1]);
+    const spot = { tree: [3.5, 4.2], cave: [4, -17.5], bridge: [-9, 1.5], plane: [1, 3.6], tower: [3, 2.2] }[L.type], [cx, cz] = lmWorld(L, spot[0], spot[1]);
     if (!S.crOpen[id] && !crates.has(id)) { addCrate(id, T, cx, cz); R.crate = id; } } catch (e) { }
   LMB.set(L.id, R); }
 function lmDrop(id) { const R = LMB.get(id); if (!R) return; for (const m of R.meshes) { scene.remove(m); if (m.geometry && !m.isSprite) m.geometry.dispose(); if (m.isSprite && m.material !== flameMat) m.material.dispose(); }
-  for (const o of R.obs) removeObstacle(o); if (R.crate && crates.has(R.crate)) removeCrate(crates.get(R.crate)); LMB.delete(id); }
+  if (R.ownMat) R.ownMat.forEach(m => m.dispose()); for (const o of R.obs) removeObstacle(o); if (R.crate && crates.has(R.crate)) removeCrate(crates.get(R.crate)); LMB.delete(id); }
 // a landmark lives with the chunk its centre is in
 onChunkLoad.push((cx, cz) => { for (const L of lmsIn(cx * CH, cz * CH, cx * CH + CH, cz * CH + CH)) if (Math.floor(L.x / CH) === cx && Math.floor(L.z / CH) === cz) lmBuild(L); });
 onChunkUnload.push((cx, cz) => { for (const [id, R] of [...LMB]) if (Math.floor(R.L.x / CH) === cx && Math.floor(R.L.z / CH) === cz) lmDrop(id); });
@@ -25766,11 +25851,15 @@ petsTick = (o => function (dt) { o(dt); try { lmTick(dt); } catch (e) { } })(pet
 drawExtraRadar = (o => function (tx, tz, edgeMark) { o(tx, tz, edgeMark);
   try { if (S.isl || S.dun) return; const c = mctx, W = c.canvas.width, k = _mapK || 2, sc = tx(1) - tx(0); if (!(sc > 0)) return;
     const cx = (W / 2 - tx(0)) / sc, cz = (W / 2 - tz(0)) / sc, half = W / 2 / sc, big = W > 300 * k;
+    if (big && half > 900) return;   /* zoomed far out: no landmark pins (the map got far too busy) */
     for (const L of lmsIn(cx - half, cz - half, cx + half, cz + half)) { const x = tx(L.x), y = tz(L.z), seen = !!S.lmSeen[L.id];
-      mapPin(c, x, y, (big ? 7 : 5) * k, seen ? '#9fe37a' : '#8a8490', seen ? LM_GLYPH[L.type] : '?', k);
+      mapPin(c, x, y, (big ? 7 : 5) * k, '#9fe37a', LM_GLYPH[L.type], k);   /* owner 22 Nov: no question marks */
       if (big && seen && half < 700) { c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#e6ffd8'; c.fillText(lmName(L), x, y - 11 * k); } } } catch (e) { } })(drawExtraRadar);
 shopSave = (o => function () { const r = o.apply(this, arguments); try { const ks = Object.keys(S.lmSeen); r.lms = ks.slice(-800); } catch (e) { } return r; })(shopSave);
 shopLoad = (o => function (d) { o.apply(this, arguments); try { S.lmSeen = {}; const a = d && d.sh && d.sh.lms; if (Array.isArray(a)) for (const k of a) if (typeof k === 'string') S.lmSeen[k] = 1; } catch (e) { } })(shopLoad);
+
+/* ---- mainland rivers and seas look like the island's own water (owner 22 Nov): same soft ripple texture and opacity ---- */
+try { const M = tpWaterMat(); waterSurfMat.map = M.map; waterSurfMat.opacity = .84; waterSurfMat.needsUpdate = true; } catch (e) { }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -26326,6 +26415,8 @@ function useMed() {
   S.med--; S.hp = Math.min(S.maxHp, S.hp + medHeal()); S.medCd = 1; feed('+' + medHeal() + ' 生命', '#ff8a8a'); sfx.pick(); refreshHud();
 }
 
+/* winged players glide over mainland rivers and the sea: no slowing, no sinking, deep water does not stop them (owner 22 Nov) */
+const _wingW = () => { try { return !S.isl && typeof hasWings === 'function' && hasWings(); } catch (e) { return false; } };
 /* ============ death ============ */
 function playerDie() {
   S.dead = true; input.fire = false; pm.g.rotation.x = -1.4; pm.g.position.y = .3;
@@ -26411,16 +26502,16 @@ function drawMap(ctx, W, range, big, k) {
     const r0 = Math.floor((px - half) / RS), r1 = Math.floor((px + half) / RS), c0 = Math.floor((pz - half) / RS), c1 = Math.floor((pz + half) / RS);
     { const T = terrainLayer(px, pz, half, big ? 150 : 60); if (T) { c.imageSmoothingEnabled = true; c.drawImage(T.cv, tx(T.x0), tz(T.z0), T.span * sc, T.span * sc); } }
     // villages
-    for (const vg of villagesNear(px, pz).concat(big ? villagesWide(px, pz, half) : [])) { const vx = tx(vg.x), vz = tz(vg.z); if (vx < -20 || vz < -20 || vx > W + 20 || vz > W + 20) continue;
+    if (vr <= 2000) for (const vg of villagesNear(px, pz).concat(big ? villagesWide(px, pz, half) : [])) { const vx = tx(vg.x), vz = tz(vg.z); if (vx < -20 || vz < -20 || vx > W + 20 || vz > W + 20) continue;
       c.strokeStyle = 'rgba(255,214,120,.8)'; c.lineWidth = 1.4 * k; c.beginPath(); c.arc(vx, vz, Math.max(5 * k, VIL_R * sc), 0, 7); c.stroke(); mapPin(c, vx, vz, 5.5 * k, '#e8b450', '村', k);
-      if (big) { c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#ffe9a8'; c.fillText(vg.name, vx, vz - 10 * k); } }
+      if (big && vr <= 1000) { c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#ffe9a8'; c.fillText(vg.name, vx, vz - 10 * k); } }
     // roads: the real segments (asphalt darker with a dashed centre line; dirt / sand / snow tracks in their own colour)
-    { const sgs = segsIn(px - half, pz - half, px + half, pz + half);
-      for (const sg of sgs) { const w2 = Math.max(1.4 * k, sg.w * sc), col = sg.R.asp ? 'rgba(24,18,24,.88)' : hexCss(sg.R.c, 1.25); c.fillStyle = col;
-        if (sg.h) c.fillRect(tx(sg.a - sg.w / 2), tz(sg.c) - w2 / 2, (sg.b - sg.a + sg.w) * sc, w2); else c.fillRect(tx(sg.c) - w2 / 2, tz(sg.a - sg.w / 2), w2, (sg.b - sg.a + sg.w) * sc); }
+    { const rds = roadsIn(px - half, pz - half, px + half, pz + half); c.lineJoin = c.lineCap = 'round';
+      const path = r => { c.beginPath(); const p = r.pts; c.moveTo(tx(p[0]), tz(p[1])); for (let q = 2; q < p.length; q += 2) c.lineTo(tx(p[q]), tz(p[q + 1])); };
+      for (const r of rds) { c.strokeStyle = r.R.asp ? 'rgba(24,18,24,.88)' : hexCss(r.R.c, 1.25); c.lineWidth = Math.max(1.4 * k, r.w * sc); path(r); c.stroke(); }
       if (sc > .9 * k) { c.strokeStyle = 'rgba(201,168,90,.6)'; c.lineWidth = .9 * k; c.setLineDash([3 * k, 4 * k]);
-        for (const sg of sgs) { if (!sg.R.asp) continue; c.beginPath(); if (sg.h) { c.moveTo(tx(sg.a), tz(sg.c)); c.lineTo(tx(sg.b), tz(sg.c)); } else { c.moveTo(tx(sg.c), tz(sg.a)); c.lineTo(tx(sg.c), tz(sg.b)); } c.stroke(); }
-        c.setLineDash([]); } }
+        for (const r of rds) { if (!r.R.asp || r.ring) continue; path(r); c.stroke(); }
+        c.setLineDash([]); } c.lineCap = 'butt'; }
     // building floor plans (walls are drawn from the obstacles below), unsearched cabinets as gold dots
     if (vr <= 500) for (const h of HOUSES) { if (Math.abs(h.x - px) > half + 20 || Math.abs(h.z - pz) > half + 20) continue; c.fillStyle = 'rgba(60,46,56,.92)'; c.fillRect(tx(h.x0), tz(h.z0), (h.x1 - h.x0) * sc, (h.z1 - h.z0) * sc);
       if (vr <= 260) for (const ct of h.cont) if (!ct.open) { c.fillStyle = '#ffd27a'; c.beginPath(); c.arc(tx(ct.mx), tz(ct.mz), Math.max(1.4 * k, .5 * sc), 0, 7); c.fill(); } }
@@ -26431,13 +26522,13 @@ function drawMap(ctx, W, range, big, k) {
       else if (vr <= 260) { c.fillStyle = o.g === 'wood' ? 'rgba(20,30,14,.75)' : 'rgba(40,28,30,.75)'; c.beginPath(); c.arc(tx(o.x), tz(o.z), Math.max(1.3 * k, o.r * sc), 0, 7); c.fill(); }
     }
     // boss lairs
-    { const n = Math.ceil(half / CH) + 1, pcx = Math.floor(px / CH), pcz = Math.floor(pz / CH);
+    if (vr <= 1000) { const n = Math.ceil(half / CH) + 1, pcx = Math.floor(px / CH), pcz = Math.floor(pz / CH);   /* zoomed far out the lairs are left off (owner 22 Nov: the map was a mess) */
       for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) { const l = lairAt(pcx + i, pcz + j); if (!l) continue; const lx = tx(l.x), lz = tz(l.z); if (lx < -20 || lz < -20 || lx > W + 20 || lz > W + 20) continue;
         const cd = (S.lairCd[l.id] || 0) > Date.now(); c.strokeStyle = cd ? 'rgba(160,140,140,.6)' : '#ff4a3a'; c.lineWidth = 1.8 * k; c.setLineDash([4 * k, 3 * k]); c.beginPath(); c.arc(lx, lz, Math.max(6 * k, 14 * sc), 0, 7); c.stroke(); c.setLineDash([]);
         mapPin(c, lx, lz, 5.5 * k, cd ? '#9a8a8a' : '#ff5a4a', 'B', k);
         if (big && vr <= 250 && !cd) { c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#ffd0c8'; c.fillText(l.bn + '·' + BOSS_TYPES[l.tp].name, lx, lz - 10 * k); } } }
     // crates by tier
-    for (const cr of crates.values()) if (!cr.open) { const s2 = (4 + cr.t.id * 1.2) * k, x = tx(cr.x), y = tz(cr.z); c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(x - s2 / 2 - k, y - s2 / 2 - k, s2 + 2 * k, s2 + 2 * k); c.fillStyle = cr.t.css; c.fillRect(x - s2 / 2, y - s2 / 2, s2, s2); }
+    if (vr <= 1000) for (const cr of crates.values()) if (!cr.open) { const s2 = (4 + cr.t.id * 1.2) * k, x = tx(cr.x), y = tz(cr.z); c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(x - s2 / 2 - k, y - s2 / 2 - k, s2 + 2 * k, s2 + 2 * k); c.fillStyle = cr.t.css; c.fillRect(x - s2 / 2, y - s2 / 2, s2, s2); }
     // enemies
     for (const z of zombies) { if (z.dead || z.boss) continue; const r = (z.type === 'brute' ? 2.6 : 1.8) * k; c.fillStyle = 'rgba(0,0,0,.55)'; c.beginPath(); c.arc(tx(z.pos.x), tz(z.pos.z), r + .9 * k, 0, 7); c.fill(); c.fillStyle = z.animal ? (z.hostile || z.angry > 0 ? '#ffa040' : '#e8dcc8') : '#ff4040'; c.beginPath(); c.arc(tx(z.pos.x), tz(z.pos.z), r, 0, 7); c.fill(); }
     if (boss && !boss.dead) { const pr = 1 + Math.sin(S.t * 6) * .15; mapPin(c, tx(boss.pos.x), tz(boss.pos.z), 7 * k * pr, '#ff2a1a', 'B', k); edgeMark(boss, '#ff2a1a'); }
@@ -26446,7 +26537,7 @@ function drawMap(ctx, W, range, big, k) {
       const shown = [];
       for (let i = r0; i <= r1; i++) for (let j = c0; j <= c1; j++) { const t = regionTier(i, j), B = biomeOf(t), bnd = tierBand(t), wxp = (i + .5) * RS, wzp = (j + .5) * RS, cx = tx(wxp), cz = tz(wzp), sz = RS * sc;
         if (cx < -sz / 2 || cz < -sz / 2 || cx > W + sz / 2 || cz > W + sz / 2) continue;
-        if (tierAt(wxp, wzp) !== t || shown.some(q => q[0] === t && Math.hypot(q[1] - wxp, q[2] - wzp) < 520)) continue; shown.push([t, wxp, wzp]);   // one label per area, never on the wrong side of a border
+        if (tierAt(wxp, wzp) !== t || shown.some(q => (q[0] === t && Math.hypot(q[1] - wxp, q[2] - wzp) < Math.max(520, vr * .45)) || Math.hypot(q[1] - wxp, q[2] - wzp) < vr * .16)) continue; shown.push([t, wxp, wzp]);   // one label per area, never on the wrong side of a border
         if (sz > 130 * k) { const t1 = '区域' + t + ' · ' + B.n, t2 = 'Lv.' + bnd[0] + '-' + bnd[1] + ' · ' + B.bn; c.font = '900 ' + 13 * k + 'px sans-serif'; const w = Math.max(c.measureText(t1).width, 110 * k) + 16 * k;
           c.fillStyle = 'rgba(14,8,16,.72)'; rrect(c, cx - w / 2, cz - 19 * k, w, 38 * k, 8 * k); c.fill(); c.fillStyle = '#fff2e4'; c.fillText(t1, cx, cz - 3 * k); c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.fillStyle = 'hsl(' + (120 - (t - 1) * 13) + ',85%,72%)'; c.fillText(t2, cx, cz + 12 * k); }
         else if (sz > 34 * k) { c.fillStyle = 'rgba(14,8,16,.7)'; c.beginPath(); c.arc(cx, cz, 10 * k, 0, 7); c.fill(); c.fillStyle = 'hsl(' + (120 - (t - 1) * 13) + ',85%,72%)'; c.font = '900 ' + 11 * k + 'px sans-serif'; c.textBaseline = 'middle'; c.fillText(String(t), cx, cz + .5 * k); c.textBaseline = 'alphabetic'; } } }
@@ -26731,11 +26822,11 @@ function update(dt) {
     const spd = moveSpeed() * (S.reload > 0 ? .85 : 1) * (S.sprint ? 1.7 : 1);
     if (fpOn()) { const f = player.face, fw = -mz, st = mx; mx = Math.sin(f) * fw - Math.cos(f) * st; mz = Math.cos(f) * fw + Math.sin(f) * st; }
     { // water: rivers and streams slow you down (bridges don't), the open sea stops you
-      const ox = player.pos.x, oz = player.pos.z, onBridge = roadDist(ox, oz) < .8, wd = S.isl || S.up || S.stB || S.fall ? -9 : waterAt(ox, oz), wk = !onBridge && wd > .15 ? (wd > 1.6 ? .4 : wd > .8 ? .5 : .7) : 1;
+      const ox = player.pos.x, oz = player.pos.z, onBridge = roadDist(ox, oz) < .8, wd = S.isl || S.up || S.stB || S.fall || _wingW() ? -9 : waterAt(ox, oz), wk = !onBridge && wd > .15 ? (wd > 1.6 ? .4 : wd > .8 ? .5 : .7) : 1;
       { const step = Math.hypot(mx, mz) * spd * dt * wk, n = S.up || S.fall || (S.stY != null && S.stY > .6) || S.climbA ? 1 : Math.min(40, Math.max(1, Math.ceil(step / .12)));   // fast runners move in small steps so walls stay solid
         for (let i = 0; i < n; i++) { player.pos.x += mx * spd * dt * wk / n; player.pos.z += mz * spd * dt * wk / n; if (n > 1 || !(S.up || S.fall || (S.stY != null && S.stY > .6) || S.climbA)) collide(player.pos, player.r); }
         if (S.up || S.fall || (S.stY != null && S.stY > .6)) upMove(ox, oz); }
-      if (!S.isl && wd <= 1.6 && deepAt(player.pos.x, player.pos.z) && !(roadDist(player.pos.x, player.pos.z) < .8)) { /* you can always swim back toward the shore */ player.pos.x = ox; player.pos.z = oz; S.seaT = (S.seaT || 0) - dt; if (S.seaT <= 0) { S.seaT = 3; feed('水太深了，过不去', '#7de0ff'); } }
+      if (!S.isl && !_wingW() && wd <= 1.6 && deepAt(player.pos.x, player.pos.z) && !(roadDist(player.pos.x, player.pos.z) < .8)) { /* you can always swim back toward the shore */ player.pos.x = ox; player.pos.z = oz; S.seaT = (S.seaT || 0) - dt; if (S.seaT <= 0) { S.seaT = 3; feed('水太深了，过不去', '#7de0ff'); } }
       if (wk < 1 && ml > .3) { S.splT = (S.splT || 0) - dt; if (S.splT <= 0) { S.splT = .35; burst(player.pos.x, .3, player.pos.z, 0xbfe6f4, 3, 2); } } }
     if (ml > .05) player.walk += dt * 11 * Math.min(1, ml) * (S.sprint ? 1.35 : 1);
     lockTarget = findTarget();
@@ -26753,7 +26844,7 @@ function update(dt) {
   // every system runs on its own: one that breaks can't stop the others (effects that never vanish, frozen zombies)
   if (S.isl) SF(islandTick, dt); SF(idefTick, dt); SF(regionTick, dt); SF(portTick); SF(benchTick); SF(gearTick, dt); if (!S.isl) SF(villageTick, dt); SF(waterTick, dt); SF(evTick, dt); SF(streakTick); SF(houseTick); SF(zombieAudio, dt); SF(bodyAudio, dt, ml > .05 && !S.paused); SF(shadowTick, dt, player.pos.x, player.pos.z);
   pm.g.position.x = player.pos.x; pm.g.position.z = player.pos.z; pm.g.rotation.y = player.face;
-  if (!S.dead) { const wd = S.isl || S.up || roadDist(player.pos.x, player.pos.z) < .8 ? -1 : waterAt(player.pos.x, player.pos.z), py = playerY(); if (py != null && (S.climbA || Math.abs(pm.g.position.y - py) < .6)) pm.g.position.y = py; else pm.g.position.y += ((py != null ? py : wd > 0 ? -Math.min(wd, 1.3) * .55 : 0) - pm.g.position.y) * Math.min(1, dt * 8); }      // wading: you sink into rivers
+  if (!S.dead) { const wd = S.isl || S.up || _wingW() || roadDist(player.pos.x, player.pos.z) < .8 ? -1 : waterAt(player.pos.x, player.pos.z), py = playerY(); if (py != null && (S.climbA || Math.abs(pm.g.position.y - py) < .6)) pm.g.position.y = py; else pm.g.position.y += ((py != null ? py : wd > 0 ? -Math.min(wd, 1.3) * .55 : 0) - pm.g.position.y) * Math.min(1, dt * 8); }      // wading: you sink into rivers
   const sw = Math.sin(player.walk) * .75 * Math.min(1, ml);
   if (S.skin === 'seraph') { const b = Math.sin(S.t * 2.2) * .04; pm.legL.rotation.x = .1 + b; pm.legR.rotation.x = .32 - b; pm.body.position.y = .5 + Math.sin(S.t * 2.2) * .08; }   // floating: legs hang still, no walking   // the winged outfit floats, legs hanging
   else { pm.legL.rotation.x = sw; pm.legR.rotation.x = -sw; pm.body.position.y = Math.abs(Math.sin(player.walk)) * .07 * Math.min(1, ml); }
@@ -26808,4 +26899,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795281023').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795281826').catch(()=>{});</script></body></html>
