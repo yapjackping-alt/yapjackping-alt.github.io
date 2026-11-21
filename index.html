@@ -1869,12 +1869,6 @@ function rRing(i, j) { const k = 'r' + i + ',' + j; if (_reC.has(k)) return _reC
     r = rFinish({ k, pts, w: Math.min(R.w, 7), R, ring: N }); }
   _reC.set(k, r); return r; }
 // an oval loop road in the middle of some blocks
-function rOval(i, j) { const k = 'o' + i + ',' + j; if (_reC.has(k)) return _reC.get(k); let r = null;
-  const h = _lh(i * 41 + 9, j * 43 + 1); if (false) {   /* owner 22 Nov: the oval loops looked like scribbles */ const A = rNode(i, j), B = rNode(i + 1, j + 1), cx = (A.x + B.x) / 2, cz = (A.z + B.z) / 2, R = roadOf(cx, cz);
-    const ax = 34 + (h >>> 7) % 30, az = 22 + (h >>> 12) % 22, rt = (h >>> 17) % 628 / 100, pts = []; let wet = false;
-    for (let s = 0; s <= 40; s++) { const a = s / 40 * Math.PI * 2, lx = Math.cos(a) * ax, lz = Math.sin(a) * az, x = cx + lx * Math.cos(rt) - lz * Math.sin(rt), z = cz + lx * Math.sin(rt) + lz * Math.cos(rt); if (deepAt(x, z)) wet = true; pts.push(x, z); }
-    if (!wet) r = rFinish({ k, pts, w: Math.max(4, R.w - 2), R, oval: true }); }
-  _reC.set(k, r); return r; }
 function rStreet(i, j, d) { const k = 's' + i + ',' + j + ',' + d; if (_reC.has(k)) return _reC.get(k); let r = null;
   const ax = i * UG, az = j * UG, bx = ax + (d ? 0 : UG), bz = az + (d ? UG : 0), mx = (ax + bx) / 2, mz = (az + bz) / 2, t = tierAt(mx, mz), U = URB[t];
   if (U && URB[tierAt(ax, az)] && URB[tierAt(bx, bz)] && _lh(i * 53 + d * 7 + 2, j * 59 + d * 3 + 5) % 1000 / 1000 < U.p && !deepAt(mx, mz) && !deepAt(ax, az) && !deepAt(bx, bz)) {
@@ -1897,6 +1891,7 @@ function chunkPieces(cx, cz) { const k = cx + ',' + cz; let P = _pcC.get(k); if 
     for (let q = 0; q + 3 < p.length; q += 2) { const ax = p[q], az = p[q + 1], bx = p[q + 2], bz = p[q + 3];
       if (Math.max(ax, bx) < x0 || Math.min(ax, bx) > x1 || Math.max(az, bz) < z0 || Math.min(az, bz) > z1) continue;
       if (rLifted(r, (ax + bx) / 2, (az + bz) / 2)) continue;
+      if (typeof lmNear === 'function') { const Lm = lmNear((ax + bx) / 2, (az + bz) / 2, 1); if (Lm && Lm.type !== 'bridge') continue; }   /* roads stop at a landmark instead of running through it */
       P.push({ ax, az, bx, bz, w: r.w, R: r.R, road: r }); } }
   if (_pcC.size > 3000) _pcC.clear(); _pcC.set(k, P); return P; }
 // pieces touching a rectangle (kept under the old name)
@@ -1908,7 +1903,6 @@ const segPt = (s, x, z) => { const dx = s.bx - s.ax, dz = s.bz - s.az, L2 = dx *
 function nearestRoad(x, z, r) { let best = null; for (const s of segsIn(x - r, z - r, x + r, z + r)) { const p = segPt(s, x, z), d = Math.hypot(x - p[0], z - p[1]); if (!best || d < best.d) best = { d, s, px: p[0], pz: p[1] }; } return best; }
 // distance from (x,z) to the edge of the nearest road (negative = on the road)
 function roadDist(x, z) { const n = nearestRoad(x, z, 30); return n ? n.d - n.s.w / 2 : 99; }
-const roadDistZ = z => 99, roadDistX = x => 99;   // legacy helpers (old straight grid) — every caller now uses roadDist
 const nearSpecial = (x, z, r) => Math.hypot(x - HOME.x, z - HOME.z) < r || waterAt(x, z) > -.35 || villageNear(x, z, r) || (typeof lmNear === 'function' && !!lmNear(x, z, r));
 const WIN_LIT = 0xffb454, WIN_DARK = 0x1b1218;
 /* ---- regions: RS x RS squares, each assigned danger tier 1..10 (tier t = monster Lv 10t-9 .. 10t).
@@ -1918,16 +1912,19 @@ const RS = 240, TIERS_N = 10;
 const _rh = (i, j) => hash2(i * 92821 + 17, j * 68917 + 91) / 4294967296;
 function _vn(x, z) { const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j, sx = fx * fx * (3 - 2 * fx), sz = fz * fz * (3 - 2 * fz);
   return lerp(lerp(_rh(i, j), _rh(i + 1, j), sx), lerp(_rh(i, j + 1), _rh(i + 1, j + 1), sx), sz); }
-const _rraw = (rx, rz) => .78 * _vn(rx / 5, rz / 5) + .22 * _vn(rx / 2 + 50, rz / 2 + 50);
-const REG_Q = (() => { const R = mulberry32(777), a = []; for (let i = 0; i < 6000; i++) a.push(_rraw(Math.floor(R() * 800 - 400), Math.floor(R() * 800 - 400))); a.sort((p, q) => p - q); const q = []; for (let k = 1; k < TIERS_N; k++) q.push(a[Math.floor(k / TIERS_N * a.length)]); return q; })();
 const _tierCache = new Map();
-/* owner 22 Nov (区域东一块西一块，地图乱): the ten regions are now big rings round the middle of the mainland — region 1 in the
-   centre, each next one a band about 750 m wide further out, region 10 everything beyond. Slow noise bends every ring so the
-   borders wander and the bands bulge in and out; the old patchwork (_rraw / REG_Q) is no longer used. */
-const RING_W = 750;
+/* ---- ONE FIXED CONTINENT (owner 22 Nov: 固定地图，每个人都一样，像原神那样，地图大一点) ----
+   The mainland is one island continent about 18 km across with a wandering coastline; past it there is only deep sea.
+   Its ten regions are fixed territories, each grown round its own capital point (a weighted Voronoi through the old
+   border warp, so borders still wander): you land at 1 (the south coast harbour), the forest and the desert lie west and
+   east of it, the ruined city in the middle, the swamp and the snow mountains to the west and north-west, the canyon and the
+   lava fields east and north-east, the shadow wastes north, and the ember core at the far north. */
+const CONT_R = 9000;
+const REGC = [null, [0, 6300, 1], [-3300, 4500, 1.1], [3700, 4400, 1.15], [-5900, 1100, 1.05], [-4300, -3700, 1.2], [0, 1500, 1.1], [5600, 300, 1.1], [4300, -3900, 1.05], [-700, -3500, 1.05], [900, -7000, .95]];
+const coastR = (x, z) => { const a = Math.atan2(z, x); return CONT_R * (.86 + .07 * Math.sin(3 * a + 1.3) + .05 * Math.sin(7 * a + .4) + .1 * (_vn(Math.cos(a) * 3 + 50, Math.sin(a) * 3 + 50) - .5)); };
 function regionTier(rx, rz) { const k = rx + ',' + rz; let t = _tierCache.get(k); if (t) return t;
-  const cx = (rx + .5) * RS, cz = (rz + .5) * RS, d = Math.hypot(cx, cz), bend = (_vn(rx / 7 + 13, rz / 7 + 29) - .5) * 1.1 + (_vn(rx / 3 + 3, rz / 3 + 71) - .5) * .35;
-  t = Math.max(1, Math.min(TIERS_N, 1 + Math.floor(d / RING_W + bend * Math.min(1, d / RING_W))));
+  const cx = (rx + .5) * RS, cz = (rz + .5) * RS; let bd = 1e18; t = 1;
+  for (let n = 1; n <= TIERS_N; n++) { const C = REGC[n], d = Math.hypot(cx - C[0], cz - C[1]) / C[2]; if (d < bd) { bd = d; t = n; } }
   if (_tierCache.size > 4000) _tierCache.clear(); _tierCache.set(k, t); return t; }
 /* irregular regions: the region grid is sampled through a smooth domain warp (±80 m), so borders wander
    like coastlines instead of running in straight lines */
@@ -1946,7 +1943,8 @@ function waterAt(x, z) {
     const wx = x + (_vn(x / 140, z / 140 + 9) - .5) * 70, wz = z + (_vn(x / 140 + 5, z / 140) - .5) * 70;
     const rv = Math.abs(_vn(wx / 460 + 200, wz / 460 + 200) - .5), riv = (.013 - rv) / .013 * 1.3;
     const st = Math.abs(_vn(wx / 170 + 600, wz / 170 + 600) - .5), str = (.011 - st) / .011 * .55;
-    v = Math.max(sea, riv, str);
+    const cst = (Math.hypot(x, z) - coastR(x, z)) / 45;   /* past the coast the sea gets deep fast */
+    v = Math.max(sea, riv, str, cst > 6 ? 6 : cst);
     if (v < 0) v = Math.max(v, -2);
   }
   if (_wc.size > 60000) _wc.clear(); _wc.set(k, v); return v;
@@ -1969,9 +1967,13 @@ const BIOMES = [
   { n: '暗影荒原', s: '暗影', g: 0x2a2234, g2: 0x342a40, fog: 0x5a3a6a, bld: .5, tones: [0x3a3448, 0x443a52], tree: 'crystal', nt: [5, 10], zs: 0x6a5a8a, buff: 'evade', bn: '闪避', bd: '20% 几率闪开你的攻击', boss: [3, 1] },
   { n: '余烬核心', s: '余烬', g: 0x3a1a14, g2: 0x4a2216, fog: 0xc04a2a, bld: .8, tones: [0x3a2a28, 0x4a3430], tree: 'burnt', nt: [3, 7], fires: true, zs: 0x8a4a2a, buff: 'ember', bn: '余烬之怒', bd: '持续回血，伤害 +10%', boss: [4, 3] }
 ];
+/* owner 22 Nov: no more 「区域1 / 区域2」 — every region is a land with its own name (like a province), and has its own named
+   places inside (z_places.js). n / s are now that name; land keeps the old terrain description. */
+const PROV = ['灰港', '枯木林', '流沙原', '腐沼', '寒霜岭', '铁锈城', '赤岩谷', '熔火原', '暗影原', '余烬之心'];
+BIOMES.forEach((B, i) => { B.land = B.n; B.n = PROV[i]; B.s = PROV[i]; });
 const biomeOf = t => BIOMES[Math.max(1, Math.min(TIERS_N, t)) - 1];
 const biomeAt = (x, z) => biomeOf(tierAt(x, z));
-const regionLabel = t => '区域 ' + t + ' · ' + biomeOf(t).n;
+const regionLabel = t => biomeOf(t).n;
 // nearest region of tier t to (x,z); lands on a road so the player never spawns inside a building
 // well inside region t (not right on its border), and not on a landmark
 const _frIn = (x, z, t) => tierAt(x, z) === t && tierAt(x + 15, z) === t && tierAt(x - 15, z) === t && tierAt(x, z + 15) === t && tierAt(x, z - 15) === t;
@@ -13112,7 +13114,7 @@ let portTab = 'reg';
 renderPort = (o => function () { o(); try { const box = $('portList'); if (!box) return; const rows = [...box.children];
   const kind = r => r.classList.contains('dunrow') ? 'dun' : /护送|周王|挑战|活动|商队/.test(r.textContent || '') ? 'ev' : 'reg';
   const tabs = document.createElement('div'); tabs.className = 'tabs porttabs';
-  [['reg', '区域'], ['ev', '活动'], ['dun', '副本']].forEach(([k, n]) => { const b = document.createElement('button'); b.className = 'sbtn' + (portTab === k ? ' on' : ''); const c = rows.filter(r => kind(r) === k).length; b.textContent = n + (c ? ' · ' + c : '');
+  [['reg', '地区'], ['ev', '活动'], ['dun', '副本']].forEach(([k, n]) => { const b = document.createElement('button'); b.className = 'sbtn' + (portTab === k ? ' on' : ''); const c = rows.filter(r => kind(r) === k).length; b.textContent = n + (c ? ' · ' + c : '');
     b.addEventListener('click', () => { portTab = k; renderPort(); }); tabs.appendChild(b); });
   rows.forEach(r => { r.style.display = kind(r) === portTab ? '' : 'none'; }); box.insertBefore(tabs, box.firstChild); } catch (e) { console.warn(e); } })(renderPort);
 try { const st = document.createElement('style'); st.textContent = '.porttabs{position:sticky;top:-1px;z-index:5;display:flex;gap:6px;justify-content:center;padding:6px 0 8px;background:#17121b;box-shadow:0 6px 10px -4px rgba(0,0,0,.6)}.porttabs .sbtn{flex:1;max-width:140px}' +
@@ -25535,7 +25537,7 @@ petsTick = (o => function (dt) { o(dt); try { lowHpTick(dt); } catch (e) { } })(
    - 点一下地图空白处放标记（最多 6 个），点已有的标记就删掉（和以前一样）。
    做法：drawMap 在 MAPV.on 时以 MAPV.cx/cz 为中心画（d_main.js），画在一张正方形的离屏画布上，再裁成屏幕大小。 */
 const MP2 = { c: null, x: null, off: null, ox: null, r: 240, follow: true, ptr: new Map(), pinch: null, drag: null, tap: null, dirty: false, tm: 0, sq: 0, k: 1, w: 0, h: 0, pending: null };
-const MP2_LIM = () => S.dun ? [20, 320] : S.isl ? [40, 520] : [60, 2400];
+const MP2_LIM = () => S.dun ? [20, 320] : S.isl ? [40, 520] : [60, 19000];   /* zoom right out to see the whole continent */
 const mp2Clamp = r => { const L = MP2_LIM(); return Math.max(L[0], Math.min(L[1], r)); };
 const MP2_IC = {
   plus: '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>',
@@ -25614,7 +25616,7 @@ function mp2Draw() { MP2.dirty = false; if (!MP2.c || !$('bigmap').classList.con
   const rg = $('m2reg'); if (rg) { let t = '', s2 = '';
     try { if (S.dun) { t = (DUNS[DUN.id] && (DUNS[DUN.id].n || DUNS[DUN.id].name)) || '副本'; }
       else if (S.isl) { t = '海岛'; s2 = '没有感染'; }
-      else { const tt = tierAt(player.pos.x, player.pos.z), B = biomeOf(tt), bd = tierBand(tt); t = '区域' + tt + ' · ' + B.n; s2 = '<small style="color:hsl(' + (120 - (tt - 1) * 13) + ',85%,72%)">Lv.' + bd[0] + '-' + bd[1] + ' · ' + B.bn + '</small>'; } } catch (e) { }
+      else { const tt = tierAt(player.pos.x, player.pos.z), B = biomeOf(tt), bd = tierBand(tt); t = B.n + (typeof placeAt === 'function' && placeAt(player.pos.x, player.pos.z) ? ' · ' + placeAt(player.pos.x, player.pos.z).n : ''); s2 = '<small style="color:hsl(' + (120 - (tt - 1) * 13) + ',85%,72%)">Lv.' + bd[0] + '-' + bd[1] + ' · ' + B.bn + '</small>'; } } catch (e) { }
     const html = t + (s2 && s2[0] !== '<' ? '<small style="color:#9fd88a">' + s2 + '</small>' : s2); if (rg.innerHTML !== html) rg.innerHTML = html; } }
 function mp2Dirty() { if (MP2.dirty) return; MP2.dirty = true; if (typeof requestAnimationFrame === 'function') requestAnimationFrame(mp2Draw); else setTimeout(mp2Draw, 16); }
 function mp2Zoom(f, sx, sy) { if (sx == null) { sx = MP2.w / 2; sy = MP2.h / 2; } const a = mp2World(sx, sy), r0 = MP2.r; MP2.r = mp2Clamp(MP2.r * f);
@@ -25671,8 +25673,8 @@ const LM_POOL = [null, ['plane', 'tower', 'tree'], ['tree', 'cave', 'plane', 'tr
   ['tower', 'plane'], ['cave', 'tower', 'cave'], ['cave', 'tree', 'plane'], ['tree', 'cave', 'tower'], ['cave', 'tower', 'plane']];
 const LM_R = { tree: 10, cave: 26, bridge: 34, plane: 17, tower: 7 };
 const LM_TREE_N = [null, '枯死巨树', '千年古树', '枯死巨树', '沼泽古榕', '霜冻巨杉', '枯死巨树', '枯死巨树', '焦黑巨木', '暗影古树', '焦黑巨木'];
-const LM_GLYPH = { tree: '树', cave: '洞', bridge: '桥', plane: '机', tower: '塔' };
-function lmName(L) { return L.type === 'tree' ? LM_TREE_N[L.t] || '巨树' : { cave: '山洞', bridge: '断桥', plane: '坠机残骸', tower: '信号塔' }[L.type]; }
+const LM_GLYPH = { tree: '树', cave: '洞', bridge: '桥', plane: '机', tower: '塔', light: '灯', mill: '风', castle: '堡' };
+function lmName(L) { if (L.name) return L.name; return L.type === 'tree' ? LM_TREE_N[L.t] || '巨树' : { cave: '山洞', bridge: '断桥', plane: '坠机残骸', tower: '信号塔' }[L.type]; }
 function lmAt(i, j) { const k = i + ',' + j; if (LM_CACHE.has(k)) return LM_CACHE.get(k); let L = null;
   try { const h = hash2(i * 131 + 7, j * 197 + 3);
     if (h % 100 < 55) {
@@ -25682,6 +25684,7 @@ function lmAt(i, j) { const k = i + ',' + j; if (LM_CACHE.has(k)) return LM_CACH
       let ok = Math.hypot(x - HOME.x, z - HOME.z) > 600 && !(typeof inDunArea === 'function' && inDunArea(x, z)) && !villageNear(x, z, R + 12) && lairDist(x, z) > R + 30;
       if (ok) for (let a = 0; a < 8 && ok; a++) { const px = x + Math.cos(a * .785) * R, pz = z + Math.sin(a * .785) * R; if (waterAt(px, pz) > -.6 && type !== 'bridge') ok = false; }
       if (ok && waterAt(x, z) > -.6) ok = false;
+      if (ok && lmFixed().some(F => Math.hypot(F.x - x, F.z - z) < F.R + R + 120)) ok = false;
       if (ok && type !== 'bridge' && roadDist(x, z) < R * .7) ok = false;
       if (ok) L = { id: 'lm' + i + '_' + j, i, j, type, x, z, rot, R, t };
     } } catch (e) { L = null; }
@@ -25689,7 +25692,22 @@ function lmAt(i, j) { const k = i + ',' + j; if (LM_CACHE.has(k)) return LM_CACH
 /* broken overpasses are part of the road network: a few long straight roads climb onto one (roads in a2_world.js, r.br) */
 function lmBridgeOf(r) { if (r.lm !== undefined) return r.lm; const B = r.br, ux = (B.bx - B.ax) / B.L, uz = (B.bz - B.az) / B.L, x = (B.ax + B.bx) / 2, z = (B.az + B.bz) / 2;
   r.lm = { id: 'lb' + r.k.slice(1).replace(/,/g, '_'), i: Math.floor(x), j: Math.floor(z), type: 'bridge', x, z, rot: Math.atan2(-uz, ux), R: 50, t: tierAt(x, z), w: r.w }; return r.lm; }
+/* ---- fixed named places on the continent (owner 22 Nov: 固定地图，加多一点建筑和风景), the same for everyone ---- */
+const LM_FIX_DEF = [
+  ['light', 'a', 1.62, '南岬灯塔'], ['mill', -900, 5650, '老风车农场'], ['tree', -2500, 5000, '千年古树'], ['castle', 4700, 5200, '黄沙古堡'], ['tree', -6300, 500, '沼泽古榕'],
+  ['cave', -5200, -4000, '雪山冰洞'], ['tower', 900, 2300, '废城电视塔'], ['cave', 6300, -400, '赤岩深洞'], ['plane', 3500, -4700, '坠落的运输机'], ['tree', -1600, -2900, '暗影古树'],
+  ['castle', 100, -7700, '余烬王座'], ['light', 'a', .15, '东岸灯塔'], ['mill', 2300, 5900, '麦田风车'], ['light', 'a', 3.3, '西岸灯塔']];
+let LM_FIX = null;
+function lmFixed() { if (LM_FIX) return LM_FIX; LM_FIX = [];
+  LM_FIX_DEF.forEach(([type, x, z, name], n) => { try {
+    if (x === 'a') { const a = z; let r = coastR(Math.cos(a) * 5000, Math.sin(a) * 5000); x = Math.cos(a) * (r - 70); z = Math.sin(a) * (r - 70);
+      for (let q = 0; q < 40 && waterAt(x, z) > -.6; q++) { x -= Math.cos(a) * 15; z -= Math.sin(a) * 15; } }
+    else for (let q = 0; q < 60 && waterAt(x, z) > -.6; q++) { x += Math.cos(q * 2.4) * (8 + q * 6); z += Math.sin(q * 2.4) * (8 + q * 6); }
+    const t = tierAt(x, z), R = { light: 9, mill: 22, castle: 26 }[type] || LM_R[type];
+    LM_FIX.push({ id: 'lf' + n, i: n * 17 + 3, j: n * 31 + 7, type, x, z, rot: type === 'light' ? Math.atan2(-z, x) : (n % 4) * Math.PI / 2, R, t, name, fixed: true, big: type === 'tree' ? 1.45 : 1 }); } catch (e) { } });
+  return LM_FIX; }
 function lmsIn(x0, z0, x1, z1) { const out = [];
+  for (const L of lmFixed()) if (L.x + L.R > x0 && L.x - L.R < x1 && L.z + L.R > z0 && L.z - L.R < z1) out.push(L);
   try { for (const r of roadsIn(x0 - 60, z0 - 60, x1 + 60, z1 + 60)) if (r.br) { const L = lmBridgeOf(r); if (L.x + 50 > x0 && L.x - 50 < x1 && L.z + 50 > z0 && L.z - 50 < z1) out.push(L); } } catch (e) { } for (let i = Math.floor(x0 / LMC) - 1; i <= Math.floor(x1 / LMC) + 1; i++) for (let j = Math.floor(z0 / LMC) - 1; j <= Math.floor(z1 / LMC) + 1; j++) { const L = lmAt(i, j); if (L && L.x + L.R > x0 && L.x - L.R < x1 && L.z + L.R > z0 && L.z - L.R < z1) out.push(L); } return out; }
 // is (x,z) inside a landmark's ground (+ r)? the bridge only keeps its pillars and the camp under it free, not the road
 function lmNear(x, z, r) { r = r || 0; for (const L of lmsIn(x - r - 40, z - r - 40, x + r + 40, z + r + 40)) {
@@ -25704,6 +25722,7 @@ function lmLocal(L, x, z) { const dx = x - L.x, dz = z - L.z, c = Math.cos(L.rot
 const LMQ = { m: new THREE.Matrix4(), q: new THREE.Quaternion(), e: new THREE.Euler(), v: new THREE.Vector3(), s: new THREE.Vector3(), col: new THREE.Color() };
 // any THREE geometry into a vertex-coloured batch, placed in the landmark's local frame
 function lmPut(B, L, geo, col, lx, y, lz, rx, ry, rz, sx, sy, sz) {
+  const K = L.big || 1; if (K !== 1) { lx *= K; y *= K; lz *= K; sx = (sx || 1) * K; sy = (sy || 1) * K; sz = (sz || 1) * K; }   /* a bigger copy of the same design */
   const g = geo.index ? geo.toNonIndexed() : geo, P = g.attributes.position, [wx, wz] = lmWorld(L, lx, lz);
   LMQ.e.set(rx || 0, (ry || 0) + L.rot, rz || 0); LMQ.q.setFromEuler(LMQ.e); LMQ.m.compose(LMQ.v.set(wx, y, wz), LMQ.q, LMQ.s.set(sx || 1, sy || 1, sz || 1));
   LMQ.col.set(col); const v = new THREE.Vector3();
@@ -25717,7 +25736,7 @@ function lmObsBox(R, L, lx, lz, hw, hd) { const [wx, wz] = lmWorld(L, lx, lz);
   /* turned at an odd angle (bridges follow their road): a row of circles along the long side */
   const r = Math.min(hw, hd), n = Math.max(1, Math.ceil(Math.max(hw, hd) / r)), along = hw >= hd;
   for (let q = 0; q < n; q++) { const o = -Math.max(hw, hd) + r + (n > 1 ? q * (2 * Math.max(hw, hd) - 2 * r) / (n - 1) : Math.max(hw, hd) - r); lmObsC(R, L, lx + (along ? o : 0), lz + (along ? 0 : o), r * 1.05); } }
-function lmObsC(R, L, lx, lz, r) { const [wx, wz] = lmWorld(L, lx, lz); R.obs.push(addCircle(wx, wz, r)); }
+function lmObsC(R, L, lx, lz, r) { const K = L.big || 1, [wx, wz] = lmWorld(L, lx * K, lz * K); R.obs.push(addCircle(wx, wz, r * K)); }
 function lmFlame(R, L, lx, y, lz, s) { const [wx, wz] = lmWorld(L, lx, lz), sp = new THREE.Sprite(flameMat); sp.position.set(wx, y, wz); sp.scale.set(2.2 * s, 2.6 * s, 1); scene.add(sp); R.meshes.push(sp); R.fl.push({ sp, s: Math.random() * 6, base: 2.4 * s }); }
 
 function lmBuildTree(L, R, A, Wb) {
@@ -25838,13 +25857,52 @@ function lmBuildTower(L, R, A, Wb) {
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameMat.map, color: 0xff2020, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })), [wx, wz] = lmWorld(L, 0, 0);
   sp.position.set(wx, H + 5.8, wz); sp.scale.set(2, 2, 1); scene.add(sp); R.meshes.push(sp); R.blink = sp;
 }
+function lmBuildLight(L, R, A, Wb) {   /* a lighthouse on the coast: red and white bands, a glowing lantern room, a keeper's hut */
+  for (let k = 0; k < 6; k++) { const y = 2 + k * 3.2, r = 2.3 - k * .2; lmPut(A, L, LMG.cyl, k % 2 ? 0xb8342a : 0xe8e4dc, 0, y + 1.6, 0, 0, 0, 0, r, 3.2, r); }
+  lmPut(A, L, LMG.cyl, 0x6a6460, 0, 1, 0, 0, 0, 0, 3.4, 2, 3.4); lmPut(A, L, LMG.rock, 0x6a6460, 2.5, .8, 2, 0, 1, 0, 2.2, 1.4, 2); lmPut(A, L, LMG.rock, 0x5a5450, -2.6, .7, -1.5, 0, 2, 0, 2, 1.2, 1.8);
+  lmPut(A, L, LMG.cyl, 0x2a2a30, 0, 21.4, 0, 0, 0, 0, 1.9, .4, 1.9); lmPut(Wb, L, LMG.cyl, 0xfff0a0, 0, 22.8, 0, 0, 0, 0, 1.2, 2.4, 1.2);
+  for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; lmBox(A, L, 0x2a2a30, Math.cos(a) * 1.3, 22.8, Math.sin(a) * 1.3, .12, 2.4, .12); }
+  lmPut(A, L, LMG.cone, 0x8a2a24, 0, 25, 0, 0, 0, 0, 1.6, 1.8, 1.6); lmBox(A, L, 0x2a2a30, 0, 21.8, 0, 4.6, .12, 4.6);
+  lmBox(A, L, 0xd8d0c0, 6.5, 1.4, 0, 4, 2.8, 3.4); lmBox(A, L, 0x8a3a2a, 6.5, 3.1, 0, 4.4, .5, 3.8); lmObsBox(R, L, 6.5, 0, 2, 1.7); lmObsC(R, L, 0, 0, 3.2);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameMat.map, color: 0xfff2b0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })), [wx, wz] = lmWorld(L, 0, 0);
+  sp.position.set(wx, 22.8, wz); sp.scale.set(7, 7, 1); scene.add(sp); R.meshes.push(sp); R.glow = sp; }
+function lmBuildMill(L, R, A, Wb, Sail) {   /* an old windmill on a farm: fields, hay bales, a fence; the sails turn */
+  lmPut(A, L, LMG.cyl, 0xd8cfb8, 0, 6, 0, 0, 0, 0, 3.2, 12, 3.2); lmPut(A, L, LMG.cone, 0x6a3a2a, 0, 13.6, 0, 0, .4, 0, 3.8, 3.4, 3.8); lmBox(A, L, 0x4a3426, 0, 1.4, 3.1, 1.6, 2.8, .3);
+  for (let k = 0; k < 3; k++) lmBox(Wb, L, 0xffc46a, Math.cos(k * 2 + 1) * 3.1, 5 + k * 2.5, Math.sin(k * 2 + 1) * 3.1, .5, .7, .1, 0, -(k * 2 + 1) + Math.PI / 2, 0);
+  lmObsC(R, L, 0, 0, 3.4);
+  // sails: built round the hub at the origin of their own mesh, the mesh is placed at the hub and spun
+  const SL = { x: 0, z: 0, rot: 0 }; lmBox(Sail, SL, 0x4a3426, 0, 0, 0, .6, .6, .9);
+  for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2; lmBox(Sail, SL, 0x5a4030, Math.cos(a) * 4.4, Math.sin(a) * 4.4, .2, .25, 8.6, .2, 0, 0, a - Math.PI / 2); lmBox(Sail, SL, 0xe8dcc0, Math.cos(a + .1) * 4.8, Math.sin(a + .1) * 4.8, .3, 1.4, 7, .06, 0, 0, a - Math.PI / 2); }
+  R.sailAt = lmWorld(L, 0, 3.8);
+  // fields: crop rows, hay bales, a fence on two sides
+  for (let r = 0; r < 9; r++) for (const sd of [-1, 1]) lmBox(A, L, r % 3 ? 0x5e6e2a : 0x8a7434, sd * 12, .25, -9 + r * 2.2, 10, .5, .8);
+  for (let k = 0; k < 5; k++) { lmPut(A, L, LMG.cyl, 0xd8b860, -6 + k * 3, .7, 12 + (k % 2) * 1.6, Math.PI / 2, k, 0, .7, 1.4, .7); lmObsC(R, L, -6 + k * 3, 12 + (k % 2) * 1.6, .8); }
+  for (let u = -20; u <= 20; u += 2.5) { lmBox(A, L, 0x6a4a30, u, .5, -12, .15, 1, .15); lmBox(A, L, 0x6a4a30, 20, .5, u * .6, .15, 1, .15); }
+  lmBox(A, L, 0x6a4a30, 0, .8, -12, 40, .1, .1); lmBox(A, L, 0x6a4a30, 20, .8, 0, .1, .1, 24); }
+function lmBuildCastle(L, R, A, Wb) {   /* a ruined fort: four corner towers, broken curtain walls, a gate, a courtyard */
+  const st = L.t === 3 ? [0xb09068, 0xa08058] : L.t === 10 ? [0x3a2a28, 0x4a3430] : [0x7a7470, 0x6a6460], H = 6;
+  const wallSeg = (ax, az, bx, bz, broken) => { const len = Math.hypot(bx - ax, bz - az), n = Math.ceil(len / 3);
+    for (let q = 0; q < n; q++) { const u = (q + .5) / n, x = ax + (bx - ax) * u, z = az + (bz - az) * u, h = broken && Math.abs(u - .5) < .18 ? 1.2 : H - (q % 3 === 1 ? .8 : 0);
+      if (broken && Math.abs(u - .5) < .1) continue; lmBox(A, L, st[q % 2], x, h / 2, z, ax === bx ? 1.6 : len / n + .05, h, ax === bx ? len / n + .05 : 1.6);
+      if (h > 3 && q % 2 === 0) lmBox(A, L, st[0], x, h + .45, z, ax === bx ? 1.8 : 1.2, .9, ax === bx ? 1.2 : 1.8);
+      lmObsBox(R, L, x, z, ax === bx ? .8 : len / n / 2, ax === bx ? len / n / 2 : .8); } };
+  const E = 15; wallSeg(-E, -E, E, -E, false); wallSeg(-E, -E, -E, E, true); wallSeg(E, -E, E, E, false);
+  wallSeg(-E, E, -3.5, E, false); wallSeg(3.5, E, E, E, false);   /* the gate side */
+  for (const [x, z] of [[-E, -E], [E, -E], [-E, E], [E, E]]) { const h = (x > 0) !== (z > 0) ? 11 : 7.5; lmPut(A, L, LMG.cyl, st[1], x, h / 2, z, 0, 0, 0, 3, h, 3); lmPut(A, L, LMG.cyl, st[0], x, h + .5, z, 0, 0, 0, 3.4, 1, 3.4); lmObsC(R, L, x, z, 3.2); }
+  for (const sd of [-1, 1]) { lmPut(A, L, LMG.cyl, st[1], sd * 3.5, 4.5, E, 0, 0, 0, 1.8, 9, 1.8); lmObsC(R, L, sd * 3.5, E, 1.9); }
+  lmBox(A, L, st[0], 0, 8.4, E, 8.6, 1.4, 2.2);
+  for (let k = 0; k < 10; k++) lmPut(A, L, LMG.rock, st[k % 2], -E + (k * 3.7) % 9, .5, -4 + (k * 2.3) % 8, k, k, 0, .9, .6, .8);
+  lmBox(A, L, 0x5a3a2a, 0, .1, -6, 10, .2, 6); lmBox(A, L, 0x8a2a24, 0, 3.4, -E + .9, 2.4, 4.6, .08); lmPut(Wb, L, LMG.oct, 0xffc94a, 0, 4.6, -E + 1, 0, 0, 0, .3, .5, .1);
+  lmBox(A, L, 0x3a2a20, 6, .25, 4, 1, .5, 1); lmFlame(R, L, 6, 1.1, 4, .8); lmObsC(R, L, 6, 4, .6); }
 function lmBuild(L) { if (LMB.has(L.id)) return;
   const R = { L, meshes: [], obs: [], fl: [], crate: null }, A = new Batch(), Wb = new Batch(), Roof = new Batch(), Deck = new Batch();
-  try { ({ tree: lmBuildTree, cave: lmBuildCave, bridge: lmBuildBridge, plane: lmBuildPlane, tower: lmBuildTower })[L.type](L, R, A, Wb, L.type === 'bridge' ? Deck : Roof); } catch (e) { console.warn('landmark', L.type, e); }
+  const Sail = new Batch();
+  try { ({ tree: lmBuildTree, cave: lmBuildCave, bridge: lmBuildBridge, plane: lmBuildPlane, tower: lmBuildTower, light: lmBuildLight, mill: lmBuildMill, castle: lmBuildCastle })[L.type](L, R, A, Wb, L.type === 'bridge' ? Deck : L.type === 'mill' ? Sail : Roof); } catch (e) { console.warn('landmark', L.type, e); }
+  if (R.sailAt) { const m = Sail.mesh(chunkMatL); if (m) { m.position.set(R.sailAt[0], 11.5, R.sailAt[1]); m.rotation.y = L.rot; m.rotation.order = 'YXZ'; scene.add(m); R.meshes.push(m); R.sail = m; } }
   for (const [B, mat, key] of [[A, chunkMatL], [Wb, chunkMatW], [Roof, chunkMatL, 'roof'], [Deck, chunkMatL, 'roof']]) { const m = B.mesh(mat); if (!m) continue; scene.add(m); R.meshes.push(m); if (key) R.roof = m; }
   // its supply crate (own id: L,<landmark>,<tier>,<epoch> so the normal crate clean-up keeps it)
   try { const tier = L.type === 'cave' && hash2(L.i * 3 + 1, L.j * 5 + epochOf(TIERS[2])) % 100 < 30 ? 2 : 1, T = TIERS[tier], id = 'L,' + L.id + ',' + tier + ',' + epochOf(T);
-    const spot = { tree: [3.5, 4.2], cave: [4, -17.5], bridge: [-9, 1.5], plane: [1, 3.6], tower: [3, 2.2] }[L.type], [cx, cz] = lmWorld(L, spot[0], spot[1]);
+    const spot = { tree: [3.5, 4.2], cave: [4, -17.5], bridge: [-9, 1.5], plane: [1, 3.6], tower: [3, 2.2], light: [4, 3.5], mill: [4, 5], castle: [-4, -8] }[L.type], [cx, cz] = lmWorld(L, spot[0] * (L.big || 1), spot[1] * (L.big || 1));
     if (!S.crOpen[id] && !crates.has(id)) { addCrate(id, T, cx, cz); R.crate = id; } } catch (e) { }
   LMB.set(L.id, R); }
 function lmDrop(id) { const R = LMB.get(id); if (!R) return; for (const m of R.meshes) { scene.remove(m); if (m.geometry && !m.isSprite) m.geometry.dispose(); if (m.isSprite && m.material !== flameMat) m.material.dispose(); }
@@ -25860,6 +25918,8 @@ function lmTick(dt) { if (S.isl || S.dun) return; LMT.d -= dt;
     if (R.roof && R.inside) { const [lx, lz] = lmLocal(R.L, player.pos.x, player.pos.z), inn = R.inside(lx, lz); if (R.roof.visible === inn) R.roof.visible = !inn; }
     for (const f of R.fl) { f.s += dt * 9; const k = 1 + Math.sin(f.s) * .08 + Math.sin(f.s * 2.3) * .05; f.sp.scale.set(f.base * .85 * k, f.base * k, 1); }
     if (R.blink) R.blink.visible = (performance.now() / 700 | 0) % 2 === 0;
+    if (R.sail) R.sail.rotation.z += dt * .6;
+    if (R.glow) { const g = 6 + Math.sin(performance.now() / 400) * 1.5; R.glow.scale.set(g, g, 1); }
     if (LMT.d <= 0 && !S.lmSeen[R.L.id] && Math.hypot(player.pos.x - R.L.x, player.pos.z - R.L.z) < R.L.R + 8) { S.lmSeen[R.L.id] = 1; try { banner('发现地标', lmName(R.L), 2); sfx.pick && sfx.pick(); } catch (e) { } }
   }
   if (LMT.d <= 0) LMT.d = .5; }
@@ -25869,8 +25929,10 @@ petsTick = (o => function (dt) { o(dt); try { lmTick(dt); } catch (e) { } })(pet
 drawExtraRadar = (o => function (tx, tz, edgeMark) { o(tx, tz, edgeMark);
   try { if (S.isl || S.dun) return; const c = mctx, W = c.canvas.width, k = _mapK || 2, sc = tx(1) - tx(0); if (!(sc > 0)) return;
     const cx = (W / 2 - tx(0)) / sc, cz = (W / 2 - tz(0)) / sc, half = W / 2 / sc, big = W > 300 * k;
-    if (big && half > 900) return;   /* zoomed far out: no landmark pins (the map got far too busy) */
-    for (const L of lmsIn(cx - half, cz - half, cx + half, cz + half)) { const x = tx(L.x), y = tz(L.z), seen = !!S.lmSeen[L.id];
+    for (const L of lmFixed()) { const x = tx(L.x), y = tz(L.z); if (x < -40 || y < -40 || x > W + 40 || y > W + 40) continue;   /* the named places: always on the map */
+      mapPin(c, x, y, (big ? 8 : 5.5) * k, '#ffd27a', LM_GLYPH[L.type], k); if (big && half <= 3000) { c.font = '800 ' + 11 * k + 'px sans-serif'; c.textAlign = 'center'; c.lineWidth = 3 * k; c.strokeStyle = 'rgba(10,6,12,.85)'; c.strokeText(L.name, x, y - 13 * k); c.fillStyle = '#ffe9b8'; c.fillText(L.name, x, y - 13 * k); } }
+    if (big && half > 900) return;   /* zoomed far out: no other landmark pins (the map got far too busy) */
+    for (const L of lmsIn(cx - half, cz - half, cx + half, cz + half)) { if (L.fixed) continue; const x = tx(L.x), y = tz(L.z), seen = !!S.lmSeen[L.id];
       mapPin(c, x, y, (big ? 7 : 5) * k, '#9fe37a', LM_GLYPH[L.type], k);   /* owner 22 Nov: no question marks */
       if (big && seen && half < 700) { c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#e6ffd8'; c.fillText(lmName(L), x, y - 11 * k); } } } catch (e) { } })(drawExtraRadar);
 shopSave = (o => function () { const r = o.apply(this, arguments); try { const ks = Object.keys(S.lmSeen); r.lms = ks.slice(-800); } catch (e) { } return r; })(shopSave);
@@ -25878,6 +25940,45 @@ shopLoad = (o => function (d) { o.apply(this, arguments); try { S.lmSeen = {}; c
 
 /* ---- mainland rivers and seas look like the island's own water (owner 22 Nov): same soft ripple texture and opacity ---- */
 try { const M = tpWaterMat(); waterSurfMat.map = M.map; waterSurfMat.opacity = .84; waterSurfMat.needsUpdate = true; } catch (e) { }
+/* ============ 地名（owner 22 Nov：一区二区不再这样叫，它们有自己的名字，每个里面又有不同的地方名字，就像省和城）============
+   每个地区（PROV，在 a2_world.js）有 4~5 个地方，第一个是它的首府（REGC 的点）。地图上：拉远看地区名，拉近看地方名；
+   左上角和小地图写「地区 · 地方」；走进一个新的地方时上面会轻轻出一个地名。地方的位置是固定的，每个人都一样。 */
+const PLACES = [null,
+  [['灰港镇', 0, 0], ['风车坡', -900, -650], ['南岬', -350, 1150], ['旧码头', 900, 700], ['麦田', 2100, -350]],
+  [['鸦巢村', 0, 0], ['古树谷', 800, 500], ['樵夫营', -900, -600], ['雾溪', -400, 900]],
+  [['驼铃驿', 0, 0], ['黄沙堡', 1000, 800], ['枯井镇', -800, -700], ['风蚀岩', 900, -900]],
+  [['蛙鸣渡', 0, 0], ['沉船湾', -900, 300], ['腐木屯', 500, -900], ['古榕滩', -400, -650]],
+  [['冰湖镇', 0, 0], ['雪狼坡', 900, 700], ['冰洞口', -900, -300], ['白桦营', 600, -1000]],
+  [['中央广场', 0, 0], ['电视塔区', 900, 800], ['旧工厂', -1100, -300], ['地铁站', 300, -1000], ['南门', -200, 1300]],
+  [['红石镇', 0, 0], ['断崖口', -700, 900], ['深洞', 700, -700], ['东岸', 1900, 800]],
+  [['熔岩湖', 0, 0], ['火山口', 800, -600], ['黑石营', -700, 400], ['坠机地', -800, -800]],
+  [['紫晶林', 0, 0], ['幽灵镇', 900, 300], ['暗影古树', -900, 600], ['石碑圈', 300, -900]],
+  [['余烬王座', 0, -700], ['灰烬城', 0, 0], ['熔心裂谷', -900, 300], ['终焉之门', 800, 400]]];
+let PL_ALL = null;
+// every place with its real spot, pulled toward its capital until it really lies in its own land and on dry ground
+function plAll() { if (PL_ALL) return PL_ALL; PL_ALL = [];
+  for (let t = 1; t <= TIERS_N; t++) { const C = REGC[t]; PLACES[t].forEach(([n, dx, dz], i) => { let x = C[0] + dx, z = C[1] + dz;
+      for (let q = 0; q < 30 && (tierAt(x, z) !== t || waterAt(x, z) > -.6); q++) { x += (C[0] - x) * .15 + Math.cos(q * 2.4) * 40; z += (C[1] - z) * .15 + Math.sin(q * 2.4) * 40; }
+      PL_ALL.push({ t, n, x, z, cap: i === 0 }); }); }
+  return PL_ALL; }
+function placeAt(x, z) { const t = tierAt(x, z); let best = null, bd = 1e18; for (const P of plAll()) { if (P.t !== t) continue; const d = (P.x - x) ** 2 + (P.z - z) ** 2; if (d < bd) { bd = d; best = P; } } return best; }
+const PLC = { cur: '', t: 0 };
+// the land + place in the corner and on the minimap
+regionHud = function () { let t = '海岛'; try { if (!S.isl) { const P = placeAt(player.pos.x, player.pos.z); t = biomeOf(tierAt(player.pos.x, player.pos.z)).n + (P ? ' · ' + P.n : ''); } } catch (e) { } t += ' · ' + DN.label; if (t !== _regTxt) { _regTxt = t; $('regTxt').textContent = t; } };
+// walking into a new place: its name shows quietly at the top (the land banner itself is unchanged)
+petsTick = (o => function (dt) { o(dt); try { PLC.t -= dt; if (PLC.t > 0 || S.isl || S.dun || S.dead) return; PLC.t = 1;
+  const P = placeAt(player.pos.x, player.pos.z), k = P ? P.t + P.n : ''; if (k && PLC.cur && k !== PLC.cur && P.t === +PLC.cur.match(/^\d+/)[0]) banner(P.n, biomeOf(P.t).n, 1.6); PLC.cur = k; } catch (e) { } })(petsTick);
+// on the big map: lands when zoomed out, places when zoomed in
+drawExtraRadar = (o => function (tx, tz, edgeMark) { o(tx, tz, edgeMark);
+  try { if (S.isl || S.dun) return; const c = mctx, W = c.canvas.width, k = _mapK || 2, sc = tx(1) - tx(0); if (!(sc > 0) || W < 300 * k) return;
+    const vr = W / sc * (typeof MAPV !== 'undefined' && MAPV.vr ? MAPV.vr / (W / sc) : 1);
+    c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineWidth = 3.5 * k; c.strokeStyle = 'rgba(10,6,12,.85)';
+    const txt = (s, x, y, size, col, w) => { c.font = (w || 800) + ' ' + size * k + 'px sans-serif'; c.strokeText(s, x, y); c.fillStyle = col; c.fillText(s, x, y); };
+    if (vr > 1800) { for (let t = 1; t <= TIERS_N; t++) { const C = REGC[t], x = tx(C[0]), y = tz(C[1]), b = tierBand(t); if (x < -60 * k || y < -40 * k || x > W + 60 * k || y > W + 40 * k) continue;
+        txt(biomeOf(t).n, x, y - 7 * k, vr > 8000 ? 15 : 18, '#fff2e4', 900); txt('Lv.' + b[0] + '-' + b[1], x, y + 11 * k, 10.5, 'hsl(' + (120 - (t - 1) * 13) + ',85%,72%)', 700); } }
+    else for (const P of plAll()) { const x = tx(P.x), y = tz(P.z); if (x < -60 * k || y < -30 * k || x > W + 60 * k || y > W + 30 * k) continue;
+      txt(P.n, x, y, P.cap ? 15 : 12.5, P.cap ? '#fff2e4' : '#e8d8c8', P.cap ? 900 : 700); if (P.cap) txt(biomeOf(P.t).n + ' · Lv.' + tierBand(P.t)[0] + '-' + tierBand(P.t)[1], x, y + 15 * k, 10, 'hsl(' + (120 - (P.t - 1) * 13) + ',85%,72%)', 700); }
+    c.textBaseline = 'alphabetic'; } catch (e) { } })(drawExtraRadar);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -25967,7 +26068,7 @@ const lvTier = () => Math.max(1, Math.min(10, Math.ceil(S.level / 10)));
 /* ---- daily tasks: three a day, picked per character per date ---- */
 const QPOOL = [
   { k: 'kill', n: [60, 120], d: n => '击败 ' + n + ' 只丧尸' },
-  { k: 'tier', n: [30, 60], d: n => '在区域 ' + lvTier() + ' 或更高的区域击败 ' + n + ' 只丧尸' },
+  { k: 'tier', n: [30, 60], d: n => '在' + biomeOf(lvTier()).n + '或更危险的地方击败 ' + n + ' 只丧尸' },
   { k: 'crate', n: [3, 6], d: n => '打开 ' + n + ' 个物资箱' },
   { k: 'boss', n: [1, 1], d: () => '击败 1 个首领' },
   { k: 'melee', n: [25, 45], d: n => '用近战武器击败 ' + n + ' 只丧尸' },
@@ -26517,14 +26618,13 @@ function drawMap(ctx, W, range, big, k) {
     if (big) { c.font = '700 ' + 12 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#ffd8b0'; c.fillText('码头', tx(PAD.x), tz(PAD.z) - 4 * sc - 7 * k); if (!FREE) { c.fillStyle = 'rgba(255,230,210,.6)'; c.fillText('海岛 · 没有感染', W / 2, 22 * k); } }
   } else {
     // regions in their biome colours
-    const r0 = Math.floor((px - half) / RS), r1 = Math.floor((px + half) / RS), c0 = Math.floor((pz - half) / RS), c1 = Math.floor((pz + half) / RS);
     { const T = terrainLayer(px, pz, half, big ? 150 : 60); if (T) { c.imageSmoothingEnabled = true; c.drawImage(T.cv, tx(T.x0), tz(T.z0), T.span * sc, T.span * sc); } }
     // villages
     if (vr <= 2000) for (const vg of villagesNear(px, pz).concat(big ? villagesWide(px, pz, half) : [])) { const vx = tx(vg.x), vz = tz(vg.z); if (vx < -20 || vz < -20 || vx > W + 20 || vz > W + 20) continue;
       c.strokeStyle = 'rgba(255,214,120,.8)'; c.lineWidth = 1.4 * k; c.beginPath(); c.arc(vx, vz, Math.max(5 * k, VIL_R * sc), 0, 7); c.stroke(); mapPin(c, vx, vz, 5.5 * k, '#e8b450', '村', k);
       if (big && vr <= 1000) { c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#ffe9a8'; c.fillText(vg.name, vx, vz - 10 * k); } }
     // roads: the real segments (asphalt darker with a dashed centre line; dirt / sand / snow tracks in their own colour)
-    { const rds = roadsIn(px - half, pz - half, px + half, pz + half, vr > 900); c.lineJoin = c.lineCap = 'round';
+    if (vr <= 5000) { const rds = roadsIn(px - half, pz - half, px + half, pz + half, vr > 900); c.lineJoin = c.lineCap = 'round';
       const path = r => { c.beginPath(); const p = r.pts; c.moveTo(tx(p[0]), tz(p[1])); for (let q = 2; q < p.length; q += 2) c.lineTo(tx(p[q]), tz(p[q + 1])); };
       /* owner 22 Nov: roads on the map must not shout — soft, thin, see-through; far out only the country roads */
       const far = vr > 900; c.globalAlpha = far ? .45 : big ? .6 : .8;
@@ -26555,14 +26655,6 @@ function drawMap(ctx, W, range, big, k) {
     if (boss && !boss.dead) { const pr = 1 + Math.sin(S.t * 6) * .15; mapPin(c, tx(boss.pos.x), tz(boss.pos.z), 7 * k * pr, '#ff2a1a', 'B', k); edgeMark(boss, '#ff2a1a'); }
     // region labels
     if (big) { c.textAlign = 'center'; c.textBaseline = 'middle';
-      /* region names sit on fixed spots of the world (every 4th or 8th region cell), so they never jump when you drag (owner 22 Nov) */
-      const step = vr > 1500 ? 8 : vr > 900 ? 4 : 3;
-      for (let i = Math.floor(r0 / step) * step; i <= r1; i += step) for (let j = Math.floor(c0 / step) * step; j <= c1; j += step) {
-        const wxp = (i + .5) * RS, wzp = (j + .5) * RS, t = tierAt(wxp, wzp), B = biomeOf(t), bnd = tierBand(t), cx = tx(wxp), cz = tz(wzp), col = 'hsl(' + (120 - (t - 1) * 13) + ',85%,72%)';
-        if (cx < -60 * k || cz < -30 * k || cx > W + 60 * k || cz > W + 30 * k) continue;
-        if (vr <= 900) { const t1 = '区域' + t + ' · ' + B.n, t2 = 'Lv.' + bnd[0] + '-' + bnd[1] + ' · ' + B.bn; c.font = '900 ' + 13 * k + 'px sans-serif'; c.lineWidth = 3 * k; c.strokeStyle = 'rgba(10,6,12,.85)';
-          c.strokeText(t1, cx, cz - 7 * k); c.fillStyle = '#fff2e4'; c.fillText(t1, cx, cz - 7 * k); c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.strokeText(t2, cx, cz + 9 * k); c.fillStyle = col; c.fillText(t2, cx, cz + 9 * k); }
-        else { c.font = '900 ' + 16 * k + 'px sans-serif'; c.lineWidth = 3.5 * k; c.strokeStyle = 'rgba(10,6,12,.85)'; c.strokeText(String(t), cx, cz); c.fillStyle = col; c.fillText(String(t), cx, cz); } }
       c.textBaseline = 'alphabetic'; }
   }
   if (!S.isl) mapBuilds(c, tx, tz, sc, k, big);
@@ -26598,9 +26690,9 @@ function terrainLayer(px, pz, half, N) {
   const cv = (T && T.cv) || document.createElement('canvas'); cv.width = cv.height = N + 2; const g = cv.getContext('2d'); if (!g || !g.createImageData) return null;
   const im = g.createImageData(N + 2, N + 2), d = im.data, tiers = new Int8Array((N + 2) * (N + 2)); const cc = new THREE.Color();
   for (let j = 0; j < N + 2; j++) for (let i = 0; i < N + 2; i++) {
-    const x = (gx + i + .5) * cell, z = (gz + j + .5) * cell, t = tierAt(x, z), w = waterAt(x, z), o = (j * (N + 2) + i) * 4; tiers[j * (N + 2) + i] = t;
-    if (w > 0) { const dk = clamp(w / 3, 0, 1); d[o] = 70 - dk * 40; d[o + 1] = 150 - dk * 60; d[o + 2] = 190 - dk * 40; }
-    else if (w > -.5) { d[o] = 190; d[o + 1] = 170; d[o + 2] = 120; }
+    const x = (gx + i + .5) * cell, z = (gz + j + .5) * cell, w = waterAt(x, z), t = w > 1.6 ? 0 : tierAt(x, z), o = (j * (N + 2) + i) * 4; tiers[j * (N + 2) + i] = t;   /* t 0 = open water: no border lines across the sea */
+    if (w > 0 && !(cell > 6 && w < .9)) { const dk = clamp(w / 3, 0, 1);   /* zoomed out, thin streams are left off (they made the map look scribbled) */ d[o] = 70 - dk * 40; d[o + 1] = 150 - dk * 60; d[o + 2] = 190 - dk * 40; }
+    else if (w > -.5 && !(cell > 6 && w < .9)) { d[o] = 190; d[o + 1] = 170; d[o + 2] = 120; }
     else { cc.setHex(biomeOf(t).g); d[o] = Math.min(255, cc.r * 330); d[o + 1] = Math.min(255, cc.g * 330); d[o + 2] = Math.min(255, cc.b * 330); }
     d[o + 3] = 245;
   }
@@ -26849,6 +26941,7 @@ function update(dt) {
       { const step = Math.hypot(mx, mz) * spd * dt * wk, n = S.up || S.fall || (S.stY != null && S.stY > .6) || S.climbA ? 1 : Math.min(40, Math.max(1, Math.ceil(step / .12)));   // fast runners move in small steps so walls stay solid
         for (let i = 0; i < n; i++) { player.pos.x += mx * spd * dt * wk / n; player.pos.z += mz * spd * dt * wk / n; if (n > 1 || !(S.up || S.fall || (S.stY != null && S.stY > .6) || S.climbA)) collide(player.pos, player.r); }
         if (S.up || S.fall || (S.stY != null && S.stY > .6)) upMove(ox, oz); }
+      if (!S.isl && !S.dun && Math.hypot(player.pos.x, player.pos.z) > coastR(player.pos.x, player.pos.z) + 350 && !(typeof inDunArea === 'function' && inDunArea(player.pos.x, player.pos.z))) { player.pos.x = ox; player.pos.z = oz; }   /* the edge of the world: open sea */
       if (!S.isl && !_wingW() && wd <= 1.6 && deepAt(player.pos.x, player.pos.z) && !(roadDist(player.pos.x, player.pos.z) < .8)) { /* you can always swim back toward the shore */ player.pos.x = ox; player.pos.z = oz; S.seaT = (S.seaT || 0) - dt; if (S.seaT <= 0) { S.seaT = 3; feed('水太深了，过不去', '#7de0ff'); } }
       if (wk < 1 && ml > .3) { S.splT = (S.splT || 0) - dt; if (S.splT <= 0) { S.splT = .35; burst(player.pos.x, .3, player.pos.z, 0xbfe6f4, 3, 2); } } }
     if (ml > .05) player.walk += dt * 11 * Math.min(1, ml) * (S.sprint ? 1.35 : 1);
@@ -26922,4 +27015,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795282432').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795283611').catch(()=>{});</script></body></html>
