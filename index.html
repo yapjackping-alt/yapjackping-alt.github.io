@@ -2046,9 +2046,11 @@ function genChunk(cx, cz) {
   { let sd = hash2(Math.floor(x0 / CH) * 7 + 3, Math.floor(z0 / CH) * 11 + 5) || 1; const sr = () => { sd = (sd * 1103515245 + 12345) & 0x7fffffff; return sd / 0x7fffffff; }, sv = (a, b) => a + sr() * (b - a);
     const n = B.tall ? 1 : sr() < .7 ? 2 : 1, tint = B.snow ? 0xd8dde4 : 0x7e7c80;
     for (let i = 0; i < n; i++) { const x = x0 + sv(5, CH - 5), z = z0 + sv(5, CH - 5); if (roadDist(x, z) < 3 || !free(x, z, 1.4, 1.4, .5) || nearSpecial(x, z, 0) || waterAt(x, z) > -1 || (typeof treeUnderBuild === 'function' && treeUnderBuild({ x, z, r: 1.3 }))) continue; mark(x, z, 1.3, 1.3);
+      const a0 = L.p.length, w0 = W.p.length, sid = 'st' + Math.round(x * 10) + '_' + Math.round(z * 10);
       const h = sv(1, 1.7); L.box(x, h / 2, z, sv(1.6, 2.1), h, sv(1.5, 2), tint, sv(-.1, .1), sv(0, 3), sv(-.1, .1)); L.box(x + sv(-.5, .5), h + .2, z + sv(-.4, .4), sv(.8, 1.2), .6, sv(.8, 1.1), 0x8e8c90, sv(-.2, .2), sv(0, 3), 0);
       L.box(x + sv(.7, 1.1), .3, z + sv(-.6, .6), .6, .6, .6, 0x6a686c, 0, sv(0, 3), 0); if (B.snow) L.box(x, h + .52, z, 1, .14, 1, 0xf2f6fa, 0, sv(0, 3), 0);
-      ch.obs.push(addCircle(x, z, 1.1, { g: 'stone' })); } }
+      if (S.pk && S.pk[sid] > Date.now()) { L.p.length = L.n.length = L.c.length = a0; continue; }   /* mined out recently: still gone */
+      { const o = addCircle(x, z, 1.1, { g: 'stone' }); o.tv = { ch, a: a0, b: L.p.length, wa: w0, wb: W.p.length, id: sid }; ch.obs.push(o); } } }
   // pools (swamp water, lava)
   if (B.pool) for (let i = 0, m = Math.floor(rr(1, 3)); i < m; i++) { const x = x0 + rr(6, CH - 6), z = z0 + rr(6, CH - 6), s2 = rr(3, 7); if (roadDist(x, z) < s2 || !free(x, z, s2 / 2, s2 / 2, .5) || nearSpecial(x, z, 0)) continue; mark(x, z, s2 / 2, s2 / 2); if (B.glowPool) W.box(x, .03, z, s2, .02, s2 * rr(.6, 1), B.pool, 0, rr(0, 3), 0); else makePond(x, z, s2 * .55, { swamp: true }).forEach(m => ch.meshes.push(m)); }
   // clear forest ponds with fish
@@ -2060,12 +2062,13 @@ function genChunk(cx, cz) {
       const off = rr(-sg.w / 3, sg.w / 3), x = sg.h ? u : sg.c + off, z = sg.h ? sg.c + off : u, rot = (sg.h ? 0 : Math.PI / 2) + rr(-.35, .35) + (R() < .5 ? Math.PI : 0);
       if (!isFinite(u) || x < x0 + 3 || x > x0 + CH - 3 || z < z0 + 3 || z > z0 + CH - 3 || nearSpecial(x, z, 14) || !free(x, z, 2.2, 2.2, 1)) continue;
       mark(x, z, 2.2, 2.2); n++;
-      const body = rp([0x6a3a30, 0x3a4a5a, 0x5a5a4a, 0x4a3040, 0x7a6a50, 0x2a3a2a]);
+      const body = rp([0x6a3a30, 0x3a4a5a, 0x5a5a4a, 0x4a3040, 0x7a6a50, 0x2a3a2a]), ca0 = L.p.length, cw0 = W.p.length, cid = 'car' + Math.round(x * 10) + '_' + Math.round(z * 10);
       L.box(x, .75, z, 4, .9, 1.9, body, 0, rot, 0); L.box(x - .2 * Math.cos(rot), 1.55, z + .2 * Math.sin(rot), 2.1, .8, 1.7, 0x1d1a22, 0, rot, 0);
       for (const sd of [-1, 1]) L.box(x + sd * 1.6 * Math.cos(rot), .4, z - sd * 1.6 * Math.sin(rot), .5, .3, 2, 0x222222, 0, rot, 0);
       if (B.snow) L.box(x, 1.98, z, 2.2, .1, 1.8, 0xeef4f8, 0, rot, 0);
       const sw = Math.abs(Math.cos(rot)) > .5;
-      ch.obs.push(addBox(x, z, sw ? 2.1 : 1.05, sw ? 1.05 : 2.1, { g: 'metal' }));
+      if (S.pk && S.pk[cid] > Date.now()) { L.p.length = L.n.length = L.c.length = ca0; continue; }   /* broken up recently: still gone */
+      { const o = addBox(x, z, sw ? 2.1 : 1.05, sw ? 1.05 : 2.1, { g: 'metal' }); o.tv = { ch, a: ca0, b: L.p.length, wa: cw0, wb: W.p.length, id: cid, car: body }; ch.obs.push(o); }
     } }
   // burning barrels (everywhere in the ember core)
   for (let fb = 0, nf = B.fires ? 3 : 1; fb < nf; fb++) if (R() < (B.fires ? .8 : .4)) {
@@ -7542,7 +7545,9 @@ function weekLair() {
 const CH_SITES = ['废弃医院', '军火库', '超市仓库', '警察局', '中学操场', '加油站', '地铁站'];
 const dchName = () => CH_SITES[strSeed('c' + dateKey()) % CH_SITES.length];
 let _dsK = '', _ds = null;
-function dchSpot() { if (_dsK !== dateKey() || !_ds) { _dsK = dateKey(); const R = mulberry32(strSeed('cs' + dateKey())); _ds = findRegion(lvTier(), R() * 1600 - 800, R() * 1600 - 800); } return _ds; }      // fixed for the day once picked
+// the region follows your level, one step on the safe side (owner 21 Nov): Lv.1-19 → region 1, Lv.20-29 → region 2 …
+const dchTier = () => Math.max(1, Math.min(10, Math.floor(S.level / 10)));
+function dchSpot() { const key = dateKey() + ':' + dchTier(); if (_dsK !== key || !_ds) { _dsK = key; const R = mulberry32(strSeed('cs' + dateKey())); _ds = findRegion(dchTier(), R() * 1600 - 800, R() * 1600 - 800); if (WV.ring) { try { scene.remove(WV.ring); } catch (e) { } WV.ring = null; } } return _ds; }      // fixed for the day once picked
 S.dch = { d: '', n: 0 };
 const WV = { on: null, n: 0, list: [], brk: 0, x: 0, z: 0, ring: null };
 function waveStart(kind, x, z) {
@@ -7562,7 +7567,7 @@ function waveEnd(win) {
   if (kind === 'end') { const best = Math.max(0, n - 1); stMax('wave', best); if (best > (S.sea.best || 0)) { S.sea.best = best; lbSubmit(); }
     banner('无尽尸潮结束', '撑过了 ' + best + ' 波' + (best >= (S.sea.best || 0) ? '（本赛季最好成绩）' : ' · 本赛季最好 ' + S.sea.best + ' 波'), 3.5); saveGame(); return; }
   if (!win) { banner('挑战失败', '离开了挑战区域或倒下了，明天之前都可以再来', 3); return; }
-  const t = lvTier(), first = S.dch.d !== dateKey(), team = typeof groundMates === 'function' && groundMates().length ? 1.5 : 1; S.dch = { d: dateKey(), n: (first ? 0 : S.dch.n) + 1 }; stInc('dch'); if (first) try { gain('apart', 6); gain('elem', 1); } catch (e) { }
+  const t = dchTier(), first = S.dch.d !== dateKey(), team = typeof groundMates === 'function' && groundMates().length ? 1.5 : 1; S.dch = { d: dateKey(), n: (first ? 0 : S.dch.n) + 1 }; stInc('dch'); if (first) try { gain('apart', 6); gain('elem', 1); } catch (e) { }
   if (first) { gain('coin', Math.round(80 * t * team)); gain('estone', Math.round(2 * team)); gain('powder', 3); gain('steel', 1); giveGear(2); seaXp(60); questTick('event', 1); }
   else { gain('coin', Math.round(20 * t * team)); if (Math.random() < .2) gain('estone', 1); seaXp(10); }
   banner('挑战完成！', (first ? '今日首次通关大奖已到手' : '今天已经拿过大奖，这次是小奖励') + (team > 1 ? ' · 组队加成 ×1.5' : ''), 3.5); sfx.build(); saveGame(); hubBadge();
@@ -7579,7 +7584,7 @@ function waveTick(dt) {
     if (d < 6 && !S.dead && WV.armed !== false) { WV.armed = false; waveStart('ch', WV.sp.x, WV.sp.z); }
   }
   if (!WV.on) return;
-  if (S.dead || S.isl || Math.hypot(player.pos.x - WV.x, player.pos.z - WV.z) > 60) { waveEnd(false); return; }
+  if (S.dead || S.isl || S.dun || Math.hypot(player.pos.x - WV.x, player.pos.z - WV.z) > 80) { waveEnd(false); return; }
   WV.list = WV.list.filter(z => !z.dead && !z.removed && zombies.includes(z));
   if (WV.list.length) return;
   if (WV.on === 'ch' && WV.n >= 3) { waveEnd(true); return; }
@@ -7654,9 +7659,10 @@ function renderHub() {
       hero.innerHTML = '<div class="hdate"><b>' + (d.getMonth() + 1) + '月' + d.getDate() + '日</b><span>星期' + WKD[d.getDay()] + '</span></div><div class="hclk"><span><i>每日刷新</i>' + fmtD(tomorrow()) + '</span><span><i>每周刷新</i>' + fmtD(wl) + '</span></div>';
       box.appendChild(hero); }
     h3('每日');
-    { const done = S.dch.d === dateKey(), t = lvTier();
-      hubRow(box, '今日挑战 · ' + dchName(), (done ? '今天已通关 ' + S.dch.n + ' 次，再打只有小奖励。' : '走进金色圆圈开始，守住 3 波。') + regionLabel(t) + ' · 和队友一起打奖励 ×1.5', done ? '#8fd16f' : '#ffc94a',
-        done ? '再打一次' : S.isl ? '去码头坐船' : '在地图上看', () => { if (S.isl) { closePanel('hub'); feed('去码头，船上选「今日挑战」', '#ffc94a'); } else { const p = dchSpot(); feed('今日挑战在你的' + dirName(p.x - player.pos.x, p.z - player.pos.z) + '方向约 ' + Math.round(Math.hypot(p.x - player.pos.x, p.z - player.pos.z)) + ' 米（地图上金色「挑」）', '#ffc94a'); showOnMap(p); } }, false, '挑',
+    { const done = S.dch.d === dateKey(), t = dchTier();
+      hubRow(box, '今日挑战 · ' + dchName(), (done ? '今天已通关 ' + S.dch.n + ' 次，再打只有小奖励。' : '踩进金色圆圈一次就开始，之后可以自由走动（别跑出 80 米），守住 3 波。') + regionLabel(t) + '（按你的等级）· 和队友一起打奖励 ×1.5', done ? '#8fd16f' : '#ffc94a',
+        '传送过去', () => { if (S.dun) { feed('先离开副本再去', '#ff9b8a'); return; } if (WV.on) { feed('挑战已经开始了', '#ffc94a'); return; } if (S.dead) return;
+          const p = dchSpot(); closePanel('hub'); voyage('驶向今日挑战 · ' + dchName(), () => goGround(p.x + 12, p.z)); }, false, '挑',
         done ? ['已完成'] : ['余烬币 ' + 80 * t, '强化石 ×2', '高级以上装备', '精密零件 ×6', '元素晶核 ×1']); }
     h3('每周');
     { const T = BOSS_TYPES[weekBossTp()], got = S.wb === 'w' + weekIdx();
@@ -9149,9 +9155,9 @@ function gatherSwing(W, dx, dz) {
       if (o.gn >= 4 && o.tv) { spawnLoot('wood', hx, hz, rint(1, 2) * X, .4); if (Math.random() < .6) spawnLoot('vine', hx, hz, rint(1, 2), .4); treeFell(o, dx, dz); return; }
       if (o.gn >= 4) { o.gn = 0; o.gt = S.t + 90; }
       spawnLoot('wood', hx, hz, rint(1, 2) * X, .4); if (Math.random() < .3) spawnLoot('vine', hx, hz, 1, .4); burst(hx, 1, hz, 0x8a5a30, 6, 3); try { storyEvent('chop', 1); } catch (e) { } }
-    else if (o.g === 'stone') { o.gn = (o.gn || 0) + 1; if (o.gn >= 5) { o.gn = 0; o.gt = S.t + 120; }
+    else if (o.g === 'stone') { o.gn = (o.gn || 0) + 1; if (o.gn >= 5 && o.tv && typeof gtBreak === 'function') { spawnLoot('stone', hx, hz, rint(1, 2) * X, .4); gtBreak(o, 'rock'); try { storyEvent('mine', 1); } catch (e) { } sfx.hit(); return; } if (o.gn >= 5) { o.gn = 0; o.gt = S.t + 120; }
       spawnLoot('stone', hx, hz, rint(1, 2) * X, .4); if (Math.random() < .25) spawnLoot('rock', hx, hz, 1, .4); burst(hx, 1, hz, 0x9a9aa0, 7, 3); try { storyEvent('mine', 1); } catch (e) { } }
-    else { o.gn = (o.gn || 0) + 1; if (o.gn >= 3) { o.gn = 0; o.gt = S.t + 90; } spawnLoot('metal', hx, hz, 1 * X, .4); burst(hx, 1, hz, 0xaec6d8, 6, 3); try { storyEvent('mine', 1); } catch (e) { } }
+    else { o.gn = (o.gn || 0) + 1; if (o.gn >= 3 && o.tv && typeof gtBreak === 'function') { spawnLoot('metal', hx, hz, 1 * X, .4); gtBreak(o, 'car'); try { storyEvent('mine', 1); } catch (e) { } sfx.hit(); return; } if (o.gn >= 3) { o.gn = 0; o.gt = S.t + 90; } spawnLoot('metal', hx, hz, 1 * X, .4); burst(hx, 1, hz, 0xaec6d8, 6, 3); try { storyEvent('mine', 1); } catch (e) { } }
     sfx.hit(); return;
   }
 }
@@ -14609,6 +14615,54 @@ if (IMM_ON) {
         const it = makeGear(2, DUN_LV[1], q, 0); it[1] = q; x.it = it; x.r = q; x.need = .5 + Math.min(5, q) * .35 + Math.random() * .3; } } catch (e) { console.warn('z_imm cab', e); }
     return out; })(cabRoll);
 }
+/* ============ 副本柜子 2（owner 21 Nov）============
+   - 格子少了：每个柜子 2~3 格（保险箱 3~4）。
+   - 每一格有 30% 是收藏品；是哪一件收藏品，按每件收藏品自己的概率（COLX.ch 当权重）抽。保底 / 本周主题照旧。
+   - 其他格子：先抽东西，再抽品质。五个品质的「价值」按晶石算：普通 .25 · 稀有 .5 · 史诗 1 · 传说 2 · 神话 4 晶石
+     （= 余烬币 5 / 10 / 20 / 40 / 80）。数量 = 这个品质的价值 ÷ 一个的晶石价（GSHOP），所以越值钱的东西越少、
+     最低品质越高：一个都给不起的品质，这样东西就没有（例：医疗包最低是传说 ×1）。
+     连神话都给不起一个的珍贵东西（腐化晶体、终焉核心、精钢锭……）只会以「神话 ×1」出现，而且按价值调低出现的机会，
+     所以平均下来不会多给。
+   - 品质的概率：普通 52% · 稀有 28% · 史诗 13% · 传说 6% · 神话 1%，没有的品质不算，其余按比例。
+   - 装备格照旧（z_lootq 的品质 + z_imm 的不朽概率）。副本越后面数量越多（副本二 ×1.2 …）。 */
+const LQ2 = { COL: .3, TV: [.25, .5, 1, 2, 4], P: [.52, .28, .13, .06, .01], R: [0, 2, 3, 4, 5], N: ['普通', '稀有', '史诗', '传说', '神话'],
+  C: { med: [2, 3], locker: [2, 3], tool: [2, 3], file: [2, 3], safe: [3, 4], lab: [2, 3] },
+  // 晶石 shop has no price for these: what one is worth in 晶石
+  V: { apart: 1, elem: 7.5, roast: .5, zs1: .3, zs2: .6, zs3: .9, zs4: 1.2 } };
+function lq2Val(k) { try { const g = econGem(); if (g[k] != null) return g[k]; } catch (e) { } if (k === 'coin') return 1 / 20; if (LQ2.V[k] != null) return LQ2.V[k]; if (/^zs\d+$/.test(k)) return .3 * (+k.slice(2) || 1); return 1; }
+// the grades this item has at this dungeon: [{t, n}]
+function lq2Tiers(k, mul) { const u = lq2Val(k), out = []; for (let t = 0; t < 5; t++) { const x = LQ2.TV[t] * mul / u; if (x >= .75) out.push({ t, n: Math.max(1, Math.round(x)) }); } return out; }
+function lq2Pick(list, w) { let r = Math.random() * list.reduce((a, x) => a + w(x), 0); for (const x of list) { r -= w(x); if (r <= 0) return x; } return list[list.length - 1]; }
+function lq2Item(type, mul) { const T = CABT[type];
+  for (let tries = 0; tries < 12; tries++) { const e = lq2Pick(T.t, x => x[1]);
+    if (e[0] === 'gear') { let q = typeof lqGearQ === 'function' ? lqGearQ() : 2;
+      if (q === 6 && Math.random() >= (typeof IMM !== 'undefined' ? IMM.CAB / .005 : .06)) { let n = 0; while (q === 6 && n++ < 20) q = lqGearQ(); q = Math.min(q, 5); }
+      const it = makeGear(2, DUN_LV[1], Math.min(q, 5), 0); it[1] = Math.min(q, 5);
+      if (q === 6) { it[1] = 6; it[2] = 100; it[5] = 100; it[6] = 0; it.length = 8; it[7] = it[7] | 0; try { afxGen(it); } catch (er) { } }
+      return { k: 'gear', it, r: it[1], n: 1, need: .5 + Math.min(5, it[1]) * .35 + Math.random() * .3 + (q === 6 ? .8 : 0) }; }
+    // the grade is rolled first (so a 神话 cell stays a 1% thing), then one of the things that HAVE that grade here;
+    // if nothing in this cupboard has the rolled grade, the next grade up is used (a cheap 普通 roll in a lab gives its lowest thing)
+    let t = lq2Pick([0, 1, 2, 3, 4], i => LQ2.P[i]);
+    for (; t < 5; t++) { const cand = [];
+      for (const x of T.t) { if (x[0] === 'gear') continue; const tiers = lq2Tiers(x[0], mul), g = tiers.find(y => y.t === t);
+        if (g) cand.push({ k: x[0], n: g.n, w: x[1] });
+        else if (!tiers.length && t === 4) cand.push({ k: x[0], n: 1, w: x[1] * Math.min(1, LQ2.TV[4] * mul / lq2Val(x[0])) });   /* too precious: one piece, less often */ }
+      if (cand.length) { const c = lq2Pick(cand, y => y.w); return { k: c.k, n: c.n, tier: t, r: LQ2.R[t], need: .5 + LQ2.R[t] * .35 + Math.random() * .3 }; } } }
+  return { k: 'coin', n: Math.round(5 * mul), tier: 0, r: 0, need: .6 }; }
+function lq2Col(did, type, taken) { try { const th = typeof rwTheme === 'function' && did === rwTheme(), pool = COL_ORDER.filter(k => COLX[k].d === did && (COLX[k].src || []).includes(type) && !taken.has(k));
+    if (!pool.length) return null; const id = lq2Pick(pool, k => (COLX[k].ch || .01) * (th && COLX[k].r === 4 ? RW.THEME_X : 1)).toString(); return id; } catch (e) { return null; } }
+const lq2ColE = id => ({ k: 'col', id, r: COLX[id].r, n: 1, need: .5 + COLX[id].r * .35 + Math.random() * .3 });
+cabRoll = function (type, colKey) { const T = CABT[type]; if (!T) return []; const did = DUN.id || 1, mul = 1 + .2 * (did - 1), C = LQ2.C[type] || [2, 3], n = rint(C[0], C[1]), out = [], taken = new Set();
+  for (let i = 0; i < n; i++) { let o = null;
+    if (Math.random() < LQ2.COL) { const id = lq2Col(did, type, taken); if (id) { taken.add(id); o = lq2ColE(id); } }
+    out.push(o || lq2Item(type, mul)); }
+  // 保底 (z_relic2): after enough cleared runs without one, a mythic / legendary keepsake replaces a non-keepsake cell
+  try { const P = S.relicPity && S.relicPity[did], swap = r => { const id = typeof rwPick === 'function' ? rwPick(did, type, r) : null; if (!id) return; let i = out.findIndex(x => x.k !== 'col'); if (i < 0) i = out.length - 1; out[i] = lq2ColE(id); };
+    if (P) { if (P.m >= RW.PITY_M && !out.some(x => x.k === 'col' && x.r === 5)) swap(5); else if (P.l >= RW.PITY_L && !out.some(x => x.k === 'col' && x.r >= 4)) swap(4); } } catch (e) { }
+  return out.map(o => Object.assign(o, { shown: false, took: false })); };
+// tile label: amount · grade for every item cell
+lootRender = (o => function () { o(); try { const C = LP.c, p = $('lootP'); if (!C || !p) return; const tiles = p.querySelectorAll('.lpg .lps');
+    C.items.forEach((x, i) => { if (x.tier == null || !x.shown || x.took || !tiles[i]) return; tiles[i].style.setProperty('--rc', RCOL[x.r] || RCOL[0]); const s = tiles[i].querySelector('small'); if (s) s.textContent = '×' + x.n + ' · ' + LQ2.N[x.tier]; }); } catch (e) { } })(lootRender);
 /* ============ 兑换码 — REMOVED (owner 20 Nov) ============
    The redeem function and the saved list of used codes stay (old saves load fine), but there are no codes. */
 const RDM_H = s => { let x = 5381; for (const c of s) x = ((x * 33) ^ c.charCodeAt(0)) >>> 0; return x; };
@@ -24099,7 +24153,7 @@ function ksdTex() { if (KSD.tex) return KSD.tex; const c = document.createElemen
     x.strokeStyle = 'rgba(40,46,58,.85)'; x.lineWidth = 1.6; x.beginPath(); x.arc(cx, cy, 9, .1, Math.PI - .1); x.stroke(); }
   for (let q = 0; q < 16; q++) { const g = x.createLinearGradient(0, 72, 0, 104); g.addColorStop(0, '#fbf6e8'); g.addColorStop(1, '#d6ccb0'); x.fillStyle = g; x.fillRect(q * 16 + 1, 74, 14, 30); x.fillStyle = 'rgba(120,110,80,.45)'; x.fillRect(q * 16 + 14, 74, 2, 30); }
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; KSD.tex = t; return t; }
-const ksdR = u => { const neck = .3, chest = .42; if (u < .08) return neck + (chest - neck) * (u / .08); if (u < .3) return chest; return Math.max(.05, chest * Math.pow(1 - (u - .3) / .7, 1.15)); };
+const ksdR = u => { const neck = .22, chest = .3; if (u < .08) return neck + (chest - neck) * (u / .08); if (u < .3) return chest; return Math.max(.05, chest * Math.pow(1 - (u - .3) / .7, 1.15)); };
 /* dragon head (owner's reference: long tapered muzzle, no big nose ball, a lion-like mane of white flame locks swept back,
    gold antlers curving back, glowing orange eyes under white brows, pearl in the mouth, white beard) */
 const ksdSm = (a, b, t) => { t = Math.min(1, Math.max(0, (t - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -24206,13 +24260,13 @@ function ksdBuild() { if (KSD.M) return KSD.M; const NR = KSD.NR, NA = KSD.NA, r
     for (let j = 0; j <= NR; j++) { const r = SC * ksdR(j / NR) * (1 + .03 * Math.sin(T * 6 - j * .4)); for (let a = 0; a <= NA; a++) { const th = a / NA * Math.PI * 2, c = Math.cos(th), sn = Math.sin(th), q = (j * (NA + 1) + a) * 3;
         P[q] = cen[j].x + (Nn[j].x * c + Bn[j].x * sn) * r; P[q + 1] = cen[j].y + (Nn[j].y * c + Bn[j].y * sn) * r; P[q + 2] = cen[j].z + (Nn[j].z * c + Bn[j].z * sn) * r; } }
     bg.attributes.position.needsUpdate = true; bg.computeVertexNormals();
-    head.position.copy(cen[0]).addScaledVector(Tn[0], .22 * SC); orient(head, 0); head.scale.setScalar(dH <= 0 || dH > F.L + .4 ? .0001 : 1.08 * SC); jaw.rotation.x = .35 + .2 * Math.sin(T * 7);
+    head.position.copy(cen[0]).addScaledVector(Tn[0], .22 * SC); orient(head, 0); head.scale.setScalar(dH <= 0 || dH > F.L + .4 ? .0001 : .92 * SC); jaw.rotation.x = .35 + .2 * Math.sin(T * 7);
     spines.forEach(c => { const j = c.userData.j, r = SC * ksdR(j / NR); c.position.copy(cen[j]).addScaledVector(Nn[j], r + .12 * SC); c.quaternion.setFromUnitVectors(up, tv.copy(Nn[j]).multiplyScalar(.6).addScaledVector(Tn[j], -.8).normalize()); c.scale.set((.5 + r) * SC, (.5 + r * 1.2) * SC * (1 + .15 * Math.sin(T * 10 - j)), .35 * SC); });
-    legs.forEach((L, i) => { const { j, sd } = L.userData, r = SC * ksdR(j / NR); L.position.copy(cen[j]).addScaledVector(Bn[j], sd * r * .85).addScaledVector(Nn[j], -r * .35); orient(L, j); L.rotateZ(sd * .5); L.rotateX(.5 * Math.sin(T * 9 + i * 1.6)); L.scale.setScalar(1.05 * SC); });
+    legs.forEach((L, i) => { const { j, sd } = L.userData, r = SC * ksdR(j / NR); L.position.copy(cen[j]).addScaledVector(Bn[j], sd * r * .85).addScaledVector(Nn[j], -r * .35); orient(L, j); L.rotateZ(sd * .5); L.rotateX(.5 * Math.sin(T * 9 + i * 1.6)); L.scale.setScalar(.85 * SC); });
     flames.forEach((f, i) => { const w = 1 + .3 * Math.sin(T * 22 + i * 1.7); f.scale.set(w, 1 + .45 * Math.sin(T * 17 + i), w); });
     if (dH > 1 && dH < F.L && now - (KSD.cl || 0) > 110 * SKX.ts) { KSD.cl = now; const c = cen[6 + Math.floor(Math.random() * (NR - 10))];
       skP(skGeo().ico, 0xf2f5fa, c.x + (Math.random() - .5) * .6, c.y + (Math.random() - .3) * .5, c.z + (Math.random() - .5) * .6, .9, (kk, m) => { m.scale.setScalar(.25 + kk * .8); m.material.opacity = .45 * (1 - kk); }, .45); }
-    tuft.position.copy(cen[NR]); orient(tuft, NR); tuft.rotateY(.3 * Math.sin(T * 5)); tuft.scale.setScalar(1.2 * SC); };
+    tuft.position.copy(cen[NR]); orient(tuft, NR); tuft.rotateY(.3 * Math.sin(T * 5)); tuft.scale.setScalar(1.05 * SC); };
   KSD.M = { root, bg }; return KSD.M; }
 function dragonFly(path, life, gy, o) { o = o || {}; const M = ksdBuild(), SC = o.sc || 1, blen = (o.blen || 9) * SC, N = 480, pts = [], D = [0];
   for (let i = 0; i <= N; i++) { const q = path(i / N); pts.push(q); if (i) D.push(D[i - 1] + Math.hypot(q[0] - pts[i - 1][0], q[1] - pts[i - 1][1], q[2] - pts[i - 1][2])); }
@@ -25055,6 +25109,136 @@ coopHit = (o => function (z, dmg) { if (z && z.pvpz) { PVPZ.hq.set(z.pvp, (PVPZ.
 /* in the field your presence must carry your life too, so the others' bars are right */
 PRES_X.push(() => (PVPZ.in ? { ph: Math.max(0, Math.round(S.hp / Math.max(1, S.maxHp) * 100)) } : {}));
 petsTick = (o => function (dt) { const r = o.apply(this, arguments); try { pvpzTick(dt); } catch (e) { } return r; })(petsTick);
+/* ============ 深渊是自己的世界（owner 21 Nov）============
+   深渊里打死的怪（包括首领）不碰外面的任何东西：不减区域感染进度条、不算周王、不加赛季经验、不进图鉴、
+   不算任务 / 区域挑战 / 连杀 / 精英奖励，击杀数、首领击杀数、武器击杀数也不涨。深渊自己的东西（深渊币、卡牌、层数）照旧。
+   做法：深渊里杀怪时，这些「外面的」函数临时换成空的，杀完再换回来，计数也还原。放在所有 killZombie 包装的最外层。 */
+const ABYISO = { on: false };
+infKill = (o => function () { if (ABYISO.on) return; return o.apply(this, arguments); })(infKill);
+seaXp = (o => function () { if (ABYISO.on) return; return o.apply(this, arguments); })(seaXp);
+colAdd = (o => function () { if (ABYISO.on) return; return o.apply(this, arguments); })(colAdd);
+questTick = (o => function () { if (ABYISO.on) return; return o.apply(this, arguments); })(questTick);
+streakKill = (o => function () { if (ABYISO.on) return; return o.apply(this, arguments); })(streakKill);
+eliteReward = (o => function () { if (ABYISO.on) return; return o.apply(this, arguments); })(eliteReward);
+weeklyBossKill = (o => function () { if (ABYISO.on) return; return o.apply(this, arguments); })(weeklyBossKill);
+try { stInc = (o => function () { if (ABYISO.on) return; return o.apply(this, arguments); })(stInc); } catch (e) { }
+killZombie = (o => function (z) { if (typeof abyOn !== 'function' || !abyOn() || !z || z.dead || z.animal) return o.apply(this, arguments);
+  const k0 = S.kills, b0 = S.bossKills; let ws = null, wk = 0; try { ws = wState(S.wp); wk = ws.k; } catch (e) { }
+  ABYISO.on = true;
+  try { return o.apply(this, arguments); }
+  finally { ABYISO.on = false; S.kills = k0; S.bossKills = b0; if (ws) ws.k = wk; } })(killZombie);
+/* ============ 步枪平衡 + 深渊影分身看得见（owner 21 Nov）============
+   1) 步枪太强：基础伤害 19 → 17（持续火力约 -10%）。深渊里「每打 N 下触发」的卡（冰霜：3 下冻住；放血：5 下爆血）
+      以前按「打中几下」算，步枪一秒打 9 下，等于一直冻住敌人。现在每一下按射速折算：手枪那样的一下算 1，
+      步枪一下只算 0.4 左右（= 射击间隔 ÷ 0.28，最多 1），所以每把枪触发得一样快。近战每刀算 1。
+   2) 影分身（武士刀卡）：以前只多算一次伤害，看不到影子。现在召出时身边出现一个紫色半透明的你，跟着你做同样的动作，
+      你砍中谁它就扑过去补一刀（带紫色刀光），4 秒后散掉。 */
+try { WEAP.rifle.dmg = 17; } catch (e) { }
+const ABYF = { w: () => { try { const W = WEAP[ABY.wp || S.wp]; if (!W || W.cls === 'melee') return 1; return Math.max(.2, Math.min(1, fireInterval(ABY.wp || S.wp) / .28)); } catch (e) { return 1; } } };
+abyOnHit = (o => function (z, D) { if (!z) return o.apply(this, arguments); const w = ABYF.w();
+  if (w < 1) { if (aN('frost')) z.abyF = (z.abyF || 0) - 1 + w; if (aN('bleed')) z.abyB = (z.abyB || 0) - 1 + w; }
+  const r = o.apply(this, arguments);
+  try { if (ABY.fl.cloneOn > ABY.t && aN('b_clone') && !z.dead) abyCloneHit(z); } catch (e) { }
+  return r; })(abyOnHit);
+
+/* ---- the shadow clone ---- */
+const ACL = { g: null, src: [], dst: [], mat: null, until: 0, a: 0, hit: null, hitT: 0, side: 1 };
+function abyCloneMake() { abyCloneDrop(); try {
+  const m = new THREE.MeshBasicMaterial({ color: 0x8a5ad8, transparent: true, opacity: 0, depthWrite: false }), g = pm.g.clone(true);
+  g.traverse(o => { if (o.isMesh || o.isSprite) { o.material = m; o.castShadow = false; o.onBeforeRender = () => { }; } });
+  ACL.src = []; ACL.dst = []; pm.g.traverse(o => ACL.src.push(o)); g.traverse(o => ACL.dst.push(o));
+  g.position.copy(pm.g.position); ACL.g = g; ACL.mat = m; ACL.a = 0; ACL.side = Math.random() < .5 ? 1 : -1; scene.add(g);
+  burst(player.pos.x, 1, player.pos.z, 0x9a6aff, 16, 4); try { sfxNoise(.35, .08, 1400); sfxTone(300, 900, .3, .06, 'triangle'); } catch (e) { } } catch (e) { console.warn('aby clone', e); } }
+function abyCloneDrop() { if (!ACL.g) return; try { const g = ACL.g; burst(g.position.x, 1, g.position.z, 0x9a6aff, 12, 3); scene.remove(g); ACL.mat.dispose(); } catch (e) { } ACL.g = null; ACL.src = []; ACL.dst = []; }
+function abyCloneHit(z) { if (!ACL.g) return; ACL.hit = { x: z.pos.x, z: z.pos.z }; ACL.hitT = .28;
+  try { const g = ACL.g; skSlash(z.pos.x, (player.pos.y || 0) + 1, z.pos.z, z.pos.x - g.position.x, z.pos.z - g.position.z, 1.4, 0xb08aff, .35, .3); } catch (e) { burst(z.pos.x, 1, z.pos.z, 0xb08aff, 8, 3); } }
+function abyCloneTick(dt) { const on = typeof abyOn === 'function' && abyOn() && ABY.fl && ABY.fl.cloneOn > ABY.t && aN('b_clone');
+  if (on && !ACL.g) abyCloneMake();
+  if (!ACL.g) return; const g = ACL.g;
+  ACL.a = Math.max(0, Math.min(1, ACL.a + (on ? dt * 4 : -dt * 3))); ACL.mat.opacity = .55 * ACL.a;
+  if (!on && ACL.a <= 0) { abyCloneDrop(); return; }
+  if (ACL.src.length !== ACL.dst.length) { abyCloneMake(); return; }      // the weapon was swapped: copy again
+  for (let i = 1; i < ACL.src.length; i++) { const s = ACL.src[i], d = ACL.dst[i]; d.position.copy(s.position); d.quaternion.copy(s.quaternion); d.scale.copy(s.scale); d.visible = s.visible; }
+  // stand a step behind and to the side; dart at the monster you just hit
+  const ry = pm.g.rotation.y, fx = Math.sin(ry), fz = Math.cos(ry), hx = player.pos.x - fx * .9 + fz * 1.1 * ACL.side, hz = player.pos.z - fz * .9 - fx * 1.1 * ACL.side;
+  let tx = hx, tz = hz; if (ACL.hitT > 0 && ACL.hit) { ACL.hitT -= dt; const k = Math.sin(Math.max(0, ACL.hitT) / .28 * Math.PI); tx = hx + (ACL.hit.x - hx) * .75 * k; tz = hz + (ACL.hit.z - hz) * .75 * k; }
+  g.position.x += (tx - g.position.x) * Math.min(1, dt * 14); g.position.z += (tz - g.position.z) * Math.min(1, dt * 14); g.position.y = pm.g.position.y + Math.sin(performance.now() / 300) * .04;
+  g.rotation.copy(pm.g.rotation); g.scale.copy(pm.g.scale);
+  if (ACL.hitT > 0 && ACL.hit) g.rotation.y = Math.atan2(ACL.hit.x - g.position.x, ACL.hit.z - g.position.z); }
+petsTick = (o => function (dt) { o(dt); try { abyCloneTick(dt); } catch (e) { } })(petsTick);
+/* ============ owner 21 Nov: small fixes ============
+   1) 新手期没有尸群：新手教学和第一章（微弱的信号）期间，不会来「尸群过境」遭遇，也不会有「尸潮来袭」。
+   2) 电脑上的新手任务写「按住 Shift 跑」「用 WASD 走」，不写摇杆。
+   3) 蘑菇丛下面不再是一块方形的深色地板：换成圆形、边缘慢慢淡掉的深色苔土。
+   4) 石头堆和废车采完以后像树一样消失：石头堆碎成粉末往上飘走，废车散成一地碎片；20 分钟后才会在那里重新出现。 */
+const novice = () => { try { return !stDone() && S.story.c <= 1; } catch (e) { return false; } };
+encStart = (o => function () { if (!novice()) return o.apply(this, arguments);
+  // novices only ever get the golden-zombie chase, never a horde
+  const R = Math.random; let first = true; Math.random = () => { if (first) { first = false; return .99; } return R(); };
+  try { return o.apply(this, arguments); } finally { Math.random = R; } })(encStart);
+petsTick = (o => function (dt) { o(dt); try { if (novice() && !S.isl && !S.dun && S.hordeT < 30) S.hordeT = 30; } catch (e) { } })(petsTick);
+
+/* ---- 2. PC words in the tutorial ---- */
+try { if (typeof IS_PC !== 'undefined' && IS_PC && STORY[0]) { const C = STORY[0];
+  for (const st of C.steps) {
+    if (st.k === 'move') st.d = T2('用 W A S D 走动 20 米', 'Walk 20 m with W A S D');
+    if (st.k === 'sprint') { st.say = T2('很好。被追的时候要会跑：走的时候按住 Shift 就是在跑，会消耗体力。放开 Shift 就变回走路。', 'Good. When chased, run: hold Shift while you move. It uses stamina. Let go of Shift to walk.'); st.d = T2('按住 Shift 跑 2 秒', 'Hold Shift and run for 2 seconds'); } }
+  C.intro = C.intro.map(l => [l[0], String(l[1]).replace('用左下角的摇杆走一走', '用键盘的 W A S D 走一走').replace('walk around with the joystick at the bottom left', 'walk around with W A S D')]);
+} } catch (e) { }
+
+/* ---- 3. a soft round patch of dark moss under mushrooms ---- */
+const MUSHP = { m: null };
+function mushPatchMat() { if (MUSHP.m) return MUSHP.m; let map = null;
+  try { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); if (x && x.createRadialGradient) {
+    const g = x.createRadialGradient(64, 64, 6, 64, 64, 64); g.addColorStop(0, 'rgba(58,48,34,.85)'); g.addColorStop(.45, 'rgba(62,58,36,.55)'); g.addColorStop(.75, 'rgba(70,72,40,.22)'); g.addColorStop(1, 'rgba(70,72,40,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 128, 128); for (let i = 0; i < 60; i++) { const a = Math.random() * 6.28, r = Math.random() * 40; x.fillStyle = 'rgba(' + (40 + Math.random() * 30 | 0) + ',' + (50 + Math.random() * 30 | 0) + ',28,' + (.25 + Math.random() * .3) + ')'; x.beginPath(); x.arc(64 + Math.cos(a) * r, 64 + Math.sin(a) * r, 2 + Math.random() * 4, 0, 6.28); x.fill(); }
+    map = new THREE.CanvasTexture(c); } } catch (e) { }
+  MUSHP.m = new THREE.MeshLambertMaterial(map ? { map, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 } : { color: 0x3a2e24, transparent: true, opacity: .5, depthWrite: false });
+  return MUSHP.m; }
+plantMesh = (o => function (kind) { const g = o.apply(this, arguments); if (kind !== 'mush') return g;
+  try { const old = g.children.find(c => c.isMesh && c.geometry && c.geometry.parameters && Math.abs((c.geometry.parameters.width || 0) - 1.2) < .01 && (c.geometry.parameters.height || 1) < .05);
+    if (old) g.remove(old);
+    const p = new THREE.Mesh(new THREE.CircleGeometry(1.15, 20), mushPatchMat()); p.rotation.x = -Math.PI / 2; p.position.y = .025; p.renderOrder = -1; g.add(p); } catch (e) { }
+  return g; })(plantMesh);
+
+/* ---- 4. mined-out stone piles crumble to dust, finished wrecks fall apart ---- */
+const GTB = [];
+function gtCut(o) { const T = o.tv, ch = T.ch, out = new THREE.Group();
+  const take = (mesh, a, b) => { if (!mesh || b <= a) return; const G = mesh.geometry, P = G.attributes.position, N = G.attributes.normal, C = G.attributes.color;
+    const pos = new Float32Array(b - a), nor = new Float32Array(b - a), col = new Float32Array(b - a);
+    for (let k = a; k < b; k += 3) { const v = k / 3; pos[k - a] = P.getX(v) - o.x; pos[k - a + 1] = P.getY(v); pos[k - a + 2] = P.getZ(v) - o.z; nor[k - a] = N.getX(v); nor[k - a + 1] = N.getY(v); nor[k - a + 2] = N.getZ(v);
+      if (C) { col[k - a] = C.getX(v); col[k - a + 1] = C.getY(v); col[k - a + 2] = C.getZ(v); } P.setXYZ(v, o.x, -60, o.z); }
+    P.needsUpdate = true; const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); if (C) g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.computeBoundingSphere();
+    const m = new THREE.Mesh(g, mesh.material.clone()); m.material.transparent = true; out.add(m); };
+  try { take(ch.ml, T.a, T.b); take(ch.mw, T.wa, T.wb); } catch (e) { }
+  return out; }
+function gtBreak(o, kind) { const T = o.tv; if (!T) return; try { removeObstacle(o); const i = T.ch.obs.indexOf(o); if (i >= 0) T.ch.obs.splice(i, 1); } catch (e) { }
+  try { S.pk[T.id] = Date.now() + 20 * 60000; } catch (e) { }
+  const piv = new THREE.Group(); piv.position.set(o.x, 0, o.z); scene.add(piv); const inner = gtCut(o); piv.add(inner);
+  const E = { kind, piv, inner, t: 0, x: o.x, z: o.z, bits: [] };
+  if (kind === 'car') { inner.visible = false; const bc = T.car || 0x5a5a4a, dk = (((bc >> 16 & 255) * .7 | 0) << 16) | (((bc >> 8 & 255) * .7 | 0) << 8) | ((bc & 255) * .7 | 0), cols = [bc, dk, 0x1d1a22, 0x222222, 0x8a8a90];
+    for (let n = 0; n < 18; n++) { const s = .15 + Math.random() * .45, m = new THREE.Mesh(new THREE.BoxGeometry(s * (1 + Math.random()), s * .35, s), new THREE.MeshLambertMaterial({ color: cols[n % cols.length], transparent: true }));
+      const a = Math.random() * 6.283, sp = 2 + Math.random() * 5; m.position.set((Math.random() - .5) * 3, .5 + Math.random() * 1.2, (Math.random() - .5) * 1.6); piv.add(m);
+      E.bits.push({ m, vx: Math.cos(a) * sp, vz: Math.sin(a) * sp, vy: 3 + Math.random() * 5, rx: (Math.random() - .5) * 12, rz: (Math.random() - .5) * 12, rest: false }); }
+    burst(o.x, 1, o.z, 0xffc070, 20, 6); burst(o.x, .8, o.z, 0x6a6a70, 16, 5); S.shake = Math.max(S.shake, .18);
+    try { sfx.boom && sfx.boom(); sfxNoise(.5, .2, 2200); sfxTone(900, 300, .4, .08, 'square'); } catch (e) { } feed(T2('废车散架了', 'The wreck fell apart'), '#aec6d8'); }
+  else { burst(o.x, 1, o.z, 0x9a9aa0, 14, 4); try { sfxNoise(.6, .16, 500); } catch (e) { } feed(T2('石头堆采完了，碎成了粉末', 'The stone pile crumbled to dust'), '#c8c8cc'); }
+  GTB.push(E); }
+function gtTick(dt) { for (let i = GTB.length - 1; i >= 0; i--) { const E = GTB[i]; E.t += dt;
+    if (E.kind === 'rock') {
+      // shiver, then crumble: sink and shrink while dust rises and drifts off
+      const k = Math.max(0, (E.t - .25) / 1.6); E.inner.position.x = E.t < .25 ? Math.sin(E.t * 90) * .05 : 0;
+      E.inner.scale.set(1 + k * .15, Math.max(.01, 1 - k), 1 + k * .15); E.inner.position.y = -k * .3; E.inner.traverse(m => { if (m.material) m.material.opacity = Math.max(0, 1 - k * 1.1); });
+      if (E.t > .2 && E.t < 1.9 && Math.random() < dt * 30) { try { const x = E.x + (Math.random() - .5) * 2, z = E.z + (Math.random() - .5) * 2, y = .3 + Math.random() * 1.2, vx = (Math.random() - .3) * 2.4, vz = (Math.random() - .5) * 1.6, sh = .55 + Math.random() * .25;
+          const gv = Math.round(sh * 255); skP(skGeo().ico, (gv << 16) | (gv << 8) | Math.min(255, gv + 6), x, y, z, 1.8, (q, m) => { m.position.set(x + vx * q, y + q * 2.6, z + vz * q); m.scale.setScalar(.12 + q * .55); m.material.opacity = .65 * (1 - q); }, .65); } catch (e) { } }
+      if (E.t > 2) { gtDrop(E); GTB.splice(i, 1); } }
+    else {
+      for (const b of E.bits) { if (b.rest) continue; b.vy -= 18 * dt; b.m.position.x += b.vx * dt; b.m.position.y += b.vy * dt; b.m.position.z += b.vz * dt; b.m.rotation.x += b.rx * dt; b.m.rotation.z += b.rz * dt;
+        if (b.m.position.y < .08) { b.m.position.y = .08; if (Math.abs(b.vy) < 2.5) { b.rest = true; b.m.rotation.x = Math.round(b.m.rotation.x / Math.PI) * Math.PI; b.m.rotation.z = 0; } else { b.vy *= -.35; b.vx *= .55; b.vz *= .55; b.rx *= .5; b.rz *= .5; } } }
+      if (E.t > 6) { const s = Math.min(1, (E.t - 6) / 1.5); for (const b of E.bits) { b.m.position.y = .08 - s * .3; b.m.material.opacity = 1 - s; } }
+      if (E.t > 7.6) { gtDrop(E); GTB.splice(i, 1); } } } }
+function gtDrop(E) { try { scene.remove(E.piv); E.piv.traverse(m => { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }); } catch (e) { } }
+petsTick = (o => function (dt) { o(dt); try { if (GTB.length) gtTick(dt); } catch (e) { } })(petsTick);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -26089,4 +26273,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795112366').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795248950').catch(()=>{});</script></body></html>
