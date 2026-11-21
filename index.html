@@ -6637,7 +6637,7 @@ function goGround0(x, z) {
   camPos.set(player.pos.x, camH, player.pos.z + camD);
   setLayerVisuals(); S.spawnT = 2; S.hordeT = 150; S.landT = S.t; if (!coopWouldFollow(x, z)) spawnWave(4, false);
   curTier = tierAt(x, z); const b = tierBand(curTier), B = biomeOf(curTier); snapBiomeTint();
-  banner(regionLabel(curTier), 'Lv.' + b[0] + '-' + b[1] + ' · 丧尸特性：' + B.bn + (B.buff ? '（' + B.bd + '）' : '') + ' · 左下角「回岛」随时返回', 4.2); sfx.boom();
+  banner(regionLabel(curTier), 'Lv.' + b[0] + '-' + b[1] + ' · 丧尸特性：' + B.bn + (B.buff ? '（' + B.bd + '）' : ''), 4.2); sfx.boom();
   refreshHud(); saveGame();
 }
 function goIsland(silent) {
@@ -7451,7 +7451,7 @@ const infOf = t => S.inf[clamp(t, 1, 10) - 1];
 function infDecay() { const now = Date.now(), days = (now - (S.infT || now)) / 864e5; if (days > .01) { for (let i = 0; i < 10; i++) S.inf[i] = Math.min(100, S.inf[i] + days * 8); S.infT = now; } }
 function infKill(t, n) { const i = clamp(t, 1, 10) - 1, was = S.inf[i]; S.inf[i] = Math.max(0, S.inf[i] - n);
   if (was > 50 && S.inf[i] <= 50) banner(regionLabel(t) + ' 感染度降到 50%', '这片区域丧尸变少了，经验 +5%', 3);
-  if (was > 0 && S.inf[i] <= 0) { banner(regionLabel(t) + ' 已夺回！', '丧尸更少、经验和余烬币 +15%（感染会慢慢回升，记得回来守）', 4); sfx.build(); colAdd('r0:' + t); } }
+  if (was > 0 && S.inf[i] <= 0) { banner(regionLabel(t) + ' 已夺回！', '丧尸更少、经验和余烬币 +15%', 4); sfx.build(); colAdd('r0:' + t); } }
 const infCap = t => infOf(t) <= 0 ? -3 : infOf(t) <= 50 ? -1 : 0;
 const infXp = t => infOf(t) <= 0 ? .15 : infOf(t) <= 50 ? .05 : 0;
 const infCoin = t => infOf(t) <= 0 ? .15 : 0;
@@ -7598,7 +7598,7 @@ const seaName = () => '第 ' + (seasonIdx() + 1) + ' 赛季 · ' + SEASON_N[seas
 S.sea = { id: 0, xp: 0, c: [], best: 0 };
 const SEA_STEP = 150, SEA_MAX = 40;
 function seaEnsure() { if (S.sea.id !== seasonIdx()) S.sea = { id: seasonIdx(), xp: 0, c: [], best: 0 }; }
-function seaXp(n) { seaEnsure(); const was = Math.floor(S.sea.xp / SEA_STEP); S.sea.xp += n; if (Math.floor(S.sea.xp / SEA_STEP) > was && was < SEA_MAX) { feed('赛季等级 ' + Math.min(SEA_MAX, was + 1) + '！去「活动」领奖励', '#ffc94a'); hubBadge(); } }
+function seaXp(n) { seaEnsure(); const was = Math.floor(S.sea.xp / SEA_STEP); S.sea.xp += n; if (Math.floor(S.sea.xp / SEA_STEP) > was && was < SEA_MAX) { feed('赛季等级 ' + Math.min(SEA_MAX, was + 1) + '！', '#ffc94a'); hubBadge(); } }
 const seaLv = () => Math.min(SEA_MAX, Math.floor(S.sea.xp / SEA_STEP));
 function seaReward(i) {   // 1..40
   const t = lvTier();
@@ -7633,7 +7633,7 @@ const COL = [
   { n: '夺回区域', ks: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(t => ['r0:' + t, biomeOf(t).s]), rw: { heart: 2, estone: 5 } }
 ];
 S.col = {};
-function colAdd(k) { if (!S.col || S.col[k]) return; S.col[k] = 1; const c = COL.find(c => c.ks.some(x => x[0] === k)); if (c) { const it = c.ks.find(x => x[0] === k); feed('图鉴新增：' + it[1], '#9fe8ff'); if (c.ks.every(x => S.col[x[0]])) { feed(c.n + ' 收集完成！去「活动」领奖', '#ffc94a'); hubBadge(); } } }
+function colAdd(k) { if (!S.col || S.col[k]) return; S.col[k] = 1; const c = COL.find(c => c.ks.some(x => x[0] === k)); if (c) { const it = c.ks.find(x => x[0] === k); feed('图鉴新增：' + it[1], '#9fe8ff'); if (c.ks.every(x => S.col[x[0]])) { feed(c.n + ' 收集完成！', '#ffc94a'); hubBadge(); } } }
 function colClaim(i) { const c = COL[i]; if (!c.ks.every(x => S.col[x[0]]) || S.col['done' + i]) return; S.col['done' + i] = 1; for (const k in c.rw) gain(k, c.rw[k]); sfx.build(); renderHub(); saveGame(); hubBadge(); }
 
 /* ---- the 活动 window ---- */
@@ -10179,7 +10179,7 @@ function compXp(c, n) { c.xp = (c.xp || 0) + n; const need = 8 + c.lv * 6; if (c
 // every day, companions at home bring in what their trade makes (collect on the island)
 function compReady() { const d = dateKey(); return S.comps.filter(c => c.mode === 'home' && c.day !== d); }
 let _crT = 0;
-function compDaily() { if (!S.isl || S.t < _crT) return; _crT = S.t + 5; if (compReady().length && !S._crSaid) { S._crSaid = true; feed('同伴们今天的收获可以领了（点「同伴」）', '#bff7c8'); } }
+function compDaily() { if (!S.isl || S.t < _crT) return; _crT = S.t + 5; if (compReady().length && !S._crSaid) { S._crSaid = true; feed('同伴们今天的收获可以领了', '#bff7c8'); } }
 function compCollect() { const d = dateKey(), got = {}; let fixed = 0;
   for (const c of compReady()) { c.day = d; for (const [k, n0] of COMP_ROLES[c.role].give()) { const n = Math.round(n0 * (1 + (Math.min(30, c.lv) - 1) * .08)); gain(k, n); got[k] = (got[k] || 0) + n; }
     if (c.role === '木匠') for (const b of builds) if (b.broken) { try { buildFix(b); fixed++; } catch (e) { } } }
@@ -12684,7 +12684,7 @@ function dunEnter() {
   S.spawnT = 1e9; S.hordeT = 1e9; S.landT = S.t; dunPower(false); document.body.classList.add('inDun');
   if (dunD().start) { dunD().start(); try { dunTrk(); } catch (e) { } refreshHud(); saveGame(); return; }
   player.pos.set(dX(30), 0, dZ(8)); player.face = Math.PI; camPos.set(player.pos.x, camH, player.pos.z + camD);
-  banner('副本 · 圣心医院', '零号病人 · 推荐 Lv.' + DUN_LV[0] + ' 以上 · 左下角「回岛」可以随时离开（没打完的话，里面拿到的东西带不出来）', 4.5);
+  banner('副本 · 圣心医院', '零号病人 · 推荐 Lv.' + DUN_LV[0] + ' 以上', 4.5);
   if (!S.dg.seen) { S.dg.seen = 1; storyTalk(DUN_TXT.intro); } else storyTalk([DUN_TXT.intro[1]]);
   try { dunTrk(); } catch (e) { } refreshHud(); saveGame();
 }
@@ -12722,7 +12722,7 @@ renderPort = (o => function () { o(); try { const box = $('portList'); if (!box)
 const DUN_GOAL = ['找到保安室的门禁卡（大厅西边）', '用门禁卡打开住院部的门（大厅北边）', '找回保险丝', '去走廊东头的配电室接通电源', '坚守，等电梯启动', '坐电梯下到地下二层（走廊西头）', '读取实验室的终端记录', '进入冷藏库', '击败零号病人 · 林曼', '坐冷藏库东边的电梯撤离'];
 function dunTrk() { const e = $('dunObj'); if (!e) return; if (!S.dun || !DUN.st) { e.style.display = 'none'; return; } e.style.display = ''; const st = DUN.st;
   let g = DUN_GOAL[st.stage] || ''; if (st.stage === 2) g += ' ' + st.fuse + ' / 3'; if (st.stage === 4) g += ' ' + Math.max(0, Math.ceil(45 - st.waveT)) + ' 秒'; if (st.stage === 6) g += ' ' + Object.keys(st.terms).length + ' / 3';
-  const h = '<b>副本 · 圣心医院</b><span>▸ ' + g + '</span><small class="dunsub">录音 ' + Object.keys(S.dg.rec).length + ' / 4' + (S.dg.safe ? ' · 保险柜已开' : '') + ' · 点我看怎么做</small>'; if (e.innerHTML !== h) e.innerHTML = h; }
+  const h = '<b>副本 · 圣心医院</b><span>▸ ' + g + '</span><small class="dunsub">录音 ' + Object.keys(S.dg.rec).length + ' / 4' + (S.dg.safe ? ' · 保险柜已开' : '') + '</small>'; if (e.innerHTML !== h) e.innerHTML = h; }
 
 /* ---- every frame inside ---- */
 let _dunT = 0, _dunTrk = 0;
@@ -13248,7 +13248,7 @@ function dun2Setup() {
 function dun2Start() {
   DUN_LV[0] = D2_LV[0]; DUN_LV[1] = D2_LV[1]; S.d2tmp = 100;
   player.pos.set(dX(22), 0, dZ(6)); player.face = Math.PI; camPos.set(player.pos.x, camH, player.pos.z + camD);
-  banner('副本 · 永冬站', '冰封者 · 推荐 Lv.' + D2_LV[0] + ' 以上 · 注意体温 · 左下角「回岛」可以随时离开（没打完的话，里面拿到的东西带不出来）', 4.5);
+  banner('副本 · 永冬站', '冰封者 · 推荐 Lv.' + D2_LV[0] + ' 以上 · 注意体温', 4.5);
   if (!S.dg2.seen) { S.dg2.seen = 1; storyTalk(D2_TXT.intro); } else storyTalk([D2_TXT.intro[1]]);
 }
 // pick the hospital or the station from the pier, then call this: it is what the pier, invites and the party button use
@@ -13318,7 +13318,7 @@ dunCleanup = (o => function () { const was = DUN.on && DUN.id === 2; o(); if (DU
 dunTrk = (o => function () { if (!S.dun || DUN.id !== 2) return o(); const e = $('dunObj'); if (!e) return; if (!DUN.st) { e.style.display = 'none'; return; } e.style.display = ''; const st = DUN.st;
   let g = D2_GOAL[st.stage] || ''; if (st.stage === 2) g += ' ' + st.fuse + ' / 3'; if (st.stage === 4) g += ' ' + Math.max(0, Math.ceil(40 - st.waveT)) + ' 秒'; if (st.stage === 7) g += ' ' + Object.keys(st.terms).length + ' / 2';
   const t = Math.round(S.d2tmp == null ? 100 : S.d2tmp), tc = t > 50 ? '#9fe8ff' : t > 20 ? '#ffd98a' : '#ff6a5a';
-  const h = '<b>副本 · 永冬站</b><span>▸ ' + g + '</span><small class="dunsub"><i class="d2tmp" style="--t:' + t + '%;--c:' + tc + '"></i>体温 ' + t + '%' + (t <= 0 ? ' · 正在冻伤！' : '') + ' · 点我看怎么做</small>'; if (e.innerHTML !== h) e.innerHTML = h; })(dunTrk);
+  const h = '<b>副本 · 永冬站</b><span>▸ ' + g + '</span><small class="dunsub"><i class="d2tmp" style="--t:' + t + '%;--c:' + tc + '"></i>体温 ' + t + '%' + (t <= 0 ? ' · 正在冻伤！' : '') + '</small>'; if (e.innerHTML !== h) e.innerHTML = h; })(dunTrk);
 // refresh the card a little faster so the heat bar moves
 zSpecialTick = (o => function (dt) { o(dt); if (S.dun && DUN.id === 2) { DUN._tk = (DUN._tk || 0) - dt; if (DUN._tk <= 0) { DUN._tk = .25; try { dunTrk(); } catch (e) { } } } })(zSpecialTick);
 dunGuide = (o => function () { if (!S.dun || DUN.id !== 2) return o(); if (!DUN.st) return; const st = DUN.st, old = $('dunGuideM'); if (old) old.remove();
@@ -13944,7 +13944,7 @@ function dxGo(k) { const C = DX[DUN.id]; if (dunAuth()) { if (C.onGo) C.onGo(k);
 /* ---- objective card + how-to ---- */
 dunTrk = (o => function () { if (!dxOn()) return o(); const e = $('dunObj'); if (!e) return; const C = dxCfg(), st = DUN.st; e.style.display = '';
   const g = (C.goal[st.stage] || '') + (C.goalX ? C.goalX(st) : ''), sub = C.sub ? C.sub(st) : '';
-  const h = '<b>' + T2('副本 · ', 'Dungeon · ') + C.sh + '</b><span>▸ ' + g + '</span><small class="dunsub">' + sub + T2('点我看怎么做', 'Tap for help') + '</small>'; if (e.innerHTML !== h) e.innerHTML = h; })(dunTrk);
+  const h = '<b>' + T2('副本 · ', 'Dungeon · ') + C.sh + '</b><span>▸ ' + g + '</span><small class="dunsub">' + sub + '' + '</small>'; if (e.innerHTML !== h) e.innerHTML = h; })(dunTrk);
 zSpecialTick = (o => function (dt) { o(dt); if (dxOn()) { DUN._tk = (DUN._tk || 0) - dt; if (DUN._tk <= 0) { DUN._tk = .25; try { dunTrk(); } catch (e) { } } } })(zSpecialTick);
 dunGuide = (o => function () { if (!dxOn()) return o(); const C = dxCfg(), st = DUN.st, old = $('dunGuideM'); if (old) old.remove();
   const m = document.createElement('div'); m.id = 'dunGuideM'; m.className = 'dunm' + C.cls;
@@ -14170,7 +14170,7 @@ function dun3Setup() {
 function dun3Start() {
   DUN_LV[0] = D3_LV[0]; DUN_LV[1] = D3_LV[1]; S.d3sp = 0;
   player.pos.set(dX(10), 0, dZ(12)); player.face = Math.PI; camPos.set(player.pos.x, camH, player.pos.z + camD);
-  banner('副本 · 方舟站', '典狱长 · 推荐 Lv.' + D3_LV[0] + ' 以上 · 注意孢子浓度 · 左下角「回岛」可以随时离开（没打完的话，里面拿到的东西带不出来）', 4.5);
+  banner('副本 · 方舟站', '典狱长 · 推荐 Lv.' + D3_LV[0] + ' 以上 · 注意孢子浓度', 4.5);
   if (!S.dg3.seen) { S.dg3.seen = 1; storyTalk(D3_TXT.intro); } else storyTalk([D3_TXT.intro[2]]);
 }
 function dun3Enter() { DUN.id = 3; dunTravel('正在进入副本', '方舟站 · 典狱长', dunEnter); }
@@ -14434,7 +14434,7 @@ function dun4Setup() {
 function dun4Start() {
   DUN_LV[0] = D4_LV[0]; DUN_LV[1] = D4_LV[1]; DUN.hpT = 9;
   player.pos.set(dX(20), 0, dZ(10)); player.face = Math.PI; camPos.set(player.pos.x, camH, player.pos.z + camD);
-  banner('副本 · 钻探井 #0', '余烬之种 · 推荐 Lv.' + D4_LV[0] + ' 以上 · 热脉动来之前站进绿圈 · 左下角「回岛」可以随时离开（没打完的话，里面拿到的东西带不出来）', 4.5);
+  banner('副本 · 钻探井 #0', '余烬之种 · 推荐 Lv.' + D4_LV[0] + ' 以上 · 热脉动来之前站进绿圈', 4.5);
   if (!S.dg4.seen) { S.dg4.seen = 1; storyTalk(D4_TXT.intro); } else storyTalk([D4_TXT.intro[1]]);
 }
 function dun4Enter() { DUN.id = 4; dunTravel('正在进入副本', '钻探井 #0 · 余烬之种', dunEnter); }
@@ -15115,11 +15115,13 @@ function chestIcon(c, x, y, s, lit, big) {
 }
 drawExtraRadar = (o => function (tx, tz, edgeMark) { o(tx, tz, edgeMark);
   try { if (!S.dun || !DUN.cabs || !DUN.cabs.length) return; const c = mctx, k = _mapK || 2, pulse = 1 + Math.sin(S.t * 5) * .12;
-    for (const C of DUN.cabs) { if (C.empty) continue; const fresh = !C.items, big = C.type === 'safe' || C.type === 'lab';
+    /* owner 21 Nov: a cupboard shows on the map only once you have been in its room */
+    const inR = (C, r, m) => C.x > r.x0 - m && C.x < r.x1 + m && C.z > r.z0 - m && C.z < r.z1 + m, roomOf = C => DUN.rooms && (DUN.rooms.find(r => inR(C, r, 0)) || DUN.rooms.find(r => inR(C, r, .6)));
+    for (const C of DUN.cabs) { if (C.empty) continue; const R = roomOf(C); if (R && !R.seen) continue; const fresh = !C.items, big = C.type === 'safe' || C.type === 'lab';
       chestIcon(c, tx(C.x), tz(C.z), (fresh ? 5.2 * pulse : 4.2) * k, fresh, big); } } catch (e) { } })(drawExtraRadar);
 let _chestTipDone = false;
 zSpecialTick = (o => function (dt) { o(dt);
-  try { if (S.dun && DUN.cabs && DUN.cabs.length && !_chestTipDone) { _chestTipDone = true; feed('小地图上的金色箱子图标 = 可以搜索的柜子', '#ffd24a'); } if (!S.dun) _chestTipDone = false; } catch (e) { } })(zSpecialTick);
+  /* the old one-line tip about the map icons is gone (owner: too many hints) */ })(zSpecialTick);
 /* ============ 神话时装「星渊帝皇」（外观直售限定）：黑曜石甲 + 金边 + 紫/青水晶，头顶金环里浮着陨星残核，后颈悬着刻度金环 ============ */
 SKINS.abyss = {
   n: '星渊帝皇', r: 5,
@@ -20987,7 +20989,7 @@ function abySettle(r) {
 
 /* ---- the tracker while inside, and the card list ---- */
 dunTrk = (o => function () { if (!(S.dun && DUN.id === ABY_ID)) return o(); const e = $('dunObj'); if (!e) return; e.style.display = '';
-  const n = Object.keys(ABY.cards).length, h = '<b>' + T2('无尽深渊 · 第 ', 'Abyss · floor ') + ABY.floor + T2(' 层', '') + '</b><span>▸ ' + (ABY.state === 'fight' ? T2('还剩 ', 'Left: ') + (ABY.spawnLeft + abyAlive()) + (ABY.floor % 5 === 0 ? T2(' · 首领层', ' · boss') : '') : T2('选卡', 'Pick a card')) + '</span><small class="dunsub">' + wName(ABY.wp) + ' · ' + abyCoinIc(13) + ' ' + (ABY.ac | 0) + ' · ' + T2('卡 ', 'cards ') + ABY.picks.length + (ABY.shield > 0 ? T2(' · 护盾 ', ' · shield ') + ABY.shield : '') + (ABY.revive ? T2(' · 可复活', ' · revive') : '') + T2(' · 点我看卡组', ' · tap for deck') + '</small>';
+  const n = Object.keys(ABY.cards).length, h = '<b>' + T2('无尽深渊 · 第 ', 'Abyss · floor ') + ABY.floor + T2(' 层', '') + '</b><span>▸ ' + (ABY.state === 'fight' ? T2('还剩 ', 'Left: ') + (ABY.spawnLeft + abyAlive()) + (ABY.floor % 5 === 0 ? T2(' · 首领层', ' · boss') : '') : T2('选卡', 'Pick a card')) + '</span><small class="dunsub">' + wName(ABY.wp) + ' · ' + abyCoinIc(13) + ' ' + (ABY.ac | 0) + ' · ' + T2('卡 ', 'cards ') + ABY.picks.length + (ABY.shield > 0 ? T2(' · 护盾 ', ' · shield ') + ABY.shield : '') + (ABY.revive ? T2(' · 可复活', ' · revive') : '') + T2('', ' · tap for deck') + '</small>';
   if (e.innerHTML !== h) e.innerHTML = h; })(dunTrk);
 dunGuide = (o => function () { if (!(S.dun && DUN.id === ABY_ID)) return o(); let m = $('abyDeckM'); if (m) { m.remove(); return; } m = document.createElement('div'); m.id = 'abyDeckM'; m.className = 'abym';
   const rows = Object.keys(ABY.cards).map(id => { const c = ABYC[id], qs = ABY.cards[id]; return '<div class="abyrow" style="--qc:' + ABY_Q[Math.max(...qs)][1] + '">' + abyIcon(c, 30) + '<b>' + c.n + ' ×' + qs.length + '</b>' + (c.t ? '<i class="abyt" style="--tc:' + ABY_TAG[c.t] + '">' + c.t + '</i>' : '') + '<small>' + abyDesc(c, Math.max(...qs)) + '</small></div>'; }).join('');
@@ -25406,7 +25408,7 @@ function questTick0(k, n, ctx) {
   for (const q of S.daily.t.concat(S.weekly && Array.isArray(S.weekly.t) ? S.weekly.t : [])) { if (!q || typeof q !== 'object') continue;
     if (q.p >= q.n) continue;
     if (q.k === k || (k === 'kill' && ((q.k === 'tier' && ctx && ctx.tier >= q.tier) || (q.k === 'melee' && ctx && ctx.melee)))) {
-      q.p = q.k === 'streak' ? Math.max(q.p, n) : q.p + n; if (q.p >= q.n) { q.p = q.n; banner(q.wk ? '每周挑战完成' : '每日任务完成', ((QPOOL.find(x => x.k === q.k) || (typeof WPOOL !== 'undefined' && WPOOL.find(x => x.k === q.k)) || { d: () => '' }).d(q.n)) + ' · 去「任务」领奖', 2.6); sfx.build(); } changed = true;
+      q.p = q.k === 'streak' ? Math.max(q.p, n) : q.p + n; if (q.p >= q.n) { q.p = q.n; banner(q.wk ? '每周挑战完成' : '每日任务完成', ((QPOOL.find(x => x.k === q.k) || (typeof WPOOL !== 'undefined' && WPOOL.find(x => x.k === q.k)) || { d: () => '' }).d(q.n)), 2.6); sfx.build(); } changed = true;
     }
   }
   if (changed) questBadge();
@@ -25511,7 +25513,7 @@ function achCheck() { try { achCheck0(); } catch (e) { console.warn('achCheck', 
 function achCheck0() {
   if (!S.started) return; const ready = ACH.filter(a => achDone(a) && !S.ach[a.id]);
   if (_achSeen === null) _achSeen = new Set(ready.map(a => a.id));
-  for (const a of ready) if (!_achSeen.has(a.id)) { _achSeen.add(a.id); banner('成就达成 · ' + a.n, a.d + ' · 去「任务」领奖' + (a.title ? '，解锁称号「' + a.title + '」' : ''), 3.2); sfx.build(); }
+  for (const a of ready) if (!_achSeen.has(a.id)) { _achSeen.add(a.id); banner('成就达成 · ' + a.n, a.d + (a.title ? '，解锁称号「' + a.title + '」' : ''), 3.2); sfx.build(); }
   questBadge();
 }
 function achClaim(id) { const a = ACH.find(x => x.id === id); if (!a || !achDone(a) || S.ach[id]) return; S.ach[id] = 1; for (const k in a.rw) gain(k, a.rw[k]); if (a.title && !S.title) { S.title = a.title; _ttK = ''; refreshHud(); } sfx.build(); renderQuest(); questBadge(); saveGame(); }
@@ -25540,7 +25542,7 @@ function loginCheck() {
   if (S.login.d === today) return;
   S.login.s = S.login.d === yKey() ? (S.login.s % 7) + 1 : 1; S.login.d = today; S.login.pend = 1; S.st.days = (S.st.days || 0) + 1;
   setTimeout(() => { if (!S.login || !LOGIN[S.login.s - 1]) return; const auto = typeof ulOpen === 'function' && !ulOpen('daily');   // tasks still locked for a new player: claim it for them
-    if (auto && S.login.pend) loginClaim(); banner('连续登录第 ' + S.login.s + ' 天', '奖励：' + LOGIN[S.login.s - 1].d + (auto ? ' · 已自动领取' : ' · 去「任务」领取'), 4); }, 4800); questBadge();
+    if (auto && S.login.pend) loginClaim(); banner('连续登录第 ' + S.login.s + ' 天', '奖励：' + LOGIN[S.login.s - 1].d + (auto ? ' · 已自动领取' : ''), 4); }, 4800); questBadge();
 }
 function loginClaim() { if (!S.login || !S.login.pend) return; S.login.pend = 0; LOGIN[S.login.s - 1].f(); sfx.build(); renderQuest(); questBadge(); saveGame(); }
 
@@ -26323,4 +26325,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795257395').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795258893').catch(()=>{});</script></body></html>
