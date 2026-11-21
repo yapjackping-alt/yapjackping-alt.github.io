@@ -14617,7 +14617,8 @@ if (IMM_ON) {
 }
 /* ============ 副本柜子 2（owner 21 Nov）============
    - 格子少了：每个柜子 2~3 格（保险箱 3~4）。
-   - 每一格有 30% 是收藏品；是哪一件收藏品，按每件收藏品自己的概率（COLX.ch 当权重）抽。保底 / 本周主题照旧。
+   - 每一格可能是收藏品，概率按这个柜子原来调好的收藏品机会算出来（平均约 15% 一格，见 lq2ColP）；是哪一件，按每件收藏品
+     自己的概率（COLX.ch 当权重）抽。保底 / 本周主题照旧。
    - 其他格子：先抽东西，再抽品质。五个品质的「价值」按晶石算：普通 .25 · 稀有 .5 · 史诗 1 · 传说 2 · 神话 4 晶石
      （= 余烬币 5 / 10 / 20 / 40 / 80）。数量 = 这个品质的价值 ÷ 一个的晶石价（GSHOP），所以越值钱的东西越少、
      最低品质越高：一个都给不起的品质，这样东西就没有（例：医疗包最低是传说 ×1）。
@@ -14651,10 +14652,17 @@ function lq2Item(type, mul) { const T = CABT[type];
   return { k: 'coin', n: Math.round(5 * mul), tier: 0, r: 0, need: .6 }; }
 function lq2Col(did, type, taken) { try { const th = typeof rwTheme === 'function' && did === rwTheme(), pool = COL_ORDER.filter(k => COLX[k].d === did && (COLX[k].src || []).includes(type) && !taken.has(k));
     if (!pool.length) return null; const id = lq2Pick(pool, k => (COLX[k].ch || .01) * (th && COLX[k].r === 4 ? RW.THEME_X : 1)).toString(); return id; } catch (e) { return null; } }
+/* how often a cell is a keepsake: worked out so a cupboard still gives about as many keepsakes as the old tuned odds
+   (the sum of COLX.ch over what this cupboard can hold, ≈ 0.23-0.52 per cupboard → 7 a run, ≈ 28 relic coins of spares a run,
+   so the weekly 600 is about 20 runs). Spread over 2-3 cells that is ≈ 9-21% a cell, average ≈ 15%. */
+function lq2ColP(did, type, C) { try { const th = typeof rwTheme === 'function' && did === rwTheme();
+    const sum = COL_ORDER.filter(k => COLX[k].d === did && (COLX[k].src || []).includes(type)).reduce((a, k) => a + (COLX[k].ch || 0) * (th && COLX[k].r === 4 ? RW.THEME_X : 1), 0);
+    return Math.min(.5, sum / ((C[0] + C[1]) / 2)); } catch (e) { return .15; } }
 const lq2ColE = id => ({ k: 'col', id, r: COLX[id].r, n: 1, need: .5 + COLX[id].r * .35 + Math.random() * .3 });
 cabRoll = function (type, colKey) { const T = CABT[type]; if (!T) return []; const did = DUN.id || 1, mul = 1 + .2 * (did - 1), C = LQ2.C[type] || [2, 3], n = rint(C[0], C[1]), out = [], taken = new Set();
+  const pc = lq2ColP(did, type, C);
   for (let i = 0; i < n; i++) { let o = null;
-    if (Math.random() < LQ2.COL) { const id = lq2Col(did, type, taken); if (id) { taken.add(id); o = lq2ColE(id); } }
+    if (Math.random() < pc) { const id = lq2Col(did, type, taken); if (id) { taken.add(id); o = lq2ColE(id); } }
     out.push(o || lq2Item(type, mul)); }
   // 保底 (z_relic2): after enough cleared runs without one, a mythic / legendary keepsake replaces a non-keepsake cell
   try { const P = S.relicPity && S.relicPity[did], swap = r => { const id = typeof rwPick === 'function' ? rwPick(did, type, r) : null; if (!id) return; let i = out.findIndex(x => x.k !== 'col'); if (i < 0) i = out.length - 1; out[i] = lq2ColE(id); };
@@ -25109,8 +25117,8 @@ coopHit = (o => function (z, dmg) { if (z && z.pvpz) { PVPZ.hq.set(z.pvp, (PVPZ.
 /* in the field your presence must carry your life too, so the others' bars are right */
 PRES_X.push(() => (PVPZ.in ? { ph: Math.max(0, Math.round(S.hp / Math.max(1, S.maxHp) * 100)) } : {}));
 petsTick = (o => function (dt) { const r = o.apply(this, arguments); try { pvpzTick(dt); } catch (e) { } return r; })(petsTick);
-/* ============ 深渊是自己的世界（owner 21 Nov）============
-   深渊里打死的怪（包括首领）不碰外面的任何东西：不减区域感染进度条、不算周王、不加赛季经验、不进图鉴、
+/* ============ 深渊和副本都是自己的世界（owner 21 Nov）============
+   深渊、剧情副本、船舱、竞技场里打死的怪（包括首领）都不碰外面的任何东西：不减区域感染进度条、不算周王、不加赛季经验、不进图鉴、
    不算任务 / 区域挑战 / 连杀 / 精英奖励，击杀数、首领击杀数、武器击杀数也不涨。深渊自己的东西（深渊币、卡牌、层数）照旧。
    做法：深渊里杀怪时，这些「外面的」函数临时换成空的，杀完再换回来，计数也还原。放在所有 killZombie 包装的最外层。 */
 const ABYISO = { on: false };
@@ -25122,18 +25130,40 @@ streakKill = (o => function () { if (ABYISO.on) return; return o.apply(this, arg
 eliteReward = (o => function () { if (ABYISO.on) return; return o.apply(this, arguments); })(eliteReward);
 weeklyBossKill = (o => function () { if (ABYISO.on) return; return o.apply(this, arguments); })(weeklyBossKill);
 try { stInc = (o => function () { if (ABYISO.on) return; return o.apply(this, arguments); })(stInc); } catch (e) { }
-killZombie = (o => function (z) { if (typeof abyOn !== 'function' || !abyOn() || !z || z.dead || z.animal) return o.apply(this, arguments);
+// abyss: every count is put back too; story dungeons keep S.kills (their own scripts count with it) but nothing outside reacts
+killZombie = (o => function (z) { const aby = typeof abyOn === 'function' && abyOn(); if (!(aby || S.dun) || !z || z.dead || z.animal) return o.apply(this, arguments);
   const k0 = S.kills, b0 = S.bossKills; let ws = null, wk = 0; try { ws = wState(S.wp); wk = ws.k; } catch (e) { }
-  ABYISO.on = true;
+  const was = ABYISO.on; ABYISO.on = true;
   try { return o.apply(this, arguments); }
-  finally { ABYISO.on = false; S.kills = k0; S.bossKills = b0; if (ws) ws.k = wk; } })(killZombie);
-/* ============ 步枪平衡 + 深渊影分身看得见（owner 21 Nov）============
-   1) 步枪太强：基础伤害 19 → 17（持续火力约 -10%）。深渊里「每打 N 下触发」的卡（冰霜：3 下冻住；放血：5 下爆血）
+  finally { ABYISO.on = was; if (aby) { S.kills = k0; S.bossKills = b0; if (ws) ws.k = wk; } } })(killZombie);
+// a dungeon boss is never this week's 周王 (no extra life, no 周王 title, no weekly prompts): the weekly king lives on the mainland
+spawnBoss = (o => function () { const r = o.apply(this, arguments);
+  try { if (S.dun && boss && boss.weekly) { boss.hp = boss.max = Math.round(boss.max / 1.5); boss.dmg /= 1.25; boss.title = String(boss.title).replace('周王·', ''); boss.weekly = false; try { el.bossName.textContent = boss.title + ' Lv.' + boss.lv; } catch (e) { } } } catch (e) { }
+  return r; })(spawnBoss);
+/* ============ 武器平衡 + 深渊影分身看得见（owner 21 Nov）============
+   1) 所有武器的基础数值重新调了一遍（见下面的表）。深渊里「每打 N 下触发」的卡（冰霜：3 下冻住；放血：5 下爆血）
       以前按「打中几下」算，步枪一秒打 9 下，等于一直冻住敌人。现在每一下按射速折算：手枪那样的一下算 1，
       步枪一下只算 0.4 左右（= 射击间隔 ÷ 0.28，最多 1），所以每把枪触发得一样快。近战每刀算 1。
    2) 影分身（武士刀卡）：以前只多算一次伤害，看不到影子。现在召出时身边出现一个紫色半透明的你，跟着你做同样的动作，
       你砍中谁它就扑过去补一刀（带紫色刀光），4 秒后散掉。 */
-try { WEAP.rifle.dmg = 17; } catch (e) { }
+/* ---- every weapon, everywhere (owner 21 Nov: '所有武器都要平衡，外面的和深渊里面的，强度适中')
+   Sustained damage per second at Lv.1 with no gear, counting reloads, crits and how many enemies one hit reaches:
+                before → now
+     手枪      ≈ 86 → 95   (28 dmg, reload 1.0 → 0.9 s)           precise, cheap on ammo
+     步枪      ≈ 116 → 103 (19 → 16 dmg)                          still the steadiest gun, no longer far ahead
+     狙击枪    ≈ 129 → 129 group / 86 single (unchanged)           pierces 3, boss killer
+     散弹枪    ≈ 56 → 95   (12 → 17 per pellet, 6 → 8 shells, .75 → .7 s, reload 2.1 → 1.8 s)   close range only
+     斧头      ≈ 206 → 144 (60 → 42)                              melee is riskier, so it stays a bit above the guns
+     镐子      ≈ 129 → 109 (52 → 44; +35% on brutes and bosses = 147)
+     武士刀    ≈ 223 → 136 (36 → 22; still hits up to 5 and heals a little)
+   Weapon levels, skills, attachments and skins multiply on top the same way for all. */
+try { Object.assign(WEAP.pistol, { dmg: 28, rel: .9 }); Object.assign(WEAP.rifle, { dmg: 16 }); Object.assign(WEAP.shotgun, { dmg: 17, mag: 8, iv: .7, rel: 1.8 });
+  WEAP.axe.dmg = 42; WEAP.pick.dmg = 44; WEAP.blade.dmg = 22; } catch (e) { }
+/* ---- abyss: monster life follows what your weapon REALLY deals (reloads counted), melee and the shotgun a little less (they fight up close) ---- */
+function abyDpsRef(wp) { let d = 0; try { d = weaponDps(wp) || 0; const W = WEAP[wp];
+    if (W.cls !== 'melee') { const mg = (typeof magSizeNow === 'function' ? magSizeNow(wp) : W.mag) || W.mag, iv = fireInterval(wp), rel = typeof reloadTime === 'function' && S.wp === wp ? reloadTime() : W.rel; d *= mg * iv / (mg * iv + rel); }
+    d *= W.cls === 'melee' ? .85 : wp === 'shotgun' ? .9 : 1; } catch (e) { } return d; }
+abyHpFloor = function (z) { const d = abyDpsRef(ABY.wp), n = ABY.floor; return z.boss ? d * (10 + .5 * n) : d * (.6 + .05 * n) * (z.abyE ? 2.5 : 1); };
 const ABYF = { w: () => { try { const W = WEAP[ABY.wp || S.wp]; if (!W || W.cls === 'melee') return 1; return Math.max(.2, Math.min(1, fireInterval(ABY.wp || S.wp) / .28)); } catch (e) { return 1; } } };
 abyOnHit = (o => function (z, D) { if (!z) return o.apply(this, arguments); const w = ABYF.w();
   if (w < 1) { if (aN('frost')) z.abyF = (z.abyF || 0) - 1 + w; if (aN('bleed')) z.abyB = (z.abyB || 0) - 1 + w; }
@@ -26273,4 +26303,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795248950').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795249754').catch(()=>{});</script></body></html>
