@@ -14622,18 +14622,18 @@ if (IMM_ON) {
     return out; })(cabRoll);
 }
 /* ============ 副本柜子 2（owner 21 Nov）============
-   - 格子少了：每个柜子 2~3 格（保险箱 3~4）。
+   - 格子少了：每个柜子 3~5 格。
    - 每一格可能是收藏品，概率按这个柜子原来调好的收藏品机会算出来（平均约 15% 一格，见 lq2ColP）；是哪一件，按每件收藏品
      自己的概率（COLX.ch 当权重）抽。保底 / 本周主题照旧。
-   - 其他格子：先抽东西（同一个柜子里一样东西最多出现一次，所以是混着的），再在它有的品质里抽品质。五个品质的「价值」按晶石算：普通 .25 · 稀有 .5 · 史诗 1 · 传说 2 · 神话 4 晶石
+   - 其他格子：每一格自己抽：先抽东西，再在它有的品质里抽品质（同一样东西可以再出现）。五个品质的「价值」按晶石算：普通 .25 · 稀有 .5 · 史诗 1 · 传说 2 · 神话 4 晶石
      （= 余烬币 5 / 10 / 20 / 40 / 80）。数量 = 这个品质的价值 ÷ 一个的晶石价（GSHOP），所以越值钱的东西越少、
      最低品质越高：一个都给不起的品质，这样东西就没有（例：医疗包最低是传说 ×1）。
      连神话都给不起一个的珍贵东西（腐化晶体、终焉核心、精钢锭……）只会以「神话 ×1」出现，而且按价值调低出现的机会，
      所以平均下来不会多给。
    - 品质的概率：普通 52% · 稀有 28% · 史诗 13% · 传说 6% · 神话 1%，没有的品质不算，其余按比例。
    - 装备格照旧（z_lootq 的品质 + z_imm 的不朽概率）。副本越后面数量越多（副本二 ×1.2 …）。 */
-const LQ2 = { COL: .3, FL: .1, FLP: .05, TV: [.25, .5, 1, 2, 4], P: [.52, .28, .13, .06, .01], R: [0, 2, 3, 4, 5], N: ['普通', '稀有', '史诗', '传说', '神话'],
-  C: { med: [2, 3], locker: [2, 3], tool: [2, 3], file: [2, 3], safe: [3, 4], lab: [2, 3] },
+const LQ2 = { COL: .3, FL: .1, PW: .3, TV: [.25, .5, 1, 2, 4], P: [.52, .28, .13, .06, .01], R: [0, 2, 3, 4, 5], N: ['普通', '稀有', '史诗', '传说', '神话'],
+  C: { med: [3, 5], locker: [3, 5], tool: [3, 5], file: [3, 5], safe: [3, 5], lab: [3, 5] },   /* owner 21 Nov: 3-5 cells */
   // 晶石 shop has no price for these: what one is worth in 晶石
   V: { apart: 1, elem: 7.5, roast: .5, zs1: .3, zs2: .6, zs3: .9, zs4: 1.2 } };
 function lq2Val(k) { try { const g = econGem(); if (g[k] != null) return g[k]; } catch (e) { } if (k === 'coin') return 1 / 20; if (LQ2.V[k] != null) return LQ2.V[k]; if (/^zs\d+$/.test(k)) return .3 * (+k.slice(2) || 1); return 1; }
@@ -14641,12 +14641,11 @@ function lq2Val(k) { try { const g = econGem(); if (g[k] != null) return g[k]; }
 function lq2Tiers(k, mul) { const u = lq2Val(k), out = []; for (let t = 0; t < 5; t++) { const x = LQ2.TV[t] * mul / u; if (x >= .75) out.push({ t, n: Math.max(1, Math.round(x)) }); } return out; }
 function lq2Pick(list, w) { let r = Math.random() * list.reduce((a, x) => a + w(x), 0); for (const x of list) { r -= w(x); if (r <= 0) return x; } return list[list.length - 1]; }
 function lq2Item(type, mul, used) { const T = CABT[type]; used = used || new Set();
-  // the THING first (owner 21 Nov: one cupboard is a mix, not coins in every cell): each thing at most once per cupboard,
-  // its weight × how often its grades come up (a thing that only has 传说/神话 shows up less), then one of ITS grades
-  const fitW = x => { if (x[0] === 'gear') return x[1]; const tiers = lq2Tiers(x[0], mul); if (!tiers.length) return x[1] * LQ2.FLP * Math.min(1, LQ2.TV[4] * mul / lq2Val(x[0]));
-    return x[1] * Math.max(LQ2.FL, tiers.reduce((a, y) => a + LQ2.P[y.t], 0)); };
-  let pool = T.t.filter(x => !used.has(x[0])); if (!pool.length) pool = T.t;
-  const e = lq2Pick(pool, fitW); used.add(e[0]);
+  // the THING first, then its grade: weight × how often its grades come up (a thing that only has 传说/神话 shows up less), then one of ITS grades
+  const fitW = x => { if (x[0] === 'gear') return x[1]; const tiers = lq2Tiers(x[0], mul); if (!tiers.length) return x[1] * Math.pow(LQ2.FL, LQ2.PW) * Math.min(1, LQ2.TV[4] * mul / lq2Val(x[0]));   /* worth more than a 神话 cell: rarer by how much more */
+    return x[1] * Math.pow(Math.max(LQ2.FL, tiers.reduce((a, y) => a + LQ2.P[y.t], 0)), LQ2.PW); };
+  /* every cell rolls on its own (owner 21 Nov: 每一格看出什么才给品质，下一格也这样): the same thing may come again */
+  const e = lq2Pick(T.t, fitW);
   if (e[0] === 'gear') { let q = typeof lqGearQ === 'function' ? lqGearQ() : 2;
     if (q === 6 && Math.random() >= (typeof IMM !== 'undefined' ? IMM.CAB / .005 : .06)) { let n = 0; while (q === 6 && n++ < 20) q = lqGearQ(); q = Math.min(q, 5); }
     const it = makeGear(2, DUN_LV[1], Math.min(q, 5), 0); it[1] = Math.min(q, 5);
@@ -26402,4 +26401,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795259923').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795260296').catch(()=>{});</script></body></html>
