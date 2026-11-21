@@ -13468,7 +13468,12 @@ function dnFieldFor(key, x, z) { const g = dnOpen(dnCell(x, z)); if (g < 0) retu
 // is the straight line clear (for the last few metres)?
 function dnClear(ax, az, bx, bz) { const L = Math.hypot(bx - ax, bz - az), n = Math.ceil(L / .4); for (let s = 1; s < n; s++) { const c = dnCell(ax + (bx - ax) * s / n, az + (bz - az) * s / n); if (c < 0 || DNAV.blk[c]) return false; } return true; }
 function dnWay(z, tg) { const d = dnFieldFor(tg.peer || 'me', tg.x, tg.z); if (!d) return null; const W = DNAV.W, blk = DNAV.blk;
-  let c = dnOpen(dnCell(z.pos.x, z.pos.z)); if (c < 0 || d[c] < 0) return null;
+  let c = dnCell(z.pos.x, z.pos.z); if (c < 0) return null;
+  if (blk[c] || d[c] < 0) { /* standing in a wall's margin: take the nearby open cell that is CLOSEST TO YOU (the first one found could be behind it, so it went back and forth) */
+    const i0 = c % W, j0 = (c / W) | 0; let best = -1, bs = 1e9;
+    for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) { const i = i0 + di, j = j0 + dj; if (i < 0 || j < 0 || i >= W || j >= DNAV.H) continue; const k = j * W + i; if (blk[k] || d[k] < 0) continue;
+      const sc = d[k] + Math.hypot(di, dj) * .6; if (sc < bs) { bs = sc; best = k; } }
+    if (best < 0) return null; c = best; }
   for (let s = 0; s < 4; s++) { const i = c % W, j = (c / W) | 0; let best = c, bd = d[c];
     for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { if (!di && !dj) continue; const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= W || jj >= DNAV.H) continue; const k = jj * W + ii;
       if (blk[k] || d[k] < 0 || d[k] >= bd) continue; if (di && dj && (blk[j * W + ii] || blk[jj * W + i])) continue; best = k; bd = d[k]; }
@@ -13477,8 +13482,9 @@ function dnWay(z, tg) { const d = dnFieldFor(tg.peer || 'me', tg.x, tg.z); if (!
   // keep the waypoint a few metres out, so a zombie never "attacks" a doorway
   const vx = wx - z.pos.x, vz = wz - z.pos.z, vl = Math.hypot(vx, vz); if (vl < .05) return null; if (vl < 3) { wx = z.pos.x + vx / vl * 3; wz = z.pos.z + vz / vl * 3; }
   return [wx, wz]; }
-zTarget = (o => function (z) { const tg = o(z); if (!S.dun || !DNAV.blk || z.boss || z.mirror || !(tg.d < 1e8)) return tg;
-  try { if (tg.d < 5 && dnClear(z.pos.x, z.pos.z, tg.x, tg.z)) return tg; const w = dnWay(z, tg); if (w) return { x: w[0], z: w[1], peer: tg.peer, d: tg.d }; } catch (e) { } return tg; })(zTarget);
+function dnNavTg(z, tg) { if (!S.dun || !DNAV.blk || z.boss || z.mirror || !tg || !(tg.d < 1e8)) return tg;
+  try { if (tg.d < 5 && dnClear(z.pos.x, z.pos.z, tg.x, tg.z)) return tg; const w = dnWay(z, tg); if (w) return { x: w[0], z: w[1], peer: tg.peer, d: tg.d }; } catch (e) { } return tg; }
+/* (the wrapper that uses it is in z_znav.js, after every other zTarget wrapper: z_deep2 replaces the dungeon target and skipped this) */
 // keep the map current: rebuilt when a door opens or a room is built, at most a couple of new step-maps a frame
 zSpecialTick = (o => function (dt) { o(dt); if (!S.dun || !DUN.st) { if (DNAV.blk) { DNAV.blk = null; DNAV.fields.clear(); DNAV.sig = ''; } return; }
   DNAV.budget = 2; DNAV.t -= dt; if (DNAV.t > 0 && DNAV.blk) return; DNAV.t = .5;
@@ -14619,14 +14625,14 @@ if (IMM_ON) {
    - 格子少了：每个柜子 2~3 格（保险箱 3~4）。
    - 每一格可能是收藏品，概率按这个柜子原来调好的收藏品机会算出来（平均约 15% 一格，见 lq2ColP）；是哪一件，按每件收藏品
      自己的概率（COLX.ch 当权重）抽。保底 / 本周主题照旧。
-   - 其他格子：先抽东西，再抽品质。五个品质的「价值」按晶石算：普通 .25 · 稀有 .5 · 史诗 1 · 传说 2 · 神话 4 晶石
+   - 其他格子：先抽东西（同一个柜子里一样东西最多出现一次，所以是混着的），再在它有的品质里抽品质。五个品质的「价值」按晶石算：普通 .25 · 稀有 .5 · 史诗 1 · 传说 2 · 神话 4 晶石
      （= 余烬币 5 / 10 / 20 / 40 / 80）。数量 = 这个品质的价值 ÷ 一个的晶石价（GSHOP），所以越值钱的东西越少、
      最低品质越高：一个都给不起的品质，这样东西就没有（例：医疗包最低是传说 ×1）。
      连神话都给不起一个的珍贵东西（腐化晶体、终焉核心、精钢锭……）只会以「神话 ×1」出现，而且按价值调低出现的机会，
      所以平均下来不会多给。
    - 品质的概率：普通 52% · 稀有 28% · 史诗 13% · 传说 6% · 神话 1%，没有的品质不算，其余按比例。
    - 装备格照旧（z_lootq 的品质 + z_imm 的不朽概率）。副本越后面数量越多（副本二 ×1.2 …）。 */
-const LQ2 = { COL: .3, TV: [.25, .5, 1, 2, 4], P: [.52, .28, .13, .06, .01], R: [0, 2, 3, 4, 5], N: ['普通', '稀有', '史诗', '传说', '神话'],
+const LQ2 = { COL: .3, FL: .1, FLP: .05, TV: [.25, .5, 1, 2, 4], P: [.52, .28, .13, .06, .01], R: [0, 2, 3, 4, 5], N: ['普通', '稀有', '史诗', '传说', '神话'],
   C: { med: [2, 3], locker: [2, 3], tool: [2, 3], file: [2, 3], safe: [3, 4], lab: [2, 3] },
   // 晶石 shop has no price for these: what one is worth in 晶石
   V: { apart: 1, elem: 7.5, roast: .5, zs1: .3, zs2: .6, zs3: .9, zs4: 1.2 } };
@@ -14634,22 +14640,20 @@ function lq2Val(k) { try { const g = econGem(); if (g[k] != null) return g[k]; }
 // the grades this item has at this dungeon: [{t, n}]
 function lq2Tiers(k, mul) { const u = lq2Val(k), out = []; for (let t = 0; t < 5; t++) { const x = LQ2.TV[t] * mul / u; if (x >= .75) out.push({ t, n: Math.max(1, Math.round(x)) }); } return out; }
 function lq2Pick(list, w) { let r = Math.random() * list.reduce((a, x) => a + w(x), 0); for (const x of list) { r -= w(x); if (r <= 0) return x; } return list[list.length - 1]; }
-function lq2Item(type, mul) { const T = CABT[type];
-  for (let tries = 0; tries < 12; tries++) { const e = lq2Pick(T.t, x => x[1]);
-    if (e[0] === 'gear') { let q = typeof lqGearQ === 'function' ? lqGearQ() : 2;
-      if (q === 6 && Math.random() >= (typeof IMM !== 'undefined' ? IMM.CAB / .005 : .06)) { let n = 0; while (q === 6 && n++ < 20) q = lqGearQ(); q = Math.min(q, 5); }
-      const it = makeGear(2, DUN_LV[1], Math.min(q, 5), 0); it[1] = Math.min(q, 5);
-      if (q === 6) { it[1] = 6; it[2] = 100; it[5] = 100; it[6] = 0; it.length = 8; it[7] = it[7] | 0; try { afxGen(it); } catch (er) { } }
-      return { k: 'gear', it, r: it[1], n: 1, need: .5 + Math.min(5, it[1]) * .35 + Math.random() * .3 + (q === 6 ? .8 : 0) }; }
-    // the grade is rolled first (so a 神话 cell stays a 1% thing), then one of the things that HAVE that grade here;
-    // if nothing in this cupboard has the rolled grade, the next grade up is used (a cheap 普通 roll in a lab gives its lowest thing)
-    let t = lq2Pick([0, 1, 2, 3, 4], i => LQ2.P[i]);
-    for (; t < 5; t++) { const cand = [];
-      for (const x of T.t) { if (x[0] === 'gear') continue; const tiers = lq2Tiers(x[0], mul), g = tiers.find(y => y.t === t);
-        if (g) cand.push({ k: x[0], n: g.n, w: x[1] });
-        else if (!tiers.length && t === 4) cand.push({ k: x[0], n: 1, w: x[1] * Math.min(1, LQ2.TV[4] * mul / lq2Val(x[0])) });   /* too precious: one piece, less often */ }
-      if (cand.length) { const c = lq2Pick(cand, y => y.w); return { k: c.k, n: c.n, tier: t, r: LQ2.R[t], need: .5 + LQ2.R[t] * .35 + Math.random() * .3 }; } } }
-  return { k: 'coin', n: Math.round(5 * mul), tier: 0, r: 0, need: .6 }; }
+function lq2Item(type, mul, used) { const T = CABT[type]; used = used || new Set();
+  // the THING first (owner 21 Nov: one cupboard is a mix, not coins in every cell): each thing at most once per cupboard,
+  // its weight × how often its grades come up (a thing that only has 传说/神话 shows up less), then one of ITS grades
+  const fitW = x => { if (x[0] === 'gear') return x[1]; const tiers = lq2Tiers(x[0], mul); if (!tiers.length) return x[1] * LQ2.FLP * Math.min(1, LQ2.TV[4] * mul / lq2Val(x[0]));
+    return x[1] * Math.max(LQ2.FL, tiers.reduce((a, y) => a + LQ2.P[y.t], 0)); };
+  let pool = T.t.filter(x => !used.has(x[0])); if (!pool.length) pool = T.t;
+  const e = lq2Pick(pool, fitW); used.add(e[0]);
+  if (e[0] === 'gear') { let q = typeof lqGearQ === 'function' ? lqGearQ() : 2;
+    if (q === 6 && Math.random() >= (typeof IMM !== 'undefined' ? IMM.CAB / .005 : .06)) { let n = 0; while (q === 6 && n++ < 20) q = lqGearQ(); q = Math.min(q, 5); }
+    const it = makeGear(2, DUN_LV[1], Math.min(q, 5), 0); it[1] = Math.min(q, 5);
+    if (q === 6) { it[1] = 6; it[2] = 100; it[5] = 100; it[6] = 0; it.length = 8; it[7] = it[7] | 0; try { afxGen(it); } catch (er) { } }
+    return { k: 'gear', it, r: it[1], n: 1, need: .5 + Math.min(5, it[1]) * .35 + Math.random() * .3 + (q === 6 ? .8 : 0) }; }
+  const tiers = lq2Tiers(e[0], mul), g = tiers.length ? lq2Pick(tiers, y => LQ2.P[y.t]) : { t: 4, n: 1 };
+  return { k: e[0], n: g.n, tier: g.t, r: LQ2.R[g.t], need: .5 + LQ2.R[g.t] * .35 + Math.random() * .3 }; }
 function lq2Col(did, type, taken) { try { const th = typeof rwTheme === 'function' && did === rwTheme(), pool = COL_ORDER.filter(k => COLX[k].d === did && (COLX[k].src || []).includes(type) && !taken.has(k));
     if (!pool.length) return null; const id = lq2Pick(pool, k => (COLX[k].ch || .01) * (th && COLX[k].r === 4 ? RW.THEME_X : 1)).toString(); return id; } catch (e) { return null; } }
 /* how often a cell is a keepsake: worked out so a cupboard still gives about as many keepsakes as the old tuned odds
@@ -14659,11 +14663,11 @@ function lq2ColP(did, type, C) { try { const th = typeof rwTheme === 'function' 
     const sum = COL_ORDER.filter(k => COLX[k].d === did && (COLX[k].src || []).includes(type)).reduce((a, k) => a + (COLX[k].ch || 0) * (th && COLX[k].r === 4 ? RW.THEME_X : 1), 0);
     return Math.min(.5, sum / ((C[0] + C[1]) / 2)); } catch (e) { return .15; } }
 const lq2ColE = id => ({ k: 'col', id, r: COLX[id].r, n: 1, need: .5 + COLX[id].r * .35 + Math.random() * .3 });
-cabRoll = function (type, colKey) { const T = CABT[type]; if (!T) return []; const did = DUN.id || 1, mul = 1 + .2 * (did - 1), C = LQ2.C[type] || [2, 3], n = rint(C[0], C[1]), out = [], taken = new Set();
+cabRoll = function (type, colKey) { const T = CABT[type]; if (!T) return []; const did = DUN.id || 1, mul = 1 + .2 * (did - 1), C = LQ2.C[type] || [2, 3], n = rint(C[0], C[1]), out = [], taken = new Set(), used = new Set();
   const pc = lq2ColP(did, type, C);
   for (let i = 0; i < n; i++) { let o = null;
     if (Math.random() < pc) { const id = lq2Col(did, type, taken); if (id) { taken.add(id); o = lq2ColE(id); } }
-    out.push(o || lq2Item(type, mul)); }
+    out.push(o || lq2Item(type, mul, used)); }
   // 保底 (z_relic2): after enough cleared runs without one, a mythic / legendary keepsake replaces a non-keepsake cell
   try { const P = S.relicPity && S.relicPity[did], swap = r => { const id = typeof rwPick === 'function' ? rwPick(did, type, r) : null; if (!id) return; let i = out.findIndex(x => x.k !== 'col'); if (i < 0) i = out.length - 1; out[i] = lq2ColE(id); };
     if (P) { if (P.m >= RW.PITY_M && !out.some(x => x.k === 'col' && x.r === 5)) swap(5); else if (P.l >= RW.PITY_L && !out.some(x => x.k === 'col' && x.r >= 4)) swap(4); } } catch (e) { }
@@ -25291,6 +25295,79 @@ function gtTick(dt) { for (let i = GTB.length - 1; i >= 0; i--) { const E = GTB[
       if (E.t > 7.6) { gtDrop(E); GTB.splice(i, 1); } } } }
 function gtDrop(E) { try { scene.remove(E.piv); E.piv.traverse(m => { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }); } catch (e) { } }
 petsTick = (o => function (dt) { o(dt); try { if (GTB.length) gtTick(dt); } catch (e) { } })(petsTick);
+
+/* ---- 5. weapon skill while walking (owner 21 Nov: '走路的时候不能按技能'): on iPhone a second finger that lands on the skill
+   button while the first one holds the joystick does not always get a pointerdown. A touchstart listener on the whole page
+   catches every new finger and casts when it lands on the skill button; a cast from both paths at once counts once. ---- */
+const SKT2 = { t: 0 };
+const sk2Now = () => typeof performance !== 'undefined' ? performance.now() : Date.now();
+/* a cast that came from the page-wide touch listener blocks the button's own pointerdown for .3 s, and the other way round */
+wsCast = (o => function () { if (sk2Now() - SKT2.t < 300) return; SKT2.last = sk2Now(); return o.apply(this, arguments); })(wsCast);
+try { document.addEventListener('touchstart', e => { try { const b = $('bSkill'); if (!b || b.style.display === 'none' || !b.getBoundingClientRect) return;
+    const q = b.getBoundingClientRect(); if (!q.width) return;
+    for (const t of e.changedTouches || []) if (t.clientX >= q.left - 6 && t.clientX <= q.right + 6 && t.clientY >= q.top - 6 && t.clientY <= q.bottom + 6) {
+      if (S.paused || S.dead || !S.started || sk2Now() - (SKT2.last || -1e9) < 300) return; try { audioInit(); } catch (er) { } wsCast(); SKT2.t = sk2Now(); b.classList.add('tap'); setTimeout(() => b.classList.remove('tap'), 160); return; } } catch (er) { } }, { capture: true, passive: true }); } catch (e) { }
+/* ============ 丧尸会绕路找人（owner 21 Nov：副本里的丧尸不会自动寻人，跑去卡墙；海岛也一样）============
+   1) 副本：z_dunnav 早就有一张通行图，可是后来 z_deep2 换掉了副本里的目标选择，绕路那一步就再也没跑过。现在它放在所有
+      目标选择的最后，副本里重新生效。
+   2) 外面（海岛、大陆）：以你为中心 72×72 米、一米一格的通行图（树、石头、房子、你建的东西、深水都算挡路，开着的门不算），
+      每秒更新一次。正在追你的丧尸，如果和你之间被挡住了，就顺着通行图绕过去。中间没东西挡就照旧直线扑过来。
+      完全被围住、找不到路的时候（比如你把家整个围起来），它们还是会直冲过来砸墙——海岛防守照旧。
+      首领和大块头不用这个（它们太大，窄的缝过不去）。 */
+const LNAV = { blk: null, N: 72, x0: 0, z0: 0, cx: 1e9, cz: 1e9, t: 0, fields: new Map(), budget: 2 };
+const LNAV_R = .34;
+function lnBuild() { const N = LNAV.N, x0 = Math.floor(player.pos.x) - N / 2, z0 = Math.floor(player.pos.z) - N / 2, blk = new Uint8Array(N * N);
+  for (const o of queryObstacles(x0 + N / 2, z0 + N / 2, N / 2 + 3)) { if (!o || o.open || !o.ck) continue;
+    const hw = (o.t === 0 ? o.r : o.hw) + LNAV_R, hd = (o.t === 0 ? o.r : o.hd) + LNAV_R;
+    const i0 = Math.max(0, Math.floor(o.x - hw - x0)), i1 = Math.min(N - 1, Math.floor(o.x + hw - x0 - 1e-6)), j0 = Math.max(0, Math.floor(o.z - hd - z0)), j1 = Math.min(N - 1, Math.floor(o.z + hd - z0 - 1e-6));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      if (o.t === 0) { const dx = x0 + i + .5 - o.x, dz = z0 + j + .5 - o.z; if (dx * dx + dz * dz > (hw + .5) * (hw + .5)) continue; }
+      blk[j * N + i] = 1; } }
+  try { for (let j = 0; j < N; j += 1) for (let i = 0; i < N; i += 1) { const k = j * N + i; if (!blk[k] && deepAt(x0 + i + .5, z0 + j + .5)) blk[k] = 1; } } catch (e) { }
+  Object.assign(LNAV, { blk, x0, z0, cx: player.pos.x, cz: player.pos.z }); LNAV.fields.clear(); }
+const lnCell = (x, z) => { const i = Math.floor(x - LNAV.x0), j = Math.floor(z - LNAV.z0), N = LNAV.N; return i < 0 || j < 0 || i >= N || j >= N ? -1 : j * N + i; };
+function lnOpen(c) { if (c < 0 || !LNAV.blk[c]) return c; const N = LNAV.N, i0 = c % N, j0 = (c / N) | 0;
+  for (let r = 1; r <= 3; r++) for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) { const i = i0 + di, j = j0 + dj; if (i < 0 || j < 0 || i >= N || j >= N) continue; const k = j * N + i; if (!LNAV.blk[k]) return k; } return -1; }
+function lnField(goal) { const N = LNAV.N, d = new Int16Array(N * N).fill(-1), q = new Int32Array(N * N), blk = LNAV.blk; let h = 0, t = 0; d[goal] = 0; q[t++] = goal;
+  while (h < t) { const c = q[h++], i = c % N, j = (c / N) | 0, nd = d[c] + 1;
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { if (!di && !dj) continue; const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const k = jj * N + ii; if (blk[k] || d[k] >= 0) continue;
+      if (di && dj && (blk[j * N + ii] || blk[jj * N + i])) continue; d[k] = nd; q[t++] = k; } }
+  return d; }
+function lnFieldFor(key, x, z) { const g = lnOpen(lnCell(x, z)); if (g < 0) return null; let F = LNAV.fields.get(key);
+  if (!F || F.g !== g) { if (LNAV.budget <= 0 && F) return F.d; if (LNAV.budget <= 0) return null; LNAV.budget--; F = { g, d: lnField(g) }; LNAV.fields.set(key, F); } return F.d; }
+function lnClear(ax, az, bx, bz) { const L = Math.hypot(bx - ax, bz - az), n = Math.ceil(L / .4); for (let s = 1; s < n; s++) { const c = lnCell(ax + (bx - ax) * s / n, az + (bz - az) * s / n); if (c < 0 || LNAV.blk[c]) return false; } return true; }
+function lnWay(z, tg) { const d = lnFieldFor(tg.peer || 'me', tg.x, tg.z); if (!d) return null; const N = LNAV.N, blk = LNAV.blk;
+  let c = lnCell(z.pos.x, z.pos.z); if (c < 0) return null;
+  if (blk[c] || d[c] < 0) { const i0 = c % N, j0 = (c / N) | 0; let best = -1, bs = 1e9;
+    for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) { const i = i0 + di, j = j0 + dj; if (i < 0 || j < 0 || i >= N || j >= N) continue; const k = j * N + i; if (blk[k] || d[k] < 0) continue;
+      const sc = d[k] + Math.hypot(di, dj) * .6; if (sc < bs) { bs = sc; best = k; } }
+    /* no way round (walled in): go straight and break through */
+    if (best < 0) return null; c = best; }
+  for (let s = 0; s < 5; s++) { const i = c % N, j = (c / N) | 0; let best = c, bd = d[c];
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { if (!di && !dj) continue; const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue; const k = jj * N + ii;
+      if (blk[k] || d[k] < 0 || d[k] >= bd) continue; if (di && dj && (blk[j * N + ii] || blk[jj * N + i])) continue; best = k; bd = d[k]; }
+    if (best === c) break; c = best; if (!lnClear(z.pos.x, z.pos.z, LNAV.x0 + c % N + .5, LNAV.z0 + ((c / N) | 0) + .5)) break; }
+  let wx = LNAV.x0 + c % N + .5, wz = LNAV.z0 + ((c / N) | 0) + .5;
+  const vx = wx - z.pos.x, vz = wz - z.pos.z, vl = Math.hypot(vx, vz); if (vl < .05) return null; if (vl < 3) { wx = z.pos.x + vx / vl * 3; wz = z.pos.z + vz / vl * 3; }
+  return [wx, wz]; }
+function lnNavTg(z, tg) {
+  if (!LNAV.blk || !tg || !(tg.d < 34) || tg.d < 1.8 || !(z.chasing || z.horde) || z.boss || z.mirror || z.pvp || z.animal || z.up || (z.sc || 1) > 1.5) return tg;
+  if (!tg.peer && (S.up || (typeof playerY === 'function' && (playerY() || 0) > 1.4))) return tg;
+  try { if (typeof houseAt === 'function' && (houseAt(tg.x, tg.z) || houseAt(z.pos.x, z.pos.z))) return tg;   /* village doors: b2_enemies' own door logic */
+    if (lnClear(z.pos.x, z.pos.z, tg.x, tg.z)) return tg;
+    const w = lnWay(z, tg); if (w) return { x: w[0], z: w[1], peer: tg.peer, d: tg.d }; } catch (e) { }
+  return tg; }
+zTarget = (o => function (z) { const tg = o(z); if (!z) return tg;
+  if (S.dun) return typeof dnNavTg === 'function' ? dnNavTg(z, tg) : tg;
+  return lnNavTg(z, tg); })(zTarget);
+zSpecialTick = (o => function (dt) { o(dt); try {
+  if (S.dun || (typeof abyOn === 'function' && abyOn())) { if (LNAV.blk) { LNAV.blk = null; LNAV.fields.clear(); } return; }
+  LNAV.budget = 2; LNAV.t -= dt;
+  const far = Math.hypot(player.pos.x - LNAV.cx, player.pos.z - LNAV.cz) > 10;
+  if (LNAV.t <= 0 || far || !LNAV.blk) { LNAV.t = 1;
+    // only worth it when someone is chasing
+    if (zombies.some(z => !z.dead && (z.chasing || z.horde))) lnBuild(); else { LNAV.blk = null; LNAV.fields.clear(); } }
+} catch (e) { LNAV.blk = null; } })(zSpecialTick);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -26325,4 +26402,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795258893').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795259923').catch(()=>{});</script></body></html>
