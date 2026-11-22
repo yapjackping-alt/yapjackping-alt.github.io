@@ -24245,6 +24245,175 @@ SKT.kaishan = { snd() { my3N(1.4, .1, 160, { type: 'lowpass' }); my3T(55, 40, 1.
       try { fxFlash(0xfff0c8, .35, .4); } catch (e) { } S.shake = Math.max(S.shake || 0, .6); my3Boom(true); }); } };
 /* ---------------- shop ---------------- */
 try { for (const [k, id] of [['pangu', 'axe'], ['chrono', 'pistol'], ['longmai', 'pick'], ['kaishan', 'pick']]) if (!WSK_DIRECT.some(p => p[0] === k)) WSK_DIRECT.push([k, id]); } catch (e) { }
+/* ============ 神话时装「九霄剑仙」（owner 22 Nov：剑修时装，和步枪「九霄剑阵」、武士刀「九霄剑诀」联动；不能飞）============
+   外观：白色交领长袍（玉青内衬、金色云纹边），宽大的袖子，深玉色腰封 + 玉佩红穗，云纹玉肩，
+     黑色长发高高束成发髻、金玉发冠插着发簪，两条玉青发带和长袍下摆随风飘动，背上斜背一柄带鞘的长剑，
+     三柄小飞剑绕着腰慢慢转（飞剑护体），脚下一圈剑阵光环，九个元素光点。
+     描述里不能有「翅 / 翼」两个字：wingBlockName 用它们判断能不能飞（owner：这个时装不能飞）。
+   联动（穿着这件时装时）：
+     九霄剑阵（步枪）：身后剑阵多一面会转的阵图，九剑更大；每把剑飞出去都拖着元素色的剑光残影，命中的地方落下一个小阵印；
+       技能变成「万剑归宗」：脚下展开九色剑阵，九柄巨剑从阵中升起悬在头顶，再一柄接一柄斩向前方的怪物，落点冲起元素光柱。
+     九霄剑诀（武士刀）：身后九颗灵气球里各有一柄小剑在转；每一刀都多飞出一道元素色的剑气；
+       技能变成「剑开天门」：九道剑气之后，一柄巨大的光之剑从天上沿着冲刺的路线劈下来，九道元素光柱依次冲起，两道光门在终点亮起。
+   只改特效，伤害不变。时装本身是神话属性（和天穹神裔一样）。 */
+SKINS.jxian = { n: '九霄剑仙', r: 5, st: { dmg: .06, crit: .03, hpPct: .08, def: .03 }, stt: '伤害 +6%、暴击率 +3%、生命 +8%、减伤 +3%',
+  fx: [0x7affd8, 0xe8c060, 0xffffff, 0x3aa890],
+  d: '一袭白衣的剑修：玉青内衬的交领长袍、金色云纹镶边、宽大的长袖，深玉色腰封上挂着玉佩和红穗；长发束成高髻，金玉发冠插着发簪，两条玉青发带随风飘；背负一柄长剑，三柄小飞剑绕身而行，脚下剑阵流转。\n【联动】手持「九霄剑阵」或「九霄剑诀」时，两把武器的普攻和技能特效全部升级：万剑归宗、剑开天门。' };
+const JX = { arr: null, bsw: [], M: null };
+const jxOn = () => { try { return S.skin === 'jxian'; } catch (e) { return false; } };
+const jxGlow = (c, op) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op == null ? .8 : op, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+SKIN_BUILD.jxian = function (k) {
+  const { bx, cone, gem, cyl, G, both, torso, pants, put } = k, W = 0xf4f6f2, W2 = 0xdfe8e4, J = 0x3aa890, JD = 0x1c5a50, JL = 0x8fd8c4, GO = 0xe8c060, K = 0x16141a, RD = 0xc83a3a;
+  const JG = G(0x7affd8), GG = G(0xfff0b0);
+  const add = (geo, m, x, y, z, p, fx, ph) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); put(o, p); if (fx) { o.userData.fx = fx; o.userData.ph = ph || 0; o.userData.y0 = y; } return o; };
+  // a hinged strip that sways like the cape (robe tails, hair ribbons); flip = hangs in front
+  const strip = (x, y, z, w, len, n, c, o) => { o = o || {}; const sh = len / n; let par = null, first = null;
+    for (let i = 0; i < n; i++) { const g = new THREE.Group(); put(g, 'b'); g.userData.fx = 'cape'; g.userData.ph = i + (o.ph || 0); g.userData.base = i ? 0 : (o.tilt || .05);
+      if (!i) { g.position.set(x, y, z); if (o.flip) g.rotation.y = Math.PI; first = g; } else { par.add(g); g.position.set(0, -sh, 0); }
+      const ww = w * (1 + i * (o.flare || 0)), th = o.th || .04, m = new THREE.Mesh(new THREE.BoxGeometry(ww, sh + .01, th), mat(c)); m.position.y = -sh / 2; g.add(m);
+      if (o.edge != null) for (const sx of [-1, 1]) { const e = new THREE.Mesh(new THREE.BoxGeometry(.03, sh + .01, th + .01), mat(o.edge)); e.position.set(sx * ww / 2, -sh / 2, 0); g.add(e); }
+      if (i === n - 1 && o.end != null) { const e = new THREE.Mesh(new THREE.BoxGeometry(ww + .02, .07, th + .02), mat(o.end)); e.position.y = -sh; g.add(e); }
+      par = g; }
+    return first; };
+  // ---- the robe: white outer robe crossed over a jade inner robe (交领), gold cloud trim
+  torso(W); bx(.2, .5, .02, JD, 0, 1.6, .226);
+  both(s => { bx(.11, .66, .025, J, s * .085, 1.52, .232, 'b', 0, 0, -s * .55); bx(.025, .66, .03, GO, s * .135, 1.52, .236, 'b', 0, 0, -s * .55); });
+  bx(.72, .05, .46, GO, 0, 1.86, 0); bx(.04, .7, .45, W2, 0, 1.42, 0);
+  // waist: deep jade sash, gold bands, jade buckle, a jade pendant on a red tassel
+  bx(.76, .2, .5, JD, 0, 1.06, 0); bx(.77, .03, .51, GO, 0, 1.16, 0); bx(.77, .03, .51, GO, 0, .96, 0); gem(.07, JG, 0, 1.06, .27);
+  cyl(.085, .085, .03, JL, -.2, .84, .28, 'b', Math.PI / 2); add(new THREE.TorusGeometry(.085, .012, 6, 18), mat(GO), -.2, .84, .29, 'b'); bx(.03, .1, .03, RD, -.2, .96, .28); bx(.05, .24, .03, RD, -.2, .64, .28);
+  // shoulders: cloud-shaped jade plates with gold rims
+  both(s => { bx(.34, .1, .46, J, s * .46, 1.86, 0); bx(.36, .035, .48, GO, s * .46, 1.8, 0); bx(.2, .06, .3, JL, s * .5, 1.93, 0); gem(.045, GG, s * .58, 1.9, .2); });
+  // wide sleeves: tight at the shoulder, a big hanging cuff (the hand still shows)
+  both((s, L, a) => { bx(.27, .36, .27, W, 0, -.18, 0, a); bx(.38, .5, .44, W, 0, -.52, -.05, a); bx(.39, .06, .45, J, 0, -.75, -.05, a); bx(.395, .02, .455, GO, 0, -.79, -.05, a); bx(.36, .4, .02, W2, 0, -.5, -.27, a); });
+  // legs: pale trousers, black cloud boots with white soles and turned-up toes
+  pants(0xdfe6e2, K, .28); both((s, L) => { bx(.31, .05, .42, 0xf0f0f0, 0, -.99, .05, L); bx(.2, .05, .1, K, 0, -.93, .27, L, -.4); });
+  // robe tails: one long back panel and two front panels that sway (they hang over the legs like a long robe)
+  strip(0, 1.0, -.23, .64, .92, 5, W, { edge: J, end: GO, flare: .05, tilt: .06 });
+  both(s => strip(s * .17, 1.0, .24, .3, .82, 4, W, { edge: J, end: GO, flare: .04, tilt: .04, flip: true, ph: 2 }));
+  // head: long black hair down the back, side locks, a high bun with a gold-and-jade crown and a hairpin, two jade ribbons
+  bx(.5, .1, .5, K, 0, 2.3, 0); bx(.48, .78, .08, K, 0, 1.9, -.25); both(s => bx(.06, .42, .14, K, s * .265, 2.0, .1)); bx(.42, .06, .06, K, 0, 2.24, .22);
+  // the face (owner: 别忘记设计眼睛嘴巴): slanted sword brows, almond eyes with a dark iris and a jade glint, a forehead mark, a calm thin mouth
+  both(s => { bx(.13, .028, .012, K, s * .1, 2.135, .226, 'b', 0, 0, s * .2);   // 剑眉: rising toward the temples
+    bx(.11, .05, .01, 0xf6f2ea, s * .1, 2.075, .224); bx(.055, .055, .012, 0x1e1a24, s * .095, 2.073, .228); bx(.018, .018, .01, 0x7affd8, s * .085 + .012, 2.085, .235);
+    bx(.12, .014, .012, 0x2a2228, s * .1, 2.1, .228, 'b', 0, 0, s * .1); bx(.04, .012, .01, 0x2a2228, s * .158, 2.108, .228, 'b', 0, 0, s * .5); });
+  bx(.022, .05, .01, 0xd8343a, 0, 2.18, .226); bx(.05, .014, .01, 0xe8c060, 0, 2.205, .226);   // 眉心剑纹
+  bx(.03, .05, .02, 0xd09a78, 0, 2.02, .228); bx(.09, .012, .01, 0x8a4a48, 0, 1.955, .225); bx(.05, .008, .01, 0xc87a70, 0, 1.944, .225);
+  cyl(.1, .12, .16, K, 0, 2.42, -.06); cyl(.125, .14, .11, GO, 0, 2.45, -.06); gem(.05, JG, 0, 2.55, -.06); gem(.035, JG, 0, 2.46, .08);
+  bx(.03, .03, .56, GO, 0, 2.47, -.06, 'b', 0, Math.PI / 2); both(s => gem(.035, JG, s * .29, 2.47, -.06));
+  both(s => strip(s * .07, 2.4, -.17, .06, 1.15, 6, J, { end: GO, th: .015, tilt: .2, ph: s > 0 ? 1.5 : 0 }));
+  // the sword on the back: jade scabbard with gold fittings, gold guard, wrapped hilt, red tassel
+  { const R = -.55; bx(.1, 1.05, .06, JD, -.06, 1.42, -.29, 'b', 0, 0, R); bx(.11, .08, .07, GO, -.27, 1.03, -.29, 'b', 0, 0, R); bx(.11, .06, .07, GO, .12, 1.78, -.29, 'b', 0, 0, R);
+    bx(.26, .05, .08, GO, .17, 1.86, -.29, 'b', 0, 0, R); bx(.05, .26, .05, K, .26, 1.99, -.29, 'b', 0, 0, R); gem(.035, JG, .33, 2.1, -.29); bx(.03, .22, .03, RD, .38, 2.0, -.3); }
+  // three small flying swords circling the waist (飞剑护体)
+  for (let i = 0; i < 3; i++) { const sw = new THREE.Group(); const bl = new THREE.Mesh(new THREE.BoxGeometry(.035, .015, .46), mat(0xe8fff8)); bl.position.z = .12; sw.add(bl);
+    const gl = new THREE.Mesh(new THREE.BoxGeometry(.07, .03, .5), jxGlow(0x7affd8, .45)); gl.position.z = .12; sw.add(gl);
+    const gd = new THREE.Mesh(new THREE.BoxGeometry(.12, .03, .03), mat(GO)); gd.position.z = -.12; sw.add(gd); const hd = new THREE.Mesh(new THREE.BoxGeometry(.025, .025, .12), mat(K)); hd.position.z = -.19; sw.add(hd);
+    put(sw, 'g'); sw.userData.fx = 'jxsw'; sw.userData.ph = i * 2.094; }
+  // the sword array under the feet: two counter-turning rings, nine element lights
+  const ring = add(new THREE.RingGeometry(.66, .74, 48), jxGlow(0x7affd8, .5), 0, .05, 0, 'g', 'aura'); ring.rotation.x = -Math.PI / 2;
+  const ring2 = add(new THREE.RingGeometry(.44, .47, 9), jxGlow(0xe8c060, .55), 0, .06, 0, 'g', 'aura2'); ring2.rotation.x = -Math.PI / 2;
+  for (let i = 0; i < 9; i++) { const a = i / 9 * 6.283, d = new THREE.Mesh(new THREE.OctahedronGeometry(.045), jxGlow(J9_EL[i].c, .95)); d.position.set(Math.cos(a) * .7, Math.sin(a) * .7, .01); d.userData.fx = 'jxel'; d.userData.ph = i; ring.add(d); }
+};
+SKIN_P.jxian = [{ pts: 'body', rate: 8, life: 1.4, v: [0, .55, 0], sp: .3, col: [0x7affd8, 0xe8fff8, 0xe8c060], sz: .045 },
+  { pts: [[-.25, .2, -.3], [.25, .2, -.3], [0, .3, -.32]], rate: 18, life: .6, v: [0, .3, -.6], sp: .25, col: [0x7affd8, 0xffffff], sz: .05, moving: 1 }];
+SKIN_DIRECT.push('jxian');
+/* ---- the moving parts: waist swords orbit tip-first; the nine lights shine in turn when a linked weapon is in hand ---- */
+const jxLinked = () => { try { return jxOn() && ((S.wp === 'rifle' && S.wsk && S.wsk.rifle === 'jian9') || (S.wp === 'blade' && S.wsk && S.wsk.blade === 'jian9b')); } catch (e) { return false; } };
+skinAnimate = (o => function (out, T) { o(out, T); for (const m of out || []) { const u = m.userData; if (!u) continue;
+    if (u.fx === 'jxsw') { const a = T * 1.1 + u.ph, r = .78; m.position.set(Math.cos(a) * r, 1.05 + Math.sin(T * 1.6 + u.ph) * .12, Math.sin(a) * r); m.rotation.set(0, -a, 0); }
+    if (u.fx === 'aura') for (const d of m.children) if (d.userData.fx === 'jxel') { const lk = jxLinked(), on = lk ? (Math.floor(T * 6) % 9 === d.userData.ph ? 1 : .45) : .8; d.material.opacity = on; d.scale.setScalar(lk && on === 1 ? 1.7 : 1); } } })(skinAnimate);
+/* ---------- 联动 1: 九霄剑阵 (rifle) ---------- */
+// a turning formation disc behind the sword ring, the nine swords a little bigger
+function jxArr() { if (JX.arr) return JX.arr; const g = new THREE.Group(), add = (geo, m, z) => { const o = new THREE.Mesh(geo, m); o.position.z = z || 0; g.add(o); return o; };
+  const outer = add(new THREE.RingGeometry(1.18, 1.24, 64), jxGlow(0x7affd8, .55)), inner = add(new THREE.RingGeometry(.52, .56, 9), jxGlow(0xe8c060, .6), -.01);
+  const spokes = new THREE.Group(); g.add(spokes); for (let i = 0; i < 9; i++) { const a = i / 9 * 6.283, s = new THREE.Mesh(new THREE.PlaneGeometry(.62, .025), jxGlow(J9_EL[i].c, .55)); s.position.set(Math.cos(a) * .86, Math.sin(a) * .86, -.02); s.rotation.z = a; spokes.add(s);
+    const n = new THREE.Mesh(new THREE.CircleGeometry(.07, 12), jxGlow(J9_EL[i].c, .9)); n.position.set(Math.cos(a) * 1.21, Math.sin(a) * 1.21, .01); outer.add(n); }
+  add(new THREE.CircleGeometry(1.16, 48), jxGlow(0x1c5a50, .16), -.03);
+  g.userData = { outer, inner, spokes }; g.traverse(o => { o.frustumCulled = false; }); scene.add(g); JX.arr = g; return g; }
+j9Tick = (o => function (dt) { o(dt); try { const on = jxOn() && J9.g && J9.g.visible;
+    if (!on) { if (JX.arr) JX.arr.visible = false; if (J9.sw) J9.sw.forEach(s => { if (s.userData.jxs) { s.scale.setScalar(1); s.userData.jxs = 0; } }); return; }
+    const A = jxArr(); A.visible = true; const T = performance.now() / 1000, f = player.face || 0, PY = (typeof playerY === 'function' && playerY()) || 0;
+    A.position.set(player.pos.x - Math.sin(f) * .7, 1.55 + PY, player.pos.z - Math.cos(f) * .7); A.rotation.set(0, f, 0);
+    A.userData.outer.rotation.z = T * .35; A.userData.inner.rotation.z = -T * .8; A.userData.spokes.rotation.z = T * .35; A.userData.outer.material.opacity = .45 + .12 * Math.sin(T * 2.2);
+    J9.sw.forEach(s => { if (!s.userData.jxs) { s.scale.setScalar(1.22); s.userData.jxs = 1; } }); } catch (e) { } })(j9Tick);
+// each launched sword leaves an element-coloured sword light behind it; the strike leaves a small seal on the ground
+j9Launch = (o => function (i, mx, my, mz, dx, dz, ex, ey, ez, hit) { o.apply(this, arguments); if (!jxOn()) return;
+  const c = J9_EL[i].c, len = Math.hypot(ex - mx, ez - mz), tFly = Math.max(.08, Math.min(.3, len / 70));
+  setTimeout(() => { try { const F = fxGeo(), an = Math.atan2(dx, dz);
+      for (let n = 0; n < 3; n++) fxPiece(F.box, n ? c : 0xffffff, (mx + ex) / 2, (my + ey) / 2 + (n - 1) * .06, (mz + ez) / 2, .3 + n * .1, (k, m) => { const f = Math.min(1, k * 1.6);
+        m.position.set(mx + (ex - mx) * f * .5, (my + ey) / 2, mz + (ez - mz) * f * .5); m.rotation.set(0, an, 0); m.scale.set(n ? .09 : .04, n ? .09 : .04, len * f); m.material.opacity = (n ? .7 : 1) * (1 - k); }); } catch (e) { } }, 360);
+})(j9Launch);
+function jxSeal(x, y, z, c, s) { const g = new THREE.Group(); g.position.set(x, y + .06, z); g.rotation.x = -Math.PI / 2;
+  const r1 = new THREE.Mesh(new THREE.RingGeometry(.9, 1, 36), jxGlow(c, .9)), r2 = new THREE.Mesh(new THREE.RingGeometry(.5, .56, 9), jxGlow(0xe8c060, .9)); g.add(r1, r2);
+  for (let i = 0; i < 4; i++) { const b = new THREE.Mesh(new THREE.PlaneGeometry(1.8, .04), jxGlow(c, .7)); b.rotation.z = i * .785; g.add(b); }
+  g.scale.setScalar(.2); g.traverse(o => { o.frustumCulled = false; }); scene.add(g); const t0 = performance.now(), life = .7;
+  r1.onBeforeRender = () => { const k = Math.min(1, (performance.now() - t0) / 1000 / life); g.scale.setScalar((s || 1) * (.3 + (1 - Math.pow(1 - k, 3)) * 1.1)); g.rotation.z = k * 1.5; g.children.forEach(m => { m.material.opacity = (1 - k) * .9; }); };
+  setTimeout(() => { scene.remove(g); g.traverse(m => { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }); }, life * 1000 + 60); }
+j9Hit = (o => function (i, z, x, y, zz, B, lite) { const r = o.apply(this, arguments); try { if (jxOn() && !lite && (S.wp === 'rifle')) { const gy = (typeof groundY === 'function' ? groundY(x, zz) : 0) || 0; jxSeal(x, gy, zz, J9_EL[i].c, i === 8 ? 1.8 : 1); } } catch (e) { } return r; })(j9Hit);
+/* 万剑归宗: a nine-colour array opens under you, nine giant swords rise and hang over your head, then cut down one after another */
+function jxArray(C, R, life) { const g = new THREE.Group(); g.position.set(C.px, C.gy + .07, C.pz); g.rotation.x = -Math.PI / 2; const parts = [];
+  const add = (geo, m) => { const o = new THREE.Mesh(geo, m); g.add(o); parts.push(o); return o; };
+  const o1 = add(new THREE.RingGeometry(R * .95, R, 72), jxGlow(0x7affd8, .9)), o2 = add(new THREE.RingGeometry(R * .7, R * .73, 9), jxGlow(0xe8c060, .85)), o3 = add(new THREE.RingGeometry(R * .32, R * .35, 36), jxGlow(0xffffff, .8));
+  add(new THREE.CircleGeometry(R * .95, 64), jxGlow(0x1c5a50, .28));
+  const sp = new THREE.Group(); g.add(sp); for (let i = 0; i < 9; i++) { const a = i / 9 * 6.283; const b = new THREE.Mesh(new THREE.PlaneGeometry(R * .62, .07), jxGlow(J9_EL[i].c, .8)); b.position.set(Math.cos(a) * R * .66, Math.sin(a) * R * .66, .01); b.rotation.z = a; sp.add(b); parts.push(b);
+    const n = new THREE.Mesh(new THREE.CircleGeometry(R * .07, 16), jxGlow(J9_EL[i].c, 1)); n.position.set(Math.cos(a) * R * .975, Math.sin(a) * R * .975, .02); sp.add(n); parts.push(n); }
+  g.traverse(o => { o.frustumCulled = false; }); scene.add(g); const t0 = performance.now();
+  o1.onBeforeRender = () => { const t = (performance.now() - t0) / 1000 / SKX.ts, k = t / life, op = k < .12 ? k / .12 : k > .8 ? (1 - k) / .2 : 1, s = .2 + .8 * Math.min(1, t / .35);
+    g.scale.setScalar(s); o1.rotation.z = t * .5; o2.rotation.z = -t * 1.1; sp.rotation.z = t * .5; o3.rotation.z = t * 2; parts.forEach(m => { m.material.opacity = (m.userData.o0 = m.userData.o0 || m.material.opacity) * Math.max(0, op); }); };
+  setTimeout(() => { scene.remove(g); g.traverse(m => { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }); }, life * 1000 * SKX.ts + 80); return g; }
+function jxTargets(C, n, range) { const L = []; for (const z of zombies) { if (z.dead || z.animal || z.mirror) continue; const dx = z.pos.x - C.px, dz = z.pos.z - C.pz, d = Math.hypot(dx, dz); if (d > range) continue; const front = (dx * C.dx + dz * C.dz) / (d || 1); L.push([d - front * 4, z]); }
+  L.sort((a, b) => a[0] - b[0]); const out = L.slice(0, n).map(q => [q[1].pos.x, q[1].pos.z]);
+  for (let i = out.length; i < n; i++) { const o = i - (n - 1) / 2, d = 6 + (i % 3) * 2.5; out.push([C.px + C.dx * d + C.dz * o * 1.3, C.pz + C.dz * d - C.dx * o * 1.3]); } return out; }
+SKT.jian9.self = (o => function (C) { if (!jxOn()) return o(C); try {
+    jxArray(C, 4.6, 2.6); const an = Math.atan2(C.dx, C.dz), rx = C.dz, rz = -C.dx, T = jxTargets(C, 9, 16);
+    try { fxFlash(0x7affd8, .14, .3); } catch (e) { }
+    for (let i = 0; i < 9; i++) { let sw; try { sw = j9Sword(i, 3.4); } catch (e) { continue; } sw.traverse(q => { q.frustumCulled = false; }); scene.add(sw);
+      const c = J9_EL[i].c, a = i / 9 * 6.283, nx = C.px + Math.cos(a) * 4.4, nz = C.pz + Math.sin(a) * 4.4, o2 = i - 4, hx = C.px + rx * o2 * .75 - C.dx * .4, hy = C.gy + 5.2 - o2 * o2 * .08, hz = C.pz + rz * o2 * .75 - C.dx * 0 - C.dz * .4;
+      const [tx, tz] = T[i], tDive = .95 + i * .09, t0 = performance.now(); let hitDone = false;
+      const glow = new THREE.Mesh(new THREE.BoxGeometry(.24, .06, 2.4), jxGlow(c, .55)); glow.position.z = .7; sw.add(glow);
+      sw.position.set(nx, C.gy - .5, nz); const host = sw.children[0]; if (!host) continue;
+      host.onBeforeRender = () => { const t = (performance.now() - t0) / 1000 / SKX.ts;
+        if (t < .55) { const e = 1 - Math.pow(1 - t / .55, 3); sw.position.set(nx + (hx - nx) * e, C.gy - .5 + (hy - C.gy + .5) * e, nz + (hz - nz) * e); j9Orient(sw, 0, 1, 0, C.dx, 0, C.dz); sw.rotateZ(t * 8); }   // rise point-up out of the array
+        else if (t < tDive) { sw.position.set(hx, hy + Math.sin(t * 6 + i) * .08, hz); j9Orient(sw, tx - hx, C.gy - hy, tz - hz, 0, 1, 0); }   // hang, turning to aim at its target
+        else { const f = Math.min(1, (t - tDive) / .16); sw.position.set(hx + (tx - hx) * f, hy + (C.gy + .3 - hy) * f, hz + (tz - hz) * f); j9Orient(sw, tx - hx, C.gy - hy, tz - hz, 0, 1, 0);
+          if (f >= 1 && !hitDone) { hitDone = true; jxImpact(tx, C.gy, tz, c, i); } } };
+      skL(i * 40 + 120, () => { try { burst(nx, C.gy + .3, nz, c, 6, 3); } catch (e) { } });
+      setTimeout(() => { try { scene.remove(sw); glow.geometry.dispose(); glow.material.dispose(); } catch (e) { } }, (tDive + .4) * 1000 * SKX.ts); }
+    skL(520, () => { [784, 988, 1175, 1568].forEach((f, i) => skT(f, f * 1.002, .9, .05, 'sine', { delay: i * .06 })); try { j9Snd.form(); } catch (e) { } });
+    skL(1900, () => { skRing(C.px, C.gy + .1, C.pz, .5, 7, .7, 0xe8c060, .9); skRing(C.px, C.gy + .12, C.pz, .3, 5.5, .6, 0x7affd8, .9); try { S.shake = Math.max(S.shake || 0, .35); } catch (e) { } });
+  } catch (e) { o(C); } })(SKT.jian9.self);
+function jxImpact(x, gy, z, c, i) { try { skPillar(x, gy, z, .5, 7, .55, c, .9); skPillar(x, gy, z, .2, 9, .4, 0xffffff, .9); skRing(x, gy + .08, z, .3, 2.6, .5, c, .9); jxSeal(x, gy, z, c, 1.3);
+    burst(x, gy + .8, z, c, 10, 5); burst(x, gy + .5, z, 0xffffff, 5, 3); j9Snd.hit(i); S.shake = Math.max(S.shake || 0, .16); } catch (e) { } }
+/* ---------- 联动 2: 九霄剑诀 (katana) ---------- */
+// a small turning sword inside each of the nine energy balls behind you
+j9bTick = (o => function (dt) { o(dt); try { const on = jxOn() && J9B.g && J9B.g.visible && J9B.orbs && J9B.orbs.length;
+    if (!JX.bsw.length && on) for (let i = 0; i < 9; i++) { const s = j9Sword(i, .55); s.traverse(q => { q.frustumCulled = false; }); scene.add(s); JX.bsw.push(s); }
+    const T = performance.now() / 1000;
+    JX.bsw.forEach((s, i) => { const b = J9B.orbs[i]; const vis = !!(on && b && b.visible); s.visible = vis; if (!vis) return; s.position.copy(b.position); s.rotation.set(0, T * 3 + i, 0); s.rotateX(-Math.PI / 2); }); } catch (e) { } })(j9bTick);
+// every cut throws an element-coloured crescent of sword-qi forward
+function jxQi(el) { try { const c = el >= 0 ? J9_EL[el].c : 0x7afff0, f = player.face || 0, dx = Math.sin(f), dz = Math.cos(f), PY = (typeof playerY === 'function' && playerY()) || 0, an = Math.atan2(dx, dz), x0 = player.pos.x + dx * .8, z0 = player.pos.z + dz * .8, y0 = 1.15 + PY;
+    for (let n = 0; n < 2; n++) skP(skGeo().cres, n ? 0xffffff : c, x0, y0, z0, .42, (k, m) => { const d = k * 7.5, s = (1.1 + k * .9) * (n ? .7 : 1); m.position.set(x0 + dx * d, y0, z0 + dz * d); m.rotation.set(-Math.PI / 2, 0, 0); m.rotateZ(-an); m.scale.set(s * 1.3, s, s); m.material.opacity = (n ? .8 : 1) * (1 - k); m.material.blending = THREE.AdditiveBlending; });
+    for (let n = 0; n < 4; n++) skL(n * 70, () => { try { const d = 1.5 + n * 1.6; burst(x0 + dx * d, y0, z0 + dz * d, c, 3, 2); } catch (e) { } }); } catch (e) { } }
+swing = (o => function () { const r = o.apply(this, arguments); try { if (jxOn() && typeof j9bOn === 'function' && j9bOn() && S.swingT > 0) { const el = J9B.el; skL(110, () => jxQi(el)); } } catch (e) { } return r; })(swing);
+/* 剑开天门: after the nine slashes a giant sword of light cuts down along the dash, nine element pillars rise along the cut, two light gates open at the end */
+SKT.jian9b.line = (o => function (C, ax, az) { o(C, ax, az); if (!jxOn()) return; try {
+    const g = new THREE.Group(), M = jxGlow(0x9affee, .85), MG = jxGlow(0xffe08a, .9), add = (w, h, d, m, x, y, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); g.add(b); return b; };
+    add(.5, .1, 7.5, M, 0, 0, 4.2); add(.22, .14, 7.6, jxGlow(0xffffff, .9), 0, 0, 4.25); add(1.6, .3, .3, MG, 0, 0, .35); add(.24, .24, 1.3, MG, 0, 0, -.35); const tip = add(.3, .1, .6, M, 0, 0, 8.1); tip.scale.x = .5;
+    g.traverse(q => { q.frustumCulled = false; }); scene.add(g); const an = Math.atan2(C.dx, C.dz), mx = (ax + C.px) / 2, mz = (az + C.pz) / 2, L = Math.hypot(C.px - ax, C.pz - az) + 3, t0 = performance.now(), life = 1.1;
+    g.children[0].onBeforeRender = () => { const t = (performance.now() - t0) / 1000 / SKX.ts, k = Math.min(1, t / life);
+      const sw = Math.min(1, Math.max(0, (t - .15) / .3)), e = sw * sw * (3 - 2 * sw), pitch = -1.35 + e * 1.35;   // raised high, then swept down onto the line
+      g.position.set(ax - C.dx * 1.5, C.gy + .4, az - C.dz * 1.5); g.rotation.set(0, an, 0); g.rotateX(pitch); const s = L / 8.5; g.scale.set(s, s, s);
+      g.children.forEach(m => { m.material.opacity = (k < .1 ? k / .1 : k > .7 ? (1 - k) / .3 : 1) * .9; }); };
+    skL(360, () => { try { fxFlash(0xbfffee, .2, .3); S.shake = Math.max(S.shake || 0, .45); } catch (e) { } skT(160, 60, .8, .14, 'sawtooth'); skT(2400, 300, .4, .06, 'sine'); });
+    for (let i = 0; i < 9; i++) { const f = (i + .5) / 9, x = ax + (C.px - ax) * f + C.dx * 1.5, z = az + (C.pz - az) * f + C.dz * 1.5; skL(420 + i * 45, () => jxImpact(x, C.gy, z, J9_EL[i].c, i)); }
+    skL(850, () => { const ex = C.px + C.dx * 2.5, ez = C.pz + C.dz * 2.5; for (const s of [-1, 1]) { const x = ex + C.dz * s * 1.8, z = ez - C.dx * s * 1.8; skPillar(x, C.gy, z, .45, 10, .9, 0xe8c060, .85); skPillar(x, C.gy, z, .18, 12, .8, 0xffffff, .9); }
+      skRing(ex, C.gy + .1, ez, .4, 3.4, .7, 0xe8c060, .9); });
+    setTimeout(() => { scene.remove(g); g.traverse(m => { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }); }, life * 1000 * SKX.ts + 60);
+  } catch (e) { } })(SKT.jian9b.line);
+/* the two weapon skins say so in their descriptions */
+for (const [k, w] of [['jian9', '步枪'], ['jian9b', '武士刀']]) { try { const W = WSKINS[k], D = Object.getOwnPropertyDescriptor(W, 'd'), base = D && D.get ? D.get : (() => { const v = W.d; return () => v; })();
+    Object.defineProperty(W, 'd', { configurable: true, enumerable: true, get() { return base.call(this) + '\n【联动 · 九霄剑仙】穿上神话时装「九霄剑仙」时，这把' + w + '的普攻和技能特效会升级' + (k === 'jian9' ? '（剑阵阵图、剑光残影、技能「万剑归宗」）' : '（灵气球里的小剑、剑气、技能「剑开天门」）') + '。'; } }); } catch (e) { } }
 /* ============ 深渊商店: spend 深渊币 with the diver of the 深渊号 (owner 18 Nov: "add a trade system to the abyss") ============
    Opened from the abyss page (button 深渊商店 next to 下潜). The trader is the brass-helmet diver who stands on the sub.
    Tabs: 升级材料 (now) · 皮肤 (empty: the owner will hand over skin code later, then they go in ABYSHOP_SKINS).
@@ -28111,4 +28280,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795314051').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795321693').catch(()=>{});</script></body></html>
