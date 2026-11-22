@@ -15569,44 +15569,31 @@ skSt = (o => function (k) { return o(k) + (wingActive() && WINGS[S.wing].st[k] |
 
 // ---- 装上 / 卸下 / 购买 ----
 function wingRefresh() { const m = $('wgDetM'); if (m) m.remove(); const mb = $('mallList'); if (mb) { const y = mb.scrollTop; renderMall(); mb.scrollTop = y; } if ($('bag') && $('bag').classList.contains('show')) renderBag(); }
-function wingEquip() { const blk = wingBlockName(); if (blk) { feed('「' + blk + '」自带翅膀，不能更换翅膀', '#ff9b8a'); return; }
-  S.wing = S.wing === 'fairy' ? '' : 'fairy'; redressPlayer(); feed(S.wing ? '背上了「' + WINGS.fairy.n + '」' : '已卸下翅膀', '#ffc94a'); wingRefresh(); saveGame(); }
 let _wgArm = 0;
-function wingBuy(b) { if (S.wingOwn.includes('fairy')) return;
-  if (Date.now() - _wgArm > 3000) { _wgArm = Date.now(); if (b) { const t0 = b.innerHTML; b.classList.add('armed'); b.innerHTML = '再点一次确认 · ' + WING_PRICE + ' 晶石'; setTimeout(() => { if (Date.now() - _wgArm >= 2900) { _wgArm = 0; b.classList.remove('armed'); b.innerHTML = t0; } }, 3000); } return; }
-  _wgArm = 0; if (FREE_TEST && S.gem < WING_PRICE) addGem(100000 - S.gem, '测试版补满'); if (!payGem(WING_PRICE)) return;
-  S.wingOwn.push('fairy'); const blk = wingBlockName(); if (!blk) S.wing = 'fairy';
-  try { sfx.build(); } catch (e) { } banner('获得翅膀：' + WINGS.fairy.n, blk ? '当前外观自带翅膀，脱下后可在衣柜里背上' : '已经背上，可在「背包 · 外观衣柜」卸下', 3);
+function wingBuy(b, k) { k = k || 'fairy'; const W = WINGS[k], P = W.price || WING_PRICE; if (S.wingOwn.includes(k)) return;
+  if (Date.now() - _wgArm > 3000) { _wgArm = Date.now(); if (b) { const t0 = b.innerHTML; b.classList.add('armed'); b.innerHTML = '再点一次确认 · ' + P + ' 晶石'; setTimeout(() => { if (Date.now() - _wgArm >= 2900) { _wgArm = 0; b.classList.remove('armed'); b.innerHTML = t0; } }, 3000); } return; }
+  _wgArm = 0; if (FREE_TEST && S.gem < P) addGem(100000 - S.gem, '测试版补满'); if (!payGem(P)) return;
+  S.wingOwn.push(k); const blk = wingBlockName(); if (!blk) S.wing = k;
+  try { sfx.build(); } catch (e) { } banner('获得：' + W.n, blk ? '当前外观自带翅膀，脱下后可在衣柜里换上' : '已经装上，可在「背包 · 外观衣柜 · 翅膀」卸下', 3);
   redressPlayer(); saveGame(); wingRefresh(); }
-
-// ---- 衣柜：最下面加「翅膀」一栏 ----
-// (the wardrobe now has its own 翅膀 tab, see z_wardrobe.js)
-function wingWardrobe(box) {
-  const el2 = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
-  const own = S.wingOwn.includes('fairy'), on = S.wing === 'fairy', blk = wingBlockName();
-  box.appendChild(el2('div', 'wtitle', '<b>翅膀</b><span>' + (own ? '已拥有 1 款' : '还没有翅膀') + '</span>'));
-  const wrap = el2('div', 'wardrobe'), pv = el2('div', 'wpv r4', '<div class="wfig">' + WING_SVG + '</div><b>' + WINGS.fairy.n + '</b><em class="wr r4">传说</em><span>' + WINGS.fairy.d + '</span><span class="sst">翅膀属性：' + WINGS.fairy.stt + '</span>');
-  const b = el2('button', 'go' + (blk || (own && !on) ? '' : ''), blk ? '「' + blk + '」自带翅膀，不能更换' : own ? (on ? '卸下翅膀' : '背上翅膀') : '购买 · ' + WING_PRICE + ' 晶石');
-  if (blk) b.disabled = true; else if (own) b.addEventListener('click', wingEquip); else b.addEventListener('click', () => wingBuy(b));
-  pv.appendChild(b); wrap.appendChild(pv); box.appendChild(wrap);
-  box.appendChild(el2('div', 'snote', '翅膀自带属性加成（背上才生效）。自带翅膀的外观（炽天之翼、天穹神裔）不能更换翅膀。'));
-}
-
+// every wings item can have its own picture (W.svg); the pink wings use WING_SVG
+function wingSvg(k) { const W = WINGS[k]; return (W && W.svg) || WING_SVG; }
 // ---- 商城「外观直售」：外观格子下面加一格翅膀 ----
 skinShopRender = (o => function (box, el2) { o(box, el2); try { if (typeof skSub === 'undefined' || skSub === 'o') wingShop(box, el2); } catch (e) { console.warn(e); } })(skinShopRender);
 function wingShop(box, el2) {
-  const own = S.wingOwn.includes('fairy'), R = SK_RN[5];
-  box.appendChild(el2('div', 'snote', '翅膀：单独买，单独背，带属性加成。自带翅膀的外观不能更换翅膀。'));
-  const g = el2('div', 'skgrid'), t = el2('button', 'sktile' + (own ? ' own' : '')); t.style.setProperty('--qc', R[1]);
-  t.innerHTML = '<em class="sktag">' + (own ? '已拥有' : '限定') + '</em><div class="skpic">' + WING_SVG + '</div><b>' + WINGS.fairy.n + '</b><small>' + (own ? '已拥有' : skPrice(WING_PRICE)) + '</small>';
-  t.addEventListener('click', wingDetail); g.appendChild(t); box.appendChild(g);
+  box.appendChild(el2('div', 'snote', '翅膀 / 飞剑：单独买，单独装，带属性加成，能飞过水面。自带翅膀的外观不能更换。'));
+  const g = el2('div', 'skgrid');
+  Object.keys(WINGS).forEach(k => { const W = WINGS[k], own = S.wingOwn.includes(k), R = SK_RN[5], t = el2('button', 'sktile' + (own ? ' own' : '')); t.style.setProperty('--qc', R[1]);
+    t.innerHTML = '<em class="sktag">' + (own ? '已拥有' : '限定') + '</em><div class="skpic">' + wingSvg(k) + '</div><b>' + W.n + '</b><small>' + (own ? '已拥有' : skPrice(W.price || WING_PRICE)) + '</small>';
+    t.addEventListener('click', () => wingDetail(k)); g.appendChild(t); });
+  box.appendChild(g);
 }
-function wingDetail() {
-  const old = $('wgDetM'); if (old) old.remove(); const own = S.wingOwn.includes('fairy'), R = SK_RN[5];
+function wingDetail(k) { k = k || 'fairy'; const W = WINGS[k];
+  const old = $('wgDetM'); if (old) old.remove(); const own = S.wingOwn.includes(k), R = SK_RN[5];
   const m = document.createElement('div'); m.id = 'wgDetM'; m.className = 'skdet';
-  m.innerHTML = '<div class="skdetb" style="--qc:' + R[1] + '"><button class="skx" aria-label="关闭">✕</button><div class="skpic big">' + WING_SVG + '</div><div class="sktx"><b>' + WINGS.fairy.n + '</b><small style="color:' + R[1] + '">' + R[0] + ' · 翅膀</small><p>' + WINGS.fairy.d + '</p><p style="color:#9fe8ff">属性：' + WINGS.fairy.stt + '</p><div class="skbtns"><button class="sbtn skbuy"' + (own ? ' disabled' : '') + '>' + (own ? '已拥有' : skPrice(WING_PRICE)) + '</button></div></div></div>';
+  m.innerHTML = '<div class="skdetb" style="--qc:' + R[1] + '"><button class="skx" aria-label="关闭">✕</button><div class="skpic big">' + wingSvg(k) + '</div><div class="sktx"><b>' + W.n + '</b><small style="color:' + R[1] + '">' + R[0] + ' · ' + (W.kind || '翅膀') + '</small><p>' + W.d + '</p><p style="color:#9fe8ff">属性：' + W.stt + '</p><div class="skbtns"><button class="sbtn skbuy"' + (own ? ' disabled' : '') + '>' + (own ? '已拥有' : skPrice(W.price || WING_PRICE)) + '</button></div></div></div>';
   document.body.appendChild(m); m.addEventListener('click', e => { if (e.target === m) m.remove(); }); m.querySelector('.skx').addEventListener('click', () => m.remove());
-  const b = m.querySelector('.skbuy'); b.addEventListener('click', () => wingBuy(b));
+  const b = m.querySelector('.skbuy'); b.addEventListener('click', () => wingBuy(b, k));
 }
 // the picture in the shop and the wardrobe is rendered from the real 3D wings, seen from behind, so it matches what you wear
 (function wingIcon() { if (typeof ICON_URL === 'undefined' || !document.createElement) return; let R;
@@ -15651,17 +15638,17 @@ function renderWardrobeP() {
   } else {
     const ks = Object.keys(WINGS); if (wrWing == null || (wrWing && !WINGS[wrWing])) wrWing = S.wing || ''; const blk = wingBlockName();
     const W = WINGS[wrWing], own = !wrWing || S.wingOwn.includes(wrWing), on = (S.wing || '') === wrWing;
-    const pv = el2('div', 'wdpv' + (W ? ' r5' : ''), '<div class="wdfig">' + (W ? WING_SVG : '<em class="wdnone">无</em>') + '</div><b>' + (W ? W.n : '不背翅膀') + '</b>' + (W ? '<em class="wr r5">神话</em>' : '') + '<span>' + (W ? W.d : '不背翅膀时，背后什么都没有。') + '</span>' + (W ? '<span class="sst">翅膀属性：' + W.stt + '（背上才生效）</span>' : ''));
+    const pv = el2('div', 'wdpv' + (W ? ' r5' : ''), '<div class="wdfig">' + (W ? wingSvg(wrWing) : '<em class="wdnone">无</em>') + '</div><b>' + (W ? W.n : '不背翅膀') + '</b>' + (W ? '<em class="wr r5">神话</em>' : '') + '<span>' + (W ? W.d : '不背翅膀时，背后什么都没有。') + '</span>' + (W ? '<span class="sst">' + (W.kind || '翅膀') + '属性：' + W.stt + '（背上才生效）</span>' : ''));
     const acts = el2('div', 'wdacts');
     if (blk) acts.appendChild(el2('div', 'snote', '你现在穿的「' + blk + '」自带翅膀，不能更换翅膀；脱下它之后就能背上。'));
     if (!W) { const b = el2('button', 'go' + (S.wing ? '' : ' ghost'), S.wing ? '卸下翅膀' : '没有背翅膀'); b.disabled = !S.wing; b.addEventListener('click', () => { S.wing = ''; redressPlayer(); saveGame(); renderWardrobeP(); }); acts.appendChild(b); }
-    else if (own) { const b = el2('button', 'go', on ? '卸下翅膀' : '背上'); b.disabled = !!blk; b.addEventListener('click', () => { S.wing = on ? '' : wrWing; redressPlayer(); saveGame(); feed(S.wing ? '背上了「' + W.n + '」' : '已卸下翅膀', '#ffc94a'); renderWardrobeP(); }); acts.appendChild(b); }
+    else if (own) { const b = el2('button', 'go', on ? '卸下' : '装上'); b.disabled = !!blk; b.addEventListener('click', () => { S.wing = on ? '' : wrWing; redressPlayer(); saveGame(); feed(S.wing ? '背上了「' + W.n + '」' : '已卸下翅膀', '#ffc94a'); renderWardrobeP(); }); acts.appendChild(b); }
     else { const b = el2('button', 'go', '去商城 · 外观直售'); b.addEventListener('click', () => wdGo('skin')); acts.appendChild(b); }
     pv.appendChild(acts); wrap.appendChild(pv);
     const side = el2('div', 'wdside'); side.appendChild(el2('div', 'wdhead', '已拥有 ' + S.wingOwn.length + ' / ' + ks.length + ' · 点一下就背上'));
     const grid = el2('div', 'wdgrid');
     [''].concat(ks).forEach(k => { const WW = WINGS[k], ow = !k || S.wingOwn.includes(k), onn = (S.wing || '') === k;
-      const c = el2('button', 'wdcell' + (k === wrWing ? ' sel' : '') + (ow ? '' : ' lock') + (WW ? ' r5' : ''), '<div class="wdci">' + (WW ? WING_SVG : '<em class="wdnone">无</em>') + '</div><b>' + (WW ? WW.n : '不背') + '</b>' + (onn ? '<i>背着</i>' : ow ? '' : '<i class="lk">未拥有</i>'));
+      const c = el2('button', 'wdcell' + (k === wrWing ? ' sel' : '') + (ow ? '' : ' lock') + (WW ? ' r5' : ''), '<div class="wdci">' + (WW ? wingSvg(k) : '<em class="wdnone">无</em>') + '</div><b>' + (WW ? WW.n : '不背') + '</b>' + (onn ? '<i>背着</i>' : ow ? '' : '<i class="lk">未拥有</i>'));
       c.addEventListener('click', () => { wrWing = k; if (ow && !onn && !blk) { S.wing = k; redressPlayer(); saveGame(); } renderWardrobeP(); }); grid.appendChild(c); });
     side.appendChild(grid); wrap.appendChild(side);
   }
@@ -24414,6 +24401,85 @@ SKT.jian9b.line = (o => function (C, ax, az) { o(C, ax, az); if (!jxOn()) return
 /* the two weapon skins say so in their descriptions */
 for (const [k, w] of [['jian9', '步枪'], ['jian9b', '武士刀']]) { try { const W = WSKINS[k], D = Object.getOwnPropertyDescriptor(W, 'd'), base = D && D.get ? D.get : (() => { const v = W.d; return () => v; })();
     Object.defineProperty(W, 'd', { configurable: true, enumerable: true, get() { return base.call(this) + '\n【联动 · 九霄剑仙】穿上神话时装「九霄剑仙」时，这把' + w + '的普攻和技能特效会升级' + (k === 'jian9' ? '（剑阵阵图、剑光残影、技能「万剑归宗」）' : '（灵气球里的小剑、剑气、技能「剑开天门」）') + '。'; } }); } catch (e) { } }
+/* ============ 青冥飞剑（owner 22 Nov：做一柄飞剑，像翅膀那样能飞，不过是御剑飞行）============
+   它是「翅膀」一栏里的一件（和粉蝶幻翼一样：单独买、单独装、带属性、穿自带翅膀的外观时不能装）。
+   平时：一柄青玉长剑悬在背后，剑尖朝上，慢慢浮动，剑脊流光。
+   飞过水面（海岛自己挖的池塘 / 河 / 海，大陆的河、湖、海）：剑从背后飞到脚下横过来，你踩在剑上离水面更高，
+     身后拖一道青色剑光，水面被剑气划出一道浪痕；起飞时一声剑鸣，飞的时候有风声，不会扇翅膀。
+   和翅膀一样只在水上飞（陆地上照常走路），可以开枪，速度不受水影响。 */
+const JSW_SVG = '<svg viewBox="0 0 100 80" style="height:100%;width:auto;max-width:100%" aria-hidden="true"><defs><linearGradient id="jswg" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#bff6e6"/><stop offset="1" stop-color="#ffffff"/></linearGradient></defs>' +
+  '<path d="M30 58 L86 8 L80 20 L36 62Z" fill="#7affd8" opacity=".35"/>' +
+  '<path d="M31 55 L84 9 L82 12 L35 59Z" fill="url(#jswg)" stroke="#3aa890" stroke-width="1"/><path d="M33 57 L83 10.5" stroke="#3aa890" stroke-width="1.2"/>' +
+  '<path d="M22 50 L34 47 L40 60 L36 64Z" fill="#e8c060" stroke="#a8802a" stroke-width="1"/><circle cx="33" cy="56" r="2.4" fill="#7affd8"/>' +
+  '<path d="M30 58 L18 70" stroke="#26202a" stroke-width="5" stroke-linecap="round"/><path d="M27 61 L25 63M23 65 L21 67" stroke="#e8c060" stroke-width="5.4"/>' +
+  '<path d="M16 72 l-3 3 l3 3 l3 -3z" fill="#7affd8"/><path d="M15 75 C12 79 10 80 8 80" stroke="#d83a3a" stroke-width="2.2" fill="none"/></svg>';
+WINGS.jsword = { n: '青冥飞剑', kind: '飞剑', price: WING_PRICE, svg: JSW_SVG,
+  d: '一柄青玉长剑，平时悬在背后，剑尖朝上缓缓浮动，剑脊流着青光。来到水边，剑会飞到你脚下横过来，踩着它御剑而行，越过池塘、河流和大海，身后拖一道青色剑光。穿着自带翅膀的外观时不能装。',
+  st: { spd: .15, hpPct: .04, def: .02 }, stt: '移动速度 +15%、生命 +4%、减伤 +2%' };
+const JSW = { k: 0, on: false, snd: 0, last: -1, rip: 0, M: null };
+const jswOn = () => { try { return S.wing === 'jsword' && wingActive(); } catch (e) { return false; } };
+function jswMats() { if (JSW.M) return JSW.M; const add = (c, o) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  JSW.M = { blade: mat(0xe2f6ee), edge: mat(0xffffff), gold: mat(0xe8c060), dark: mat(0x26202a), jade: new THREE.MeshBasicMaterial({ color: 0x7affd8 }), red: mat(0xc83a3a),
+    glow: add(0x7affd8, .32), rune: add(0x9affe8, .9), trail: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: .9, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }) };
+  return JSW.M; }
+// the blade: a long flat diamond section that narrows to a point (local +z = toward the tip; z 0 = the guard)
+function jswBladeGeo(L, w, t) { try { const g = new THREE.BufferGeometry(), z1 = L - w * 3.2, v = [];
+    const R = (z, k) => [[w * k, 0, z], [0, t * k, z], [-w * k, 0, z], [0, -t * k, z]], A = R(0, 1), B = R(z1, .92), tip = [0, 0, L];
+    for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; v.push(...A[i], ...B[i], ...B[j], ...A[i], ...B[j], ...A[j], ...B[i], ...tip, ...B[j]); }
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(v), 3)); g.computeVertexNormals(); return g; } catch (e) { return new THREE.BoxGeometry(w * 2, t * 2, L); } }
+function jswSword() { const M = jswMats(), g = new THREE.Group(), add = (geo, m, x, y, z, sx) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); if (sx) o.scale.set(sx[0], sx[1], sx[2]); g.add(o); return o; };
+  const L = 1.55; add(jswBladeGeo(L, .075, .02), M.blade, 0, 0, 0);
+  add(new THREE.BoxGeometry(.012, .046, L - .3), M.rune, 0, 0, (L - .3) / 2 + .05);                                   // the glowing ridge (seen from both faces)
+  add(jswBladeGeo(L + .1, .12, .05), M.glow, 0, 0, -.04);                                                            // a soft glow round the blade
+  for (let i = 0; i < 3; i++) add(new THREE.BoxGeometry(.05, .05, .012), M.rune, 0, 0, .25 + i * .16);               // three rune marks near the guard
+  add(new THREE.BoxGeometry(.36, .05, .07), M.gold, 0, 0, -.02); for (const s of [-1, 1]) add(new THREE.OctahedronGeometry(.05), M.gold, s * .2, 0, -.01, [1, .7, 1.3]);
+  add(new THREE.OctahedronGeometry(.04), M.jade, 0, 0, -.02, [1, 1.4, .8]);
+  add(new THREE.BoxGeometry(.05, .05, .3), M.dark, 0, 0, -.2); for (let i = 0; i < 3; i++) add(new THREE.BoxGeometry(.062, .062, .022), M.gold, 0, 0, -.1 - i * .09);
+  add(new THREE.OctahedronGeometry(.045), M.jade, 0, 0, -.39, [1, 1, 1.4]); add(new THREE.BoxGeometry(.07, .07, .02), M.gold, 0, 0, -.36);
+  const tas = new THREE.Group(); tas.position.set(0, 0, -.42); g.add(tas); const t1 = new THREE.Mesh(new THREE.BoxGeometry(.03, .03, .26), M.red); t1.position.z = -.13; tas.add(t1);
+  // the light trail behind the sword while you ride it: white at the hilt fading to nothing (additive, so black = invisible)
+  let tr = null; try { const tg = new THREE.PlaneGeometry(.34, 1, 1, 4), P = tg.attributes.position, col = new Float32Array(P.count * 3);
+      for (let i = 0; i < P.count; i++) { const f = P.getY(i) + .5, c = Math.pow(f, 1.6); col[i * 3] = c * .55; col[i * 3 + 1] = c; col[i * 3 + 2] = c * .85; }
+      tg.setAttribute('color', new THREE.BufferAttribute(col, 3)); tr = new THREE.Mesh(tg, M.trail); tr.rotation.x = -Math.PI / 2; tr.visible = false; g.add(tr); } catch (e) { }
+  g.userData = { tas, tr }; return g; }
+// put the sword on a figure (pm, the bag doll): it hangs behind the back, point up
+wingBuild = (o => function (h) { if (S.wing !== 'jsword') return o(h); h._wing = h._wing || [];
+  const sw = jswSword(); sw.userData.jsw = 1; jswPose(sw, 0, 0); (h.g || h.body).add(sw); h._wing.push(sw); })(wingBuild);
+// k 0 = floating behind the back, k 1 = flat under the feet, point forward
+const _jq0 = new THREE.Quaternion(), _jq1 = new THREE.Quaternion(), _je = new THREE.Euler();
+function jswPose(sw, k, T) { const bob = Math.sin(T * 1.7) * .06 * (1 - k);
+  sw.position.set(.08 * (1 - k), 1.3 * (1 - k) + .03 + bob, -.62 * (1 - k) - .95 * k); sw.scale.setScalar(1 + .35 * k);   /* riding: a bigger sword, its middle under your feet */
+  try { _je.set(-Math.PI / 2 + .12, 0, .42 + Math.sin(T * .9) * .05, 'XYZ'); _jq0.setFromEuler(_je); _je.set(0, 0, 0, 'XYZ'); _jq1.setFromEuler(_je); sw.quaternion.copy(_jq0).slerp(_jq1, k); }
+  catch (e) { sw.rotation.set((-Math.PI / 2 + .12) * (1 - k), 0, .42 * (1 - k)); } }
+// riding: over island water (the wings' hover, WFLY) or over mainland rivers / lakes / the sea
+function jswRide() { if (!jswOn() || S.dead || S.dun || S.boat) return false; if (S.isl) return typeof WFLY !== 'undefined' && WFLY.on;
+  try { return !S.up && !S.fall && waterAt(player.pos.x, player.pos.z) > .3 && !(roadDist(player.pos.x, player.pos.z) < .8); } catch (e) { return false; } }
+// on the island the hover height comes from WFLY; standing on the sword lifts you a little higher than wings
+terOff = (o => function () { return (typeof WFLY !== 'undefined' && WFLY.on && jswOn()) ? WFLY.y + .42 : o(); })(terOff);
+skinFxTick = (o => function (dt) { o(dt); try { const sw = pm && pm._wing && pm._wing.find(m => m.userData.jsw);
+    if (!sw) { JSW.on = false; JSW.k = 0; return; }
+    const ride = jswRide(), T = S.t || 0, mv = Math.min(1, Math.hypot(input.mx || 0, input.mz || 0));
+    if (ride && !JSW.on) jswTakeOff(); if (!ride && JSW.on) jswLand(); JSW.on = ride;
+    JSW.k += ((ride ? 1 : 0) - JSW.k) * Math.min(1, dt * 7); jswPose(sw, JSW.k, T);
+    const u = sw.userData; u.tas.rotation.x = Math.sin(T * 5) * .25 * (1 - JSW.k) - JSW.k * (.25 + mv * .5); u.tas.rotation.y = Math.sin(T * 3.1) * .2;
+    if (u.tr) { u.tr.visible = JSW.k > .6; u.tr.scale.set(1, .6 + mv * 2.6, 1); u.tr.position.set(0, 0, -.42 - u.tr.scale.y / 2); }
+    if (ride) { // stand on the blade: one foot ahead, knees a little bent, the body leaning into the flight
+      pm.legL.rotation.x = -.14 - mv * .05; pm.legR.rotation.x = .17 + mv * .05;
+      if (!S.isl) pm.g.position.y = .78 + Math.sin(T * 2.2) * .06; }   // mainland water: lift you onto the sword (the island lift is terOff)
+  } catch (e) { } })(skinFxTick);
+function jswTakeOff() { try { const x = player.pos.x, z = player.pos.z; burst(x, .6, z, 0x9affe8, 12, 3); fxRing(x, z, .3, 2.6, .6, 0x7affd8, .8, .05);
+    if (AC) { sfxTone(1760, 1690, .7, .05, 'sine'); sfxTone(2640, 2600, .5, .025, 'sine', { delay: .03 }); sfxNoise(.35, .07, 1600, { type: 'bandpass', q: .7, f1: 500 }); } } catch (e) { } }
+function jswLand() { try { const x = player.pos.x, z = player.pos.z; burst(x, .4, z, 0x9affe8, 6, 2); if (AC) sfxTone(1320, 1100, .25, .03, 'sine'); } catch (e) { } }
+// no wing beats on the sword: a steady wind, a soft sword hum, and a wake cut into the water under you
+wflapTick = (o => function () { if (!jswOn()) return o(); })(wflapTick);
+petsTick = (o => function (dt) { const r = o(dt); try { if (JSW.on) jswTick(dt); } catch (e) { } return r; })(petsTick);
+function jswTick(dt) { const px = player.pos.x, pz = player.pos.z, mv = Math.min(1, Math.hypot(input.mx || 0, input.mz || 0)), wy = S.isl ? WFLY.y - .35 : 0, f = player.face || 0;
+  JSW.snd -= dt; if (JSW.snd <= 0 && AC) { JSW.snd = mv > .1 ? .55 : 1.4;
+    try { sfxNoise(.6, .03 + mv * .04, 700 + mv * 500, { type: 'bandpass', q: .6 }); if (mv < .1) sfxTone(1760, 1750, .9, .012, 'sine'); } catch (e) { } }
+  JSW.rip -= dt; if (JSW.rip > 0) return; JSW.rip = mv > .1 ? .09 : .7;
+  try { if (mv > .1) { for (const s of [-1, 1]) { const bx = px - Math.sin(f) * .6 + Math.cos(f) * s * .25, bz = pz - Math.cos(f) * .6 - Math.sin(f) * s * .25; burst(bx, wy + .05, bz, 0xe8fbff, 2, 1.6); }
+      fxRing(px - Math.sin(f) * .5, pz - Math.cos(f) * .5, .2, 1.1, .6, 0xd8f6ff, .5, wy - .02); }
+    else { fxRing(px, pz, .3, 1.8, 1, 0xbff6e6, .45, wy - .02); burst(px, wy + .7, pz, 0x7affd8, 2, .6); } } catch (e) { } }
 /* ============ 深渊商店: spend 深渊币 with the diver of the 深渊号 (owner 18 Nov: "add a trade system to the abyss") ============
    Opened from the abyss page (button 深渊商店 next to 下潜). The trader is the brass-helmet diver who stands on the sub.
    Tabs: 升级材料 (now) · 皮肤 (empty: the owner will hand over skin code later, then they go in ABYSHOP_SKINS).
@@ -28280,4 +28346,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795321693').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795323139').catch(()=>{});</script></body></html>
