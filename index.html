@@ -24528,7 +24528,7 @@ playerStep = (o => function () { if (JSW.k > .3) return; return o.apply(this, ar
    步枪「九霄剑阵」= 九剑轮射，武士刀「九霄剑诀」= 九气轮斩。这里的五把各有自己的玩法，都还是九霄修仙、九种元素（J9_EL）：
    手枪「九霄符箓」 jian9p：子弹是符纸，打中就贴在怪身上（每发换下一种元素），同一只怪贴满 3 张就引爆，三种元素一起发作。
                          技能「九符镇魔」：九张符飞出去围成镇魔阵，阵里的怪被定住，阵收拢时一起爆开。
-   狙击枪「九霄星宿」 jian9s：身后一幅北斗九星图。打中远处（≥12 米）或首领 / 精英点亮一颗星，打空熄掉一颗；九星全亮，
+   狙击枪「九霄星宿」 jian9s：身后一幅北斗星图。打中 6 米外的怪或首领 / 精英点亮一颗星，打空熄掉一颗；五星全亮，
                          下一枪变成「天罡一剑」：一柄巨大的光剑从天上落下，劈中整条弹道。技能「星落」：七颗星坠向附近的怪，并点亮 3 颗星。
    散弹枪「九霄剑雨」 jian9g：每颗弹丸是一片小飞剑。打空的剑片插在地上；换弹时所有剑片飞回你手里，沿路再穿过怪物打一次。
                          技能「剑雨」：十八柄剑从天而降插满前方，下次换弹也会飞回来。
@@ -24540,8 +24540,8 @@ playerStep = (o => function () { if (JSW.k > .3) return; return o.apply(this, ar
 const X9_ST = { dmg: .12, crit: .04, critDmg: .2 }, X9_STT = '伤害 +12%、暴击率 +4%、暴击伤害 +20%';
 WSKINS.jian9p = { only: 'pistol', st: X9_ST, stt: X9_STT + '，还有九色符箓', n: '九霄符箓', r: 5, custom: true, base: 0x1c4a3a, mid: 0x3ad88a, acc: 0xe8c060, glow: 0xffe08a, tr: 0xffd060, tr2: 0xd83a3a,
   d: '玉青色的手枪，握把下挂着一张金符和红穗。子弹化作符纸飞出，每发换一种元素：水、火、雷、毒、冰、木、土、金、合。' };
-WSKINS.jian9s = { only: 'sniper', st: X9_ST, stt: X9_STT + '，还有北斗九星', n: '九霄星宿', r: 5, custom: true, base: 0x14204a, mid: 0x2a6a8a, acc: 0xe8c060, glow: 0xbfe8ff, tr: 0xe8f4ff, tr2: 0xffe08a,
-  d: '夜空色的狙击枪，枪身上七颗金星排成北斗。身后浮着一幅北斗九星图：天枢、天璇、天玑、天权、玉衡、开阳、摇光，加上隐着的洞明、隐元。' };
+WSKINS.jian9s = { only: 'sniper', st: X9_ST, stt: X9_STT + '，还有北斗星图', n: '九霄星宿', r: 5, custom: true, base: 0x14204a, mid: 0x2a6a8a, acc: 0xe8c060, glow: 0xbfe8ff, tr: 0xe8f4ff, tr2: 0xffe08a,
+  d: '夜空色的狙击枪，枪身上七颗金星排成北斗。身后浮着一幅北斗星图：天枢、天璇、天玑、天权、玉衡五颗星。' };
 WSKINS.jian9g = { only: 'shotgun', st: X9_ST, stt: X9_STT + '，还有剑雨飞剑', n: '九霄剑雨', r: 5, custom: true, base: 0x1c5a40, mid: 0x9fd8c8, acc: 0xe8c060, glow: 0x7affd8, tr: 0x7affd8, tr2: 0xffffff,
   d: '玉色的散弹枪，枪口围着六柄小剑开成一朵剑莲。每一枪的弹丸里都藏着一柄飞剑。' };
 WSKINS.jian9a = { only: 'axe', st: X9_ST, stt: X9_STT + '，还有雷桩雷网', n: '九霄雷钺', r: 5, custom: true, base: 0x3a2a5a, mid: 0x8a6ae0, acc: 0xe8c060, glow: 0xd8c4ff, tr: 0xb08aff, tr2: 0xffe08a,
@@ -24688,11 +24688,13 @@ const S9_P = [[-.7, .2], [-.74, -.18], [-.28, -.26], [-.2, .08], [.18, .16], [.5
 const S9_LN = [[0, 1], [1, 2], [2, 3], [3, 0], [3, 4], [4, 5], [5, 6], [5, 7], [6, 8]];
 const S9_N = ['天枢', '天璇', '天玑', '天权', '玉衡', '开阳', '摇光', '洞明', '隐元'];
 const S9 = { n: 0, g: null, st: [], ln: [] };
+// owner 22 Nov: five stars are enough (天枢 天璇 天玑 天权 玉衡 — the Dipper's bowl and its first handle star), and a hit from 6 m counts
+const S9_MAX = 5, S9_DIST = 6, S9_SH = .28;
 function s9Map() { if (S9.g && S9.gold === x9G()) return S9.g; if (S9.g) { scene.remove(S9.g); x9Free(S9.g); S9.g = null; } S9.gold = x9G(); const g = new THREE.Group();
   const bg = new THREE.Mesh(new THREE.CircleGeometry(1.3, 40), x9Glow(0x14204a, .22)); bg.position.z = -.02; g.add(bg);
   const rim = new THREE.Mesh(new THREE.RingGeometry(1.26, 1.3, 64), x9Glow(0xe8c060, .45)); g.add(rim); const rim2 = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.12, 28), x9Glow(0xbfe8ff, .35)); g.add(rim2);
-  S9.ln = S9_LN.map(([a, b]) => { const A = S9_P[a], B = S9_P[b], L = Math.hypot(B[0] - A[0], B[1] - A[1]); const m = new THREE.Mesh(new THREE.PlaneGeometry(L, .028), x9Glow(0xffe8a8, .12)); m.position.set((A[0] + B[0]) / 2, (A[1] + B[1]) / 2, 0); m.rotation.z = Math.atan2(B[1] - A[1], B[0] - A[0]); g.add(m); return { m, a, b }; });
-  S9.st = S9_P.map((p, i) => { const s = new THREE.Group(); s.position.set(p[0], p[1], .01);
+  S9.ln = S9_LN.filter(([a, b]) => a < S9_MAX && b < S9_MAX).map(([a, b]) => { const A = [S9_P[a][0] + S9_SH, S9_P[a][1]], B = [S9_P[b][0] + S9_SH, S9_P[b][1]], L = Math.hypot(B[0] - A[0], B[1] - A[1]); const m = new THREE.Mesh(new THREE.PlaneGeometry(L, .028), x9Glow(0xffe8a8, .12)); m.position.set((A[0] + B[0]) / 2, (A[1] + B[1]) / 2, 0); m.rotation.z = Math.atan2(B[1] - A[1], B[0] - A[0]); g.add(m); return { m, a, b }; });
+  S9.st = S9_P.slice(0, S9_MAX).map((p, i) => { const s = new THREE.Group(); s.position.set(p[0] + S9_SH, p[1], .01);
     const core = new THREE.Mesh(new THREE.OctahedronGeometry(.055), new THREE.MeshBasicMaterial({ color: 0x8090b0 })); s.add(core);
     if (x9J()) { core.scale.set(.6, .6, .6); const sw = j9Sword(i, .42); j9Orient(sw, 0, 1, 0, 0, 0, 1); sw.position.y = -.08; s.add(sw); }   /* 剑星: each star is a small sword */
     const halo = new THREE.Mesh(new THREE.CircleGeometry(.16, 16), x9Glow(0xffe8a8, .0)); halo.position.z = -.005; s.add(halo);
@@ -24702,18 +24704,18 @@ function s9Map() { if (S9.g && S9.gold === x9G()) return S9.g; if (S9.g) { scene
 function s9Tick(dt) { const on = x9On('sniper', 'jian9s') && !S.dead && !(typeof buildOpen !== 'undefined' && buildOpen) && pm && pm.g && pm.g.visible;
   if (!on) { if (S9.g) S9.g.visible = false; return; } const g = s9Map(); g.visible = true; const T = performance.now() / 1000, f = player.face || 0, PY = (typeof playerY === 'function' && playerY()) || 0, big = typeof jxOn === 'function' && jxOn() ? 1.2 : 1;
   g.position.set(player.pos.x - Math.sin(f) * .7, 2.75 + PY + Math.sin(T * 1.3) * .04, player.pos.z - Math.cos(f) * .7); g.rotation.set(0, f, 0); g.scale.setScalar(big);
-  g.userData.rim.rotation.z = T * .2; g.userData.rim2.rotation.z = -T * .35; const full = S9.n >= 9;
+  g.userData.rim.rotation.z = T * .2; g.userData.rim2.rotation.z = -T * .35; const full = S9.n >= S9_MAX;
   S9.st.forEach((q, i) => { const lit = i < S9.n; q.on += ((lit ? 1 : 0) - q.on) * Math.min(1, dt * 6); const tw = .8 + .2 * Math.sin(T * 5 + i * 1.7) + (full ? .3 * Math.sin(T * 9) : 0);
     q.core.material.color.setHex(lit ? (full ? 0xffffff : x9C(0xfff2c0)) : 0x6a7aa0); q.core.scale.setScalar(.7 + q.on * .6 * tw); q.halo.material.opacity = q.on * .55 * tw; q.halo.scale.setScalar(.8 + q.on * .4 * tw);
     q.fl.material.opacity = q.on * (.5 + .3 * Math.sin(T * 3 + i)); q.fl.parent.rotation.z = T * .3 + i; });
   S9.ln.forEach(L => { const k = Math.min(S9.st[L.a].on, S9.st[L.b].on); L.m.material.opacity = .08 + k * (full ? .7 : .45); L.m.material.color.setHex(full ? 0xffffff : x9C(0xffe8a8)); }); }
 petsTick = (o => function (dt) { const r = o(dt); try { s9Tick(dt); } catch (e) { } return r; })(petsTick);
-function s9StarPos(i) { const g = s9Map(), v = new THREE.Vector3(S9_P[i][0], S9_P[i][1], .01); g.updateMatrixWorld(true); return v.applyMatrix4(g.matrixWorld); }
-function s9Gain(x, y, z) { if (S9.n >= 9) return; const i = S9.n++; let P = null; try { P = s9StarPos(i); } catch (e) { }
+function s9StarPos(i) { const g = s9Map(), v = new THREE.Vector3(S9_P[i][0] + S9_SH, S9_P[i][1], .01); g.updateMatrixWorld(true); return v.applyMatrix4(g.matrixWorld); }
+function s9Gain(x, y, z) { if (S9.n >= S9_MAX) return; const i = S9.n++; let P = null; try { P = s9StarPos(i); } catch (e) { }
   if (P) { const t0 = performance.now(); skP(skGeo().oct, x9C(0xfff2c0), x, y, z, .45, (k, m) => { const e = k * k * (3 - 2 * k); m.position.set(x + (P.x - x) * e, y + (P.y - y) * e + Math.sin(k * Math.PI) * 1.2, z + (P.z - z) * e); m.scale.setScalar(2.2 - k); m.rotation.y = k * 9; }); }
   x9Snd(1046 * Math.pow(1.0595, i * 2), 1046 * Math.pow(1.0595, i * 2), .5, .03, 'sine', { delay: .4 });
-  if (S9.n === 9) setTimeout(() => { try { banner('北斗九星 · 全亮', '下一枪：天罡一剑', 1.4); } catch (e) { } [523, 659, 784, 1046, 1318].forEach((f, n) => x9Snd(f, f, .9, .03, 'sine', { delay: n * .07 })); }, 450); }
-function s9Lose() { if (S9.n <= 0 || S9.n >= 9) return; S9.n--; try { const P = s9StarPos(S9.n); burst(P.x, P.y, P.z, 0x6a7aa0, 5, 1.2); } catch (e) { } x9Snd(660, 330, .25, .02, 'sine'); }
+  if (S9.n === S9_MAX) setTimeout(() => { try { banner('北斗五星 · 全亮', '下一枪：天罡一剑', 1.4); } catch (e) { } [523, 659, 784, 1046, 1318].forEach((f, n) => x9Snd(f, f, .9, .03, 'sine', { delay: n * .07 })); }, 450); }
+function s9Lose() { if (S9.n <= 0 || S9.n >= S9_MAX) return; S9.n--; try { const P = s9StarPos(S9.n); burst(P.x, P.y, P.z, 0x6a7aa0, 5, 1.2); } catch (e) { } x9Snd(660, 330, .25, .02, 'sine'); }
 // the normal shot: a thin starlight line with little stars along it, a four-point star where it lands
 function s9Shot(ox, oz, dx, dz, end, hit, fm) { const PY = (typeof playerY === 'function' && playerY()) || 0, sx = fm ? fm.x : ox, sy = fm ? fm.y : 1.55 + PY, sz = fm ? fm.z : oz, ex = ox + dx * end, ey = 1.45 + PY, ez = oz + dz * end, an = Math.atan2(dx, dz), L = Math.hypot(ex - sx, ez - sz);
   for (const [w, c, l] of [[.11, x9C(0x7ab8ff), .3], [.04, 0xffffff, .22]]) skP(skGeo().box, c, (sx + ex) / 2, (sy + ey) / 2, (sz + ez) / 2, l, (k, m) => { m.rotation.set(0, an, 0); m.scale.set(w * (1 - k), w * (1 - k), L); m.material.opacity = 1 - k; });
@@ -24721,7 +24723,7 @@ function s9Shot(ox, oz, dx, dz, end, hit, fm) { const PY = (typeof playerY === '
   skStar(ex, ey, ez, 0xffffff, hit ? 1.1 : .6, .45); if (hit) skRing(ex, ey, ez, .1, 1.2, .35, x9C(0xbfe8ff), .8);
   // a good shot (far, or a boss / elite) lights a star; a miss puts one out
   if (!hit) { s9Lose(); return; } let best = null, bd = 1e9; for (const z of zombies) { if (z.dead) continue; const d = segHit({ t: 0, x: z.pos.x, z: z.pos.z, r: z.r * 1.15 }, ox, oz, dx, dz, end); if (d >= 0 && d < bd) { bd = d; best = z; } }
-  if (best && (bd >= 12 || best.boss || best.elite)) s9Gain(best.pos.x, 1.3 * (best.sc || 1), best.pos.z); }
+  if (best && (bd >= S9_DIST || best.boss || best.elite)) s9Gain(best.pos.x, 1.3 * (best.sc || 1), best.pos.z); }
 // 天罡一剑: a giant sword of light comes down out of the sky along the whole line of the shot
 function x9BigSword(len, glowC, edgeC) { const g = new THREE.Group(), add = (w, h, d, m, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.z = z; g.add(b); return b; };
   add(.9, .14, len, x9Glow(glowC, .8), len / 2); add(.36, .22, len * 1.01, x9Glow(0xffffff, .95), len / 2); add(1.8, .4, .4, x9Glow(edgeC, .9), -.1); add(.3, .3, 1.4, x9Glow(edgeC, .9), -.9);
@@ -24742,7 +24744,7 @@ function s9Tiangang(ox, oz, dx, dz, end) { const L = Math.max(8, end), an = Math
   skL(380, () => { try { fxFlash(0xffffff, .35, .3); S.shake = Math.max(S.shake || 0, .5); } catch (e) { } x9Snd(70, 30, 1, .25, 'sine'); x9Noise(.6, .15, 700, { f1: 120 });
     fxBeam(ox, oz, ox + dx * L, oz + dz * L, .9, 1.2, 0xffe08a, .85, gy + .05, .02); fxBeam(ox, oz, ox + dx * L, oz + dz * L, .3, 1, 0xffffff, .9, gy + .06, .02);
     for (let i = 0; i < 9; i++) { const f = (i + .5) / 9, x = ox + dx * L * f, z = oz + dz * L * f; skL(i * 35, () => { skPillar(x, gy, z, .45, 8, .6, i % 2 ? x9C(0xbfe8ff) : 0xffe08a, .85); skRing(x, gy + .06, z, .3, 2.4, .5, x9C(0xffe8a8), .85); skStar(x, gy + 2, z, 0xffffff, 1.4, .5); }); }
-    const B = x9Dmg('sniper') * 3; for (const z of zombies.slice()) { if (z.dead) continue; if (x9SegD(z.pos.x, z.pos.z, ox, oz, ox + dx * L, oz + dz * L) < 1.5 + (z.r || .5) * .5) x9Hurt(z, B, dx, dz); }
+    const B = x9Dmg('sniper') * 1.8; for (const z of zombies.slice()) { if (z.dead) continue; if (x9SegD(z.pos.x, z.pos.z, ox, oz, ox + dx * L, oz + dz * L) < 1.5 + (z.r || .5) * .5) x9Hurt(z, B, dx, dz); }
     }); if (x9J()) s9SevenSwords(ox, oz, dx, dz, L, gy); }
 
 /* ================= 散弹枪 · 九霄剑雨 ================= */
@@ -24894,7 +24896,7 @@ wSkillSwing = (o => function (hits, base, dx, dz) { const r = o.apply(this, argu
 /* ---------- gun hooks ---------- */
 mythShot = (o => function (K, ox, oz, dx, dz, end, hit, fm, pel) { const k = K && K.key;
   if (k === 'jian9p') { try { p9Shot(ox, oz, dx, dz, end, hit, fm); } catch (e) { } return; }
-  if (k === 'jian9s') { try { if (S9.n >= 9) { S9.n = 0; s9Tiangang(ox, oz, dx, dz, end); } else s9Shot(ox, oz, dx, dz, end, hit, fm); } catch (e) { } return; }
+  if (k === 'jian9s') { try { if (S9.n >= S9_MAX) { S9.n = 0; s9Tiangang(ox, oz, dx, dz, end); } else s9Shot(ox, oz, dx, dz, end, hit, fm); } catch (e) { } return; }
   if (k === 'jian9g') { try { g9Shot(ox, oz, dx, dz, end, hit, fm, pel | 0); } catch (e) { } return; }
   return o.apply(this, arguments); })(mythShot);
 // the pistol's talisman flies out spinning with a gold trail and sticks where it lands
@@ -25014,7 +25016,7 @@ try { WSK_GUN.jian9p = { fire() { WSKN(.08, .025, 3000, { type: 'highpass', dela
 function x9Desc(k, id, link, txt) { try { const D0 = WSKINS[k].d; Object.defineProperty(WSKINS[k], 'd', { configurable: true, enumerable: true, get() { let w = 0; try { w = weaponDmg(id); } catch (e) { } const n = p => w ? '（约 ' + Math.round(w * p) + '）' : '';
     return D0 + '\n' + txt(n) + '\n【联动 · 九霄剑仙】穿上神话时装「九霄剑仙」时：' + link + '（只是外观，伤害不变）。'; } }); } catch (e) { } }
 x9Desc('jian9p', 'pistol', '符箓引爆时，三张符化作三柄飞剑跃起、交叉刺下；技能里的九张符换成九柄飞剑围成剑牢，最后一齐刺向阵心', n => '【玩法 · 符箓】身后九张符。九张都在时开一枪就开始一轮：每发带走一张符，打中就贴在怪身上；同一只怪贴满 3 张就引爆，三张符的元素一起发作，每张 50%' + n(.5) + '，周围 2.5 米的怪受 35%' + n(.35) + '（带「合」符时 3 米、60%' + n(.6) + '）。九张用完要重新凝聚（约 5 秒，九张聚齐才能再出符），这期间是普通子弹。\n【技能 · 九符镇魔】九张符在前方围成镇魔阵（只是特效，技能本身不变）。');
-x9Desc('jian9s', 'sniper', '星图上的每颗星变成一柄小剑；天罡一剑前，先有七柄剑按北斗的形状从天上落在弹道上；技能星落坠下的是飞剑', n => '【玩法 · 北斗】打中 12 米外的怪、或首领 / 精英，点亮一颗星；打空熄掉一颗。九星全亮时下一枪是「天罡一剑」：整条弹道上的怪受 300%' + n(3) + '，然后九星重新点起。\n【技能 · 星落】星图铺满地面，七颗星坠落（只是特效，技能本身不变）。');
+x9Desc('jian9s', 'sniper', '星图上的每颗星变成一柄小剑；天罡一剑前，先有七柄剑按北斗的形状从天上落在弹道上；技能星落坠下的是飞剑', n => '【玩法 · 北斗】打中 6 米外的怪、或首领 / 精英，点亮一颗星；打空熄掉一颗。五星全亮时下一枪是「天罡一剑」：整条弹道上的怪受 180%' + n(1.8) + '，然后五星重新点起。\n【技能 · 星落】星图铺满地面，七颗星坠落（只是特效，技能本身不变）。');
 x9Desc('jian9g', 'shotgun', '飞剑打中时绽开一朵剑气莲花，剑归手时在身边开一朵大剑莲；技能落剑处也开剑莲', n => '【玩法 · 飞剑】每一枪的弹丸里有一柄飞剑，属性随机（水 火 雷 毒 冰 木 土 金 合）：打中就是一次这种属性的伤害，100%' + n(1) + '（一颗弹丸的伤害为 100%，金 / 合 160%），带上它的效果；打空就插在地上（最多 9 柄，15 秒后消失），换弹时飞回你手里，沿路每碰到一只怪造成 100%' + n(1) + '。其余弹丸是普通弹丸。\n【技能 · 剑雨】十八柄剑从天而降（只是特效，技能本身不变）。');
 x9Desc('jian9a', 'axe', '雷桩、雷网和天雷全部变成金雷，雷网成形时落下金色「雷」字印，技能也是', n => '【玩法 · 雷桩】平时就是普通劈砍。身后九颗雷珠：九颗都在时砍下去就开始一轮，每砍一下用掉一颗，在落点立一根雷桩（20 秒后消失）；九根立满连成雷网 6 秒，网里的怪每 0.5 秒受 20%' + n(.2) + ' 并减速，结束时每根雷桩炸开 30%' + n(.3) + '。九颗用完马上开始重新凝聚（约 5 秒，雷网还在时也在凝聚）。\n【技能 · 九天雷降】三圈旋斩各引三道天雷（只是特效，技能本身不变）。');
 x9Desc('jian9k', 'pick', '剑山变成一柄柄巨大的石剑从地下破土刺出，技能也是', n => '【玩法 · 地脉】打中怪物、或敲到能采的岩石 / 废铁，积一点地脉；攒满九点，下一镐冲出一排七座剑山，每座 220%' + n(2.2) + '，并把怪掀开，然后从 0 重新积。没攒满时是普通挥镐。\n【技能 · 地脉翻涌】身边冲出一圈九座剑峰（只是特效，技能本身不变）。');
@@ -28884,4 +28886,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795336047').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795336438').catch(()=>{});</script></body></html>
