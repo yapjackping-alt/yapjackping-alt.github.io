@@ -19329,6 +19329,13 @@ function stCard(k, put) { const it = ITEMS[k], have = put ? bagHave(k) : (S.stas
   m.querySelector('.stx').addEventListener('click', () => m.remove());
   const go = m.querySelector('.stgo'); if (go) go.addEventListener('click', () => { const q = stMove(k, clampQ(num.value), put); m.remove(); if (q > 0) feed((put ? T2('放入 ', 'Stored ') : T2('取出 ', 'Took ')) + it.n + ' ×' + q, '#cfe8a0'); });
   m.addEventListener('click', e => { if (e.target === m) m.remove(); }); document.body.appendChild(m); if (num) setTimeout(() => { try { num.select(); } catch (e) { } }, 50); }
+/* owner 23 Nov: tap twice on a cell = move that whole cell across at once (bag → storage, storage → bag); one tap still opens the
+   card, a little later (STTAP.ms) so a second tap can cancel it */
+const STTAP = { k: '', put: false, t: 0, tm: 0, ms: 350 };
+function stTap(k, n, put) { const now = performance.now();
+  if (STTAP.k === k && STTAP.put === put && now - STTAP.t < STTAP.ms) { clearTimeout(STTAP.tm); STTAP.k = ''; STTAP.t = 0;
+    const q = stMove(k, n, put); if (q > 0) { feed((put ? T2('放入 ', 'Stored ') : T2('取出 ', 'Took ')) + ITEMS[k].n + ' ×' + q, '#cfe8a0'); try { sfx.pick(); } catch (e) { } } return; }
+  clearTimeout(STTAP.tm); STTAP.k = k; STTAP.put = put; STTAP.t = now; STTAP.tm = setTimeout(() => { STTAP.k = ''; stCard(k, put); }, STTAP.ms); }
 renderStash = function () {
   const box = $('stashList'); if (!box) return; box.innerHTML = ''; const M = S.stash.m, cap = stashCap(), used = stashSlotsUsed();
   const CATO = { mat: 0, use: 1, food: 2 }, keys = Object.keys(ITEMS).filter(k => !NOSLOT[k]).sort(STSORT ? (a, b) => (CATO[ITEMS[a].cat] ?? 3) - (CATO[ITEMS[b].cat] ?? 3) || ITEMS[b].r - ITEMS[a].r || (ITEMS[a].n < ITEMS[b].n ? -1 : 1) : (a, b) => ITEMS[b].r - ITEMS[a].r);
@@ -19340,10 +19347,10 @@ renderStash = function () {
   const cols = document.createElement('div'); cols.className = 'stcols'; box.appendChild(cols);
   const col = (t, note) => { const c = document.createElement('div'); c.className = 'stcol'; c.innerHTML = '<h3>' + t + '</h3>'; const g = document.createElement('div'); g.className = 'stgrid'; c.appendChild(g); if (note) c.insertAdjacentHTML('beforeend', '<p class="snote">' + note + '</p>'); cols.appendChild(c); return g; };
   const cell = (g, k, n, put) => { const s = document.createElement('button'); s.className = 'slot r' + ITEMS[k].r; s.style.setProperty('--rc', RAR[ITEMS[k].r].c); s.innerHTML = svgIcon(k) + '<span class="cnt">' + n + '</span>'; s.title = ITEMS[k].n;
-    s.addEventListener('click', () => stCard(k, put)); g.appendChild(s); };
+    s.addEventListener('click', () => stTap(k, n, put)); g.appendChild(s); };
   const stacks = (g, k, h, put) => { let n = 0; while (h > 0) { const c = Math.min(STACK, h); h -= c; n++; cell(g, k, c, put); } return n; };
-  const A = col(T2('背包 ', 'Bag ') + '<b>' + bagSlotsUsed() + ' / ' + bagCap() + T2(' 格', '') + '</b>', T2('点一格看介绍，选好数量再「放入」。', 'Tap a cell to see it, pick an amount, then Put in.'));
-  const B = col(T2('储物柜 ', 'Storage ') + '<b>' + used + ' / ' + cap + T2(' 格', '') + '</b>', T2('点一格看介绍，打字或拖动选好要拿出多少。', 'Tap a cell to see it; type or drag to choose how many to take out.'));
+  const A = col(T2('背包 ', 'Bag ') + '<b>' + bagSlotsUsed() + ' / ' + bagCap() + T2(' 格', '') + '</b>', T2('点一格看介绍、选数量；按两下整格直接放进储物柜。', 'Tap a cell to see it; double-tap to store the whole stack.'));
+  const B = col(T2('储物柜 ', 'Storage ') + '<b>' + used + ' / ' + cap + T2(' 格', '') + '</b>', T2('点一格看介绍、选数量；按两下整格直接拿回背包。', 'Tap a cell to see it; double-tap to take the whole stack.'));
   let na = 0; keys.forEach(k => { const h = bagHave(k); if (h > 0) na += stacks(A, k, h, true); });
   if (!na) A.insertAdjacentHTML('beforeend', '<p class="snote stempty">' + T2('背包是空的', 'The bag is empty') + '</p>');
   let nb = 0; keys.forEach(k => { const h = M[k] || 0; if (h > 0) nb += stacks(B, k, h, false); });
@@ -19359,6 +19366,7 @@ renderStash = function () {
   '.stkch{display:flex;align-items:center;gap:10px}.stkci{width:52px;height:52px;flex:0 0 52px;border-radius:12px;background:#0f161b;border:2px solid var(--rc);display:flex;align-items:center;justify-content:center}.stkci svg,.stkci img{width:80%;height:80%}' +
   '.stkch b{display:block;font-size:18px;color:var(--rc)}.stkch small{font-size:12px;color:#c8d2da}.stkcard p{margin:0;font-size:13px;line-height:1.5;color:#e8eef2}.stu em{font-style:normal;font-weight:900;color:#ffd27a;margin-right:6px}' +
   '.stq{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.stq span{font-weight:800}.stq input[type=number]{width:84px;font-size:18px;font-weight:900;text-align:center;padding:6px;border-radius:10px;border:2px solid #44535e;background:#0f161b;color:#fff}' +
+  '#stashList .slot{touch-action:manipulation}' +
   '.stq input[type=range]{flex:1;min-width:140px;accent-color:#ffc94a;height:28px}.stqb{display:flex;gap:6px}.stqb button{flex:1}.stfull{color:#ffb4a0!important;font-weight:800}';
   document.head.appendChild(st); } catch (e) { } })();
 /* ============ drawn icons instead of emoji (owner: icons must be drawn, never emoji) ============
@@ -23120,9 +23128,20 @@ const J9_EL = [
   { n: '木', c: 0x3ad86a }, { n: '土', c: 0xd8a040 }, { n: '金', c: 0xffe27a }, { n: '合', c: 0xffffff }];
 WSKINS.jian9 = { only: 'rifle', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%，还有九把元素飞剑', n: '九霄剑阵', r: 5, custom: true,
   base: 0x1c5a40, mid: 0x3ad88a, acc: 0xe8c060, glow: 0x7affc0, tr: 0x7affc0, tr2: 0xe8c060,
-  d: '翠玉色的步枪，枪口下挂着一柄玉剑刺刀。身后九把飞剑排成剑阵缓缓旋转，每把剑各带一种属性、剑身就是那种属性的颜色：水、火、雷、毒、冰、木、土、金，第九把「合」集万法于一身。开枪时飞剑从身后飞到枪前，绕枪一圈后随子弹一同射出，命中时剑鸣「锵」的一声；九剑射尽后要重新凝聚，九把全部聚齐才能再出剑。' };
+  d: '翠玉色的步枪，枪口下挂着一柄玉剑刺刀。身后九把飞剑排成剑阵缓缓旋转，每把剑各带一种属性、剑身就是那种属性的颜色：水、火、雷、毒、冰、木、土、金，第九把「合」集万法于一身。开枪时飞剑从身后飞到枪前，绕枪一圈后随子弹一同射出，命中时剑鸣「锵」的一声；停手 3 秒不开枪，飞剑会一把把飞回来补满；九剑全部射尽则要等九把聚齐才能再出剑。' };
 const J9 = { n: 9, mode: 'ready', t: 0, step: 0, g: null, sw: [], fl: [] };
 const J9_GAP = [2, 1, .5, .25, .25, .25, .25, .25, .25];   // owner 18 Nov (2nd): 2 s, 1 s, 0.5 s, then 0.25 s each
+/* shared 9-stock behind the back (rifle swords, katana orbs, pistol talismans). Owner 23 Nov: after using some, if you don't use
+   one for ST9_IDLE s they start coming back (no need to empty all nine first). Used up to 0 → locked until all nine are back.
+   hv[i] = element i is present; uses take the lowest present one; refills fill the lowest missing one (gap J9_GAP[count]). */
+const ST9_IDLE = 3;
+function st9Init(q) { if (!q.hv) { q.hv = [0, 1, 2, 3, 4, 5, 6, 7, 8].map(() => true); q.idle = 0; q.lock = false; q.t = 0; } return q; }
+function st9Sync(q) { const n = q.hv.filter(Boolean).length; q.n = n; q.mode = q.lock || (n < 9 && q.idle >= ST9_IDLE) ? 'regen' : n < 9 ? 'volley' : 'ready'; return n; }
+function st9Use(q) { st9Init(q); if (q.lock) return -1; const i = q.hv.indexOf(true); if (i < 0) return -1;
+  q.hv[i] = false; q.idle = 0; q.t = 0; if (q.hv.indexOf(true) < 0) q.lock = true; st9Sync(q); return i; }
+function st9Tick(q, dt, form, full) { st9Init(q); q.idle += dt; let n = st9Sync(q); if (n >= 9 || q.mode !== 'regen') { q.t = 0; return; }
+  q.t += dt; if (q.t < J9_GAP[n]) return; q.t = 0; const i = q.hv.indexOf(false); q.hv[i] = true;
+  try { form(i); } catch (e) { } if (st9Sync(q) >= 9) { const was = q.lock; q.lock = false; st9Sync(q); try { if (full) full(was); } catch (e) { } } }
 /* ---- one flying sword, tip along +z: blade (extruded outline), ridge, guard, grip, pommel, tassel ---- */
 const J9G = {};
 // owner 19 Nov: every sword is coloured by its element, not all jade: [blade, blade glow, ridge, ridge glow]; the gun's bayonet stays jade
@@ -23165,14 +23184,14 @@ function j9Ring() { if (J9.g || typeof scene === 'undefined') return; J9.g = new
   for (let i = 0; i < 9; i++) { const s = j9Sword(i, 1.15); J9.g.add(s); J9.sw.push(s); } }
 function j9Tick(dt) { if (typeof scene === 'undefined' || !player) return; j9Ring();
   // regather after a volley: 3, 2.5, 2 … 0.25 s per sword
-  if (J9.mode === 'regen') { J9.t += dt; if (J9.t >= J9_GAP[J9.n]) { J9.t = 0; J9.n++; j9Form(J9.n - 1); if (J9.n >= 9) { J9.mode = 'ready'; try { banner('九剑归位', '剑阵已就绪', 1.6); } catch (e) { } } } }
+  st9Tick(J9, dt, j9Form, was => { if (was && j9On()) try { banner('九剑归位', '剑阵已就绪', 1.6); } catch (e) { } });
   const on = j9On() && !S.dead && !(typeof buildOpen !== 'undefined' && buildOpen) && pm && pm.g && pm.g.visible;
   J9.g.visible = on; if (!on) return;
   const T = performance.now() / 1000, f = player.face || 0, fx = Math.sin(f), fz = Math.cos(f), PY = (typeof playerY === 'function' && playerY()) || 0;
   const cx = player.pos.x - fx * .62, cz = player.pos.z - fz * .62, cy = 1.55 + PY;
   // swords that are present (the first n) sit on the ring evenly; the rest are hidden (gone or still gathering)
   J9.sw.forEach((s, i) => { const away = J9.fl.some(q => q.i === i);
-    const vis = (J9.mode === 'volley' ? i >= 9 - J9.n : i < J9.n) && !away; s.visible = vis; if (!vis) return;
+    const vis = st9Init(J9).hv[i] && !away; s.visible = vis; if (!vis) return;
     const a = T * .7 + i / 9 * 6.283, r = .98, lx = Math.cos(a) * r, ly = Math.sin(a) * r;
     // ring in the plane behind the back (right = (fz, -fx)), each sword pointing outward like a halo, bobbing a little
     s.position.set(cx + fz * lx, cy + ly + Math.sin(T * 2 + i) * .03, cz - fx * lx);
@@ -23191,8 +23210,7 @@ petsTick = (o => function (dt) { const r = o(dt); try { j9Tick(dt); } catch (e) 
 mythShot = (orig => function (K, ox, oz, dx, dz, end, hit, fm, pel) {
   if (!K || K.key !== 'jian9') return orig.apply(this, arguments);
   const PY = (typeof playerY === 'function' && playerY()) || 0, sx = fm ? fm.x : ox, sy = fm ? fm.y : 1.55 + PY, sz = fm ? fm.z : oz, ex = ox + dx * end, ey = 1.45 + PY, ez = oz + dz * end;
-  if (J9.mode === 'ready' && J9.n === 9) J9.mode = 'volley';
-  if (J9.mode === 'volley' && J9.n > 0) { const i = 9 - J9.n; J9.n--; if (!J9.n) { J9.mode = 'regen'; J9.t = 0; } j9Launch(i, sx, sy, sz, dx, dz, ex, ey, ez, hit); return; }
+  { const i = st9Use(J9); if (i >= 0) { j9Launch(i, sx, sy, sz, dx, dz, ex, ey, ez, hit); return; } }
   j9Plain(sx, sy, sz, ex, ey, ez, hit); })(mythShot);
 // plain shot (no sword): a thin jade line and a small leaf-green spark where it lands
 function j9Plain(sx, sy, sz, ex, ey, ez, hit) { const F = fxGeo(), len = Math.hypot(ex - sx, ey - sy, ez - sz);
@@ -23285,7 +23303,7 @@ try { const st = document.createElement('style'); st.textContent = '.sktx p,.skp
 const J9B_ON = true;
 WSKINS.jian9b = { only: 'blade', st: { dmg: .12, crit: .04, critDmg: .2 }, stt: '伤害 +12%、暴击率 +4%、暴击伤害 +20%，还有九道元素剑气', n: '九霄剑诀', r: 5, custom: true,
   base: 0x0e4a44, mid: 0x3ad8c8, acc: 0xe8c060, glow: 0x7afff0, tr: 0x7afff0, tr2: 0xe8c060,
-  d: '青玉色的长剑，金色云纹剑格、剑首挂着剑穗。身后浮着九团元素剑气：水、火、雷、毒、冰、木、土、金，第九团「合」集万法于一身。九团聚齐后，每挥一剑，就有一团剑气从身后飞入剑身，剑身变成那种属性的颜色，人物使出对应的剑法：水·云剑、火·劈剑、雷·刺剑、毒·撩剑、冰·点剑、木·挂剑、土·扫剑、金·抹剑、合·旋风剑。九团用完后要重新凝聚，九团全部聚齐才能再出剑诀。' };
+  d: '青玉色的长剑，金色云纹剑格、剑首挂着剑穗。身后浮着九团元素剑气：水、火、雷、毒、冰、木、土、金，第九团「合」集万法于一身。每挥一剑，就有一团剑气从身后飞入剑身，剑身变成那种属性的颜色，人物使出对应的剑法：水·云剑、火·劈剑、雷·刺剑、毒·撩剑、冰·点剑、木·挂剑、土·扫剑、金·抹剑、合·旋风剑。停手 3 秒不挥剑，剑气会一团团飞回来补满；九团全部用完则要等九团聚齐才能再出剑诀。' };
 const J9B = { n: 9, mode: 'ready', t: 0, g: null, orbs: [], el: -1, elT: 0, sw: -1, M: null };
 const J9B_MV = ['云剑', '劈剑', '刺剑', '撩剑', '点剑', '挂剑', '扫剑', '抹剑', '旋风剑'];
 const J9B_REST = [0x3ad8c8, 0x0e4a44, 0x9affee, 0x1a6a60];   // 青: blade, blade glow, ridge, ridge glow
@@ -23332,12 +23350,12 @@ function j9bBack(i, T) { const f = player.face || 0, fx = Math.sin(f), fz = Math
   const a = Math.PI * (-.1 + i / 8 * 1.2), r = .78, lx = Math.cos(a) * r, ly = Math.sin(a) * r * .9;   // a fan arc behind the shoulders
   return [player.pos.x - fx * .5 + fz * lx, 1.45 + PY + ly + Math.sin(T * 2 + i) * .04, player.pos.z - fz * .5 - fx * lx]; }
 function j9bTick(dt) { if (typeof scene === 'undefined' || !player) return; j9bRing();
-  if (J9B.mode === 'regen') { J9B.t += dt; if (J9B.t >= J9_GAP[J9B.n]) { J9B.t = 0; J9B.n++; j9bForm(J9B.n - 1); if (J9B.n >= 9) { J9B.mode = 'ready'; if (j9bOn()) try { banner('九气归元', '剑诀已就绪', 1.6); } catch (e) { } } } }
+  st9Tick(J9B, dt, j9bForm, was => { if (was && j9bOn()) try { banner('九气归元', '剑诀已就绪', 1.6); } catch (e) { } });
   // the blade keeps its element after the cut; with no ball left it fades back to 青
   if (J9B.el >= 0 && S.swingT <= 0) { J9B.elT -= dt; if (J9B.elT <= 0 && J9B.mode !== 'volley') { J9B.el = -1; j9bPaint(-1); } }
   const on = j9bOn() && !S.dead && !(typeof buildOpen !== 'undefined' && buildOpen) && pm && pm.g && pm.g.visible;
   J9B.g.visible = on; if (!on) return; const T = performance.now() / 1000;
-  J9B.orbs.forEach((o, i) => { const vis = J9B.mode === 'volley' ? i >= 9 - J9B.n : i < J9B.n; o.visible = vis; if (!vis) return;
+  J9B.orbs.forEach((o, i) => { const vis = st9Init(J9B).hv[i]; o.visible = vis; if (!vis) return;
     const [x, y, z] = j9bBack(i, T); o.position.set(x, y, z); const u = o.userData, p = 1 + .18 * Math.sin(T * 4 + i * .9);
     u.halo.scale.setScalar(p); u.halo.material.opacity = .25 + .15 * Math.sin(T * 3 + i); const a = T * 5 + i; u.wisp.position.set(Math.cos(a) * .13, Math.sin(a * 1.3) * .06, Math.sin(a) * .13); }); }
 function j9bForm(i) { if (!j9bOn() || S.dead) return;
@@ -23345,8 +23363,7 @@ function j9bForm(i) { if (!j9bOn() || S.dead) return;
 petsTick = (o => function (dt) { const r = o(dt); try { j9bTick(dt); } catch (e) { } return r; })(petsTick);
 /* ---- a cut: one ball flies into the sword, the sword takes its element and the cut is that element's move ---- */
 swing = (o => function () { if (!j9bOn()) return o.apply(this, arguments);
-  if (J9B.mode === 'ready' && J9B.n === 9) J9B.mode = 'volley';
-  let i = -1; if (J9B.mode === 'volley' && J9B.n > 0) { i = 9 - J9B.n; J9B.n--; if (!J9B.n) { J9B.mode = 'regen'; J9B.t = 0; } }
+  const i = st9Use(J9B);
   J9B.sw = i; const r = o.apply(this, arguments);
   if (i >= 0) { J9B.el = i; J9B.elT = .6;
     try { const T = performance.now() / 1000, [sx, sy, sz] = j9bBack(i, T), F = fxGeo(), hp = new THREE.Vector3(); gun.getWorldPosition(hp); const c = J9_EL[i].c, D = .09;
@@ -24599,25 +24616,22 @@ function x9Label(parts, x, y, z) { try { const c = document.createElement('canva
     tick(); } catch (e) { } }
 const x9Hex = c => '#' + (c >>> 0).toString(16).padStart(6, '0');
 
-/* ---------- the limit (owner 22 Nov: like 剑阵 / 剑诀 — the special attack needs all nine gathered; with none left it is a normal
-   attack): pistol talismans, shotgun swords and axe stakes come from a stock of nine shown behind your back. The first use with
-   all nine starts a round; each use takes one; at 0 they regather with the rifle's gaps (J9_GAP, ≈ 5 s) and only all nine
-   start a new round. The axe's stock waits while its net is still up. ---------- */
-const X9S = { pistol: { n: 9, mode: 'ready', t: 0, f: [] }, axe: { n: 9, mode: 'ready', t: 0, f: [] } };
-const X9S_K = { pistol: 'jian9p', axe: 'jian9a' }, X9S_N = { pistol: '九符归位', axe: '九雷归位' };
-function x9Use(id) { const q = X9S[id]; if (q.mode === 'ready' && q.n === 9) q.mode = 'volley'; if (q.mode !== 'volley' || q.n <= 0) return -1;
-  const i = 9 - q.n; q.n--; if (!q.n) { q.mode = 'regen'; q.t = 0; } return i; }
-function x9FanMake(id, i) { if (id === 'pistol') return x9Tal(i, .55);
-  const g = new THREE.Group(), o = new THREE.Mesh(new THREE.OctahedronGeometry(.075), new THREE.MeshBasicMaterial({ color: x9C(0xe8dcff) })); o.scale.y = 1.5; g.add(o);
-  const h = new THREE.Mesh(new THREE.OctahedronGeometry(.13), x9Glow(0xb08aff, .35)); h.scale.y = 1.5; g.add(h); const r = new THREE.Mesh(new THREE.TorusGeometry(.1, .012, 4, 10), new THREE.MeshLambertMaterial({ color: 0xe8c060 })); g.add(r); return g; }
+/* ---------- the limit (owner 22 Nov: like 剑阵 / 剑诀 — the special attack needs the stock; with none left it is a normal
+   attack): the pistol's talismans come from a stock of nine shown behind your back (st9Use / st9Tick in z_jian9.js: each use takes
+   one, they come back after ST9_IDLE s without using one, used up to 0 → all nine must come back first).
+   Owner 23 Nov: the AXE has no stock — every swing plants a stake, except while its net is up. ---------- */
+const X9S = { pistol: { f: [] } };
+const X9S_K = { pistol: 'jian9p' }, X9S_N = { pistol: '九符归位' };
+function x9Use(id) { return st9Use(X9S[id]); }
+function x9FanMake(id, i) { return x9Tal(i, .55); }
 function x9StockTick(dt) { const T = performance.now() / 1000;
   for (const id in X9S) { const q = X9S[id], on = x9On(id, X9S_K[id]);
-    if (q.mode === 'regen') { q.t += dt; if (q.t >= J9_GAP[q.n]) { q.t = 0; q.n++; if (on) { try { const P = x9FanPos(q.n - 1, T); burst(P[0], P[1], P[2], x9EC(q.n - 1), 6, 1.6); } catch (e) { } x9Snd(330 + q.n * 30, 330 + q.n * 30, .5, .03, 'sine'); }
-      if (q.n >= 9) { q.mode = 'ready'; if (on) try { banner(X9S_N[id], '下一轮已就绪', 1.4); } catch (e) { } } } }
+    st9Tick(q, dt, i => { if (on) { try { const P = x9FanPos(i, T); burst(P[0], P[1], P[2], x9EC(i), 6, 1.6); } catch (e) { } x9Snd(330 + q.n * 30, 330 + q.n * 30, .5, .03, 'sine'); } },
+      was => { if (was && on) try { banner(X9S_N[id], '下一轮已就绪', 1.4); } catch (e) { } });
     const vis = on && !S.dead && !(typeof buildOpen !== 'undefined' && buildOpen) && pm && pm.g && pm.g.visible;
     if (q.f.length && q.gold !== x9GA()) { q.f.forEach(m => { scene.remove(m); x9Free(m); }); q.f = []; }
     if (vis && !q.f.length) { q.gold = x9GA(); for (let i = 0; i < 9; i++) { const m = x9FanMake(id, i); m.traverse(o => { o.frustumCulled = false; }); scene.add(m); q.f.push(m); } }
-    q.f.forEach((m, i) => { const show = vis && (q.mode === 'volley' ? i >= 9 - q.n : i < q.n); m.visible = show; if (!show) return; const P = x9FanPos(i, T); m.position.set(P[0], P[1], P[2]);
+    q.f.forEach((m, i) => { const show = vis && q.hv[i]; m.visible = show; if (!show) return; const P = x9FanPos(i, T); m.position.set(P[0], P[1], P[2]);
       const f = player.face || 0; if (id === 'pistol') m.rotation.set(0, f + Math.PI, Math.sin(T * 3 + i) * .12 + (i - 4) * .12); else m.rotation.set(0, T * 2 + i, 0); }); } }
 function x9FanPos(i, T) { const f = player.face || 0, fx = Math.sin(f), fz = Math.cos(f), PY = (typeof playerY === 'function' && playerY()) || 0, a = Math.PI * (-.1 + i / 8 * 1.2), r = .8, lx = Math.cos(a) * r, ly = Math.sin(a) * r * .9;
   return [player.pos.x - fx * .5 + fz * lx, 1.45 + PY + ly + Math.sin(T * 2 + i) * .04, player.pos.z - fz * .5 - fx * lx]; }
@@ -24911,7 +24925,7 @@ gatherSwing = (o => function (W, dx, dz) { try { if (x9On('pick', 'jian9k')) { c
 
 /* ---------- melee hooks: the axe plants a stake every swing, the pick charges / erupts ---------- */
 wSkillSwing = (o => function (hits, base, dx, dz) { const r = o.apply(this, arguments);
-  try { if (x9On('axe', 'jian9a')) { if (!A9.net && x9Use('axe') >= 0) a9Plant(player.pos.x + dx * 1.7, player.pos.z + dz * 1.7); }
+  try { if (x9On('axe', 'jian9a')) { if (!A9.net) a9Plant(player.pos.x + dx * 1.7, player.pos.z + dz * 1.7); }
     else if (x9On('pick', 'jian9k')) { if (K9.n >= 9) { K9.n = 0; k9Mountain(dx, dz); } else if (hits && hits.length) { const z = hits[0]; k9Add(1, z.pos.x, 1.2, z.pos.z); } } } catch (e) { }
   return r; })(wSkillSwing);
 /* ---------- gun hooks ---------- */
@@ -25036,10 +25050,10 @@ try { WSK_GUN.jian9p = { fire() { WSKN(.08, .025, 3000, { type: 'highpass', dela
 /* ---------- descriptions: how each one plays, with your numbers right now ---------- */
 function x9Desc(k, id, link, txt) { try { const D0 = WSKINS[k].d; Object.defineProperty(WSKINS[k], 'd', { configurable: true, enumerable: true, get() { let w = 0; try { w = weaponDmg(id); } catch (e) { } const n = p => w ? '（约 ' + Math.round(w * p) + '）' : '';
     return D0 + '\n' + txt(n) + '\n【联动 · 九霄剑仙】穿上神话时装「九霄剑仙」时：' + link + '（只是外观，伤害不变）。'; } }); } catch (e) { } }
-x9Desc('jian9p', 'pistol', '符箓引爆时，三张符化作三柄飞剑跃起、交叉刺下；技能里的九张符换成九柄飞剑围成剑牢，最后一齐刺向阵心', n => '【玩法 · 符箓】身后九张符。九张都在时开一枪就开始一轮：每发带走一张符，打中就贴在怪身上；同一只怪贴满 3 张就引爆，三张符的元素一起发作，每张 50%' + n(.5) + '，周围 2.5 米的怪受 35%' + n(.35) + '（带「合」符时 3 米、60%' + n(.6) + '）。九张用完要重新凝聚（约 5 秒，九张聚齐才能再出符），这期间是普通子弹。\n【技能 · 九符镇魔】九张符在前方围成镇魔阵（只是特效，技能本身不变）。');
+x9Desc('jian9p', 'pistol', '符箓引爆时，三张符化作三柄飞剑跃起、交叉刺下；技能里的九张符换成九柄飞剑围成剑牢，最后一齐刺向阵心', n => '【玩法 · 符箓】身后九张符。九张都在时开一枪就开始一轮：每发带走一张符，打中就贴在怪身上；同一只怪贴满 3 张就引爆，三张符的元素一起发作，每张 50%' + n(.5) + '，周围 2.5 米的怪受 35%' + n(.35) + '（带「合」符时 3 米、60%' + n(.6) + '）。停手 3 秒不开枪，符会一张张飞回来补满；九张全用完则要等九张聚齐（约 5 秒）才能再出符，这期间是普通子弹。\n【技能 · 九符镇魔】九张符在前方围成镇魔阵（只是特效，技能本身不变）。');
 x9Desc('jian9s', 'sniper', '星图上的每颗星变成一柄小剑；天罡一剑前，先有七柄剑按北斗的形状从天上落在弹道上；技能星落坠下的是飞剑', n => '【玩法 · 北斗】打中 6 米外的怪、或首领 / 精英，点亮一颗星；打空熄掉一颗。五星全亮时下一枪是「天罡一剑」：一柄巨剑竖着从天上砸在弹道上第一只怪身上，周围 3 米内的怪受 180%' + n(1.8) + '，然后五星重新点起。\n【技能 · 星落】星图铺满地面，七颗星坠落（只是特效，技能本身不变）。');
 x9Desc('jian9g', 'shotgun', '飞剑打中时绽开一朵剑气莲花，剑归手时在身边开一朵大剑莲；技能落剑处也开剑莲', n => '【玩法 · 飞剑】每一枪的弹丸里有一柄飞剑，属性随机（水 火 雷 毒 冰 木 土 金 合）：打中就是一次这种属性的伤害，100%' + n(1) + '（一颗弹丸的伤害为 100%，金 / 合 160%），带上它的效果；打空就插在地上（最多 9 柄，15 秒后消失），换弹时飞回你手里，沿路每碰到一只怪造成 100%' + n(1) + '。其余弹丸是普通弹丸。\n【技能 · 剑雨】十八柄剑从天而降（只是特效，技能本身不变）。');
-x9Desc('jian9a', 'axe', '雷桩、雷网和天雷全部变成金雷，雷网成形时落下金色「雷」字印，技能也是', n => '【玩法 · 雷桩】平时就是普通劈砍。身后九颗雷珠：九颗都在时砍下去就开始一轮，每砍一下用掉一颗，在落点立一根雷桩（20 秒后消失）；九根立满连成雷网 6 秒，网里的怪每 0.5 秒受 20%' + n(.2) + ' 并减速，结束时每根雷桩炸开 30%' + n(.3) + '。九颗用完马上开始重新凝聚（约 5 秒，雷网还在时也在凝聚）。\n【技能 · 九天雷降】三圈旋斩各引三道天雷（只是特效，技能本身不变）。');
+x9Desc('jian9a', 'axe', '雷桩、雷网和天雷全部变成金雷，雷网成形时落下金色「雷」字印，技能也是', n => '【玩法 · 雷桩】平时就是普通劈砍。每砍一下在落点立一根雷桩（20 秒后消失），不用攒能量；九根立满连成雷网 6 秒，网里的怪每 0.5 秒受 20%' + n(.2) + ' 并减速，结束时每根雷桩炸开 30%' + n(.3) + '。雷网存在的期间砍下去不会立雷桩，等雷网消失才能再立。\n【技能 · 九天雷降】三圈旋斩各引三道天雷（只是特效，技能本身不变）。');
 x9Desc('jian9k', 'pick', '剑山变成一柄柄巨大的石剑从地下破土刺出，技能也是', n => '【玩法 · 地脉】打中怪物、或敲到能采的岩石 / 废铁，积一点地脉；攒满九点，下一镐冲出一排七座剑山，每座 220%' + n(2.2) + '，并把怪掀开，然后从 0 重新积。没攒满时是普通挥镐。\n【技能 · 地脉翻涌】身边冲出一圈九座剑峰（只是特效，技能本身不变）。');
 /* ============ 深渊商店: spend 深渊币 with the diver of the 深渊号 (owner 18 Nov: "add a trade system to the abyss") ============
    Opened from the abyss page (button 深渊商店 next to 下潜). The trader is the brass-helmet diver who stands on the sub.
@@ -28907,4 +28921,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795365117').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795365738').catch(()=>{});</script></body></html>
