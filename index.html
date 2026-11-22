@@ -24416,7 +24416,7 @@ const JSW_SVG = '<svg viewBox="0 0 100 80" style="height:100%;width:auto;max-wid
 WINGS.jsword = { n: '青冥飞剑', kind: '飞剑', price: WING_PRICE, svg: JSW_SVG,
   d: '一柄青玉长剑，平时悬在背后，剑尖朝上缓缓浮动，剑脊流着青光。来到水边，剑会飞到你脚下横过来，踩着它御剑而行，越过池塘、河流和大海，身后拖一道青色剑光。穿着自带翅膀的外观时不能装。',
   st: { spd: .15, hpPct: .04, def: .02 }, stt: '移动速度 +15%、生命 +4%、减伤 +2%' };
-const JSW = { k: 0, on: false, snd: 0, last: -1, rip: 0, M: null };
+const JSW = { k: 0, on: false, mode: '', snd: 0, rip: 0, lean: 0, f0: null, posed: false, M: null };
 const jswOn = () => { try { return S.wing === 'jsword' && wingActive(); } catch (e) { return false; } };
 function jswMats() { if (JSW.M) return JSW.M; const add = (c, o) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
   JSW.M = { blade: mat(0xe2f6ee), edge: mat(0xffffff), gold: mat(0xe8c060), dark: mat(0x26202a), jade: new THREE.MeshBasicMaterial({ color: 0x7affd8 }), red: mat(0xc83a3a),
@@ -24451,35 +24451,472 @@ function jswPose(sw, k, T) { const bob = Math.sin(T * 1.7) * .06 * (1 - k);
   sw.position.set(.08 * (1 - k), 1.3 * (1 - k) + .03 + bob, -.62 * (1 - k) - .95 * k); sw.scale.setScalar(1 + .35 * k);   /* riding: a bigger sword, its middle under your feet */
   try { _je.set(-Math.PI / 2 + .12, 0, .42 + Math.sin(T * .9) * .05, 'XYZ'); _jq0.setFromEuler(_je); _je.set(0, 0, 0, 'XYZ'); _jq1.setFromEuler(_je); sw.quaternion.copy(_jq0).slerp(_jq1, k); }
   catch (e) { sw.rotation.set((-Math.PI / 2 + .12) * (1 - k), 0, .42 * (1 - k)); } }
-// riding: over island water (the wings' hover, WFLY) or over mainland rivers / lakes / the sea
-function jswRide() { if (!jswOn() || S.dead || S.dun || S.boat) return false; if (S.isl) return typeof WFLY !== 'undefined' && WFLY.on;
-  try { return !S.up && !S.fall && waterAt(player.pos.x, player.pos.z) > .3 && !(roadDist(player.pos.x, player.pos.z) < .8); } catch (e) { return false; } }
-// on the island the hover height comes from WFLY; standing on the sword lifts you a little higher than wings
-terOff = (o => function () { return (typeof WFLY !== 'undefined' && WFLY.on && jswOn()) ? WFLY.y + .42 : o(); })(terOff);
+// riding (owner 22 Nov): over water (island: the wings' hover WFLY; mainland rivers / lakes / the sea) — and on land while you RUN
+// (sprint button); walking stays walking
+function jswMode() { if (!jswOn() || S.dead || S.boat || S.up || S.fall || S.climbA || (S.fl | 0) || (typeof GV !== 'undefined' && GV.on)) return '';
+  if (S.isl && typeof WFLY !== 'undefined' && WFLY.on) return 'water';
+  if (!S.isl && !S.dun) { try { if (waterAt(player.pos.x, player.pos.z) > .3 && !(roadDist(player.pos.x, player.pos.z) < .8)) return 'water'; } catch (e) { } }
+  if (typeof SW !== 'undefined' && SW.b) return '';
+  return S.sprint && Math.hypot(input.mx || 0, input.mz || 0) > .2 ? 'land' : ''; }
+const JSW_LIFT = .45;   // how high the sword carries you over the ground when you run
+// island: the hover height over water comes from WFLY (+.42 to stand on the blade); on land the lift is added to the ground height
+terOff = (o => function () { if (typeof WFLY !== 'undefined' && WFLY.on && jswOn()) return WFLY.y + .42; const v = o(); return JSW.mode === 'land' || (JSW.k > .01 && !JSW.mode) ? v + JSW_LIFT * JSW.k : v; })(terOff);
 skinFxTick = (o => function (dt) { o(dt); try { const sw = pm && pm._wing && pm._wing.find(m => m.userData.jsw);
-    if (!sw) { JSW.on = false; JSW.k = 0; return; }
-    const ride = jswRide(), T = S.t || 0, mv = Math.min(1, Math.hypot(input.mx || 0, input.mz || 0));
-    if (ride && !JSW.on) jswTakeOff(); if (!ride && JSW.on) jswLand(); JSW.on = ride;
-    JSW.k += ((ride ? 1 : 0) - JSW.k) * Math.min(1, dt * 7); jswPose(sw, JSW.k, T);
+    if (!sw) { if (JSW.k > 0) jswPoseOff(); JSW.on = false; JSW.mode = ''; JSW.k = 0; return; }
+    const mode = jswMode(), ride = !!mode, T = S.t || 0, mv = Math.min(1, Math.hypot(input.mx || 0, input.mz || 0));
+    if (ride && !JSW.on) jswTakeOff(); if (!ride && JSW.on) jswLand(); JSW.on = ride; JSW.mode = mode;
+    JSW.k += ((ride ? 1 : 0) - JSW.k) * Math.min(1, dt * 7); if (JSW.k < .002) JSW.k = 0; jswPose(sw, JSW.k, T);
     const u = sw.userData; u.tas.rotation.x = Math.sin(T * 5) * .25 * (1 - JSW.k) - JSW.k * (.25 + mv * .5); u.tas.rotation.y = Math.sin(T * 3.1) * .2;
     if (u.tr) { u.tr.visible = JSW.k > .6; u.tr.scale.set(1, .6 + mv * 2.6, 1); u.tr.position.set(0, 0, -.42 - u.tr.scale.y / 2); }
-    if (ride) { // stand on the blade: one foot ahead, knees a little bent, the body leaning into the flight
-      pm.legL.rotation.x = -.14 - mv * .05; pm.legR.rotation.x = .17 + mv * .05;
-      if (!S.isl) pm.g.position.y = .78 + Math.sin(T * 2.2) * .06; }   // mainland water: lift you onto the sword (the island lift is terOff)
+    // turning makes you lean into the curve (from how fast you face round)
+    const f = player.face || 0; let df = f - (JSW.f0 == null ? f : JSW.f0); df = Math.atan2(Math.sin(df), Math.cos(df)); JSW.f0 = f;
+    JSW.lean += (Math.max(-.3, Math.min(.3, -df / Math.max(dt, .001) * .09)) - JSW.lean) * Math.min(1, dt * 5);
+    if (JSW.k > 0) jswPoseOn(JSW.k, T, mv); else if (JSW.posed) jswPoseOff();
+    if (JSW.k > 0 && !S.isl && JSW.mode !== '' ) { const base = JSW.mode === 'water' ? .78 : JSW_LIFT; pm.g.position.y = ((playerY() || 0)) + base * JSW.k + Math.sin(T * 2.2) * .05 * JSW.k; }   /* mainland: lift you onto the sword (the island lift is terOff) */
   } catch (e) { } })(skinFxTick);
+// surf stance on the blade: left foot ahead, right foot behind, both turned a little sideways, knees giving with the ride,
+// the body leaning forward with speed and into the turns, a small balancing sway
+function jswPoseOn(k, T, mv) { JSW.posed = true; const fl = Math.sin(T * 3.4) * .05;
+  pm.legL.position.z = .2 * k; pm.legR.position.z = -.2 * k; pm.legL.rotation.set((-.08 + fl) * k, .32 * k, 0); pm.legR.rotation.set((.12 - fl) * k, .32 * k, 0);
+  pm.body.rotation.x = (.06 + mv * .1) * k; pm.body.rotation.z = (JSW.lean + Math.sin(T * 1.7) * .035) * k; }
+function jswPoseOff() { JSW.posed = false; try { pm.legL.position.z = 0; pm.legR.position.z = 0; pm.legL.rotation.y = 0; pm.legR.rotation.y = 0; pm.body.rotation.x = 0; pm.body.rotation.z = 0; } catch (e) { } }
 function jswTakeOff() { try { const x = player.pos.x, z = player.pos.z; burst(x, .6, z, 0x9affe8, 12, 3); fxRing(x, z, .3, 2.6, .6, 0x7affd8, .8, .05);
     if (AC) { sfxTone(1760, 1690, .7, .05, 'sine'); sfxTone(2640, 2600, .5, .025, 'sine', { delay: .03 }); sfxNoise(.35, .07, 1600, { type: 'bandpass', q: .7, f1: 500 }); } } catch (e) { } }
 function jswLand() { try { const x = player.pos.x, z = player.pos.z; burst(x, .4, z, 0x9affe8, 6, 2); if (AC) sfxTone(1320, 1100, .25, .03, 'sine'); } catch (e) { } }
 // no wing beats on the sword: a steady wind, a soft sword hum, and a wake cut into the water under you
 wflapTick = (o => function () { if (!jswOn()) return o(); })(wflapTick);
 petsTick = (o => function (dt) { const r = o(dt); try { if (JSW.on) jswTick(dt); } catch (e) { } return r; })(petsTick);
-function jswTick(dt) { const px = player.pos.x, pz = player.pos.z, mv = Math.min(1, Math.hypot(input.mx || 0, input.mz || 0)), wy = S.isl ? WFLY.y - .35 : 0, f = player.face || 0;
+function jswTick(dt) { if (JSW.mode === 'land') return jswLandTick(dt); const px = player.pos.x, pz = player.pos.z, mv = Math.min(1, Math.hypot(input.mx || 0, input.mz || 0)), wy = S.isl ? WFLY.y - .35 : 0, f = player.face || 0;
   JSW.snd -= dt; if (JSW.snd <= 0 && AC) { JSW.snd = mv > .1 ? .55 : 1.4;
     try { sfxNoise(.6, .03 + mv * .04, 700 + mv * 500, { type: 'bandpass', q: .6 }); if (mv < .1) sfxTone(1760, 1750, .9, .012, 'sine'); } catch (e) { } }
   JSW.rip -= dt; if (JSW.rip > 0) return; JSW.rip = mv > .1 ? .09 : .7;
   try { if (mv > .1) { for (const s of [-1, 1]) { const bx = px - Math.sin(f) * .6 + Math.cos(f) * s * .25, bz = pz - Math.cos(f) * .6 - Math.sin(f) * s * .25; burst(bx, wy + .05, bz, 0xe8fbff, 2, 1.6); }
       fxRing(px - Math.sin(f) * .5, pz - Math.cos(f) * .5, .2, 1.1, .6, 0xd8f6ff, .5, wy - .02); }
     else { fxRing(px, pz, .3, 1.8, 1, 0xbff6e6, .45, wy - .02); burst(px, wy + .7, pz, 0x7affd8, 2, .6); } } catch (e) { } }
+// running on the sword over land: wind, a faint hum, jade motes and a few leaves of light swirling off the trail
+function jswLandTick(dt) { const px = player.pos.x, pz = player.pos.z, f = player.face || 0, gy = (pm && pm.g ? pm.g.position.y : 0);
+  JSW.snd -= dt; if (JSW.snd <= 0 && AC) { JSW.snd = .6; try { sfxNoise(.65, .045, 900, { type: 'bandpass', q: .6 }); } catch (e) { } }
+  JSW.rip -= dt; if (JSW.rip > 0) return; JSW.rip = .07;
+  try { const bx = px - Math.sin(f) * 1.1, bz = pz - Math.cos(f) * 1.1; burst(bx + rand(-.15, .15), gy + .02, bz + rand(-.15, .15), Math.random() < .3 ? 0xffffff : 0x7affd8, 2, .9);
+    if (Math.random() < .25) fxRing(px - Math.sin(f) * .3, pz - Math.cos(f) * .3, .2, .9, .5, 0x7affd8, .35, gy - JSW_LIFT + .04); } catch (e) { } }
+/* ============ 九霄系列 · 其余五把武器（owner 22 Nov：每把武器都做九霄系列，玩法不能重复，特效要漂亮）============
+   步枪「九霄剑阵」= 九剑轮射，武士刀「九霄剑诀」= 九气轮斩。这里的五把各有自己的玩法，都还是九霄修仙、九种元素（J9_EL）：
+   手枪「九霄符箓」 jian9p：子弹是符纸，打中就贴在怪身上（每发换下一种元素），同一只怪贴满 3 张就引爆，三种元素一起发作。
+                         技能「九符镇魔」：九张符飞出去围成镇魔阵，阵里的怪被定住，阵收拢时一起爆开。
+   狙击枪「九霄星宿」 jian9s：身后一幅北斗九星图。打中远处（≥12 米）或首领 / 精英点亮一颗星，打空熄掉一颗；九星全亮，
+                         下一枪变成「天罡一剑」：一柄巨大的光剑从天上落下，劈中整条弹道。技能「星落」：七颗星坠向附近的怪，并点亮 3 颗星。
+   散弹枪「九霄剑雨」 jian9g：每颗弹丸是一片小飞剑。打空的剑片插在地上；换弹时所有剑片飞回你手里，沿路再穿过怪物打一次。
+                         技能「剑雨」：十八柄剑从天而降插满前方，下次换弹也会飞回来。
+   斧头「九霄雷钺」 jian9a：每砍一下在落点立一根雷桩，立满九根连成雷网，网里的怪每 0.5 秒挨一次雷，6 秒后雷桩全部炸开。
+                         技能「九天雷降」：三圈旋斩各引三道天雷，落雷处直接立桩（一次技能就能立满九根）。
+   镐子「九霄地脉」 jian9k：打中怪物、或敲到能采的岩石，都积一点地脉（脚边九颗晶石亮起）；攒满九点，下一镐从地下冲出一排剑山。
+                         技能「地脉翻涌」：一圈晶石剑峰在身边冲出，再加 3 点地脉。
+   穿「九霄剑仙」时装时（jxOn），五把的大招和爆发处都会多出剑仙的剑阵 / 阵印（联动）。 */
+const X9_ST = { dmg: .12, crit: .04, critDmg: .2 }, X9_STT = '伤害 +12%、暴击率 +4%、暴击伤害 +20%';
+WSKINS.jian9p = { only: 'pistol', st: X9_ST, stt: X9_STT + '，还有九色符箓', n: '九霄符箓', r: 5, custom: true, base: 0x1c4a3a, mid: 0x3ad88a, acc: 0xe8c060, glow: 0xffe08a, tr: 0xffd060, tr2: 0xd83a3a,
+  d: '玉青色的手枪，握把下挂着一张金符和红穗。子弹化作符纸飞出，每发换一种元素：水、火、雷、毒、冰、木、土、金、合。' };
+WSKINS.jian9s = { only: 'sniper', st: X9_ST, stt: X9_STT + '，还有北斗九星', n: '九霄星宿', r: 5, custom: true, base: 0x14204a, mid: 0x2a6a8a, acc: 0xe8c060, glow: 0xbfe8ff, tr: 0xe8f4ff, tr2: 0xffe08a,
+  d: '夜空色的狙击枪，枪身上七颗金星排成北斗。身后浮着一幅北斗九星图：天枢、天璇、天玑、天权、玉衡、开阳、摇光，加上隐着的洞明、隐元。' };
+WSKINS.jian9g = { only: 'shotgun', st: X9_ST, stt: X9_STT + '，还有剑雨飞剑', n: '九霄剑雨', r: 5, custom: true, base: 0x1c5a40, mid: 0x9fd8c8, acc: 0xe8c060, glow: 0x7affd8, tr: 0x7affd8, tr2: 0xffffff,
+  d: '玉色的散弹枪，枪口围着六柄小剑开成一朵剑莲。每颗弹丸都是一片小飞剑。' };
+WSKINS.jian9a = { only: 'axe', st: X9_ST, stt: X9_STT + '，还有雷桩雷网', n: '九霄雷钺', r: 5, custom: true, base: 0x3a2a5a, mid: 0x8a6ae0, acc: 0xe8c060, glow: 0xd8c4ff, tr: 0xb08aff, tr2: 0xffe08a,
+  d: '紫电色的大斧，斧首嵌着一颗雷珠，斧柄缠着雷符。每一斧都把一根雷桩钉进地里。' };
+WSKINS.jian9k = { only: 'pick', st: X9_ST, stt: X9_STT + '，还有地脉剑山', n: '九霄地脉', r: 5, custom: true, base: 0x4a3a28, mid: 0x3ad88a, acc: 0xe8c060, glow: 0x7affd8, tr: 0x7affd8, tr2: 0xd8a040,
+  d: '青铜色的镐子，镐首嵌着会发光的玉脉晶石。脚边九颗晶石记着你积下的地脉。' };
+try { for (const [k, id] of [['jian9p', 'pistol'], ['jian9s', 'sniper'], ['jian9g', 'shotgun'], ['jian9a', 'axe'], ['jian9k', 'pick']]) if (!WSK_DIRECT.some(p => p[0] === k)) WSK_DIRECT.push([k, id]); } catch (e) { }
+/* ---------- shared helpers ---------- */
+const x9Glow = (c, o) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o == null ? .9 : o, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+const x9Dmg = id => { try { return weaponDmg(id); } catch (e) { return 20; } };
+const x9Key = id => { try { return S.wsk && S.wsk[id]; } catch (e) { return ''; } };
+const x9On = (id, k) => { try { return S.wp === id && x9Key(id) === k; } catch (e) { return false; } };
+const x9Live = z => !!(z && !z.dead && zombies.indexOf(z) >= 0);
+const x9GY = () => { try { return pm.g.position.y || 0; } catch (e) { return 0; } };
+const x9Snd = (a, b, c, d, e, f) => { try { if (AC) sfxTone(a, b, c, d, e, f); } catch (er) { } }, x9Noise = (a, b, c, d) => { try { if (AC) sfxNoise(a, b, c, d); } catch (er) { } };
+// a group that lives `life` seconds (slow motion SKX.ts too); f(k) every frame it is drawn; its own geometries / materials are freed after
+function x9Run(obj, life, f) { obj.traverse(o => { o.frustumCulled = false; }); scene.add(obj); const t0 = performance.now(); let host = null; obj.traverse(o => { if (!host && o.isMesh) host = o; });
+  const step = () => { const k = Math.min(1, (performance.now() - t0) / (life * 1000 * SKX.ts)); try { f(k); } catch (e) { } };
+  if (host) host.onBeforeRender = step; step();
+  setTimeout(() => { try { scene.remove(obj); x9Free(obj); } catch (e) { } }, life * 1000 * SKX.ts + 60); return obj; }
+function x9Free(obj) { obj.traverse(o => { if (o.geometry && !(o.geometry.userData && o.geometry.userData.keep)) o.geometry.dispose(); if (o.material && !(o.material.userData && o.material.userData.keep)) o.material.dispose(); }); }
+function x9Near(x, z, r) { let b = null, bd = r; for (const o of zombies) { if (o.dead) continue; const d = Math.hypot(o.pos.x - x, o.pos.z - z); if (d < bd) { bd = d; b = o; } } return b; }
+function x9Around(x, z, r) { return zombies.filter(o => !o.dead && Math.hypot(o.pos.x - x, o.pos.z - z) < r + (o.r || .5) * .5); }
+function x9SegD(px, pz, ax, az, bx, bz) { const vx = bx - ax, vz = bz - az, L2 = vx * vx + vz * vz || 1, t = Math.max(0, Math.min(1, ((px - ax) * vx + (pz - az) * vz) / L2)); return Math.hypot(px - ax - vx * t, pz - az - vz * t); }
+const x9Hurt = (z, d, dx, dz) => { try { if (x9Live(z)) hurtZombie(z, d, dx || 0, dz || 0); } catch (e) { } };
+// the 九霄剑仙 outfit adds its sword seal wherever one of these skins bursts
+function x9Plus(x, gy, z, c, s) { try { if (typeof jxOn === 'function' && jxOn()) { jxSeal(x, gy, z, c, s || 1.2); skPillar(x, gy, z, .3, 5, .5, 0x7affd8, .7); } } catch (e) { } }
+function x9PlusSkill(C) { try { if (typeof jxOn === 'function' && jxOn()) jxArray(C, 4.2, 2.4); } catch (e) { } }
+// a floating text label (canvas sprite), e.g. the three elements of a talisman burst
+function x9Label(parts, x, y, z) { try { const c = document.createElement('canvas'); c.width = 256; c.height = 64; const g = c.getContext('2d'); if (!g) return;
+    g.font = 'bold 40px sans-serif'; g.textBaseline = 'middle'; const W = parts.reduce((s, p) => s + g.measureText(p[0]).width + 8, 0); let px = (256 - W) / 2;
+    for (const [t, col] of parts) { g.lineWidth = 6; g.strokeStyle = 'rgba(20,10,0,.85)'; g.strokeText(t, px, 34); g.fillStyle = col; g.fillText(t, px, 34); px += g.measureText(t).width + 8; }
+    const tx = new THREE.CanvasTexture(c), sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tx, transparent: true, depthWrite: false, depthTest: false })); sp.scale.set(1.6, .4, 1); sp.position.set(x, y, z); scene.add(sp); const t0 = performance.now();
+    const tick = () => { const k = (performance.now() - t0) / 1100; if (k >= 1) { scene.remove(sp); tx.dispose(); sp.material.dispose(); return; } sp.position.y = y + k * .9; sp.material.opacity = k < .7 ? 1 : (1 - k) / .3; sp.scale.set(1.6 * (k < .12 ? .6 + k / .3 : 1), .4 * (k < .12 ? .6 + k / .3 : 1), 1); requestAnimationFrame(tick); };
+    tick(); } catch (e) { } }
+const x9Hex = c => '#' + (c >>> 0).toString(16).padStart(6, '0');
+
+/* ================= 手枪 · 九霄符箓 ================= */
+const X9T = {};
+function x9TalTex(i) { if (X9T['t' + i] !== undefined) return X9T['t' + i]; let t = null;
+  try { const c = document.createElement('canvas'); c.width = 64; c.height = 128; const g = c.getContext('2d'); if (!g) throw 0;
+    const gr = g.createLinearGradient(0, 0, 0, 128); gr.addColorStop(0, '#fbe9a6'); gr.addColorStop(1, '#e6bf52'); g.fillStyle = gr; g.fillRect(0, 0, 64, 128);
+    g.strokeStyle = '#b0221e'; g.lineWidth = 4; g.strokeRect(4, 4, 56, 120); g.lineWidth = 1.5; g.strokeRect(10, 10, 44, 108);
+    g.fillStyle = x9Hex(J9_EL[i].c); g.fillRect(10, 10, 44, 13);
+    g.fillStyle = '#a8201c'; g.font = 'bold 34px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(J9_EL[i].n, 32, 50);
+    g.strokeStyle = '#a8201c'; g.lineWidth = 2.6; g.beginPath(); g.moveTo(32, 72); for (let k = 0; k < 5; k++) g.lineTo(k % 2 ? 21 : 43, 78 + k * 6); g.stroke();
+    g.beginPath(); g.arc(32, 108, 7, 0, 6.283); g.stroke(); g.beginPath(); g.moveTo(25, 108); g.lineTo(39, 108); g.stroke();
+    t = new THREE.CanvasTexture(c); } catch (e) { t = null; }
+  return (X9T['t' + i] = t); }
+function x9TalMat(i) { const k = 'm' + i; if (X9T[k]) return X9T[k]; const tx = x9TalTex(i);
+  const m = new THREE.MeshBasicMaterial(tx ? { map: tx, side: THREE.DoubleSide, transparent: true } : { color: 0xf0d070, side: THREE.DoubleSide }); m.userData.keep = 1; return (X9T[k] = m); }
+function x9TalGeo() { if (!X9T.geo) { X9T.geo = new THREE.PlaneGeometry(.2, .4); X9T.geo.userData.keep = 1; } return X9T.geo; }
+function x9Tal(i, sc) { const g = new THREE.Group(), p = new THREE.Mesh(x9TalGeo(), x9TalMat(i)); g.add(p);
+  const gl = new THREE.Mesh(x9TalGeo(), x9Glow(J9_EL[i].c, .4)); gl.scale.set(1.4, 1.18, 1); gl.position.z = -.006; g.add(gl); g.scale.setScalar(sc || 1); return g; }
+const P9 = { i: 0, L: [] };
+function p9Count(z) { let n = 0; for (const e of P9.L) if (e.z === z) n++; return n; }
+// a talisman sticks to the monster: it flutters round its body until the third one sets them off
+function p9Stick(z, i) { if (!x9Live(z) || z._p9b) return; const slot = p9Count(z); if (slot >= 3) return;
+  const g = x9Tal(i, .9); g.traverse(o => { o.frustumCulled = false; }); scene.add(g); P9.L.push({ z, i, g, slot, t0: S.t });
+  try { burst(z.pos.x, 1.2 * (z.sc || 1), z.pos.z, J9_EL[i].c, 5, 2); } catch (e) { } x9Snd(1500 + slot * 300, 1400 + slot * 300, .12, .03, 'triangle'); x9Noise(.08, .03, 3000, { type: 'highpass' });
+  if (slot === 2) { z._p9b = 1; setTimeout(() => p9Boom(z), 200); } }
+function p9Tick(dt) { if (!P9.L.length) return; const T = performance.now() / 1000;
+  for (let n = P9.L.length - 1; n >= 0; n--) { const e = P9.L[n], z = e.z;
+    if (!x9Live(z) || S.t - e.t0 > 14) { try { burst(e.g.position.x, e.g.position.y, e.g.position.z, 0xf0d070, 3, 1); scene.remove(e.g); e.g.children[1].material.dispose(); } catch (er) { } P9.L.splice(n, 1); if (z) z._p9b = 0; continue; }
+    if (e.fly) continue;
+    const a = e.slot * 2.094 + T * 1.1, r = (z.r || .5) + .22, sc = z.sc || 1; e.g.position.set(z.pos.x + Math.cos(a) * r, (1.0 + e.slot * .22) * sc + Math.sin(T * 3 + e.slot) * .05, z.pos.z + Math.sin(a) * r);
+    e.g.rotation.set(0, Math.atan2(Math.cos(a), Math.sin(a)), Math.sin(T * 5 + e.slot) * .18); } }
+// three talismans on one monster: they spiral into it and go off together — each element's effect at once, a seal, a burst round it
+function p9Boom(z) { const L = P9.L.filter(e => e.z === z); if (!L.length) { if (z) z._p9b = 0; return; }
+  const x = z.pos.x, zz = z.pos.z, y = 1.2 * (z.sc || 1), gy = 0, els = L.map(e => e.i), he = els.indexOf(8) >= 0, t0 = performance.now();
+  L.forEach(e => { e.fly = 1; const p0 = e.g.position.clone(), a0 = Math.atan2(p0.z - zz, p0.x - x);
+    const host = e.g.children[0]; host.onBeforeRender = () => { const k = Math.min(1, (performance.now() - t0) / 260), a = a0 + k * 4, r = (1 - k) * Math.hypot(p0.x - x, p0.z - zz);
+      e.g.position.set(x + Math.cos(a) * r, p0.y + (y - p0.y) * k, zz + Math.sin(a) * r); e.g.rotation.z = k * 9; e.g.scale.setScalar(.9 * (1 - k * .5)); }; });
+  x9Snd(600, 1800, .26, .04, 'sine');
+  setTimeout(() => { L.forEach(e => { try { scene.remove(e.g); e.g.children[1].material.dispose(); } catch (er) { } }); P9.L = P9.L.filter(e => e.z !== z); z._p9b = 0;
+    // the seal: one ring per element turning, a gold hex, a red core, all lying on the ground
+    const g = new THREE.Group(), R = he ? 3.4 : 2.6; g.position.set(x, gy + .07, zz); g.rotation.x = -Math.PI / 2;
+    const rings = els.map((el, n) => { const m = new THREE.Mesh(new THREE.RingGeometry(.86 - n * .2, .92 - n * .2, 48), x9Glow(J9_EL[el].c, 1)); g.add(m); return m; });
+    const hex = new THREE.Mesh(new THREE.RingGeometry(.5, .55, 6), x9Glow(0xffd060, 1)); g.add(hex); const core = new THREE.Mesh(new THREE.CircleGeometry(.3, 24), x9Glow(0xd83a3a, .8)); g.add(core);
+    x9Run(g, .75, k => { const s = R * (.25 + .75 * (1 - Math.pow(1 - Math.min(1, k * 2.2), 3))); g.scale.setScalar(s); rings.forEach((m, n) => { m.rotation.z = k * (n % 2 ? -5 : 5); m.material.opacity = 1 - k; }); hex.rotation.z = -k * 3; hex.material.opacity = 1 - k; core.material.opacity = .8 * (1 - k); });
+    els.forEach((el, n) => { skPillar(x, gy, zz, .35 - n * .07, 4.5 + n, .5, J9_EL[el].c, .8); for (let q = 0; q < 6; q++) { const a = q / 6 * 6.283 + n; fxStreak(x, y, zz, Math.cos(a) * 5, 1.5 + Math.random() * 2, Math.sin(a) * 5, J9_EL[el].c, .4, .05); } });
+    skPillar(x, gy, zz, .14, 7, .4, 0xffffff, .9); skRing(x, gy + .06, zz, .4, R + .6, .55, 0xffd060, .9); try { burst(x, y, zz, 0xffe08a, 12, 4); } catch (er) { }
+    x9Label(els.map(el => [J9_EL[el].n, x9Hex(J9_EL[el].c)]).concat([['·爆', '#ffd060']]), x, y + 1.4, zz);
+    x9Snd(90, 40, .5, .18, 'sine'); x9Noise(.35, .12, 900, { f1: 200 }); [784, 1175, 1568].forEach((f, n) => x9Snd(f, f, .7, .035, 'sine', { delay: .03 + n * .04 }));
+    try { S.shake = Math.max(S.shake || 0, he ? .25 : .14); } catch (er) { }
+    // damage: each talisman's element on the monster, then a blast round it
+    const B = x9Dmg('pistol'); els.forEach(el => { try { if (x9Live(z)) j9Hit(el, z, x, y, zz, B * .4, true); } catch (er) { } });
+    for (const o of x9Around(x, zz, he ? 3.5 : 2.5)) if (o !== z) x9Hurt(o, B * (he ? 1 : .6), o.pos.x - x, o.pos.z - zz);
+    x9Plus(x, gy, zz, J9_EL[els[0]].c, 1.3); }, 280); }
+petsTick = (o => function (dt) { const r = o(dt); try { p9Tick(dt); } catch (e) { } return r; })(petsTick);
+
+/* ================= 狙击枪 · 九霄星宿 ================= */
+// the Big Dipper (天枢 天璇 天玑 天权 玉衡 开阳 摇光) + the two hidden stars 洞明 隐元, in the order they light; lines of the figure
+const S9_P = [[-.7, .2], [-.74, -.18], [-.28, -.26], [-.2, .08], [.18, .16], [.5, .24], [.84, .06], [.58, .56], [1.02, .44]];
+const S9_LN = [[0, 1], [1, 2], [2, 3], [3, 0], [3, 4], [4, 5], [5, 6], [5, 7], [6, 8]];
+const S9_N = ['天枢', '天璇', '天玑', '天权', '玉衡', '开阳', '摇光', '洞明', '隐元'];
+const S9 = { n: 0, g: null, st: [], ln: [] };
+function s9Map() { if (S9.g) return S9.g; const g = new THREE.Group();
+  const bg = new THREE.Mesh(new THREE.CircleGeometry(1.3, 40), x9Glow(0x14204a, .22)); bg.position.z = -.02; g.add(bg);
+  const rim = new THREE.Mesh(new THREE.RingGeometry(1.26, 1.3, 64), x9Glow(0xe8c060, .45)); g.add(rim); const rim2 = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.12, 28), x9Glow(0xbfe8ff, .35)); g.add(rim2);
+  S9.ln = S9_LN.map(([a, b]) => { const A = S9_P[a], B = S9_P[b], L = Math.hypot(B[0] - A[0], B[1] - A[1]); const m = new THREE.Mesh(new THREE.PlaneGeometry(L, .028), x9Glow(0xffe8a8, .12)); m.position.set((A[0] + B[0]) / 2, (A[1] + B[1]) / 2, 0); m.rotation.z = Math.atan2(B[1] - A[1], B[0] - A[0]); g.add(m); return { m, a, b }; });
+  S9.st = S9_P.map((p, i) => { const s = new THREE.Group(); s.position.set(p[0], p[1], .01);
+    const core = new THREE.Mesh(new THREE.OctahedronGeometry(.055), new THREE.MeshBasicMaterial({ color: 0x8090b0 })); s.add(core);
+    const halo = new THREE.Mesh(new THREE.CircleGeometry(.16, 16), x9Glow(0xffe8a8, .0)); halo.position.z = -.005; s.add(halo);
+    const fl1 = new THREE.Mesh(new THREE.PlaneGeometry(.42, .03), x9Glow(0xffffff, 0)), fl2 = fl1.clone(); fl2.material = fl1.material; fl2.rotation.z = Math.PI / 2; s.add(fl1, fl2);
+    g.add(s); return { s, core, halo, fl: fl1, on: 0 }; });
+  g.userData = { rim, rim2 }; g.traverse(o => { o.frustumCulled = false; }); scene.add(g); return (S9.g = g); }
+function s9Tick(dt) { const on = x9On('sniper', 'jian9s') && !S.dead && !(typeof buildOpen !== 'undefined' && buildOpen) && pm && pm.g && pm.g.visible;
+  if (!on) { if (S9.g) S9.g.visible = false; return; } const g = s9Map(); g.visible = true; const T = performance.now() / 1000, f = player.face || 0, PY = (typeof playerY === 'function' && playerY()) || 0, big = typeof jxOn === 'function' && jxOn() ? 1.2 : 1;
+  g.position.set(player.pos.x - Math.sin(f) * .7, 2.75 + PY + Math.sin(T * 1.3) * .04, player.pos.z - Math.cos(f) * .7); g.rotation.set(0, f, 0); g.scale.setScalar(big);
+  g.userData.rim.rotation.z = T * .2; g.userData.rim2.rotation.z = -T * .35; const full = S9.n >= 9;
+  S9.st.forEach((q, i) => { const lit = i < S9.n; q.on += ((lit ? 1 : 0) - q.on) * Math.min(1, dt * 6); const tw = .8 + .2 * Math.sin(T * 5 + i * 1.7) + (full ? .3 * Math.sin(T * 9) : 0);
+    q.core.material.color.setHex(lit ? (full ? 0xffffff : 0xfff2c0) : 0x6a7aa0); q.core.scale.setScalar(.7 + q.on * .6 * tw); q.halo.material.opacity = q.on * .55 * tw; q.halo.scale.setScalar(.8 + q.on * .4 * tw);
+    q.fl.material.opacity = q.on * (.5 + .3 * Math.sin(T * 3 + i)); q.fl.parent.rotation.z = T * .3 + i; });
+  S9.ln.forEach(L => { const k = Math.min(S9.st[L.a].on, S9.st[L.b].on); L.m.material.opacity = .08 + k * (full ? .7 : .45); L.m.material.color.setHex(full ? 0xffffff : 0xffe8a8); }); }
+petsTick = (o => function (dt) { const r = o(dt); try { s9Tick(dt); } catch (e) { } return r; })(petsTick);
+function s9StarPos(i) { const g = s9Map(), v = new THREE.Vector3(S9_P[i][0], S9_P[i][1], .01); g.updateMatrixWorld(true); return v.applyMatrix4(g.matrixWorld); }
+function s9Gain(x, y, z) { if (S9.n >= 9) return; const i = S9.n++; let P = null; try { P = s9StarPos(i); } catch (e) { }
+  if (P) { const t0 = performance.now(); skP(skGeo().oct, 0xfff2c0, x, y, z, .45, (k, m) => { const e = k * k * (3 - 2 * k); m.position.set(x + (P.x - x) * e, y + (P.y - y) * e + Math.sin(k * Math.PI) * 1.2, z + (P.z - z) * e); m.scale.setScalar(2.2 - k); m.rotation.y = k * 9; }); }
+  x9Snd(1046 * Math.pow(1.0595, i * 2), 1046 * Math.pow(1.0595, i * 2), .5, .03, 'sine', { delay: .4 });
+  if (S9.n === 9) setTimeout(() => { try { banner('北斗九星 · 全亮', '下一枪：天罡一剑', 1.4); } catch (e) { } [523, 659, 784, 1046, 1318].forEach((f, n) => x9Snd(f, f, .9, .03, 'sine', { delay: n * .07 })); }, 450); }
+function s9Lose() { if (S9.n <= 0 || S9.n >= 9) return; S9.n--; try { const P = s9StarPos(S9.n); burst(P.x, P.y, P.z, 0x6a7aa0, 5, 1.2); } catch (e) { } x9Snd(660, 330, .25, .02, 'sine'); }
+// the normal shot: a thin starlight line with little stars along it, a four-point star where it lands
+function s9Shot(ox, oz, dx, dz, end, hit, fm) { const PY = (typeof playerY === 'function' && playerY()) || 0, sx = fm ? fm.x : ox, sy = fm ? fm.y : 1.55 + PY, sz = fm ? fm.z : oz, ex = ox + dx * end, ey = 1.45 + PY, ez = oz + dz * end, an = Math.atan2(dx, dz), L = Math.hypot(ex - sx, ez - sz);
+  for (const [w, c, l] of [[.11, 0x7ab8ff, .3], [.04, 0xffffff, .22]]) skP(skGeo().box, c, (sx + ex) / 2, (sy + ey) / 2, (sz + ez) / 2, l, (k, m) => { m.rotation.set(0, an, 0); m.scale.set(w * (1 - k), w * (1 - k), L); m.material.opacity = 1 - k; });
+  for (let i = 1; i < 6; i++) { const t = i / 6; skL(i * 18, () => skStar(sx + (ex - sx) * t, sy + (ey - sy) * t, sz + (ez - sz) * t, 0xffe8a8, .35, .3)); }
+  skStar(ex, ey, ez, 0xffffff, hit ? 1.1 : .6, .45); if (hit) skRing(ex, ey, ez, .1, 1.2, .35, 0xbfe8ff, .8);
+  // a good shot (far, or a boss / elite) lights a star; a miss puts one out
+  if (!hit) { s9Lose(); return; } let best = null, bd = 1e9; for (const z of zombies) { if (z.dead) continue; const d = segHit({ t: 0, x: z.pos.x, z: z.pos.z, r: z.r * 1.15 }, ox, oz, dx, dz, end); if (d >= 0 && d < bd) { bd = d; best = z; } }
+  if (best && (bd >= 12 || best.boss || best.elite)) s9Gain(best.pos.x, 1.3 * (best.sc || 1), best.pos.z); }
+// 天罡一剑: a giant sword of light comes down out of the sky along the whole line of the shot
+function x9BigSword(len, glowC, edgeC) { const g = new THREE.Group(), add = (w, h, d, m, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.z = z; g.add(b); return b; };
+  add(.9, .14, len, x9Glow(glowC, .8), len / 2); add(.36, .22, len * 1.01, x9Glow(0xffffff, .95), len / 2); add(1.8, .4, .4, x9Glow(edgeC, .9), -.1); add(.3, .3, 1.4, x9Glow(edgeC, .9), -.9);
+  const tip = add(.6, .14, 1.2, x9Glow(glowC, .8), len + .5); tip.scale.x = .55; return g; }
+function s9Tiangang(ox, oz, dx, dz, end) { const L = Math.max(8, end), an = Math.atan2(dx, dz), gy = x9GY(), mx = ox + dx * L / 2, mz = oz + dz * L / 2, t0 = performance.now();
+  try { fxFlash(0xfff2c0, .25, .25); } catch (e) { } x9Snd(2093, 2093, 1.2, .05, 'sine'); x9Snd(3136, 3100, .8, .025, 'sine', { delay: .05 });
+  const sw = x9BigSword(L, 0xbfe8ff, 0xffe08a);
+  x9Run(sw, 1.3, k => { const t = k * 1.3, d = Math.min(1, Math.max(0, (t - .15) / .22)), e = d * d; sw.position.set(ox, gy + 14 - 12.8 * e, oz); sw.rotation.set(0, an, 0); sw.children.forEach(m => { m.material.opacity = (t < .1 ? t / .1 : k > .7 ? (1 - k) / .3 : 1) * (m.userData.o0 || (m.userData.o0 = m.material.opacity)); }); });
+  // the sky splits above the line
+  skP(skGeo().box, 0xfff2c0, mx, gy + 14, mz, .6, (k, m) => { m.rotation.set(0, an, 0); m.scale.set(.3 + k * 1.5, .1, L); m.material.opacity = .8 * (1 - k); });
+  skL(380, () => { try { fxFlash(0xffffff, .35, .3); S.shake = Math.max(S.shake || 0, .5); } catch (e) { } x9Snd(70, 30, 1, .25, 'sine'); x9Noise(.6, .15, 700, { f1: 120 });
+    fxBeam(ox, oz, ox + dx * L, oz + dz * L, .9, 1.2, 0xffe08a, .85, gy + .05, .02); fxBeam(ox, oz, ox + dx * L, oz + dz * L, .3, 1, 0xffffff, .9, gy + .06, .02);
+    for (let i = 0; i < 9; i++) { const f = (i + .5) / 9, x = ox + dx * L * f, z = oz + dz * L * f; skL(i * 35, () => { skPillar(x, gy, z, .45, 8, .6, i % 2 ? 0xbfe8ff : 0xffe08a, .85); skRing(x, gy + .06, z, .3, 2.4, .5, 0xffe8a8, .85); skStar(x, gy + 2, z, 0xffffff, 1.4, .5); }); }
+    const B = x9Dmg('sniper') * 4; for (const z of zombies.slice()) { if (z.dead) continue; if (x9SegD(z.pos.x, z.pos.z, ox, oz, ox + dx * L, oz + dz * L) < 1.5 + (z.r || .5) * .5) x9Hurt(z, B, dx, dz); }
+    x9Plus(ox + dx * L * .5, gy, oz + dz * L * .5, 0xffe08a, 1.6); }); }
+
+/* ================= 散弹枪 · 九霄剑雨 ================= */
+const G9 = { c: 0, sh: [], rec: 0 };
+function g9Stick(i, x, z, dx, dz) { const gy = 0, sw = j9Sword(i, .62); sw.traverse(o => { o.frustumCulled = false; }); scene.add(sw);
+  sw.position.set(x, gy + .2, z); j9Orient(sw, dx * .6, -1, dz * .6, -dz, 0, dx); G9.sh.push({ m: sw, i, t0: S.t, x, z });
+  if (G9.sh.length > 27) { const o = G9.sh.shift(); try { scene.remove(o.m); } catch (e) { } }
+  try { burst(x, .15, z, 0xd8c8a8, 3, 1.2); } catch (e) { } }
+function g9Tick(dt) { const T = performance.now() / 1000;
+  for (let n = G9.sh.length - 1; n >= 0; n--) { const o = G9.sh[n]; if (o.fly) continue; const age = S.t - o.t0;
+    if (age > 15 || Math.hypot(o.x - player.pos.x, o.z - player.pos.z) > 60) { try { scene.remove(o.m); } catch (e) { } G9.sh.splice(n, 1); continue; }
+    o.m.children.forEach(c => { if (c.userData.glow) c.material.opacity = .25 + .2 * Math.sin(T * 4 + n); }); } }
+petsTick = (o => function (dt) { const r = o(dt); try { g9Tick(dt); } catch (e) { } return r; })(petsTick);
+// every pellet is a little flying sword; ones that miss stick in the ground
+function g9Shot(ox, oz, dx, dz, end, hit, fm, pel) { const PY = (typeof playerY === 'function' && playerY()) || 0, sx = fm ? fm.x : ox, sy = fm ? fm.y : 1.5 + PY, sz = fm ? fm.z : oz, ex = ox + dx * end, ey = 1.35 + PY, ez = oz + dz * end, i = (G9.c++) % 9, tf = .05 + end / 110;
+  const sw = j9Sword(i, .6); x9Run(sw, tf, k => { sw.position.set(sx + (ex - sx) * k, sy + (ey - sy) * k, sz + (ez - sz) * k); sw.lookAt(ex + dx, ey, ez + dz); });
+  skP(skGeo().box, J9_EL[i].c, (sx + ex) / 2, (sy + ey) / 2, (sz + ez) / 2, .2, (k, m) => { m.lookAt(ex, ey, ez); m.scale.set(.05 * (1 - k), .05 * (1 - k), Math.hypot(ex - sx, ez - sz)); m.material.opacity = .7 * (1 - k); });
+  if (!pel) { const an = Math.atan2(dx, dz); for (let q = 0; q < 6; q++) skP(skGeo().cres, q % 2 ? 0x7affd8 : 0xffffff, sx, sy, sz, .22, (k, m) => { m.rotation.order = 'YXZ'; m.rotation.set(0, an + (q - 2.5) * .35, 0); m.scale.setScalar(.25 + k * .6); m.material.opacity = 1 - k; }); }
+  skL(tf * 1000, () => { if (hit) { try { burst(ex, ey, ez, J9_EL[i].c, 4, 2.5); } catch (e) { } skStar(ex, ey, ez, J9_EL[i].c, .5, .25); } else g9Stick(i, ex, ez, dx, dz); }); }
+// reloading calls every sword in the ground back to your hand; on the way each one cuts through what stands in its path
+function g9Recall() { const L = G9.sh.splice(0); if (!L.length) return; const B = x9Dmg('shotgun') * .6, t0 = performance.now(); let left = L.length;
+  x9Snd(880, 1760, .5, .04, 'sine'); x9Noise(.4, .05, 3500, { type: 'bandpass', q: 1.5 });
+  L.forEach((o, n) => { o.fly = 1; const sw = o.m, hit = new Set(), p0 = sw.position.clone(), dl = n * 22 + Math.random() * 40;
+    const host = sw.children[0]; let last = null;
+    host.onBeforeRender = () => { const t = (performance.now() - t0 - dl) / 1000 / SKX.ts; if (t < 0) return; const PY = (typeof playerY === 'function' && playerY()) || 0, tx = player.pos.x, ty = 1.3 + PY, tz = player.pos.z;
+      if (t < .22) { const e = t / .22; sw.position.set(p0.x, p0.y + e * 1.1, p0.z); j9Orient(sw, tx - p0.x, .2, tz - p0.z, 0, 1, 0); sw.rotateZ(e * 6); sw.scale.setScalar(.62 * (1 + e * .5)); return; }
+      const from = last || new THREE.Vector3(p0.x, p0.y + 1.1, p0.z), d = Math.hypot(tx - from.x, tz - from.z), step = 26 * Math.min(.05, 1 / 60) * 1;
+      const k = Math.min(1, step / Math.max(d, .01)), nx = from.x + (tx - from.x) * k, ny = from.y + (ty - from.y) * k, nz = from.z + (tz - from.z) * k; sw.position.set(nx, ny, nz); j9Orient(sw, tx - nx, ty - ny, tz - nz, 0, 1, 0); last = sw.position.clone();
+      if (Math.random() < .5) try { burst(nx, ny, nz, J9_EL[o.i].c, 1, .3); } catch (e) { }
+      for (const z of zombies) { if (z.dead || hit.has(z)) continue; if (Math.hypot(z.pos.x - nx, z.pos.z - nz) < (z.r || .5) + .5) { hit.add(z); x9Hurt(z, B, tx - nx, tz - nz); try { burst(z.pos.x, 1.1 * (z.sc || 1), z.pos.z, J9_EL[o.i].c, 4, 2); } catch (e) { } x9Snd(2400 + o.i * 60, 2200, .08, .02, 'sine'); } }
+      if (d < .5 || t > 3) { host.onBeforeRender = () => { }; try { scene.remove(sw); burst(tx, ty, tz, J9_EL[o.i].c, 3, 1.2); } catch (e) { } x9Snd(1760 + (n % 5) * 220, 1760 + (n % 5) * 220, .15, .012, 'sine');
+        if (--left === 0) { skRing(tx, (pm ? pm.g.position.y : 0) + .1, tz, .3, 2.4, .5, 0x7affd8, .85); for (let q = 0; q < 9; q++) { const a = q / 9 * 6.283; skP(skGeo().box, J9_EL[q].c, tx, ty, tz, .5, (k, m) => { const r = .5 + k * 1.2; m.position.set(tx + Math.cos(a) * r, ty, tz + Math.sin(a) * r); m.rotation.set(0, -a, 0); m.scale.set(.5, .04, .04); m.material.opacity = 1 - k; }); }
+          x9Plus(tx, (pm ? pm.g.position.y : 0), tz, 0x7affd8, 1); } } }; });
+  // safety: anything left after 4 s is simply gone
+  setTimeout(() => { L.forEach(o => { try { scene.remove(o.m); } catch (e) { } }); }, 4000); }
+startReload = (o => function () { const was = S.reload; o.apply(this, arguments); try { if (!(was > 0) && S.reload > 0 && x9On('shotgun', 'jian9g')) g9Recall(); } catch (e) { } })(startReload);
+
+/* ================= 斧头 · 九霄雷钺 ================= */
+const A9 = { st: [], net: null, arcT: 0 };
+function a9Stake(x, z, gy) { const g = new THREE.Group(), L = c => new THREE.MeshLambertMaterial({ color: c, flatShading: true }), add = (geo, m, y) => { const o = new THREE.Mesh(geo, m); o.position.y = y; g.add(o); return o; };
+  add(new THREE.CylinderGeometry(.2, .24, .08, 8), L(0xe8c060), .04); add(new THREE.CylinderGeometry(.05, .065, 1.15, 6), L(0x7a5a2a), .6);
+  for (let i = 0; i < 3; i++) add(new THREE.CylinderGeometry(.075, .075, .035, 8), L(0xe8c060), .3 + i * .3);
+  const tal = x9Tal(2, .62); tal.position.set(0, .62, .07); g.add(tal);
+  for (let i = 0; i < 4; i++) { const p = add(new THREE.ConeGeometry(.025, .14, 4), L(0xe8c060), 1.22); const a = i * 1.571; p.position.x = Math.cos(a) * .09; p.position.z = Math.sin(a) * .09; p.rotation.set(Math.sin(a) * .5, 0, -Math.cos(a) * .5); }
+  const orb = add(new THREE.IcosahedronGeometry(.11, 1), new THREE.MeshBasicMaterial({ color: 0xe8dcff }), 1.3), halo = add(new THREE.OctahedronGeometry(.2), x9Glow(0xb08aff, .3), 1.3); halo.scale.y = 1.6;
+  g.position.set(x, gy, z); g.userData = { orb, halo }; g.traverse(o => { o.frustumCulled = false; }); scene.add(g); return g; }
+function a9Plant(x, z) { const gy = x9GY() > .5 ? 0 : x9GY();
+  for (const s of A9.st) if (Math.hypot(s.x - x, s.z - z) < 1.1) { s.t0 = S.t; try { burst(s.x, gy + 1.3, s.z, 0xd8c4ff, 5, 2); } catch (e) { } return; }   // too close to a stake: it is charged again instead
+  const g = a9Stake(x, z, gy), st = { x, z, gy, g, t0: S.t, b0: performance.now() }; A9.st.push(st);
+  skBolt(x + .3, gy + 9, z - .2, x, gy + 1.3, z, 0xb08aff, .28); skRing(x, gy + .06, z, .2, 1.8, .45, 0xd8c4ff, .9); try { burst(x, gy + .3, z, 0xd8c4ff, 8, 3); } catch (e) { }
+  x9Noise(.12, .12, 4500, { type: 'highpass' }); x9Snd(140, 60, .25, .1, 'sawtooth', { lp: 900 });
+  if (A9.st.length >= 9 && !A9.net) a9Net(); }
+function a9Hull(P) { const p = P.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]), cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), lo = [], up = [];
+  for (const q of p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+  for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
+  up.pop(); lo.pop(); return lo.concat(up); }
+function a9In(H, x, z) { if (H.length < 3) return false; for (let i = 0; i < H.length; i++) { const a = H[i], b = H[(i + 1) % H.length]; if ((b[0] - a[0]) * (z - a[1]) - (b[1] - a[1]) * (x - a[0]) < 0) return false; } return true; }
+// nine stakes: they join into a net of lightning for 6 s, then all go off at once
+function a9Net() { const P = A9.st.map(s => [s.x, s.z]), links = [];
+  A9.st.forEach((s, i) => { const o = A9.st.map((t, j) => [Math.hypot(t.x - s.x, t.z - s.z), j]).filter(q => q[1] !== i).sort((a, b) => a[0] - b[0]).slice(0, 2);
+    for (const [, j] of o) if (!links.some(l => (l[0] === i && l[1] === j) || (l[0] === j && l[1] === i))) links.push([i, j]); });
+  A9.net = { t0: S.t, links, hull: a9Hull(P), dt: 0 }; const gy = A9.st[0].gy;
+  for (const [i, j] of links) { const a = A9.st[i], b = A9.st[j]; fxBeam(a.x, a.z, b.x, b.z, .16, 6, 0xb08aff, .75, gy + .05, .02); fxBeam(a.x, a.z, b.x, b.z, .05, 6, 0xffffff, .8, gy + .06, .02); }
+  A9.st.forEach(s => { skPillar(s.x, gy, s.z, .25, 9, .5, 0xd8c4ff, .9); skBolt(s.x, gy + 10, s.z, s.x, gy + 1.3, s.z, 0xb08aff, .3); });
+  try { fxFlash(0xd8c4ff, .25, .3); S.shake = Math.max(S.shake || 0, .35); banner('九桩雷网', '6 秒内网中的怪不停挨雷', 1.4); } catch (e) { }
+  x9Snd(60, 30, 1.2, .2, 'sawtooth', { lp: 500 }); x9Noise(.9, .14, 3000, { type: 'bandpass', q: .6, f1: 600 });
+  const cx = P.reduce((s, p) => s + p[0], 0) / P.length, cz = P.reduce((s, p) => s + p[1], 0) / P.length; x9Plus(cx, gy, cz, 0xb08aff, 1.8); }
+function a9Tick(dt) { const T = performance.now() / 1000;
+  for (let n = A9.st.length - 1; n >= 0; n--) { const s = A9.st[n], u = s.g.userData, k = Math.min(1, (performance.now() - s.b0) / 140);
+    s.g.position.y = s.gy + 2 * (1 - k); u.orb.scale.setScalar(1 + .15 * Math.sin(T * 8 + n)); const hs = 1 + .2 * Math.sin(T * 6 + n) + (A9.net ? .25 : 0); u.halo.scale.set(hs, hs * 1.6, hs); u.halo.rotation.y = T * 2; u.halo.material.opacity = A9.net ? .5 : .28 + .08 * Math.sin(T * 5 + n);
+    if (!A9.net && (S.t - s.t0 > 20 || Math.hypot(s.x - player.pos.x, s.z - player.pos.z) > 45)) { scene.remove(s.g); x9Free(s.g); A9.st.splice(n, 1); } }
+  A9.arcT -= dt; if (A9.arcT <= 0 && A9.st.length) { A9.arcT = A9.net ? .12 : .6;
+    if (A9.net) { for (let q = 0; q < 2; q++) { const L = A9.net.links[Math.floor(Math.random() * A9.net.links.length)]; if (!L) break; const a = A9.st[L[0]], b = A9.st[L[1]]; if (a && b) skBolt(a.x, a.gy + 1.3, a.z, b.x, b.gy + 1.3, b.z, Math.random() < .5 ? 0xb08aff : 0xe8dcff, .16); } }
+    else { const s = A9.st[Math.floor(Math.random() * A9.st.length)]; skBolt(s.x, s.gy + 1.3, s.z, s.x + rand(-.6, .6), s.gy + .05, s.z + rand(-.6, .6), 0xb08aff, .14); } }
+  const N = A9.net; if (!N) return; N.dt -= dt;
+  if (N.dt <= 0) { N.dt = .5; const B = x9Dmg('axe') * .35;
+    for (const z of zombies.slice()) { if (z.dead) continue; let inNet = a9In(N.hull, z.pos.x, z.pos.z);
+      if (!inNet) for (const [i, j] of N.links) { const a = A9.st[i], b = A9.st[j]; if (a && b && x9SegD(z.pos.x, z.pos.z, a.x, a.z, b.x, b.z) < 1.2) { inNet = true; break; } }
+      if (!inNet) continue; x9Hurt(z, B, 0, 0); z.slowT = Math.max(z.slowT || 0, .6);
+      let ns = null, nd = 1e9; for (const s of A9.st) { const d = Math.hypot(s.x - z.pos.x, s.z - z.pos.z); if (d < nd) { nd = d; ns = s; } } if (ns) skBolt(ns.x, ns.gy + 1.3, ns.z, z.pos.x, 1.2 * (z.sc || 1), z.pos.z, 0xd8c4ff, .18); }
+    x9Noise(.1, .06, 5000, { type: 'highpass' }); }
+  if (S.t - N.t0 > 6) { const gy = A9.st.length ? A9.st[0].gy : 0;
+    A9.st.forEach((s, n) => skL(n * 40, () => { skPillar(s.x, gy, s.z, .5, 7, .5, 0xd8c4ff, .9); skRing(s.x, gy + .06, s.z, .3, 2.6, .5, 0xb08aff, .9); try { burst(s.x, gy + 1.3, s.z, 0xe8dcff, 10, 4); } catch (e) { }
+      for (const z of x9Around(s.x, s.z, 2.2)) x9Hurt(z, x9Dmg('axe') * .5, z.pos.x - s.x, z.pos.z - s.z); scene.remove(s.g); x9Free(s.g); }));
+    x9Snd(50, 25, 1, .22, 'sine'); x9Noise(.7, .15, 900, { f1: 150 }); try { S.shake = Math.max(S.shake || 0, .4); } catch (e) { }
+    A9.st = []; A9.net = null; } }
+petsTick = (o => function (dt) { const r = o(dt); try { a9Tick(dt); } catch (e) { } return r; })(petsTick);
+
+/* ================= 镐子 · 九霄地脉 ================= */
+const K9 = { n: 0, g: null, cr: [], full: 0 };
+function k9Ring() { if (K9.g) return K9.g; const g = new THREE.Group();
+  for (let i = 0; i < 9; i++) { const c = new THREE.Group(), m = new THREE.Mesh(new THREE.OctahedronGeometry(.07), new THREE.MeshLambertMaterial({ color: 0x6a6258, flatShading: true })); m.scale.y = 1.8; c.add(m);
+    const h = new THREE.Mesh(new THREE.OctahedronGeometry(.13), x9Glow(0x7affd8, 0)); h.scale.y = 1.6; c.add(h); g.add(c); K9.cr.push({ c, m, h, on: 0 }); }
+  g.traverse(o => { o.frustumCulled = false; }); scene.add(g); return (K9.g = g); }
+function k9Tick(dt) { const on = x9On('pick', 'jian9k') && !S.dead && !(typeof buildOpen !== 'undefined' && buildOpen) && pm && pm.g && pm.g.visible;
+  if (!on) { if (K9.g) K9.g.visible = false; return; } const g = k9Ring(); g.visible = true; const T = performance.now() / 1000, full = K9.n >= 9;
+  g.position.set(player.pos.x, x9GY() + .38, player.pos.z); g.rotation.y = T * (full ? 2.4 : .5);
+  K9.cr.forEach((q, i) => { const lit = i < K9.n; q.on += ((lit ? 1 : 0) - q.on) * Math.min(1, dt * 6); const a = i / 9 * 6.283;
+    q.c.position.set(Math.cos(a) * .9, Math.sin(T * 2 + i) * .06 + (full ? .15 * Math.sin(T * 6 + i) : 0), Math.sin(a) * .9);
+    q.m.material.color.setHex(lit ? 0x8affd8 : 0x6a6258); q.m.material.emissive && q.m.material.emissive.setHex(lit ? 0x1a6a50 : 0); q.h.material.opacity = q.on * (full ? .8 : .45); q.h.scale.set(1 + q.on * .3, 1.6, 1 + q.on * .3); }); }
+petsTick = (o => function (dt) { const r = o(dt); try { k9Tick(dt); } catch (e) { } return r; })(petsTick);
+function k9Add(n, x, y, z) { const was = K9.n; K9.n = Math.min(9, K9.n + n); if (K9.n === was) return;
+  try { burst(x, y, z, 0x7affd8, 4, 1.5); } catch (e) { } x9Snd(1318 + K9.n * 90, 1318 + K9.n * 90, .3, .025, 'sine');
+  if (K9.n >= 9) { try { banner('地脉已满', '下一镐：剑山', 1.3); } catch (e) { } x9Snd(98, 70, .8, .14, 'sine'); [659, 880, 1318].forEach((f, q) => x9Snd(f, f, .6, .03, 'triangle', { delay: q * .06 })); } }
+// one crystal sword-peak bursting out of the ground: a jade blade-shaped crystal with smaller ones round it, rock flying off
+function k9Peak(x, z, gy, h, c, delay, dmg, hitSet, dx, dz) {
+  skL(delay, () => { const g = new THREE.Group(), main = new THREE.Mesh(new THREE.ConeGeometry(.42, h, 5), new THREE.MeshLambertMaterial({ color: c, emissive: 0x0e4a36, flatShading: true }));
+    main.position.y = h / 2; g.add(main); const core = new THREE.Mesh(new THREE.ConeGeometry(.22, h * 1.02, 5), x9Glow(0xcfffee, .55)); core.position.y = h / 2; g.add(core);
+    for (let q = 0; q < 3; q++) { const a = q * 2.09 + x, s = new THREE.Mesh(new THREE.ConeGeometry(.2, h * .5, 5), main.material); s.position.set(Math.cos(a) * .4, h * .22, Math.sin(a) * .4); s.rotation.set(Math.sin(a) * .5, 0, -Math.cos(a) * .5); g.add(s); }
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(.46, .05, 4, 10), new THREE.MeshLambertMaterial({ color: 0xe8c060, flatShading: true })); rim.rotation.x = Math.PI / 2; rim.position.y = .12; g.add(rim);
+    g.position.set(x, gy, z); g.rotation.y = Math.random() * 6;
+    x9Run(g, 1.5, k => { const t = k * 1.5; g.position.y = gy + (t < .12 ? -h * (1 - t / .12) : t < 1.05 ? 0 : -h * ((t - 1.05) / .45)); core.material.opacity = .55 * (1 - k); });
+    skRing(x, gy + .05, z, .3, 2, .45, 0x7affd8, .85); for (let q = 0; q < 6; q++) skThrow(skGeo().box, q % 2 ? 0x8a7a62 : 0x5a4a3a, x, gy + .2, z, rand(-3, 3), 4 + Math.random() * 3, rand(-3, 3), .9, .12, 12, 6);
+    try { burst(x, gy + h * .6, z, 0xcfffee, 5, 2.5); } catch (e) { } x9Snd(1760 + Math.random() * 400, 1700, .25, .03, 'triangle'); x9Snd(80, 45, .25, .1, 'sine');
+    for (const zb of x9Around(x, z, 1.5)) { if (hitSet.has(zb)) continue; hitSet.add(zb); x9Hurt(zb, dmg, zb.pos.x - x, zb.pos.z - z); if (!zb.boss) { const ex = zb.pos.x - x, ez = zb.pos.z - z, d = Math.hypot(ex, ez) || 1; zb.knx = (ex / d * .6 + (dx || 0)) * 5; zb.knz = (ez / d * .6 + (dz || 0)) * 5; } } }); }
+// 剑山: a line of peaks along your aim, each taller than the last
+function k9Mountain(dx, dz) { const px = player.pos.x, pz = player.pos.z, gy = x9GY(), hit = new Set(), B = x9Dmg('pick') * 2.2, rx = dz, rz = -dx;
+  for (let i = 0; i < 7; i++) { const d = 1.6 + i * 1.25, s = (i % 2 ? 1 : -1) * .35; k9Peak(px + dx * d + rx * s, pz + dz * d + rz * s, gy, 1.4 + i * .2, i === 6 ? 0x9affe0 : 0x3ad88a, i * 55, B, hit, dx, dz); }
+  fxBeam(px + dx * 1.2, pz + dz * 1.2, px + dx * 10, pz + dz * 10, .5, .9, 0x7affd8, .7, gy + .04, .02); x9Noise(.9, .12, 500, { f1: 90 }); x9Snd(60, 35, 1, .2, 'sine');
+  try { S.shake = Math.max(S.shake || 0, .35); } catch (e) { } skL(400, () => x9Plus(px + dx * 6, gy, pz + dz * 6, 0x7affd8, 1.5)); }
+// gathering counts too: a swing at a rock / scrap you can mine fills one point
+gatherSwing = (o => function (W, dx, dz) { try { if (x9On('pick', 'jian9k')) { const hx = player.pos.x + dx * 1.6, hz = player.pos.z + dz * 1.6;
+      const ok = queryObstacles(hx, hz, 1.6).some(q => TOOL_G.pick.includes(q.g) && (!S.isl || q.islT) && !((q.gt || 0) > S.t) && (q.t === 0 ? Math.hypot(hx - q.x, hz - q.z) - q.r : Math.max(Math.abs(hx - q.x) - q.hw, Math.abs(hz - q.z) - q.hd)) <= 1.4);
+      if (ok) k9Add(1, hx, 1, hz); } } catch (e) { } return o.apply(this, arguments); })(gatherSwing);
+
+/* ---------- melee hooks: the axe plants a stake every swing, the pick charges / erupts ---------- */
+wSkillSwing = (o => function (hits, base, dx, dz) { const r = o.apply(this, arguments);
+  try { if (x9On('axe', 'jian9a')) { if (!A9.net) a9Plant(player.pos.x + dx * 1.7, player.pos.z + dz * 1.7); }
+    else if (x9On('pick', 'jian9k')) { if (K9.n >= 9) { K9.n = 0; k9Mountain(dx, dz); } else if (hits && hits.length) { const z = hits[0]; k9Add(1, z.pos.x, 1.2, z.pos.z); } } } catch (e) { }
+  return r; })(wSkillSwing);
+/* ---------- gun hooks ---------- */
+mythShot = (o => function (K, ox, oz, dx, dz, end, hit, fm, pel) { const k = K && K.key;
+  if (k === 'jian9p') { try { p9Shot(ox, oz, dx, dz, end, hit, fm); } catch (e) { } return; }
+  if (k === 'jian9s') { try { if (S9.n >= 9) { S9.n = 0; s9Tiangang(ox, oz, dx, dz, end); } else s9Shot(ox, oz, dx, dz, end, hit, fm); } catch (e) { } return; }
+  if (k === 'jian9g') { try { g9Shot(ox, oz, dx, dz, end, hit, fm, pel | 0); } catch (e) { } return; }
+  return o.apply(this, arguments); })(mythShot);
+// the pistol's talisman flies out spinning with a gold trail and sticks where it lands
+function p9Shot(ox, oz, dx, dz, end, hit, fm) { const PY = (typeof playerY === 'function' && playerY()) || 0, sx = fm ? fm.x : ox, sy = fm ? fm.y : 1.55 + PY, sz = fm ? fm.z : oz, ex = ox + dx * end, ey = 1.4 + PY, ez = oz + dz * end, i = P9.i, tf = .06 + end / 80;
+  P9.i = (P9.i + 1) % 9; const t = x9Tal(i, .8), an = Math.atan2(dx, dz);
+  x9Run(t, tf, k => { t.position.set(sx + (ex - sx) * k, sy + (ey - sy) * k + Math.sin(k * Math.PI) * .15, sz + (ez - sz) * k); t.rotation.set(0, an + Math.PI / 2, k * 14); });
+  skP(skGeo().box, 0xffd060, (sx + ex) / 2, (sy + ey) / 2, (sz + ez) / 2, .25, (k, m) => { m.lookAt(ex, ey, ez); m.scale.set(.05 * (1 - k), .05 * (1 - k), Math.hypot(ex - sx, ez - sz)); m.material.opacity = .8 * (1 - k); });
+  skStar(sx, sy, sz, J9_EL[i].c, .45, .18);
+  skL(tf * 1000, () => { if (hit) { const z = x9Near(ex, ez, 1.8); if (z) p9Stick(z, i); else skStar(ex, ey, ez, 0xffd060, .6, .3); } else { try { burst(ex, ey, ez, 0xf0d070, 3, 1.5); } catch (e) { } } }); }
+
+/* ---------- the models ---------- */
+buildWeapon = (orig => function (id, t, skin) { const g = orig(id, t, skin), k = skin !== undefined ? skin : (S.wsk && S.wsk[id]);
+  if (k && /^jian9[psgak]$/.test(k) && WSKINS[k] && WSKINS[k].only === id) try { x9Model(g, k, id); } catch (e) { console.warn('jian9x model', e); }
+  return g; })(buildWeapon);
+function x9Model(g, k, id) { const bb = new THREE.Box3().setFromObject(g), sz = new THREE.Vector3(), ct = new THREE.Vector3(); bb.getSize(sz); bb.getCenter(ct);
+  const L = c => new THREE.MeshLambertMaterial({ color: c, flatShading: true }), Bm = c => new THREE.MeshBasicMaterial({ color: c }), GO = L(0xe8c060), zAt = f => bb.min.z + sz.z * f;
+  const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; }, anim = [];
+  if (k === 'jian9p') {   // a gold talisman + red tassel under the grip, gold seal discs with gems on both sides, a jade ring at the muzzle
+    const tl = x9Tal(7, .5); tl.position.set(ct.x, bb.min.y - .09, zAt(.22)); tl.rotation.y = Math.PI / 2; g.add(tl); anim.push(['sway', tl]);
+    add(new THREE.BoxGeometry(.018, .14, .018), L(0xc83a3a), ct.x, bb.min.y - .24, zAt(.22));
+    for (const s of [-1, 1]) { const d = add(new THREE.CylinderGeometry(sz.y * .15, sz.y * .15, .012, 8), GO, ct.x + s * (sz.x / 2 + .007), ct.y, zAt(.45)); d.rotation.z = Math.PI / 2; add(new THREE.OctahedronGeometry(sz.y * .06), Bm(0x7affd8), ct.x + s * (sz.x / 2 + .016), ct.y, zAt(.45)); }
+    const r = add(new THREE.TorusGeometry(Math.max(sz.x, sz.y) * .3 + .01, .01, 5, 12), Bm(0x7affd8), ct.x, ct.y + sz.y * .15, zAt(.95)); anim.push(['spin', r]);
+    for (let i = 0; i < 2; i++) { const m = x9Tal(i * 4 + 1, .28); g.add(m); anim.push(['orbit', m, i * 3.14]); } }
+  else if (k === 'jian9s') {   // seven gold stars along the top in the shape of the Dipper, gold rings, a blue lens glow
+    for (let i = 0; i < 7; i++) { const s = add(new THREE.OctahedronGeometry(Math.max(.014, sz.y * .07)), Bm(0xfff2c0), ct.x + S9_P[i][1] * sz.x * .5, bb.max.y + .012, zAt(.25 + (S9_P[i][0] + .74) / 1.6 * .6)); anim.push(['twinkle', s, i]); }
+    for (let i = 0; i < 3; i++) { const r = add(new THREE.TorusGeometry(Math.max(sz.x, sz.y) * .32 + .012, .008, 5, 10), GO, ct.x, ct.y, zAt(.7 + i * .09)); }
+    const lens = add(new THREE.CircleGeometry(Math.max(.02, sz.y * .2), 12), x9Glow(0xbfe8ff, .8), ct.x, bb.max.y - sz.y * .1, zAt(.98)); anim.push(['pulse', lens]); }
+  else if (k === 'jian9g') {   // a lotus of six small swords round the muzzle, gold bands
+    const R = Math.max(sz.x, sz.y) * .5 + .03; for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283, s = j9Sword(i, .3); s.position.set(ct.x + Math.cos(a) * R, ct.y + Math.sin(a) * R, zAt(.86)); s.rotation.set(-Math.sin(a) * .35, Math.cos(a) * .35, a); g.add(s); }
+    for (let i = 0; i < 2; i++) add(new THREE.TorusGeometry(Math.max(sz.x, sz.y) * .34 + .012, .01, 5, 10), GO, ct.x, ct.y, zAt(.55 + i * .12)); }
+  else if (k === 'jian9a') {   // a thunder pearl in the head, a thunder talisman on the haft, small gold claws, violet edge light
+    const hz = bb.max.z - sz.z * .14; const orb = add(new THREE.IcosahedronGeometry(Math.max(.035, sz.y * .12), 1), Bm(0xe8dcff), ct.x, ct.y, hz); const halo = add(new THREE.IcosahedronGeometry(Math.max(.07, sz.y * .24), 1), x9Glow(0xb08aff, .45), ct.x, ct.y, hz); anim.push(['pulse', halo]);
+    const tl = x9Tal(2, .42); tl.position.set(ct.x + sz.x / 2 + .02, ct.y, bb.min.z + sz.z * .35); tl.rotation.y = Math.PI / 2; g.add(tl); anim.push(['sway', tl]);
+    for (let i = 0; i < 2; i++) add(new THREE.TorusGeometry(.045, .009, 5, 8), GO, ct.x, ct.y, bb.min.z + sz.z * (.2 + i * .28)).rotation.y = 0;
+    const arc = add(new THREE.BoxGeometry(.012, sz.y * .9, .012), x9Glow(0xd8c4ff, .7), ct.x, ct.y, bb.max.z - .01); anim.push(['flick', arc]); }
+  else if (k === 'jian9k') {   // jade vein crystals on the head, a gold collar, a glowing tip crystal
+    const hz = bb.max.z - sz.z * .12; for (let i = 0; i < 3; i++) { const c = add(new THREE.OctahedronGeometry(Math.max(.03, sz.y * .09)), Bm(0x7affd8), ct.x + (i - 1) * sz.x * .3, ct.y + sz.y * (.15 + (i % 2) * .1), hz); c.scale.y = 1.8; anim.push(['pulse', c]); }
+    add(new THREE.TorusGeometry(.05, .012, 5, 10), GO, ct.x, ct.y, hz - sz.z * .12);
+    const tip = add(new THREE.OctahedronGeometry(Math.max(.03, sz.y * .1)), x9Glow(0x9affe0, .8), ct.x, bb.max.y - .02, hz); tip.scale.y = 2; anim.push(['pulse', tip]); }
+  if (!anim.length) return; const host = add(new THREE.BoxGeometry(.001, .001, .001), Bm(0x000000), ct.x, ct.y, ct.z);
+  host.onBeforeRender = () => { const T = performance.now() / 1000; anim.forEach(([t, m, p]) => {
+    if (t === 'sway') m.rotation.x = Math.sin(T * 3) * .25; else if (t === 'spin') m.rotation.z = T * 2; else if (t === 'pulse') m.scale.setScalar(1 + .2 * Math.sin(T * 4)); else if (t === 'twinkle') m.scale.setScalar(.8 + .5 * Math.max(0, Math.sin(T * 3 + p * 1.3)));
+    else if (t === 'flick') m.visible = Math.sin(T * 23) > .2; else if (t === 'orbit') { const a = T * 1.6 + p; m.position.set(ct.x + Math.cos(a) * (sz.y + .1), ct.y + sz.y * .8, ct.z + Math.sin(a) * sz.z * .35); m.rotation.y = -a; } }); }; }
+
+/* ---------- the skills (shape of each weapon's own skill, but their own story) ---------- */
+// 手枪 · 九符镇魔: nine talismans fly out and stand round a seal; monsters inside are held; then the seal closes with a blast
+SKT.jian9p = { snd() { x9Snd(1046, 1046, .6, .04, 'sine'); x9Noise(.3, .05, 3000, { type: 'bandpass', q: 2 }); },
+  full(C) { const cx = C.px + C.dx * 5, cz = C.pz + C.dz * 5, R = 3.4, gy = C.gy, life = 2.9, t0 = performance.now(), B = x9Dmg('pistol');
+    const seal = new THREE.Group(); seal.position.set(cx, gy + .07, cz); seal.rotation.x = -Math.PI / 2;
+    const r1 = new THREE.Mesh(new THREE.RingGeometry(R * .95, R, 72), x9Glow(0xffd060, .9)), r2 = new THREE.Mesh(new THREE.RingGeometry(R * .7, R * .73, 8), x9Glow(0xd83a3a, .9)), r3 = new THREE.Mesh(new THREE.RingGeometry(R * .3, R * .34, 36), x9Glow(0xffffff, .8)), disc = new THREE.Mesh(new THREE.CircleGeometry(R * .95, 48), x9Glow(0x5a1010, .25));
+    seal.add(r1, r2, r3, disc); for (let i = 0; i < 9; i++) { const a = i / 9 * 6.283, n = new THREE.Mesh(new THREE.CircleGeometry(R * .08, 16), x9Glow(J9_EL[i].c, 1)); n.position.set(Math.cos(a) * R * .84, Math.sin(a) * R * .84, .01); seal.add(n); }
+    x9Run(seal, life, k => { const t = k * life, op = t < .4 ? 0 : t < .6 ? (t - .4) / .2 : k > .9 ? (1 - k) / .1 : 1; seal.scale.setScalar(t < .6 ? .3 + t : 1 - Math.max(0, t - 2.5) * 1.6); r1.rotation.z = t * .6; r2.rotation.z = -t * 1.2; r3.rotation.z = t * 2;
+      seal.children.forEach(m => { m.material.opacity = (m.userData.o0 || (m.userData.o0 = m.material.opacity)) * op; }); });
+    for (let i = 0; i < 9; i++) { const tal = x9Tal(i, 1.6), a = i / 9 * 6.283, tx = cx + Math.cos(a) * R, tz = cz + Math.sin(a) * R;
+      x9Run(tal, life, k => { const t = k * life; let x, y, z; if (t < .45) { const e = 1 - Math.pow(1 - t / .45, 3); x = C.px + (tx - C.px) * e; z = C.pz + (tz - C.pz) * e; y = gy + 1.3 + Math.sin(e * Math.PI) * 1.4; }
+        else if (t < 2.5) { const a2 = a + (t - .45) * .5; x = cx + Math.cos(a2) * R; z = cz + Math.sin(a2) * R; y = gy + 1.1 + Math.sin(t * 3 + i) * .08; } else { const e = (t - 2.5) / .4; x = cx + (tx - cx) * (1 - e); z = cz + (tz - cz) * (1 - e); y = gy + 1.1 + e * .5; }
+        tal.position.set(x, y, z); tal.rotation.set(0, Math.atan2(cx - x, cz - z), t > 2.5 ? (t - 2.5) * 20 : Math.sin(t * 4 + i) * .1); }); }
+    // the hold: everything inside is pinned (bosses only slowed), red chains of light from the talismans to each held monster
+    skL(600, () => { x9Snd(110, 90, 1.8, .12, 'sine'); x9Snd(880, 880, 1.8, .02, 'sine', { vib: 5, vibD: 8 });
+      for (const z of x9Around(cx, cz, R)) { if (z.boss) z.slowT = Math.max(z.slowT || 0, 2); else { z.frzT = S.t + 2; z.slowT = Math.max(z.slowT || 0, 2); }
+        skBolt(cx, gy + 1.1, cz, z.pos.x, 1.1 * (z.sc || 1), z.pos.z, 0xd83a3a, 1.8); } });
+    skL(2500, () => { skPillar(cx, gy, cz, 1, 9, .6, 0xffd060, .9); skPillar(cx, gy, cz, .35, 11, .5, 0xffffff, .9); skRing(cx, gy + .08, cz, .5, R + 1.5, .6, 0xd83a3a, .9); skRing(cx, gy + .1, cz, .3, R + .5, .5, 0xffd060, .9);
+      for (let i = 0; i < 9; i++) { const a = i / 9 * 6.283; fxStreak(cx, gy + 1.2, cz, Math.cos(a) * 7, 3, Math.sin(a) * 7, J9_EL[i].c, .5, .07); }
+      for (const z of x9Around(cx, cz, R + .5)) x9Hurt(z, B * 1.5, z.pos.x - cx, z.pos.z - cz); x9Snd(70, 30, .8, .22, 'sine'); x9Noise(.5, .14, 800, { f1: 150 }); try { fxFlash(0xffd060, .2, .25); S.shake = Math.max(S.shake || 0, .4); } catch (e) { } x9Plus(cx, gy, cz, 0xffd060, 1.6); });
+    x9PlusSkill(C); } };
+// 狙击 · 星落: the star map spreads over the ground, then seven stars fall on the nearest monsters; three more stars light up
+SKT.jian9s = { snd() { [1318, 1568, 2093].forEach((f, i) => x9Snd(f, f, .8, .03, 'sine', { delay: i * .08 })); },
+  full(C) { const gy = C.gy, B = x9Dmg('sniper'), map = new THREE.Group(); map.position.set(C.px, gy + .08, C.pz); map.rotation.x = -Math.PI / 2;
+    const sc = 4.2; S9_LN.forEach(([a, b]) => { const A = S9_P[a], Bp = S9_P[b], L = Math.hypot(Bp[0] - A[0], Bp[1] - A[1]) * sc, m = new THREE.Mesh(new THREE.PlaneGeometry(L, .07), x9Glow(0xffe8a8, .8)); m.position.set((A[0] + Bp[0]) / 2 * sc, (A[1] + Bp[1]) / 2 * sc, 0); m.rotation.z = Math.atan2(Bp[1] - A[1], Bp[0] - A[0]); map.add(m); });
+    S9_P.forEach(p => { const s = new THREE.Mesh(new THREE.CircleGeometry(.2, 12), x9Glow(0xffffff, 1)); s.position.set(p[0] * sc, p[1] * sc, .01); map.add(s); });
+    const rim = new THREE.Mesh(new THREE.RingGeometry(sc * 1.3, sc * 1.34, 72), x9Glow(0xe8c060, .8)); map.add(rim);
+    x9Run(map, 2.2, k => { map.rotation.z = k * .8; map.scale.setScalar(.4 + .6 * Math.min(1, k * 4)); map.children.forEach(m => { m.material.opacity = (m.userData.o0 || (m.userData.o0 = m.material.opacity)) * (k > .75 ? (1 - k) / .25 : 1); }); });
+    const T = zombies.filter(z => !z.dead && Math.hypot(z.pos.x - C.px, z.pos.z - C.pz) < 18).sort((a, b) => Math.hypot(a.pos.x - C.px, a.pos.z - C.pz) - Math.hypot(b.pos.x - C.px, b.pos.z - C.pz)).slice(0, 7);
+    for (let i = 0; i < 7; i++) { const z = T[i], a = i / 7 * 6.283, tx = z ? z.pos.x : C.px + C.dx * 6 + Math.cos(a) * 3, tz = z ? z.pos.z : C.pz + C.dz * 6 + Math.sin(a) * 3, sx = tx - 4, sz = tz - 3, dl = 350 + i * 120;
+      skL(dl, () => { skP(skGeo().oct, 0xfff2c0, sx, gy + 16, sz, .32, (k, m) => { m.position.set(sx + 4 * k, gy + 16 - 15.6 * k, sz + 3 * k); m.scale.setScalar(4); });
+        skP(skGeo().box, 0xffe8a8, sx, gy + 16, sz, .4, (k, m) => { const e = Math.min(1, k * 1.25); m.position.set(sx + 4 * e * .5, gy + 16 - 15.6 * e * .5, sz + 3 * e * .5); m.lookAt(tx, gy, tz); m.scale.set(.18, .18, 16 * e); m.material.opacity = 1 - k; }); });
+      skL(dl + 320, () => { skStar(tx, gy + 1, tz, 0xffffff, 2.2, .5); skRing(tx, gy + .06, tz, .3, 2.6, .5, 0xffe8a8, .9); skPillar(tx, gy, tz, .45, 6, .5, 0xbfe8ff, .8); try { burst(tx, gy + .5, tz, 0xfff2c0, 8, 4); } catch (e) { }
+        x9Snd(1568, 784, .3, .04, 'sine'); x9Noise(.2, .08, 1500, { f1: 300 }); for (const zb of x9Around(tx, tz, 1.4)) x9Hurt(zb, B, zb.pos.x - tx, zb.pos.z - tz); }); }
+    skL(1300, () => { for (let q = 0; q < 3 && S9.n < 9; q++) try { const P = s9StarPos(S9.n); s9Gain(P.x, P.y - 1, P.z); } catch (e) { S9.n = Math.min(9, S9.n + 1); } });
+    x9PlusSkill(C); } };
+// 散弹 · 剑雨: eighteen swords fall from the sky over the cone and stay stuck in the ground (your next reload calls them back)
+SKT.jian9g = { snd() { x9Snd(1760, 2640, .4, .03, 'sine'); x9Noise(.6, .06, 4000, { type: 'bandpass', q: 1 }); },
+  full(C) { const gy = C.gy, an = Math.atan2(C.dz, C.dx), B = x9Dmg('shotgun') * .8; let n = 0;
+    for (let row = 1; row <= 3; row++) for (let j = 0; j < row * 2 + 2 && n < 18; j++, n++) { const r = row * 2.8, a = an + (j / (row * 2 + 1) - .5) * .9, x = C.px + Math.cos(a) * r + rand(-.4, .4), z = C.pz + Math.sin(a) * r + rand(-.4, .4), i = n % 9, dl = 150 + n * 45;
+      skL(dl, () => { const sw = j9Sword(i, 1.3); x9Run(sw, .22, k => { sw.position.set(x, gy + 9 * (1 - k) + .3, z); j9Orient(sw, 0, -1, 0, C.dx, 0, C.dz); });
+        skP(skGeo().box, J9_EL[i].c, x, gy + 5, z, .25, (k, m) => { m.scale.set(.06, 9 * (1 - k), .06); m.material.opacity = .7 * (1 - k); }); });
+      skL(dl + 220, () => { skRing(x, gy + .05, z, .2, 1.5, .4, J9_EL[i].c, .9); try { burst(x, gy + .3, z, J9_EL[i].c, 4, 2.5); } catch (e) { } for (const zb of x9Around(x, z, 1.1)) x9Hurt(zb, B, 0, 0);
+        if (n % 3 === 0) x9Snd(2200 + i * 90, 2000, .12, .02, 'sine'); g9Stick(i, x, z, C.dx, C.dz); }); }
+    for (let q = 0; q < 6; q++) skP(skGeo().cres, q % 2 ? 0x7affd8 : 0xffffff, C.px, gy + 1.3, C.pz, .5, (k, m) => { m.rotation.order = 'YXZ'; m.rotation.set(-1.2, q * 1.047 + k * 2, 0); m.scale.setScalar(.6 + k * 1.6); m.material.opacity = 1 - k; });
+    x9PlusSkill(C); } };
+// 斧 · 九天雷降: each of the three spins calls three bolts from the sky round you; where they strike, a stake stands
+SKT.jian9a = { snd() { x9Snd(80, 40, .8, .15, 'sawtooth', { lp: 600 }); x9Noise(.8, .12, 2500, { type: 'bandpass', q: .7 }); },
+  full(C) { const B = x9Dmg('axe') * .8;
+    for (let s = 0; s < 3; s++) skL(s * 300, () => { const px = player.pos.x, pz = player.pos.z, gy = x9GY(); skRing(px, gy + .08, pz, 1, 4.3, .4, 0xb08aff, .85);
+      for (let j = 0; j < 3; j++) { const a = s * .7 + j * 2.094, x = px + Math.cos(a) * 3, z = pz + Math.sin(a) * 3;
+        skBolt(x + rand(-1, 1), gy + 12, z + rand(-1, 1), x, gy + .1, z, 0xb08aff, .35); skBolt(x, gy + 12, z, x, gy + .1, z, 0xffffff, .25); skPillar(x, gy, z, .4, 10, .35, 0xd8c4ff, .9); skRing(x, gy + .06, z, .2, 2, .4, 0xe8dcff, .9);
+        for (const zb of x9Around(x, z, 1.6)) { x9Hurt(zb, B, zb.pos.x - x, zb.pos.z - z); zb.slowT = Math.max(zb.slowT || 0, 1); }
+        if (!A9.net) a9Plant(x, z); }
+      x9Noise(.5, .16, 3000, { type: 'bandpass', q: .5 }); x9Snd(55, 30, .6, .2, 'sine'); try { fxFlash(0xd8c4ff, .18, .15); S.shake = Math.max(S.shake || 0, .3); } catch (e) { } });
+    x9PlusSkill(C); } };
+// 镐 · 地脉翻涌: a ring of nine crystal peaks bursts out round you; three points of 地脉 come back
+SKT.jian9k = { snd() { x9Snd(70, 40, 1, .18, 'sine'); x9Noise(1, .1, 400, { f1: 80 }); },
+  full(C) { const hit = new Set(), B = x9Dmg('pick') * 1.5;
+    for (let i = 0; i < 9; i++) { const a = i / 9 * 6.283, x = C.px + Math.cos(a) * 3.1, z = C.pz + Math.sin(a) * 3.1; k9Peak(x, z, C.gy, 2 + (i % 3) * .3, i % 2 ? 0x3ad88a : 0x5ae8a8, i * 40, B, hit, Math.cos(a), Math.sin(a)); }
+    skRing(C.px, C.gy + .06, C.pz, .5, 4.5, .7, 0x7affd8, .9); try { S.shake = Math.max(S.shake || 0, .45); } catch (e) { }
+    skL(500, () => k9Add(3, C.px, 1.2, C.pz)); x9PlusSkill(C); } };
+
+/* ---------- sounds: the guns keep their real gunshot, with a quiet accent; the melee pair get a full layer ---------- */
+try { WSK_GUN.jian9p = { fire() { WSKN(.08, .025, 3000, { type: 'highpass', delay: .02 }); WSKT(1500, 1400, .1, .012, 'triangle', { delay: .03 }); }, hit() { } };
+  WSK_GUN.jian9s = { fire() { WSKT(2637, 2637, .5, .015, 'sine', { delay: .05 }); }, hit() { } };
+  WSK_GUN.jian9g = { fire() { for (let i = 0; i < 3; i++) WSKT(2200 + i * 330, 2100, .12, .01, 'sine', { delay: .03 + i * .025 }); }, hit() { } };
+  WSK_SND.jian9a = { fire() { WSKN(.15, .05, 4000, { type: 'highpass' }); }, hit() { WSKN(.12, .1, 5000, { type: 'highpass' }); WSKT(120, 50, .2, .1, 'sawtooth', { lp: 800 }); } };
+  WSK_SND.jian9k = { fire() { WSKN(.15, .05, 900, { type: 'bandpass', q: 1 }); }, hit() { WSKT(1760, 1700, .2, .03, 'triangle'); WSKT(90, 50, .15, .1, 'sine'); } }; } catch (e) { }
+
+/* ---------- descriptions: how each one plays, with your numbers right now ---------- */
+function x9Desc(k, id, txt) { try { const D0 = WSKINS[k].d; Object.defineProperty(WSKINS[k], 'd', { configurable: true, enumerable: true, get() { let w = 0; try { w = weaponDmg(id); } catch (e) { } const n = p => w ? '（约 ' + Math.round(w * p) + '）' : '';
+    return D0 + '\n' + txt(n) + '\n【联动 · 九霄剑仙】穿上神话时装「九霄剑仙」时，爆发处和技能会多出剑仙的剑阵与阵印。'; } }); } catch (e) { } }
+x9Desc('jian9p', 'pistol', n => '【玩法 · 符箓】打中就把一张符贴在怪身上；同一只怪贴满 3 张就引爆：三张符各自的元素效果一起发作（每张 40%' + n(.4) + '），周围 2.5 米的怪受 60%' + n(.6) + '；带「合」符时范围 3.5 米、100%' + n(1) + '。\n【技能 · 九符镇魔】九张符在前方围成镇魔阵：阵里的怪被定住 2 秒（首领只减速），阵收拢时阵中的怪受 150%' + n(1.5) + '。');
+x9Desc('jian9s', 'sniper', n => '【玩法 · 北斗】打中 12 米外的怪、或首领 / 精英，点亮一颗星；打空熄掉一颗。九星全亮时下一枪是「天罡一剑」：整条弹道上的怪受 400%' + n(4) + '。\n【技能 · 星落】七颗星坠向身边最近的怪，每颗 100%' + n(1) + '，再点亮 3 颗星。');
+x9Desc('jian9g', 'shotgun', n => '【玩法 · 剑雨】每颗弹丸是一片小飞剑；打空的剑片插在地上（最多 27 片，15 秒后消失）。换弹时所有剑片飞回你手里，沿路每碰到一只怪造成 60%' + n(.6) + '（一颗弹丸的伤害为 100%）。\n【技能 · 剑雨】十八柄剑从天而降插满前方，落点 80%' + n(.8) + '，它们留在地上，下次换弹一起收回。');
+x9Desc('jian9a', 'axe', n => '【玩法 · 雷桩】每砍一下在落点立一根雷桩（20 秒后消失）；立满九根连成雷网 6 秒，网里的怪每 0.5 秒受 35%' + n(.35) + ' 并减速，结束时每根雷桩炸开 50%' + n(.5) + '。\n【技能 · 九天雷降】三圈旋斩各引三道天雷，每道 80%' + n(.8) + '，落雷处直接立桩。');
+x9Desc('jian9k', 'pick', n => '【玩法 · 地脉】打中怪物、或敲到能采的岩石 / 废铁，积一点地脉；攒满九点，下一镐冲出一排七座剑山，每座 220%' + n(2.2) + '，并把怪掀开。\n【技能 · 地脉翻涌】身边冲出一圈九座剑峰，每座 150%' + n(1.5) + '，再加 3 点地脉。');
 /* ============ 深渊商店: spend 深渊币 with the diver of the 深渊号 (owner 18 Nov: "add a trade system to the abyss") ============
    Opened from the abyss page (button 深渊商店 next to 下潜). The trader is the brass-helmet diver who stands on the sub.
    Tabs: 升级材料 (now) · 皮肤 (empty: the owner will hand over skin code later, then they go in ABYSHOP_SKINS).
@@ -28346,4 +28783,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795323139').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795325138').catch(()=>{});</script></body></html>
