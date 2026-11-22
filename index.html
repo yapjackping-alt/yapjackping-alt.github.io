@@ -24548,7 +24548,7 @@ playerStep = (o => function () { if (JSW.k > .3) return; return o.apply(this, ar
    手枪「九霄符箓」 jian9p：子弹是符纸，打中就贴在怪身上（每发换下一种元素），同一只怪贴满 3 张就引爆，三种元素一起发作。
                          技能「九符镇魔」：九张符飞出去围成镇魔阵，阵里的怪被定住，阵收拢时一起爆开。
    狙击枪「九霄星宿」 jian9s：身后一幅北斗星图。打中 6 米外的怪或首领 / 精英点亮一颗星，打空熄掉一颗；五星全亮，
-                         下一枪变成「天罡一剑」：一柄巨大的光剑立在你面前，再往前倒下砸向前方。技能「星落」：七颗星坠向附近的怪，并点亮 3 颗星。
+                         下一枪变成「天罡一剑」：一柄巨大的光剑立在你面前，再猛地往前劈下去。技能「星落」：七颗星坠向附近的怪，并点亮 3 颗星。
    散弹枪「九霄剑雨」 jian9g：每颗弹丸是一片小飞剑。打空的剑片插在地上；换弹时所有剑片飞回你手里，沿路再穿过怪物打一次。
                          技能「剑雨」：十八柄剑从天而降插满前方，下次换弹也会飞回来。
    斧头「九霄雷钺」 jian9a：每砍一下在落点立一根雷桩，立满九根连成雷网，网里的怪每 0.5 秒挨一次雷，6 秒后雷桩全部炸开。
@@ -24753,22 +24753,28 @@ function s9SevenSwords(ox, oz, dx, dz, L, gy) { const rx = dz, rz = -dx;
       fxBeam(A[0], A[1], B[0], B[1], .14, .9, 0xffe8a8, .85, gy + .06, .02); }); } }
 /* 天罡一剑 (owner 23 Nov, 2nd: a giant sword STANDS in front of you, point to the sky, then suddenly topples FORWARD — tip first —
    and slams flat along the shot onto the monsters, like a felled tree): 1.8× sniper to everything along the blade (S9_TG_W wide) */
-const S9_TG_W = 1.6;
+const S9_TG_W = 1.6, S9_ROLL = .45;
 function s9Tiangang(ox, oz, dx, dz, end) { const an = Math.atan2(dx, dz), gy = x9GY();
   let d = Math.max(8, end); { let bd = 1e9; for (const z of zombies) { if (z.dead) continue; const q = segHit({ t: 0, x: z.pos.x, z: z.pos.z, r: (z.r || .5) * 1.15 }, ox, oz, dx, dz, Math.max(8, end)); if (q >= 0 && q < bd) bd = q; } if (bd < 1e9) d = Math.max(5, bd); }
   const SC = 1.4, PV = 1.2, reach = Math.min(28, d + 2 - PV), LEN = Math.max(5, reach / SC - 1.1), px = ox + dx * PV, pz = oz + dz * PV, tipD = PV + (LEN + 1.1) * SC;
   try { fxFlash(0xfff2c0, .2, .25); } catch (e) { } x9Snd(2093, 2093, 1.2, .05, 'sine'); x9Snd(3136, 3100, .8, .025, 'sine', { delay: .05 });
   // pivot at the ground in front of you; the sword inside stands point-up (+z of the model → +y), its grip end on the ground
-  const sw = x9BigSword(LEN, x9C(0xbfe8ff), 0xffe08a), P = new THREE.Group(), inner = new THREE.Group(); inner.add(sw); P.add(inner);
-  sw.rotation.x = -Math.PI / 2; sw.position.y = 1.6; inner.scale.setScalar(SC); P.rotation.order = 'YXZ';
-  const T_UP = .28, T_HOLD = .3, T_FALL = .34, LIFE = 1.75, T_HIT = T_UP + T_HOLD + T_FALL;
+  const sw = x9BigSword(LEN, x9C(0xbfe8ff), 0xffe08a), P = new THREE.Group(), roll = new THREE.Group(), pitch = new THREE.Group(), inner = new THREE.Group(); inner.add(sw); pitch.add(inner); roll.add(pitch); P.add(roll);
+  /* the chop comes down a little slanted (S9_ROLL, about the forward axis): straight down the view line it was seen edge-on from behind; it still lands along the shot */
+  sw.rotation.x = -Math.PI / 2; sw.position.y = 1.6; inner.scale.setScalar(SC); roll.rotation.z = S9_ROLL; P.rotation.y = an;
+  const T_UP = .28, T_HOLD = .34, T_FALL = .13, LIFE = 1.6, T_HIT = T_UP + T_HOLD + T_FALL, PH0 = -.5;
   x9Run(P, LIFE, k => { const t = k * LIFE; let ph = 0, y = gy + .15;
     if (t < T_UP) { const e = t / T_UP; y = gy + .15 - (1 - e) * (1 - e) * 4; ph = -.12 * e; }      /* rises out of the ground, leaning back a little */
-    else if (t < T_UP + T_HOLD) ph = -.12 + Math.sin((t - T_UP) * 40) * .012;                      /* stands, trembling */
-    else if (t < T_HIT) { const e = (t - T_UP - T_HOLD) / T_FALL; ph = -.12 + (Math.PI / 2 + .12) * e * e; }   /* topples forward, faster and faster */
+    else if (t < T_UP + T_HOLD) { const e = (t - T_UP) / T_HOLD; ph = -.12 + (PH0 + .12) * (1 - (1 - e) * (1 - e)) + Math.sin(t * 40) * .01 * e; }   /* winds up: leans back over you */
+    else if (t < T_HIT) { const e = (t - T_UP - T_HOLD) / T_FALL; ph = PH0 + (Math.PI / 2 - PH0) * (1 - Math.pow(1 - e, 3)); }   /* CHOPS down in a flash (owner: 劈下去, not 倒下去) */
     else ph = Math.PI / 2 - Math.max(0, .05 * Math.sin((t - T_HIT) * 30) * Math.exp(-(t - T_HIT) * 8));   /* slams down and bounces a hair */
-    P.position.set(px, y, pz); P.rotation.set(ph, an, 0);
+    P.position.set(px, y, pz); pitch.rotation.x = ph;
     const fa = t < .12 ? t / .12 : k > .78 ? (1 - k) / .22 : 1; sw.children.forEach(m => { m.material.opacity = fa * (m.userData.o0 || (m.userData.o0 = m.material.opacity)); }); });
+  // the chop's arc: a fan of light swept by the blade from overhead down to the ground in front
+  skL((T_UP + T_HOLD) * 1000, () => { try { const R1 = tipD - PV, fan = new THREE.Group(), geo = new THREE.RingGeometry(1.2, R1, 32, 1, 0, Math.PI / 2 - PH0),
+      mf = new THREE.MeshBasicMaterial({ color: x9C(0xfff2c0), transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }), fm = new THREE.Mesh(geo, mf);
+    const fr = new THREE.Group(); fm.rotation.y = -Math.PI / 2; fr.add(fm); fr.rotation.z = S9_ROLL; fan.add(fr); fan.position.set(px, gy + .15, pz); fan.rotation.y = an;
+    x9Run(fan, .55, k => { const t = k * .55, sw = Math.min(1, t / T_FALL); mf.opacity = t < T_FALL ? .55 * sw : .55 * Math.max(0, 1 - (t - T_FALL) / (.55 - T_FALL)); }); } catch (e) { } x9Snd(900, 120, .25, .12, 'sawtooth'); x9Noise(.25, .12, 2400, { f1: 500 }); });
   // a ring of light where it stands, a gold line showing where it will fall
   skRing(px, gy + .06, pz, .3, 2.2, T_UP + .2, x9C(0xfff2c0), .9); skStar(px, gy + 1, pz, 0xffffff, 1.6, .4);
   skL(T_UP * 1000, () => fxBeam(px, pz, ox + dx * tipD, oz + dz * tipD, .25, T_HOLD + T_FALL, 0xffe08a, .55, gy + .05, .02));
@@ -25052,7 +25058,7 @@ try { WSK_GUN.jian9p = { fire() { WSKN(.08, .025, 3000, { type: 'highpass', dela
 function x9Desc(k, id, link, txt) { try { const D0 = WSKINS[k].d; Object.defineProperty(WSKINS[k], 'd', { configurable: true, enumerable: true, get() { let w = 0; try { w = weaponDmg(id); } catch (e) { } const n = p => w ? '（约 ' + Math.round(w * p) + '）' : '';
     return D0 + '\n' + txt(n) + '\n【联动 · 九霄剑仙】穿上神话时装「九霄剑仙」时：' + link + '（只是外观，伤害不变）。'; } }); } catch (e) { } }
 x9Desc('jian9p', 'pistol', '符箓引爆时，三张符化作三柄飞剑跃起、交叉刺下；技能里的九张符换成九柄飞剑围成剑牢，最后一齐刺向阵心', n => '【玩法 · 符箓】身后九张符。九张都在时开一枪就开始一轮：每发带走一张符，打中就贴在怪身上；同一只怪贴满 3 张就引爆，三张符的元素一起发作，每张 50%' + n(.5) + '，周围 2.5 米的怪受 35%' + n(.35) + '（带「合」符时 3 米、60%' + n(.6) + '）。停手 3 秒不开枪，符会一张张飞回来补满；九张全用完则要等九张聚齐（约 5 秒）才能再出符，这期间是普通子弹。\n【技能 · 九符镇魔】九张符在前方围成镇魔阵（只是特效，技能本身不变）。');
-x9Desc('jian9s', 'sniper', '星图上的每颗星变成一柄小剑；天罡一剑前，先有七柄剑按北斗的形状从天上落在弹道上；技能星落坠下的是飞剑', n => '【玩法 · 北斗】打中 6 米外的怪、或首领 / 精英，点亮一颗星；打空熄掉一颗。五星全亮时下一枪是「天罡一剑」：一柄巨剑立在你面前，剑尖朝天，然后往前倒下砸向前方，剑身压到的怪受 180%' + n(1.8) + '，然后五星重新点起。\n【技能 · 星落】星图铺满地面，七颗星坠落（只是特效，技能本身不变）。');
+x9Desc('jian9s', 'sniper', '星图上的每颗星变成一柄小剑；天罡一剑前，先有七柄剑按北斗的形状从天上落在弹道上；技能星落坠下的是飞剑', n => '【玩法 · 北斗】打中 6 米外的怪、或首领 / 精英，点亮一颗星；打空熄掉一颗。五星全亮时下一枪是「天罡一剑」：一柄巨剑立在你面前，往后一扬，再猛地往前劈下去，剑身劈到的怪受 180%' + n(1.8) + '，然后五星重新点起。\n【技能 · 星落】星图铺满地面，七颗星坠落（只是特效，技能本身不变）。');
 x9Desc('jian9g', 'shotgun', '飞剑打中时绽开一朵剑气莲花，剑归手时在身边开一朵大剑莲；技能落剑处也开剑莲', n => '【玩法 · 飞剑】每一枪的弹丸里有一柄飞剑，属性随机（水 火 雷 毒 冰 木 土 金 合）：打中就是一次这种属性的伤害，100%' + n(1) + '（一颗弹丸的伤害为 100%，金 / 合 160%），带上它的效果；打空就插在地上（最多 9 柄，15 秒后消失），换弹时飞回你手里，沿路每碰到一只怪造成 100%' + n(1) + '。其余弹丸是普通弹丸。\n【技能 · 剑雨】十八柄剑从天而降（只是特效，技能本身不变）。');
 x9Desc('jian9a', 'axe', '雷桩、雷网和天雷全部变成金雷，雷网成形时落下金色「雷」字印，技能也是', n => '【玩法 · 雷桩】平时就是普通劈砍。每砍一下在落点立一根雷桩（20 秒后消失），不用攒能量；九根立满连成雷网 6 秒，网里的怪每 0.5 秒受 20%' + n(.2) + ' 并减速，结束时每根雷桩炸开 30%' + n(.3) + '。雷网存在的期间砍下去不会立雷桩，等雷网消失才能再立。\n【技能 · 九天雷降】三圈旋斩各引三道天雷（只是特效，技能本身不变）。');
 x9Desc('jian9k', 'pick', '剑山变成一柄柄巨大的石剑从地下破土刺出，技能也是', n => '【玩法 · 地脉】打中怪物、或敲到能采的岩石 / 废铁，积一点地脉；攒满九点，下一镐冲出一排七座剑山，每座 220%' + n(2.2) + '，并把怪掀开，然后从 0 重新积。没攒满时是普通挥镐。\n【技能 · 地脉翻涌】身边冲出一圈九座剑峰（只是特效，技能本身不变）。');
@@ -27867,6 +27873,196 @@ renderStory = (o => function () { o(); try { const box = $('storyList'); if (!bo
 const ST4_V = 4;
 storySave = (o => function () { const a = o(); a[4] = ST4_V; return a; })(storySave);
 storyLoad = (o => function (a) { o(a); try { if (Array.isArray(a) && (a[4] | 0) < ST4_V && S.story.c >= 2 && S.story.c <= 10) { S.story.s = 0; S.story.p = 0; S.story.seen = -1; } } catch (e) { } })(storyLoad);
+/* ============ 九霄 boxes + the star-fall draw animation (owner 23 Nov) ============
+   Two new pools in 商城 · 补给抽奖, each a BOX of 10 prizes: 3 普通, 3 稀有, 2 史诗, 1 传说, 1 神话.
+   Every draw takes one prize out of the box (it gets a tick and can't come again); the price climbs with each draw
+   (GBX_PRICE, 10 → 200 晶石, 830 for the whole box). When the box is empty it refills for the next round.
+   - 修仙时装箱 (xian): 神话 = outfit 九霄剑仙, 传说 = 青冥飞剑.
+   - 九霄武器箱 (x9): 神话 = pick ONE 九霄 weapon skin you don't own yet (the chooser opens after the reveal; if you
+     close it the choice waits on the box page). Every 九霄 weapon skin stays in direct sale too (owner).
+   Prizes you already own (the outfit / the sword / every 九霄 skin) turn into 强化石 (`dup`).
+   Prizes are drawn with weights by grade (GBX_W) so the 神话 usually comes late (≈ 635 晶石 on average, 830 at most).
+   gStar(items, done): the full-screen draw show used by these boxes AND the old pools (drawModal wrapper):
+   night sky, a shooting star whose colour tells the best grade, a flash, then the prize card(s); 神话 gets a full splash. */
+const GBX_PRICE = [10, 20, 30, 40, 60, 80, 100, 130, 160, 200];
+const GBX_W = { 0: 10, 2: 7, 3: 4, 4: 2, 5: 1 };
+const GBX_G = { 0: ['普通', '#b9b2aa'], 2: ['稀有', '#5aa9ff'], 3: ['史诗', '#c28bff'], 4: ['传说', '#ffc94a'], 5: ['神话', '#ff4d8d'] };
+const X9_SKINS = [['jian9', 'rifle'], ['jian9b', 'blade'], ['jian9p', 'pistol'], ['jian9s', 'sniper'], ['jian9g', 'shotgun'], ['jian9a', 'axe'], ['jian9k', 'pick']];
+const gbxIt = (r, k, n) => ({ r, n: ((typeof ITEMS !== 'undefined' && ITEMS[k] && ITEMS[k].n) || k) + ' ×' + n, ic: 'item:' + k, f: () => gain(k, n) });
+const GBX = {
+  xian: { n: '九霄 · 修仙时装箱', sub: '神话时装「九霄剑仙」 · 传说飞剑「青冥飞剑」', big: 'skin:jxian', th: 'xian',
+    slots: () => [
+      { r: 5, n: '时装「九霄剑仙」', ic: 'skin:jxian', own: () => S.skins.includes('jxian'), f: () => giveSkin('jxian'), dup: ['estone', 20], pv: () => skinPreview('jxian') },
+      { r: 4, n: '飞剑「青冥飞剑」', ic: 'wing:jsword', own: () => S.wingOwn.includes('jsword'), f: () => gbxWing('jsword'), dup: ['estone', 12] },
+      gbxIt(3, 'heart', 2), gbxIt(3, 'eluck', 1),
+      gbxIt(2, 'estone', 2), gbxIt(2, 'crystal', 1), gbxIt(2, 'bpf', 5),
+      gbxIt(0, 'coin', 200), gbxIt(0, 'med', 3), gbxIt(0, 'roast', 5)] },
+  x9: { n: '九霄 · 武器箱', sub: '神话：七把九霄武器皮肤任选一把', big: 'wsk:jian9:rifle', th: 'x9',
+    slots: () => [
+      { r: 5, n: '九霄武器皮肤 · 自选一把', ic: 'wsk:jian9:rifle', own: () => X9_SKINS.every(([k, id]) => S.wskOwn.includes(k + ':' + id)), f: () => { GBXS().x9.pend = 1; }, dup: ['estone', 20], pick: 1 },
+      gbxIt(4, 'elock', 1),
+      gbxIt(3, 'estone', 6), gbxIt(3, 'heart', 1),
+      gbxIt(2, 'estone', 2), gbxIt(2, 'steel', 3), gbxIt(2, 'circuit', 5),
+      gbxIt(0, 'coin', 300), gbxIt(0, 'powder', 10), gbxIt(0, 'metal', 20)] }
+};
+const GBX_K = ['xian', 'x9'];
+function GBXS() { if (!S.gbox || typeof S.gbox !== 'object') S.gbox = {}; for (const k of GBX_K) { const q = S.gbox[k]; if (!q || !Array.isArray(q.g)) S.gbox[k] = { g: [], c: 0, pend: 0 }; } return S.gbox; }
+shopSave = (o => function () { const r = o(); try { r.gbx = GBXS(); } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); try { const v = d && d.sh && d.sh.gbx; S.gbox = {}; GBXS(); if (v && typeof v === 'object') for (const k of GBX_K) { const q = v[k]; if (q && Array.isArray(q.g)) S.gbox[k] = { g: q.g.filter(i => Number.isInteger(i) && i >= 0 && i < 10).filter((i, j, a) => a.indexOf(i) === j), c: q.c | 0, pend: q.pend ? 1 : 0 }; } } catch (e) { } })(shopLoad);
+function gbxWing(k) { if (!S.wingOwn.includes(k)) { S.wingOwn.push(k); const blk = wingBlockName(); if (!blk) S.wing = k; try { redressPlayer(); } catch (e) { } } }
+// a prize's picture (html)
+function gbxIc(s, cls) { if (/^wing:/.test(s.ic)) return '<span class="gbxw ' + (cls || '') + '">' + wingSvg(s.ic.split(':')[1]) + '</span>'; try { return icHtml(s.ic, cls); } catch (e) { return ''; } }
+// what a slot really gives now (owned → its 强化石)
+function gbxTxt(s) { return s.own && s.own() && s.dup ? s.n + ' → 已拥有，换成 ' + ITEMS[s.dup[0]].n + ' ×' + s.dup[1] : s.n; }
+
+/* ---- drawing one prize out of a box ---- */
+function gbxDraw(k) { const B = GBX[k], st = GBXS()[k];
+  if (st.pend) { gbxChoose(); return; }
+  const left = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(i => !st.g.includes(i)); if (!left.length) { st.g = []; st.c++; renderMall(); return; }
+  const cost = GBX_PRICE[st.g.length]; if (FREE_TEST && S.gem < cost) addGem(100000 - S.gem, '测试版补满'); if (!payGem(cost)) return;
+  const SL = B.slots(), ws = left.map(i => GBX_W[SL[i].r] || 1), sum = ws.reduce((a, b) => a + b, 0); let x = Math.random() * sum, j = 0; while (j < ws.length - 1 && x >= ws[j]) { x -= ws[j]; j++; }
+  const i = left[j], s = SL[i], dupNow = !!(s.own && s.own()); st.g.push(i);
+  let name = s.n; try { if (dupNow && s.dup) { gain(s.dup[0], s.dup[1]); name = gbxTxt(s); } else s.f(); } catch (e) { console.warn(e); }
+  const done = st.g.length >= 10; if (done) { st.g = []; st.c++; }
+  S.st.draws = (S.st.draws || 0) + 1; refreshHud(); saveGame(); renderMall();
+  gStar([{ r: s.r, n: name, ic: s.ic, s }], () => { if (done) banner('箱子抽空了', '新的一箱已经放好，价格从 10 晶石重新开始', 2.6); if (k === 'x9' && GBXS().x9.pend) gbxChoose(); });
+}
+/* ---- 九霄武器箱 mythic: pick one skin ---- */
+function gbxChoose() { const st = GBXS().x9; if (!st.pend) return; const old = $('gbxCh'); if (old) old.remove();
+  const m = document.createElement('div'); m.id = 'gbxCh'; m.className = 'gbxov';
+  const free = X9_SKINS.filter(([k, id]) => !S.wskOwn.includes(k + ':' + id));
+  if (!free.length) { st.pend = 0; gain('estone', 20); feed('九霄皮肤都已拥有，换成 强化石 ×20', '#7de0ff'); saveGame(); renderMall(); return; }
+  let sel = null;
+  m.innerHTML = '<div class="gbxchb"><b class="gbxcht">选择你的九霄武器皮肤</b><small>只能选一把；想要别的，就继续抽下一箱。</small><div class="gbxchg"></div><div class="gbxchr"><button class="gbtn gbxlater"><b>稍后再选</b></button><button class="gbtn ten gbxok" disabled><b>就选这把</b></button></div></div>';
+  const g = m.querySelector('.gbxchg'), ok = m.querySelector('.gbxok');
+  X9_SKINS.forEach(([k, id]) => { const own = S.wskOwn.includes(k + ':' + id), K = WSKINS[k];
+    const c = document.createElement('button'); c.className = 'gbxchc' + (own ? ' own' : ''); c.disabled = own;
+    c.innerHTML = '<div class="gbxchi">' + icHtml('wsk:' + k + ':' + id) + '</div><b>' + K.n + '</b><small>' + WEAP[id].n + (own ? ' · 已拥有' : '') + '</small>';
+    c.addEventListener('click', () => { sel = [k, id]; g.querySelectorAll('.gbxchc').forEach(e => e.classList.toggle('on', e === c)); ok.disabled = false; ok.innerHTML = '<b>就选「' + K.n + '」</b>'; });
+    g.appendChild(c); });
+  ok.addEventListener('click', () => { if (!sel || !GBXS().x9.pend) return; GBXS().x9.pend = 0; giveWSkin(sel[0], sel[1]); try { sfx.build(); } catch (e) { } saveGame(); m.remove(); renderMall(); });
+  m.querySelector('.gbxlater').addEventListener('click', () => { m.remove(); renderMall(); });
+  document.body.appendChild(m); }
+
+/* ---- the box page ---- */
+function gbxPage(box, k) { const B = GBX[k], st = GBXS()[k], SL = B.slots(), n = st.g.length, el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
+  const hero = el('div', 'gbxhero ' + B.th);
+  hero.innerHTML = '<div class="gbxsky"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="gbxfig">' + gbxIc({ ic: B.big }, 'big') + '</div>' +
+    '<div class="gbxtx"><em>第 ' + (st.c + 1) + ' 箱</em><b>' + B.n + '</b><span>' + B.sub + '</span>' +
+    '<div class="gbxpips">' + GBX_PRICE.map((p, i) => '<i class="' + (i < n ? 'done' : i === n ? 'cur' : '') + '">' + p + '</i>').join('') + '</div><small>已抽 ' + n + ' / 10 · 抽过的打勾，不会再抽到</small></div>';
+  const r = el('div', 'gbtns');
+  if (st.pend) { const b = el('button', 'gbtn ten gbxgo', '<b>选择你的九霄皮肤</b><small>神话奖励还没选</small>'); b.addEventListener('click', gbxChoose); r.appendChild(b); }
+  else { const b = el('button', 'gbtn ten gbxgo', '<b>抽 1 次</b><small>' + icHtml('gem:1') + GBX_PRICE[n] + ' 晶石</small>'); b.addEventListener('click', () => gbxDraw(k)); r.appendChild(b); }
+  hero.appendChild(r); box.appendChild(hero);
+  const grid = el('div', 'gbxgrid');
+  SL.map((s, i) => [s, i]).sort((a, b) => b[0].r - a[0].r || a[1] - b[1]).forEach(([s, i]) => { const got = st.g.includes(i), G = GBX_G[s.r], dup = s.own && s.own();
+    const c = el('div', 'gbxc r' + s.r + (got ? ' got' : ''), '<div class="gbxci">' + gbxIc(s) + '</div><b>' + s.n + '</b><small style="color:' + G[1] + '">' + G[0] + (dup && !got ? ' · 已拥有' : '') + '</small>' + (got ? '<span class="gbxtick"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : ''));
+    c.style.setProperty('--gc', G[1]); if (s.pv) c.addEventListener('click', s.pv); else if (s.pick) c.addEventListener('click', () => gbxSkinList()); grid.appendChild(c); });
+  box.appendChild(grid);
+  box.appendChild(el('div', 'snote', '每抽一次从箱子里拿出一样，抽过的打勾不会再出；越往后越贵（10 → 200 晶石，整箱 830）。十样都抽完，箱子重新装满，价格从 10 晶石开始。' + (k === 'x9' ? '抽到神话可以在七把九霄武器皮肤里任选一把（已有的不能选）；想要另一把就抽下一箱。九霄皮肤在「外观直售」也能直接买。' : '已经拥有的时装 / 飞剑会换成强化石。')));
+}
+function gbxSkinList() { const old = $('gbxCh'); if (old) old.remove(); const m = document.createElement('div'); m.id = 'gbxCh'; m.className = 'gbxov';
+  m.innerHTML = '<div class="gbxchb"><b class="gbxcht">神话 · 七把九霄武器皮肤（任选一把）</b><div class="gbxchg"></div><div class="gbxchr"><button class="gbtn"><b>关闭</b></button></div></div>';
+  const g = m.querySelector('.gbxchg'); X9_SKINS.forEach(([k, id]) => { const own = S.wskOwn.includes(k + ':' + id), c = document.createElement('button'); c.className = 'gbxchc' + (own ? ' own' : '');
+    c.innerHTML = '<div class="gbxchi">' + icHtml('wsk:' + k + ':' + id) + '</div><b>' + WSKINS[k].n + '</b><small>' + WEAP[id].n + (own ? ' · 已拥有' : '') + '</small>'; c.addEventListener('click', () => { try { wskPreview(k, id); } catch (e) { } }); g.appendChild(c); });
+  m.querySelector('.gbxchr button').addEventListener('click', () => m.remove()); m.addEventListener('click', e => { if (e.target === m) m.remove(); }); document.body.appendChild(m); }
+renderMall = (o => function () { o.apply(this, arguments);
+  try { if (mallTab !== 'gacha') return; const box = $('mallList'), pt = box && box.querySelector('.gpools'); if (!pt) return;
+    GBX_K.slice().reverse().forEach(k => { const b = document.createElement('button'); b.className = 'gpb gbxpb ' + GBX[k].th + (gPool === k ? ' on' : ''); b.innerHTML = gbxIc({ ic: GBX[k].big }) + '<b>' + GBX[k].n.replace('九霄 · ', '九霄') + '</b>' + (GBXS()[k].pend ? '<i class="gbxdot"></i>' : '');
+      b.addEventListener('click', () => { gPool = k; renderMall(); }); pt.insertBefore(b, pt.firstChild); });
+    if (GFX_HERO[gPool]) gfxHero(box, gPool);
+    if (!GBX[gPool]) return;
+    let n = pt.nextSibling; while (n) { const nx = n.nextSibling; n.remove(); n = nx; }
+    gbxPage(box, gPool); } catch (e) { console.warn('gbox', e); } })(renderMall);
+
+/* ---- the two old outfit pools get a showcase hero (owner 23 Nov: 弄漂亮一点): the mythic outfit itself, big, with turning
+   light rays and a starry sky in the pool's own colours, instead of a wooden crate ---- */
+const GFX_HERO = { main: { sk: 'myth', t: '神话 · 天穹神裔' }, fash: { sk: 'seraph', t: '神话 · 炽天之翼' } };
+function gfxHero(box, k) { const h = box.querySelector('.ghero'), H = GFX_HERO[k]; if (!h || h.classList.contains('gfx')) return; h.classList.add('gfx', 'gfx_' + k);
+  h.insertAdjacentHTML('afterbegin', '<div class="gbxsky"><i></i><i></i><i></i><i></i><i></i><i></i></div>');
+  const c = h.querySelector('.gcrate'); if (c) { c.innerHTML = '<div class="gfxray"></div>' + icHtml('skin:' + H.sk, 'big'); c.addEventListener('click', () => { try { skinPreview(H.sk); } catch (e) { } }); }
+  const b = h.querySelector('.gtx>b'); if (b) b.insertAdjacentHTML('afterend', '<em class="gfxm">' + H.t + '</em>'); }
+
+/* ============ the draw show: shooting star → flash → cards ============ */
+const GSTAR = { on: false, mute: false };
+function gstSnd(r) { if (typeof AC === 'undefined' || !AC) return; try { sfxTone(1800, 300, 1, .07, 'sine'); sfxTone(3000, 900, .8, .03, 'triangle', { delay: .1 });
+  if (r >= 3) sfxTone(523, 1046, .5, .1, 'triangle', { delay: .95 }); if (r >= 4) { sfxTone(659, 1318, .7, .1, 'triangle', { delay: 1.05 }); sfxTone(784, 1568, .9, .09, 'sine', { delay: 1.15 }); }
+  if (r >= 5) { sfxTone(1046, 2093, 1.4, .12, 'sine', { delay: 1.3 }); sfxTone(1318, 2637, 1.6, .08, 'triangle', { delay: 1.45 }); } } catch (e) { } }
+// items: [{r, n, ic?, s?}]; done() when the player closes it
+function gStar(items, done, opt) { opt = opt || {};
+  /* no real page (headless tests) → straight to the result */
+  if (!items || !items.length || typeof document.createElement('div').remove !== 'function' || typeof document.body.appendChild !== 'function') { if (done) done(); return; }
+  const best = Math.max(...items.map(o => o.r)), G = GBX_G[best] || GBX_G[0], old = $('gstar'); if (old) old.remove(); GSTAR.on = true;
+  const m = document.createElement('div'); m.id = 'gstar'; m.className = 'gstar r' + best; m.style.setProperty('--gc', G[1]);
+  let stars = ''; for (let i = 0; i < 46; i++) stars += '<i style="left:' + (Math.random() * 100).toFixed(1) + '%;top:' + (Math.random() * 100).toFixed(1) + '%;animation-delay:' + (Math.random() * 2).toFixed(2) + 's;--s:' + (1 + Math.random() * 2).toFixed(1) + 'px"></i>';
+  let mets = ''; const extra = Math.min(6, items.length - 1); for (let i = 0; i < extra; i++) { const r = items.slice().sort((a, b) => b.r - a.r)[i + 1].r, c = (GBX_G[r] || GBX_G[0])[1]; mets += '<u class="gsm" style="--mc:' + c + ';--dx:' + (-30 + Math.random() * 60).toFixed(0) + 'vw;--d:' + (.15 + i * .09).toFixed(2) + 's"></u>'; }
+  m.innerHTML = '<div class="gsky">' + stars + '</div><div class="gmet" style="--ta:' + (-Math.atan2(innerHeight * .7, innerWidth * .3) * 180 / Math.PI).toFixed(1) + 'deg"><u class="gsm big" style="--mc:' + G[1] + ';--dx:0vw;--d:0s"></u>' + mets + '</div><div class="gland"></div><div class="gflash"></div><div class="gshow"></div><button class="gskip">跳过</button>';
+  document.body.appendChild(m); gstSnd(best);
+  let stage = 0, tS = Date.now(); const show = m.querySelector('.gshow'), setS = v => { stage = v; tS = Date.now(); };
+  const reveal = () => { if (stage >= .5) return; setS(1); m.classList.add('rev');
+    const mythOne = items.find(o => o.r >= 5);
+    if (mythOne) { show.innerHTML = '<div class="gsplash"><div class="gsray"></div><div class="gsfig">' + gbxIc(mythOne.s || { ic: mythOne.ic || (typeof rwIcon === 'function' ? rwIcon(mythOne.n) : 'item:bag') }, 'big') + '</div><em>神话</em><b>' + mythOne.n + '</b>' + (items.length > 1 || opt.flash ? '<small>' + (items.length > 1 ? '点一下看全部' : '点一下继续') + '</small>' : '') + '</div>'; setS(items.length > 1 || opt.flash ? .5 : 1); }
+    else if (opt.flash) close(); else cards(); };
+  const cards = () => { setS(1); m.classList.add('rev', 'cards'); const g = document.createElement('div'); g.className = 'gscards n' + Math.min(items.length, 10);
+    items.forEach((o, i) => { const GG = GBX_G[o.r] || GBX_G[0], c = document.createElement('div'); c.className = 'gscard r' + o.r; c.style.setProperty('--gc', GG[1]); c.style.animationDelay = (i * .11) + 's';
+      c.innerHTML = '<div class="gsci">' + gbxIc(o.s || { ic: o.ic || (typeof rwIcon === 'function' ? rwIcon(o.n) : 'item:bag') }) + '</div><b>' + o.n + '</b><small>' + GG[0] + '</small>'; g.appendChild(c); });
+    show.innerHTML = ''; show.appendChild(g); show.insertAdjacentHTML('beforeend', '<small class="gstap">点任意处继续</small>'); };
+  const close = () => { if (!m.parentNode) return; m.remove(); GSTAR.on = false; if (done) try { done(); } catch (e) { console.warn(e); } };
+  const T = GSTAR.hold ? 0 : setTimeout(reveal, 1250);   /* GSTAR.hold: only for screenshots of the falling star */
+  m.addEventListener('click', e => { if (Date.now() - tS < 350) return;
+    if (e.target.classList.contains('gskip')) { clearTimeout(T); if (stage < 1 && !opt.flash) cards(); else close(); return; }
+    if (stage === 0) { clearTimeout(T); reveal(); } else if (stage === .5) { if (opt.flash) close(); else cards(); } else close(); }); }
+// the old pools: show the star first, then their own result window; no early 「神话！！」 banner spoiling it
+gacha = (o => function () { GSTAR.mute = true; try { return o.apply(this, arguments); } finally { GSTAR.mute = false; } })(gacha);
+banner = (o => function () { if (GSTAR.mute) return; return o.apply(this, arguments); })(banner);
+drawModal = (o => function (out, n) { const a = arguments; gStar(out.map(x => ({ r: x.G.r, n: x.n })), () => o.apply(this, a), { flash: 1 }); })(drawModal);
+
+(() => { try { const st = document.createElement('style'); st.textContent =
+  /* pool buttons */
+  '.gbxpb{position:relative;background:linear-gradient(160deg,#1e3a36,#14202a)!important;border-color:#6fe0c0!important}.gbxpb.x9{background:linear-gradient(160deg,#2a2440,#141a28)!important;border-color:#c8a8ff!important}.gbxpb .gbxdot{position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:#ff4d8d;box-shadow:0 0 6px #ff4d8d}' +
+  '.gbxw{display:inline-flex;align-items:center;justify-content:center}.gbxw svg{width:100%;height:100%}' +
+  /* box page hero */
+  '.gbxhero{position:relative;overflow:hidden;display:grid;grid-template-columns:40% 1fr;gap:10px;align-items:center;padding:14px;border-radius:18px;margin:8px 0;border:2px solid #6fe0c0;background:radial-gradient(120% 90% at 20% 30%,#2f6a5e 0,#132a2c 55%,#0b1418 100%);box-shadow:0 0 22px rgba(111,224,192,.25) inset}' +
+  '.gbxhero.x9{border-color:#c8a8ff;background:radial-gradient(120% 90% at 20% 30%,#4a3a78 0,#1c1a34 55%,#0c0e1a 100%);box-shadow:0 0 22px rgba(200,168,255,.25) inset}' +
+  '.gbxsky{position:absolute;inset:0;pointer-events:none}.gbxsky i{position:absolute;width:3px;height:3px;border-radius:50%;background:#fff;opacity:.7;animation:gstw 2.4s infinite}.gbxsky i:nth-child(1){left:8%;top:14%}.gbxsky i:nth-child(2){left:44%;top:8%;animation-delay:.6s}.gbxsky i:nth-child(3){left:82%;top:18%;animation-delay:1.1s}.gbxsky i:nth-child(4){left:66%;top:72%;animation-delay:.3s}.gbxsky i:nth-child(5){left:28%;top:84%;animation-delay:1.6s}.gbxsky i:nth-child(6){left:92%;top:60%;animation-delay:.9s}' +
+  '.gbxfig{position:relative;display:flex;align-items:center;justify-content:center;min-height:150px}.gbxfig::before{content:"";position:absolute;width:86%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(255,240,190,.45),rgba(255,240,190,0) 70%);animation:gbxpulse 3s infinite}.gbxfig .big,.gbxfig img{position:relative;max-width:100%;max-height:190px;filter:drop-shadow(0 6px 14px rgba(0,0,0,.6))}' +
+  '.gbxtx{position:relative;display:flex;flex-direction:column;gap:4px;min-width:0}.gbxtx em{font-style:normal;font-size:12px;color:#ffe08a;letter-spacing:2px}.gbxtx>b{font-size:20px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6)}.gbxtx>span{font-size:12.5px;color:#d8e8e4}.gbxtx>small{font-size:11.5px;color:#a8c0bc}' +
+  '.gbxpips{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;margin-top:4px}.gbxpips i{font-style:normal;font-size:10px;font-weight:800;text-align:center;padding:3px 0;border-radius:6px;background:rgba(255,255,255,.08);color:#9fb4b0}.gbxpips i.done{background:rgba(111,224,192,.18);color:#6fe0c0;text-decoration:line-through}.gbxpips i.cur{background:#ffc94a;color:#2a1a08;box-shadow:0 0 8px #ffc94a}' +
+  '.gbxhero .gbtns{grid-column:1/-1;position:relative;margin:4px 0 0}.gbxgo{width:100%}' +
+  '.gbxgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:6px 0}.gbxc{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 3px;border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(0,0,0,.25));border:2px solid var(--gc);text-align:center;min-width:0}' +
+  '.gbxc.r5{background:radial-gradient(circle at 50% 30%,rgba(255,77,141,.35),rgba(20,10,20,.6));box-shadow:0 0 12px rgba(255,77,141,.45)}.gbxc.r4{background:radial-gradient(circle at 50% 30%,rgba(255,201,74,.3),rgba(20,14,6,.6))}' +
+  '.gbxci{width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center}.gbxci img,.gbxci svg,.gbxci .gbxw{width:86%;height:86%;object-fit:contain}.gbxc b{font-size:10.5px;line-height:1.2;color:#fff;word-break:break-all}.gbxc small{font-size:10px;font-weight:800}' +
+  '.gbxc.got{filter:grayscale(.75) brightness(.55)}.gbxtick{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}.gbxtick svg{width:54%;height:54%;padding:6px;border-radius:50%;background:rgba(40,170,110,.9);box-shadow:0 0 10px rgba(0,0,0,.6)}' +
+  '@media (orientation:landscape){.gbxhero{grid-template-columns:30% 1fr}.gbxgrid{grid-template-columns:repeat(10,1fr)}.gbxfig{min-height:120px}.gbxfig .big,.gbxfig img{max-height:150px}}' +
+  /* old outfit pools: showcase hero */
+  '.ghero.gfx{grid-template-columns:42% 1fr;border:2px solid #ffd27a;background:radial-gradient(120% 100% at 18% 40%,#6a4a1a 0,#2a1a2e 55%,#0e0a16 100%);box-shadow:0 0 24px rgba(255,210,122,.25) inset}' +
+  '.ghero.gfx_fash{border-color:#ff7a5a;background:radial-gradient(120% 100% at 18% 40%,#7a1e1a 0,#2e1020 55%,#120810 100%);box-shadow:0 0 24px rgba(255,122,90,.3) inset}' +
+  '.ghero.gfx .gglow{display:none}.ghero.gfx .gcrate{position:relative;width:auto;height:auto;min-height:170px;cursor:pointer}.ghero.gfx .gcrate .ic.big{position:relative;width:100%;height:auto;max-height:210px;object-fit:contain;animation:none;filter:drop-shadow(0 0 16px rgba(255,220,140,.55))}' +
+  '.gfxray{position:absolute;left:50%;top:50%;width:260px;height:260px;margin:-130px;border-radius:50%;background:repeating-conic-gradient(from 0deg,rgba(255,224,138,.28) 0 7deg,rgba(255,224,138,0) 7deg 20deg);animation:gsrot 16s linear infinite;-webkit-mask:radial-gradient(circle,#000 18%,transparent 68%);mask:radial-gradient(circle,#000 18%,transparent 68%)}' +
+  '.gfx_fash .gfxray{background:repeating-conic-gradient(from 0deg,rgba(255,120,80,.3) 0 7deg,rgba(255,120,80,0) 7deg 20deg)}.gfxm{font-style:normal;font-size:12px;font-weight:900;letter-spacing:2px;color:#ff8ab4;text-shadow:0 0 8px rgba(255,77,141,.7)}' +
+  '@media (orientation:landscape){.ghero.gfx{grid-template-columns:30% 1fr}}' +
+  /* chooser */
+  '.gbxov{position:fixed;inset:0;z-index:420;display:flex;align-items:center;justify-content:center;padding:12px;background:rgba(5,8,14,.78)}.gbxchb{width:min(560px,100%);max-height:96%;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:14px;border-radius:18px;border:2px solid #c8a8ff;background:linear-gradient(170deg,#2a2440,#121626)}' +
+  '.gbxcht{font-size:18px;color:#ffe08a;text-align:center}.gbxchb>small{text-align:center;color:#c8c0e0;font-size:12px}.gbxchg{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}.gbxchc{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:12px;border:2px solid #5a4a88;background:rgba(255,255,255,.05);color:#fff}' +
+  '.gbxchc.on{border-color:#ffc94a;box-shadow:0 0 12px #ffc94a;background:rgba(255,201,74,.12)}.gbxchc.own{opacity:.4}.gbxchi{width:78px;height:78px;display:flex;align-items:center;justify-content:center}.gbxchi img{max-width:100%;max-height:100%}.gbxchc b{font-size:13px}.gbxchc small{font-size:11px;color:#b8b0d8}.gbxchr{display:flex;gap:8px}.gbxchr .gbtn{flex:1}' +
+  /* the star show */
+  '.gstar{position:fixed;inset:0;z-index:450;overflow:hidden;background:radial-gradient(140% 100% at 50% 110%,#1a2a4a 0,#0a1024 45%,#03050c 100%);color:#fff;touch-action:manipulation;user-select:none;-webkit-user-select:none}' +
+  '.gsky i{position:absolute;width:var(--s);height:var(--s);border-radius:50%;background:#fff;animation:gstw 2.2s infinite}@keyframes gstw{0%,100%{opacity:.25}50%{opacity:1}}@keyframes gbxpulse{0%,100%{transform:scale(.92);opacity:.7}50%{transform:scale(1.05);opacity:1}}' +
+  '.gmet{position:absolute;inset:0}.gsm{position:absolute;left:calc(78% + var(--dx));top:-12%;width:6px;height:6px;border-radius:50%;background:#fff;box-shadow:0 0 12px 4px var(--mc),0 0 30px 10px var(--mc);animation:gsfall 1.05s cubic-bezier(.5,.05,.85,.6) var(--d) forwards;opacity:0}' +
+  '.gsm::after{content:"";position:absolute;left:50%;top:50%;width:46vmax;height:4px;margin-top:-2px;transform-origin:left center;transform:rotate(var(--ta));background:linear-gradient(270deg,rgba(255,255,255,0),var(--mc) 70%,#fff);border-radius:4px;filter:blur(.5px)}.gsm.big{width:12px;height:12px;box-shadow:0 0 18px 8px var(--mc),0 0 60px 22px var(--mc)}.gsm.big::after{height:8px;margin-top:-4px;width:60vmax}' +
+  '@keyframes gsfall{0%{opacity:0;transform:translate(0,0)}8%{opacity:1}100%{opacity:1;transform:translate(-30vw,70vh)}}' +
+  '.gland{position:absolute;left:48%;top:58%;width:10px;height:10px;margin:-5px;border-radius:50%;opacity:0;background:var(--gc);box-shadow:0 0 40px 20px var(--gc);animation:gsland .9s ease-out 1.02s forwards}@keyframes gsland{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(40)}}' +
+  '.gflash{position:absolute;inset:0;background:radial-gradient(circle at 48% 58%,#fff,var(--gc) 40%,rgba(0,0,0,0) 75%);opacity:0;animation:gsfl .7s ease-out 1.05s forwards;pointer-events:none}@keyframes gsfl{0%{opacity:0}20%{opacity:.95}100%{opacity:0}}' +
+  '.gstar.rev .gmet,.gstar.rev .gland{display:none}.gshow{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px;gap:10px}' +
+  '.gskip{position:absolute;top:calc(10px + env(safe-area-inset-top));right:12px;padding:6px 14px;border-radius:20px;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.35);color:#fff;font-size:13px;z-index:2}' +
+  '.gscards{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;width:min(720px,100%)}.gscards>.gscard{width:calc(20% - 7px)}.gscards.n1>.gscard{width:min(220px,60vw)}' +
+  '.gscard{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:14px;border:2px solid var(--gc);background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(0,0,0,.45));box-shadow:0 0 14px var(--gc);text-align:center;opacity:0;animation:gscin .5s cubic-bezier(.2,1.4,.4,1) forwards}' +
+  '@keyframes gscin{0%{opacity:0;transform:rotateY(90deg) scale(.6)}100%{opacity:1;transform:none}}.gsci{width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center}.gsci img,.gsci svg,.gsci .gbxw{width:84%;height:84%;object-fit:contain}.gscard b{font-size:11.5px;line-height:1.25;word-break:break-all}.gscard small{font-size:11px;font-weight:800;color:var(--gc)}' +
+  '.gscards.n1 .gscard b{font-size:15px}.gscard.r4,.gscard.r5{background:radial-gradient(circle at 50% 35%,var(--gc),rgba(0,0,0,.55) 70%)}.gstap{color:#c8d0e0;font-size:12px;opacity:.8}' +
+  '.gsplash{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;animation:gscin .7s cubic-bezier(.2,1.3,.4,1)}.gsray{position:absolute;left:50%;top:42%;width:150vmax;height:150vmax;margin:-75vmax;background:repeating-conic-gradient(from 0deg,rgba(255,77,141,.22) 0 6deg,rgba(255,224,138,.05) 6deg 18deg);animation:gsrot 14s linear infinite;pointer-events:none;-webkit-mask:radial-gradient(circle,#000 10%,transparent 45%);mask:radial-gradient(circle,#000 10%,transparent 45%)}@keyframes gsrot{to{transform:rotate(360deg)}}' +
+  '.gsfig{position:relative;width:min(56vw,46vh);aspect-ratio:1;display:flex;align-items:center;justify-content:center}.gsfig .big,.gsfig img{max-width:100%;max-height:100%;filter:drop-shadow(0 0 24px #ff4d8d)}.gsplash em{position:relative;font-style:normal;font-weight:900;letter-spacing:6px;color:#ff8ab4;text-shadow:0 0 12px #ff4d8d}.gsplash b{position:relative;font-size:22px;text-align:center;text-shadow:0 0 14px #ffe08a}.gsplash small{position:relative;color:#d8d0e8}' +
+  '@media (orientation:landscape){.gscards:not(.n1)>.gscard{width:calc(10% - 8px)}.gscards.n1>.gscard{width:min(170px,40vh)}.gsfig{width:min(36vw,52vh)}.gsplash b{font-size:18px}}';
+  document.head.appendChild(st); } catch (e) { } })();
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -28922,4 +29118,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795366611').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795368479').catch(()=>{});</script></body></html>
