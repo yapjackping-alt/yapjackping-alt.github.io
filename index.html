@@ -24548,7 +24548,7 @@ playerStep = (o => function () { if (JSW.k > .3) return; return o.apply(this, ar
    手枪「九霄符箓」 jian9p：子弹是符纸，打中就贴在怪身上（每发换下一种元素），同一只怪贴满 3 张就引爆，三种元素一起发作。
                          技能「九符镇魔」：九张符飞出去围成镇魔阵，阵里的怪被定住，阵收拢时一起爆开。
    狙击枪「九霄星宿」 jian9s：身后一幅北斗星图。打中 6 米外的怪或首领 / 精英点亮一颗星，打空熄掉一颗；五星全亮，
-                         下一枪变成「天罡一剑」：一柄巨大的光剑竖着从天上砸下，插进第一只被打中的怪身边。技能「星落」：七颗星坠向附近的怪，并点亮 3 颗星。
+                         下一枪变成「天罡一剑」：一柄巨大的光剑立在你面前，再往前倒下砸向前方。技能「星落」：七颗星坠向附近的怪，并点亮 3 颗星。
    散弹枪「九霄剑雨」 jian9g：每颗弹丸是一片小飞剑。打空的剑片插在地上；换弹时所有剑片飞回你手里，沿路再穿过怪物打一次。
                          技能「剑雨」：十八柄剑从天而降插满前方，下次换弹也会飞回来。
    斧头「九霄雷钺」 jian9a：每砍一下在落点立一根雷桩，立满九根连成雷网，网里的怪每 0.5 秒挨一次雷，6 秒后雷桩全部炸开。
@@ -24751,36 +24751,37 @@ function s9SevenSwords(ox, oz, dx, dz, L, gy) { const rx = dz, rz = -dx;
     skL(dl + 230, () => { skStar(x, gy + 1.2, z, 0xffffff, 1.8, .45); skRing(x, gy + .06, z, .2, 1.8, .45, J9_EL[i].c, .9); x9Snd(1568 + i * 120, 1500 + i * 120, .3, .03, 'sine'); }); }
   for (let i = 0; i < S9_LN.length - 2; i++) { const [a, b] = S9_LN[i]; skL(520, () => { const P = j => { const f = .12 + (S9_P[j][0] + .74) / 1.6 * .8, o = S9_P[j][1] * 3; return [ox + dx * L * f + rx * o, oz + dz * L * f + rz * o]; }, A = P(a), B = P(b);
       fxBeam(A[0], A[1], B[0], B[1], .14, .9, 0xffe8a8, .85, gy + .06, .02); }); } }
-/* 天罡一剑 (owner 23 Nov: a giant sword STANDING upright, point down, drops out of the sky and slams into the ground):
-   it lands on the first monster along the shot (or where the shot ended), everything within S9_TG_R takes 1.8× sniper */
-const S9_TG_R = 3.2;
-function s9Tiangang(ox, oz, dx, dz, end) { const L = Math.max(8, end), an = Math.atan2(dx, dz), gy = x9GY();
-  let px = ox + dx * L, pz = oz + dz * L, bd = 1e9; for (const z of zombies) { if (z.dead) continue; const d = segHit({ t: 0, x: z.pos.x, z: z.pos.z, r: (z.r || .5) * 1.15 }, ox, oz, dx, dz, L); if (d >= 0 && d < bd) { bd = d; px = z.pos.x; pz = z.pos.z; } }
-  try { fxFlash(0xfff2c0, .25, .25); } catch (e) { } x9Snd(2093, 2093, 1.2, .05, 'sine'); x9Snd(3136, 3100, .8, .025, 'sine', { delay: .05 });
-  const SC = 1.55, LEN = 8, H = (LEN + 1.6) * SC, BURY = 1.3, sw = x9BigSword(LEN, x9C(0xbfe8ff), 0xffe08a), g = new THREE.Group(); g.add(sw);
-  sw.rotation.x = Math.PI / 2; g.scale.setScalar(SC); g.rotation.y = an;
-  // hangs high over the target, then drops point-first (fast, accelerating) and stays buried a moment
-  const T1 = .32, T2 = .2, LIFE = 1.55;
-  x9Run(g, LIFE, k => { const t = k * LIFE; let y;
-    if (t < T1) y = gy + H + 9 - Math.sin(t / T1 * Math.PI / 2) * 1.2;
-    else { const d = Math.min(1, (t - T1) / T2); y = gy + H + 7.8 - (7.8 + BURY) * d * d; }
-    g.position.set(px, y, pz); const sh = t > T1 + T2 && t < T1 + T2 + .25 ? (Math.random() - .5) * .12 : 0; g.position.x += sh;
-    const fa = t < .12 ? t / .12 : k > .72 ? (1 - k) / .28 : 1; sw.children.forEach(m => { m.material.opacity = fa * (m.userData.o0 || (m.userData.o0 = m.material.opacity)); }); });
-  // a gate of light opens in the sky above the target
-  skRing(px, gy + H + 9.5, pz, .3, 3.2, .55, x9C(0xfff2c0), .9); skStar(px, gy + H + 9.5, pz, 0xffffff, 2.4, .5);
-  // a thin gold aim column shows where it will land
-  skP(skGeo().box, 0xffe08a, px, gy + 6, pz, T1 + T2, (k, m) => { m.scale.set(.12 * (1 - k * .5), 12, .12 * (1 - k * .5)); m.material.opacity = .55 * (1 - k * .3); });
-  skRing(px, gy + .06, pz, S9_TG_R, S9_TG_R * .9, T1 + T2, 0xffe08a, .7);
-  skL((T1 + T2) * 1000, () => { try { fxFlash(0xffffff, .4, .3); S.shake = Math.max(S.shake || 0, .65); } catch (e) { } x9Snd(70, 28, 1.1, .3, 'sine'); x9Noise(.7, .18, 600, { f1: 110 }); x9Snd(1046, 1040, 1.4, .04, 'sine', { delay: .05 });
-    skStar(px, gy + 1, pz, 0xffffff, 3.4, .45);
-    for (let q = 0; q < 3; q++) skL(q * 90, () => skRing(px, gy + .07, pz, .4, S9_TG_R + 1.6 + q * 1.4, .6, q === 1 ? x9C(0xbfe8ff) : 0xffe08a, .85));
-    // ground cracks of light out from the blade
-    for (let i = 0; i < 8; i++) { const a = an + i / 8 * Math.PI * 2 + (Math.random() - .5) * .3, r = S9_TG_R + 1 + Math.random() * 1.6; fxBeam(px, pz, px + Math.sin(a) * r, pz + Math.cos(a) * r, .22, 1.1, i % 2 ? 0xffe08a : x9C(0xbfe8ff), .9, gy + .05, .02); }
-    // light pillars round the ring, rock dust
-    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2, x = px + Math.sin(a) * S9_TG_R, z = pz + Math.cos(a) * S9_TG_R; skL(60 + i * 30, () => skPillar(x, gy, z, .35, 6, .55, i % 2 ? x9C(0xbfe8ff) : 0xffe08a, .8)); }
-    try { burst(px, gy + .4, pz, 0xb8a888, 16, 6); burst(px, gy + 1, pz, 0xfff0c0, 10, 8); } catch (e) { }
-    const B = x9Dmg('sniper') * 1.8; for (const z of x9Around(px, pz, S9_TG_R)) x9Hurt(z, B, z.pos.x - px, z.pos.z - pz); });
-  if (x9J()) s9SevenSwords(ox, oz, dx, dz, L, gy); }
+/* 天罡一剑 (owner 23 Nov, 2nd: a giant sword STANDS in front of you, point to the sky, then suddenly topples FORWARD — tip first —
+   and slams flat along the shot onto the monsters, like a felled tree): 1.8× sniper to everything along the blade (S9_TG_W wide) */
+const S9_TG_W = 1.6;
+function s9Tiangang(ox, oz, dx, dz, end) { const an = Math.atan2(dx, dz), gy = x9GY();
+  let d = Math.max(8, end); { let bd = 1e9; for (const z of zombies) { if (z.dead) continue; const q = segHit({ t: 0, x: z.pos.x, z: z.pos.z, r: (z.r || .5) * 1.15 }, ox, oz, dx, dz, Math.max(8, end)); if (q >= 0 && q < bd) bd = q; } if (bd < 1e9) d = Math.max(5, bd); }
+  const SC = 1.4, PV = 1.2, reach = Math.min(28, d + 2 - PV), LEN = Math.max(5, reach / SC - 1.1), px = ox + dx * PV, pz = oz + dz * PV, tipD = PV + (LEN + 1.1) * SC;
+  try { fxFlash(0xfff2c0, .2, .25); } catch (e) { } x9Snd(2093, 2093, 1.2, .05, 'sine'); x9Snd(3136, 3100, .8, .025, 'sine', { delay: .05 });
+  // pivot at the ground in front of you; the sword inside stands point-up (+z of the model → +y), its grip end on the ground
+  const sw = x9BigSword(LEN, x9C(0xbfe8ff), 0xffe08a), P = new THREE.Group(), inner = new THREE.Group(); inner.add(sw); P.add(inner);
+  sw.rotation.x = -Math.PI / 2; sw.position.y = 1.6; inner.scale.setScalar(SC); P.rotation.order = 'YXZ';
+  const T_UP = .28, T_HOLD = .3, T_FALL = .34, LIFE = 1.75, T_HIT = T_UP + T_HOLD + T_FALL;
+  x9Run(P, LIFE, k => { const t = k * LIFE; let ph = 0, y = gy + .15;
+    if (t < T_UP) { const e = t / T_UP; y = gy + .15 - (1 - e) * (1 - e) * 4; ph = -.12 * e; }      /* rises out of the ground, leaning back a little */
+    else if (t < T_UP + T_HOLD) ph = -.12 + Math.sin((t - T_UP) * 40) * .012;                      /* stands, trembling */
+    else if (t < T_HIT) { const e = (t - T_UP - T_HOLD) / T_FALL; ph = -.12 + (Math.PI / 2 + .12) * e * e; }   /* topples forward, faster and faster */
+    else ph = Math.PI / 2 - Math.max(0, .05 * Math.sin((t - T_HIT) * 30) * Math.exp(-(t - T_HIT) * 8));   /* slams down and bounces a hair */
+    P.position.set(px, y, pz); P.rotation.set(ph, an, 0);
+    const fa = t < .12 ? t / .12 : k > .78 ? (1 - k) / .22 : 1; sw.children.forEach(m => { m.material.opacity = fa * (m.userData.o0 || (m.userData.o0 = m.material.opacity)); }); });
+  // a ring of light where it stands, a gold line showing where it will fall
+  skRing(px, gy + .06, pz, .3, 2.2, T_UP + .2, x9C(0xfff2c0), .9); skStar(px, gy + 1, pz, 0xffffff, 1.6, .4);
+  skL(T_UP * 1000, () => fxBeam(px, pz, ox + dx * tipD, oz + dz * tipD, .25, T_HOLD + T_FALL, 0xffe08a, .55, gy + .05, .02));
+  skL(T_HIT * 1000, () => { try { fxFlash(0xffffff, .4, .3); S.shake = Math.max(S.shake || 0, .7); } catch (e) { } x9Snd(70, 28, 1.1, .3, 'sine'); x9Noise(.7, .18, 600, { f1: 110 }); x9Snd(1046, 1040, 1.4, .04, 'sine', { delay: .05 });
+    const ex = ox + dx * tipD, ez = oz + dz * tipD;
+    fxBeam(px, pz, ex, ez, 1.3, 1.1, 0xffe08a, .85, gy + .05, .02); fxBeam(px, pz, ex, ez, .4, 1, 0xffffff, .9, gy + .06, .02);
+    skStar(ex, gy + 1, ez, 0xffffff, 3, .45); for (let q = 0; q < 3; q++) skL(q * 80, () => skRing(ex, gy + .07, ez, .4, 3 + q * 1.3, .6, q === 1 ? x9C(0xbfe8ff) : 0xffe08a, .85));
+    // dust and light bursting up all along the blade, side cracks
+    const n = Math.max(5, Math.round(tipD / 2.2)); for (let i = 0; i < n; i++) { const f = (i + .7) / n, x = ox + dx * (PV + (tipD - PV) * f), z = oz + dz * (PV + (tipD - PV) * f);
+      skL(i * 22, () => { skPillar(x, gy, z, .35, 4 + f * 3, .5, i % 2 ? x9C(0xbfe8ff) : 0xffe08a, .8); try { burst(x, gy + .3, z, 0xb8a888, 5, 4); } catch (e) { } });
+      if (i % 2) for (const s of [-1, 1]) fxBeam(x, z, x + dz * s * 2.2 + dx * .6, z - dx * s * 2.2 + dz * .6, .14, .9, 0xffe08a, .8, gy + .05, .02); }
+    const B = x9Dmg('sniper') * 1.8; for (const z of zombies.slice()) { if (z.dead) continue; if (x9SegD(z.pos.x, z.pos.z, px, pz, ex, ez) < S9_TG_W + (z.r || .5) * .5) x9Hurt(z, B, dx, dz); } });
+  if (x9J()) s9SevenSwords(ox, oz, dx, dz, tipD, gy); }
 
 /* ================= 散弹枪 · 九霄剑雨 ================= */
 const G9 = { c: 0, sh: [], rec: 0 };
@@ -25051,7 +25052,7 @@ try { WSK_GUN.jian9p = { fire() { WSKN(.08, .025, 3000, { type: 'highpass', dela
 function x9Desc(k, id, link, txt) { try { const D0 = WSKINS[k].d; Object.defineProperty(WSKINS[k], 'd', { configurable: true, enumerable: true, get() { let w = 0; try { w = weaponDmg(id); } catch (e) { } const n = p => w ? '（约 ' + Math.round(w * p) + '）' : '';
     return D0 + '\n' + txt(n) + '\n【联动 · 九霄剑仙】穿上神话时装「九霄剑仙」时：' + link + '（只是外观，伤害不变）。'; } }); } catch (e) { } }
 x9Desc('jian9p', 'pistol', '符箓引爆时，三张符化作三柄飞剑跃起、交叉刺下；技能里的九张符换成九柄飞剑围成剑牢，最后一齐刺向阵心', n => '【玩法 · 符箓】身后九张符。九张都在时开一枪就开始一轮：每发带走一张符，打中就贴在怪身上；同一只怪贴满 3 张就引爆，三张符的元素一起发作，每张 50%' + n(.5) + '，周围 2.5 米的怪受 35%' + n(.35) + '（带「合」符时 3 米、60%' + n(.6) + '）。停手 3 秒不开枪，符会一张张飞回来补满；九张全用完则要等九张聚齐（约 5 秒）才能再出符，这期间是普通子弹。\n【技能 · 九符镇魔】九张符在前方围成镇魔阵（只是特效，技能本身不变）。');
-x9Desc('jian9s', 'sniper', '星图上的每颗星变成一柄小剑；天罡一剑前，先有七柄剑按北斗的形状从天上落在弹道上；技能星落坠下的是飞剑', n => '【玩法 · 北斗】打中 6 米外的怪、或首领 / 精英，点亮一颗星；打空熄掉一颗。五星全亮时下一枪是「天罡一剑」：一柄巨剑竖着从天上砸在弹道上第一只怪身上，周围 3 米内的怪受 180%' + n(1.8) + '，然后五星重新点起。\n【技能 · 星落】星图铺满地面，七颗星坠落（只是特效，技能本身不变）。');
+x9Desc('jian9s', 'sniper', '星图上的每颗星变成一柄小剑；天罡一剑前，先有七柄剑按北斗的形状从天上落在弹道上；技能星落坠下的是飞剑', n => '【玩法 · 北斗】打中 6 米外的怪、或首领 / 精英，点亮一颗星；打空熄掉一颗。五星全亮时下一枪是「天罡一剑」：一柄巨剑立在你面前，剑尖朝天，然后往前倒下砸向前方，剑身压到的怪受 180%' + n(1.8) + '，然后五星重新点起。\n【技能 · 星落】星图铺满地面，七颗星坠落（只是特效，技能本身不变）。');
 x9Desc('jian9g', 'shotgun', '飞剑打中时绽开一朵剑气莲花，剑归手时在身边开一朵大剑莲；技能落剑处也开剑莲', n => '【玩法 · 飞剑】每一枪的弹丸里有一柄飞剑，属性随机（水 火 雷 毒 冰 木 土 金 合）：打中就是一次这种属性的伤害，100%' + n(1) + '（一颗弹丸的伤害为 100%，金 / 合 160%），带上它的效果；打空就插在地上（最多 9 柄，15 秒后消失），换弹时飞回你手里，沿路每碰到一只怪造成 100%' + n(1) + '。其余弹丸是普通弹丸。\n【技能 · 剑雨】十八柄剑从天而降（只是特效，技能本身不变）。');
 x9Desc('jian9a', 'axe', '雷桩、雷网和天雷全部变成金雷，雷网成形时落下金色「雷」字印，技能也是', n => '【玩法 · 雷桩】平时就是普通劈砍。每砍一下在落点立一根雷桩（20 秒后消失），不用攒能量；九根立满连成雷网 6 秒，网里的怪每 0.5 秒受 20%' + n(.2) + ' 并减速，结束时每根雷桩炸开 30%' + n(.3) + '。雷网存在的期间砍下去不会立雷桩，等雷网消失才能再立。\n【技能 · 九天雷降】三圈旋斩各引三道天雷（只是特效，技能本身不变）。');
 x9Desc('jian9k', 'pick', '剑山变成一柄柄巨大的石剑从地下破土刺出，技能也是', n => '【玩法 · 地脉】打中怪物、或敲到能采的岩石 / 废铁，积一点地脉；攒满九点，下一镐冲出一排七座剑山，每座 220%' + n(2.2) + '，并把怪掀开，然后从 0 重新积。没攒满时是普通挥镐。\n【技能 · 地脉翻涌】身边冲出一圈九座剑峰（只是特效，技能本身不变）。');
@@ -28921,4 +28922,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795365738').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795366611').catch(()=>{});</script></body></html>
