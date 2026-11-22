@@ -28063,6 +28063,107 @@ drawModal = (o => function (out, n) { const a = arguments; gStar(out.map(x => ({
   '.gsfig{position:relative;width:min(56vw,46vh);aspect-ratio:1;display:flex;align-items:center;justify-content:center}.gsfig .big,.gsfig img{max-width:100%;max-height:100%;filter:drop-shadow(0 0 24px #ff4d8d)}.gsplash em{position:relative;font-style:normal;font-weight:900;letter-spacing:6px;color:#ff8ab4;text-shadow:0 0 12px #ff4d8d}.gsplash b{position:relative;font-size:22px;text-align:center;text-shadow:0 0 14px #ffe08a}.gsplash small{position:relative;color:#d8d0e8}' +
   '@media (orientation:landscape){.gscards:not(.n1)>.gscard{width:calc(10% - 8px)}.gscards.n1>.gscard{width:min(170px,40vh)}.gsfig{width:min(36vw,52vh)}.gsplash b{font-size:18px}}';
   document.head.appendChild(st); } catch (e) { } })();
+/* ============ camera zoom (owner 23 Nov: 镜头可以拉远拉近，看得更远) ============
+   Two fingers pinching on the open 3D view (not on the joystick or a button), or the mouse wheel on PC, move the follow camera
+   nearer / farther: CZ.k = .65 … 1.9 × the normal height + distance (resize() keeps setting the base camH / camD for the screen
+   shape; this file scales whatever it set). Remembered in localStorage ember_camz.
+   Fog is measured from the camera, so while drawing it is pushed out by the extra camera distance (renderer.render wrapper,
+   restored right after) — zooming out shows MORE of the world, not more fog. Not in first person or the building god view. */
+const CZ = { k: 1, min: .65, max: 1.9, h0: 0, d0: 0, lh: NaN, ld: NaN, pinch: null };
+try { const v = parseFloat(localStorage.getItem('ember_camz')); if (v >= CZ.min && v <= CZ.max) CZ.k = v; } catch (e) { }
+function czOff() { try { return (typeof fpOn === 'function' && fpOn()) || (typeof GV !== 'undefined' && GV.on); } catch (e) { return false; } }
+function czApply() { if (camH !== CZ.lh || camD !== CZ.ld) { CZ.h0 = camH; CZ.d0 = camD; }   /* resize() set a new base */
+  camH = CZ.h0 * CZ.k; camD = CZ.d0 * CZ.k; CZ.lh = camH; CZ.ld = camD; }
+function czSet(k) { CZ.k = Math.max(CZ.min, Math.min(CZ.max, k)); czApply(); try { localStorage.setItem('ember_camz', CZ.k.toFixed(3)); } catch (e) { } }
+petsTick = (o => function (dt) { const r = o(dt); try { czApply(); } catch (e) { } return r; })(petsTick);
+// fog pushed out by the extra distance while the main view is drawn
+try { const R0 = renderer.render.bind(renderer);
+  renderer.render = function (sc, cam) { const f = sc === scene && cam === camera && sc.fog && CZ.k !== 1 && !czOff() ? sc.fog : null;
+    if (!f) return R0(sc, cam); const add = Math.hypot(CZ.h0, CZ.d0) * (CZ.k - 1), n = f.near, fa = f.far; f.near = Math.max(1, n + add); f.far = Math.max(f.near + 5, fa + add);
+    try { return R0(sc, cam); } finally { f.near = n; f.far = fa; } }; } catch (e) { }
+// PC: mouse wheel over the 3D view
+window.addEventListener('wheel', e => { if (e.target !== canvas || czOff() || S.paused) return; e.preventDefault(); czSet(CZ.k * Math.exp(e.deltaY * .0012)); }, { passive: false });
+// phone: two fingers that both start on the 3D view
+(() => { const T = {}; const onC = t => t.target === canvas;
+  canvas.addEventListener('touchstart', e => { for (const t of e.changedTouches) if (onC(t)) T[t.identifier] = [t.clientX, t.clientY];
+    const ids = Object.keys(T); if (ids.length === 2 && !czOff()) { const [a, b] = ids.map(i => T[i]); CZ.pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, k: CZ.k }; } }, { passive: true });
+  canvas.addEventListener('touchmove', e => { for (const t of e.changedTouches) if (T[t.identifier]) T[t.identifier] = [t.clientX, t.clientY];
+    if (!CZ.pinch || czOff()) return; const ids = Object.keys(T); if (ids.length !== 2) return; const [a, b] = ids.map(i => T[i]), d = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
+    czSet(CZ.pinch.k * CZ.pinch.d / d); }, { passive: true });
+  const end = e => { for (const t of e.changedTouches) delete T[t.identifier]; if (Object.keys(T).length < 2) CZ.pinch = null; };
+  canvas.addEventListener('touchend', end, { passive: true }); canvas.addEventListener('touchcancel', end, { passive: true }); })();
+/* ============ 检视武器 · show off your weapon (owner 23 Nov: like 和平精英 / 三角洲 — take the gun out and show it off) ============
+   A small round button next to the build hammer (or the medkit when there is no hammer), PC key U. The camera swings round to
+   a close-up in FRONT of you while your character lifts the weapon and turns it: one side, then the muzzle swings past the
+   camera to the other side, then a tilted flourish with a full spin, then back. Sparkles in the skin's colour, a light sweep,
+   gun clicks; the weapon / skin name with its grade shows at the bottom. Anything you do (move, fire, swing, reload, roll,
+   open a window) ends it at once. Visual only: no game effect. */
+const WINSP = { on: false, t: 0, k: 0, D: 3.6, save: null, el: null, lab: null, sp: 0 };
+function insOk() { try { return S.started && !S.dead && !S.boat && !S.paused && !(typeof GV !== 'undefined' && GV.on) && !(typeof buildOpen !== 'undefined' && buildOpen) && !(typeof fpOn === 'function' && fpOn()) && !(typeof SW !== 'undefined' && SW.b) && !(typeof JSW !== 'undefined' && JSW.on) && !S.climbA; } catch (e) { return false; } }
+function insName() { const k = S.wsk && S.wsk[S.wp], K = k && WSKINS[k], RN = ['普通', '优秀', '稀有', '史诗', '传说', '神话'], RC = ['#b9b2aa', '#8fd48f', '#5aa9ff', '#c28bff', '#ffc94a', '#ff4d8d'];
+  if (K) return { n: K.n + ' · ' + WEAP[S.wp].n, g: RN[K.r] || '', c: RC[K.r] || '#fff', glow: K.tr || K.glow || 0xffe08a };
+  return { n: WEAP[S.wp].n, g: '', c: '#e8eef2', glow: 0xffe8b0 }; }
+function insStart() { if (WINSP.on || !insOk()) return; WINSP.on = true; WINSP.t = 0; WINSP.k = 0; WINSP.sp = 0;
+  WINSP.save = { gp: gun.position.clone(), gr: gun.rotation.clone(), al: pm.armL.rotation.clone(), ar: pm.armR.rotation.clone(), asl: pm.armL.scale.y, asr: pm.armR.scale.y, by: pm.body.rotation.y, bx: pm.body.rotation.x };
+  const N = insName(); if (!WINSP.lab) { WINSP.lab = document.createElement('div'); WINSP.lab.id = 'insLab'; document.body.appendChild(WINSP.lab); }
+  WINSP.lab.innerHTML = '<b style="color:' + N.c + '">' + N.n + '</b>' + (N.g ? '<i style="border-color:' + N.c + ';color:' + N.c + '">' + N.g + '</i>' : ''); WINSP.lab.classList.add('on');
+  insClick(0); }
+function insStop() { if (!WINSP.on) return; WINSP.on = false; const s = WINSP.save;
+  if (s) { gun.position.copy(s.gp); gun.rotation.copy(s.gr); pm.armL.rotation.copy(s.al); pm.armR.rotation.copy(s.ar); pm.armL.scale.y = s.asl; pm.armR.scale.y = s.asr; pm.body.rotation.y = s.by; pm.body.rotation.x = s.bx; }
+  if (WINSP.lab) WINSP.lab.classList.remove('on'); }
+function insClick(d) { try { if (typeof AC === 'undefined' || !AC) return; sfxTone(2600, 1900, .035, .05, 'square', { delay: d }); sfxTone(1500, 1100, .05, .04, 'square', { delay: d + .07 }); sfxNoise(.08, .03, 3200, { delay: d + .02 }); } catch (e) { } }
+function insShine(d) { try { if (typeof AC === 'undefined' || !AC) return; sfxTone(1568, 3136, .5, .03, 'sine', { delay: d }); sfxTone(2093, 4186, .6, .02, 'triangle', { delay: d + .06 }); } catch (e) { } }
+const _insV = new THREE.Vector3();
+// the hold: weapon direction f and its up u (body space, +z = forward = toward the show camera), grip point G
+function insPose(t) { const mel = typeof isMelee === 'function' && isMelee(), D = WINSP.D, s = x => x * x * (3 - 2 * x), L = (a, b, e) => a.map((v, i) => v + (b[i] - v) * e);
+  const G = [.06, 1.42, .56];
+  // keyframes: [time, f, u]
+  /* melee: blade up in front, its FLAT (local x = u × f) turned to the camera, then the other flat, then a tilted spin */
+  const K = mel ? [[0, [.1, .5, .85], [0, .85, -.5]], [.5, [-.12, 1, .12], [1, 0, 0]], [1.45, [-.08, 1, .1], [1, 0, .15]], [1.8, [0, 1, .1], [0, 0, 1]], [2.15, [.12, 1, .12], [-1, 0, .15]], [2.75, [.4, .8, .35], [-1, 0, 0]], [3.2, [.4, .8, .35], [-1, 0, 0]], [D, [.1, .5, .85], [0, .85, -.5]]]
+    : [[0, [0, 0, 1], [0, 1, 0]], [.45, [-1, .05, .25], [0, 1, 0]], [1.45, [-1, .12, .2], [0, 1, 0]], [1.8, [0, .1, 1], [0, 1, 0]], [2.15, [1, .12, .2], [0, 1, 0]], [2.75, [.35, .75, .45], [0, 0, -1]], [3.2, [.35, .75, .45], [0, 0, -1]], [D, [0, 0, 1], [0, 1, 0]]];
+  let i = 0; while (i < K.length - 2 && t > K[i + 1][0]) i++; const a = K[i], b = K[i + 1], e = s(Math.max(0, Math.min(1, (t - a[0]) / (b[0] - a[0]))));
+  const f = _n3(L(a[1], b[1], e)); let u = L(a[2], b[2], e);
+  // the flourish: a full spin round the weapon's own length
+  if (t > 2.75 && t < 3.2) { const w = s((t - 2.75) / .45) * Math.PI * 2, c = Math.cos(w), sn = Math.sin(w), x = _cr(f, u); u = [u[0] * c + x[0] * sn, u[1] * c + x[1] * sn, u[2] * c + x[2] * sn]; }
+  const g = [G[0], G[1] + Math.sin(t * 2.4) * .015, G[2]], r = eulerFrom(f, u); gun.position.set(g[0], g[1], g[2]); gun.rotation.set(r[0], r[1], r[2]);
+  aimArm(pm.armR, g); aimArm(pm.armL, mel ? [g[0] - .05, g[1] - .22, g[2]] : [g[0] + f[0] * .32, g[1] + f[1] * .32 - .04, g[2] + f[2] * .32]);
+  pm.body.rotation.y = 0; pm.body.rotation.x = 0; }
+function insTick(dt) { if (!WINSP.on) { WINSP.k = Math.max(0, WINSP.k - dt * 3); return; }
+  let mv = 0; try { mv = typeof jswMv === 'function' ? jswMv() : Math.hypot(input.mx || 0, input.mz || 0); } catch (e) { }
+  if (!insOk() || mv > .2 || input.fire || (S.swingT > 0) || S.reload > 0 || (S.rollT > 0)) { insStop(); return; }
+  WINSP.t += dt; WINSP.k = Math.min(1, WINSP.k + dt * 2.6); if (WINSP.t >= WINSP.D) { insStop(); return; }
+  insPose(WINSP.t); const t = WINSP.t, N = insName();
+  if (t > 1.62 && WINSP.sp < 1) { WINSP.sp = 1; insShine(0); }
+  if (t > 2.75 && WINSP.sp < 2) { WINSP.sp = 2; insClick(0); insClick(.25); insShine(.15); }
+  // sparkles in the skin's colour round the weapon
+  try { if (Math.random() < dt * 10) { (wpnModel || gun).getWorldPosition(_insV); burst(_insV.x + (Math.random() - .5) * .6, _insV.y + (Math.random() - .3) * .5, _insV.z + (Math.random() - .5) * .6, N.glow, 1, .6); } } catch (e) { } }
+skinFxTick = (o => function (dt) { o(dt); try { insTick(dt); } catch (e) { } })(skinFxTick);
+// the show camera: a close-up from the front, blended in/out; only while drawing (the follow camera keeps its own state)
+try { const R1 = renderer.render.bind(renderer), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _q2 = new THREE.Quaternion(), _m = new THREE.Matrix4(), _up = new THREE.Vector3(0, 1, 0);
+  renderer.render = function (sc, cam) { if (cam !== camera || sc !== scene || WINSP.k <= 0) return R1(sc, cam);
+    const k = WINSP.k * WINSP.k * (3 - 2 * WINSP.k), f = player.face, y0 = pm.g.position.y, ex = player.pos.x + Math.sin(f) * 4.9 + Math.cos(f) * 1.3, ez = player.pos.z + Math.cos(f) * 4.9 - Math.sin(f) * 1.3, ey = y0 + 2.5;
+    _p.copy(cam.position); _q.copy(cam.quaternion);
+    _m.lookAt(new THREE.Vector3(ex, ey, ez), new THREE.Vector3(player.pos.x, y0 + 1.35, player.pos.z), _up); _q2.setFromRotationMatrix(_m);
+    cam.position.set(_p.x + (ex - _p.x) * k, _p.y + (ey - _p.y) * k, _p.z + (ez - _p.z) * k); cam.quaternion.copy(_q).slerp(_q2, k); cam.updateMatrixWorld();
+    try { return R1(sc, cam); } finally { cam.position.copy(_p); cam.quaternion.copy(_q); cam.updateMatrixWorld(); } }; } catch (e) { }
+// the button, kept next to the hammer (or above-left of the medkit)
+const INS_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.6-6 9.5-6 9.5 6 9.5 6-3.6 6-9.5 6-9.5-6-9.5-6z" fill="none" stroke="#fff" stroke-width="1.8"/><circle cx="12" cy="12" r="3.1" fill="none" stroke="#ffe08a" stroke-width="1.8"/><path d="M19 2.5l.7 1.6 1.6.7-1.6.7-.7 1.6-.7-1.6-1.6-.7 1.6-.7z" fill="#ffe08a"/></svg>';
+function insBtn() { if (WINSP.el) return WINSP.el; const b = document.createElement('button'); b.id = 'bInspect'; b.className = 'insb'; b.innerHTML = INS_SVG + '<small>检视</small>';
+  b.addEventListener('click', e => { e.stopPropagation(); WINSP.on ? insStop() : insStart(); }); document.body.appendChild(b); return (WINSP.el = b); }
+let _insPT = 0;
+petsTick = (o => function (dt) { const r = o(dt); try { _insPT -= dt; if (_insPT <= 0) { _insPT = .4; insPlace(); } } catch (e) { } return r; })(petsTick);
+function insPlace() { const b = insBtn(), vis = el => el && el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden' && el.getBoundingClientRect().width > 0;
+  const hb = document.getElementById('bBuild'), mb = document.getElementById('bMed'), an = vis(hb) ? hb : vis(mb) ? mb : null;
+  if (!an || !S.started || S.dead) { b.style.display = 'none'; return; } const r = an.getBoundingClientRect(), W = 44;
+  b.style.display = ''; b.style.left = Math.round(r.left - W - 8) + 'px'; b.style.top = Math.round(an === hb ? r.top + (r.height - W) / 2 : r.top - W - 6) + 'px'; }
+window.addEventListener('keydown', e => { if (e.code !== 'KeyU' || e.repeat) return; const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return; WINSP.on ? insStop() : insStart(); });
+(() => { try { const st = document.createElement('style'); st.textContent =
+  '.insb{position:fixed;z-index:30;width:44px;height:44px;padding:0;border-radius:50%;border:1.5px solid rgba(255,224,138,.75);background:rgba(20,24,30,.62);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;touch-action:manipulation}' +
+  '.insb svg{width:22px;height:22px}.insb small{font-size:9px;line-height:1;color:#ffe08a;font-weight:800;margin-top:1px}body.gvOn .insb,body.bOpen .insb,body.swimOn .insb{display:none!important}' +
+  '#insLab{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));transform:translate(-50%,20px);z-index:31;display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:24px;background:linear-gradient(90deg,rgba(0,0,0,0),rgba(0,0,0,.6) 20%,rgba(0,0,0,.6) 80%,rgba(0,0,0,0));opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;white-space:nowrap}' +
+  '@media (orientation:portrait){#insLab{bottom:auto;top:calc(env(safe-area-inset-top) + 190px)}}' +
+  '#insLab.on{opacity:1;transform:translate(-50%,0)}#insLab b{font-size:17px;letter-spacing:1px;text-shadow:0 0 10px currentColor}#insLab i{font-style:normal;font-size:11px;font-weight:900;padding:1px 8px;border:1px solid;border-radius:9px}';
+  document.head.appendChild(st); } catch (e) { } })();
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -29118,4 +29219,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795368479').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795369166').catch(()=>{});</script></body></html>
