@@ -26173,8 +26173,7 @@ villageChunk = function (ch, cx, cz, L, W, mark) {
     if (Math.floor(v.x / CH) !== cx || Math.floor(v.z / CH) !== cz) continue;
     const R = mulberry32(v.seed), st = v.style;
     // ground: the village's own earth, a soft round patch
-    vPut(L, V3G.cyl, VIL3_GROUND[st] || 0x6a5440, v.x, .07, v.z, 0, 0, 0, v.R + 2, .02, v.R + 2);
-    vPut(L, V3G.cyl, VIL3_GROUND[st] || 0x6a5440, v.x, .078, v.z, 0, 0, 0, 7.5, .02, 7.5);
+    v3Ground(L, v, R);
     try { V3_CENTRE[st](L, ch, v, R); } catch (e) { console.warn('vil centre', e); }
     // houses scattered round the square (two loose rings), each facing the middle a little crooked, a path to the square
     const npcs = typeof npcsOfVil === 'function' ? npcsOfVil(v.id) : [], nh = Math.max(7, Math.min(11, npcs.length + 3)), houses = [], fortR = st === 'fort' ? v.R - 6 : v.R - 4;
@@ -26183,7 +26182,7 @@ villageChunk = function (ch, cx, cz, L, W, mark) {
       if (Math.hypot(x - (v.x + 6), z - (v.z + 5.5)) < 8.5 || Math.hypot(x - (v.x + 2.5), z - (v.z - 6.5)) < 7) continue;
       const ry = Math.atan2(v.x - x, v.z - z) + (R() - .5) * .6;
       try { const door = V3_HOUSE[st](L, ch, x, z, ry, R); houses.push({ x, z, ry, door }); } catch (e) { console.warn('vil house', e); } }
-    const PC = { kampung: 0x9a8058, nordic: 0x7a6a4c, desert: 0xd8b888, swamp: 0x5a5a40, arctic: 0xd0dce4, shanty: 0x6a6056, pueblo: 0xc88a60, turf: 0x6a6a58, tibet: 0xaa9a80, fort: 0x6e6a64 }[st] || 0x7a6248;
+    const PC = v3Mix(v.x, v.z, VIL3_GROUND[st] || 0x7a6248, .5);
     houses.forEach((H, k) => { const [dx, dz] = H.door, ex = v.x + (dx - v.x) * 7 / Math.max(7.1, Math.hypot(dx - v.x, dz - v.z)), ez = v.z + (dz - v.z) * 7 / Math.max(7.1, Math.hypot(dx - v.x, dz - v.z)), ln = Math.hypot(ex - dx, ez - dz);
       if (ln > .5) L.box((dx + ex) / 2, .085 + (k % 4) * .003, (dz + ez) / 2, 1.4, .012, ln + .8, PC, 0, Math.atan2(ex - dx, ez - dz), 0); });
     // small things between the houses: barrels, crates, a garden patch, style props
@@ -26201,10 +26200,12 @@ villageChunk = function (ch, cx, cz, L, W, mark) {
     // guards on a loop
     const ng = st === 'fort' ? 4 : 2, loop = []; for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283 + (R() - .5) * .3, d = v.R - 2 + R() * 3; loop.push([v.x + Math.cos(a) * d, v.z + Math.sin(a) * d]); }
     for (let g = 0; g < ng; g++) { const spec = Object.assign({ sex: g % 3 === 2 ? 'f' : 'm', age: 'adult', top: 0x3e4a34, bottom: 0x2a2e24, acc: ['vest'] }, V3_GUARD[st] || {});
-      const hm = makeNpc(spec); try { const G = new THREE.Group(); hm.body.add(G); G.add(buildWeapon('rifle', wTier(Math.max(1, 10 * v.t - 5)), '')); const Q = POSE.rifle || POSE.gun; G.position.set(Q.pos[0], hm.hip + Q.pos[1], Q.pos[2]); G.rotation.set(Q.rest[0], Q.rest[1], Q.rest[2]); hm.armR.rotation.x = hm.armL.rotation.x = -1.2; } catch (e) { }
+      let gdLab = null; const hm = makeNpc(spec); try { const G = new THREE.Group(); hm.body.add(G); G.add(buildWeapon('rifle', wTier(Math.max(1, 10 * v.t - 5)), '')); const Q = POSE.rifle || POSE.gun; G.position.set(Q.pos[0], hm.hip + Q.pos[1], Q.pos[2]); G.rotation.set(Q.rest[0], Q.rest[1], Q.rest[2]); hm.armR.rotation.x = hm.armL.rotation.x = -1.2; } catch (e) { }
       const i0 = Math.floor(g * 8 / ng), [x, z] = loop[i0]; hm.g.position.set(x, 0, z); scene.add(hm.g); ch.meshes.push(hm.g); blob(.7, hm.g);
-      const lab = labelSprite(T2('守卫', 'Guard'), '#a8e0ff', .8); lab.position.set(0, 2.9, 0); hm.g.add(lab);
-      const gd = { h: hm, loop, i: i0, dir: g % 2 ? -1 : 1, cd: R(), walk: 0, t: v.t, vil: v, wait: 0 }; GUARDS.push(gd); ch.guards.push(gd); }
+      const lab = npcLabel(T2('守卫', 'Guard'), '', '#a8e0ff'); lab.position.set(0, 2.9, 0); hm.g.add(lab); gdLab = lab;
+      const gd = { lab: gdLab, h: hm, loop, i: i0, dir: g % 2 ? -1 : 1, cd: R(), walk: 0, t: v.t, vil: v, wait: 0 }; GUARDS.push(gd); ch.guards.push(gd); }
+    // plants of the land round the edge and between the houses: the village grows out of its surroundings
+    try { v3Veg(L, ch, v, R, houses); } catch (e) { console.warn('vil veg', e); }
     // teleport stone + task board
     try { if (typeof teleBuildVil === 'function') teleBuildVil(ch, v); } catch (e) { console.warn('tele', e); }
     try { if (typeof vqBoardBuild === 'function') vqBoardBuild(ch, L, v); } catch (e) { console.warn('board', e); }
@@ -26228,9 +26229,63 @@ const V3_GUARD = { kampung: { hat: 'songkok', top: 0x2a5a4a }, nordic: { hat: 'f
 /* a named person in a village (or anywhere): model, name tag, the fields the old trade code reads */
 function npcSpawn(N, x, z, v, H) {
   const hm = makeNpc(N.look || {}); hm.g.position.set(x, 0, z); hm.g.rotation.y = v ? Math.atan2(v.x - x, v.z - z) : 0; scene.add(hm.g); blob(.6, hm.g);
-  const lab = labelSprite(N.n + (N.role ? ' · ' + N.role : ''), N.story ? '#ffd27a' : '#ffe9a8', .85); lab.position.set(0, (N.look && N.look.age === 'kid') ? 3.6 : 2.9, 0); hm.g.add(lab);
+  const lab = npcLabel(N.n, N.role || '', N.story ? '#ffd27a' : '#ffe9a8'); lab.position.set(0, (N.look && N.look.age === 'kid') ? 3.9 : 2.95, 0); hm.g.add(lab);
   const seed = hash2(N.id.length * 131 + N.id.charCodeAt(0), N.id.charCodeAt(N.id.length - 1) * 17 + 5);
   return { h: hm, x, z, hx: x, hz: z, tx: x, tz: z, wt: Math.random() * 3, name: N.n, role: N.role || '', mood: VIL_MOOD[N.mood != null ? N.mood : seed % 4], vid: v ? v.id : N.id, idx: 0, seed, vil: v || null, walk: 0, stock: {}, house: H ? { door: H.door } : null, well: v ? [v.x, v.z] : null, npc: N, lab }; }
+
+/* ---- name tags (owner 22 Nov: a name right under the camera filled the screen and was cut off) ----
+   canvas sized to the text, name on top and the role smaller under it; every frame the tag is scaled with its distance
+   to the camera so it stays the same size on screen (npcLabelTick), and it fades out when it is very close. */
+function npcLabel(name, role, color) {
+  const c = document.createElement('canvas'), g = c.getContext && c.getContext('2d'); if (!g) return labelSprite(name, color, .8);
+  g.font = 'bold 34px "Noto Sans SC", sans-serif'; const w1 = g.measureText(name).width; g.font = 'bold 22px "Noto Sans SC", sans-serif'; const w2 = role ? g.measureText(role).width : 0;
+  const W = Math.ceil(Math.max(w1, w2) + 24), H = role ? 70 : 46; c.width = W; c.height = H;
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  g.font = 'bold 34px "Noto Sans SC", sans-serif'; g.lineWidth = 7; g.strokeStyle = 'rgba(0,0,0,.72)'; g.strokeText(name, W / 2, 22); g.fillStyle = color || '#fff'; g.fillText(name, W / 2, 22);
+  if (role) { g.font = 'bold 22px "Noto Sans SC", sans-serif'; g.lineWidth = 5; g.strokeText(role, W / 2, 54); g.fillStyle = 'rgba(255,240,220,.85)'; g.fillText(role, W / 2, 54); }
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, depthTest: false }));
+  const h = role ? .62 : .42; sp.userData.s0 = [h * W / H, h]; sp.scale.set(h * W / H, h, 1); sp.renderOrder = 10; NPCLAB.push(sp); return sp; }
+const NPCLAB = [], _nlV = new THREE.Vector3();
+function npcLabelTick() { if (!camera || !camera.position) return; for (let i = NPCLAB.length - 1; i >= 0; i--) { const sp = NPCLAB[i]; if (!sp.parent) { NPCLAB.splice(i, 1); continue; }
+    if (!sp.getWorldPosition) continue; sp.getWorldPosition(_nlV); const d = _nlV.distanceTo(camera.position), ps = sp.parent.scale ? sp.parent.scale.x || 1 : 1;
+    const k = Math.max(.5, Math.min(1.9, d / 14)) / ps, s0 = sp.userData.s0; sp.scale.set(s0[0] * k, s0[1] * k, 1);
+    sp.material.opacity = d < 7 ? Math.max(0, (d - 4) / 3) : d > 70 ? Math.max(0, (90 - d) / 20) : 1; sp.visible = sp.material.opacity > .02; } }
+petsTick = (o => function (dt) { o(dt); try { npcLabelTick(); } catch (e) { } })(petsTick);
+
+/* ---- blending into the land (owner 22 Nov: 村庄要融入环境) ----
+   no more one flat round disc: the ground under the village is a few soft irregular patches whose colour is the land's
+   own ground mixed with the village's trodden earth; paths use the same mix. */
+function v3Mix(x, z, dirt, k) { let r = .45, g = .4, b = .3; try { const c = groundCol(x, z); r = c[0]; g = c[1]; b = c[2]; } catch (e) { }
+  const dr = (dirt >> 16 & 255) / 255, dg = (dirt >> 8 & 255) / 255, db = (dirt & 255) / 255, q = v => Math.max(0, Math.min(255, Math.round(v * 255)));
+  return q(r + (dr - r) * k) << 16 | q(g + (dg - g) * k) << 8 | q(b + (db - b) * k); }
+function v3Ground(L, v, R) { const st = v.style, dirt = VIL3_GROUND[st] || 0x6a5440;
+  for (let i = 0; i < 9; i++) { const a = R() * 6.283, d = i ? 4 + R() * (v.R * .55) : 0, x = v.x + Math.cos(a) * d, z = v.z + Math.sin(a) * d, rr = i ? 4 + R() * 6 : 8.5;
+    vPut(L, V3G.cyl6, v3Mix(x, z, dirt, i ? .22 + R() * .18 : .42), x, .062 + i * .0035, z, 0, R() * 3, 0, rr * (.8 + R() * .4), .015, rr * (.7 + R() * .4)); } }
+/* plants per style, drawn into the chunk batch (trunks collide) */
+function v3Tree(L, ch, x, z, h, trunk, crown, kind, R) {
+  L.box(x, h * .3, z, .28, h * .6, .28, trunk); ch.obs.push(addCircle(x, z, .35));
+  if (kind === 'pine') { for (let i = 0; i < 3; i++) vPut(L, V3G.cone, crown, x, h * (.45 + i * .2), z, 0, R() * 3, 0, h * (.32 - i * .07), h * .32, h * (.32 - i * .07)); }
+  else if (kind === 'dead') { for (let i = 0; i < 3; i++) L.box(x + (i - 1) * .3, h * .62 + i * .2, z, .1, h * .4, .1, trunk, 0, i * 2, (i - 1) * .6); }
+  else if (kind === 'birch') { L.box(x, h * .3, z, .3, h * .6, .3, 0xe8e4dc); vPut(L, V3G.ball, crown, x, h * .78, z, 0, R() * 3, 0, h * .26, h * .34, h * .26); }
+  else vPut(L, V3G.ball, crown, x, h * .72, z, 0, R() * 3, 0, h * .3, h * .26, h * .3); }
+function v3Bush(L, x, z, col, s) { vPut(L, V3G.ball, col, x, .25 * s, z, 0, x % 3, 0, .55 * s, .4 * s, .55 * s); }
+function v3Tuft(L, x, z, col, h) { for (let i = 0; i < 4; i++) L.box(x + (i - 1.5) * .12, h / 2, z + (i % 2 - .5) * .12, .05, h, .05, col, (i - 1.5) * .15, i, (i % 2 - .5) * .3); }
+const V3_VEG = {
+  kampung: (L, ch, x, z, R, edge) => edge && R() < .5 ? v3Palm(L, x, z, R) : R() < .5 ? v3Bush(L, x, z, 0x3a7a32, 1.2) : (L.box(x, .6, z, .14, 1.2, .14, 0x6a7a3a), [0, 1, 2, 3].forEach(i => L.box(x + Math.cos(i * 1.6) * .5, 1.1, z + Math.sin(i * 1.6) * .5, .9, .06, .35, 0x4a8a3a, .4, i * 1.6, 0))),   // banana leaves
+  nordic: (L, ch, x, z, R, edge) => edge ? v3Tree(L, ch, x, z, 5 + R() * 3, 0x4a3420, R() < .5 ? 0x2a4a2a : 0x3a5a32, R() < .3 ? 'birch' : 'pine', R) : v3Bush(L, x, z, 0x3a5a30, .9),
+  desert: (L, ch, x, z, R, edge) => edge && R() < .35 ? v3Palm(L, x, z, R) : R() < .5 ? v3Bush(L, x, z, 0x8a8a50, .7) : v3Tuft(L, x, z, 0xb8a060, .5),
+  swamp: (L, ch, x, z, R, edge) => edge && R() < .5 ? v3Tree(L, ch, x, z, 4 + R() * 2, 0x3a3020, 0x3a5a2a, 'round', R) : v3Tuft(L, x, z, 0x5a7a3a, 1 + R() * .6),
+  arctic: (L, ch, x, z, R, edge) => edge ? v3Tree(L, ch, x, z, 4 + R() * 3, 0x3a2a1e, 0xd8e4e8, 'pine', R) : v3Bush(L, x, z, 0xe8f0f4, .8),
+  shanty: (L, ch, x, z, R, edge) => edge && R() < .4 ? v3Tree(L, ch, x, z, 3.5, 0x3a3028, 0, 'dead', R) : v3Tuft(L, x, z, 0x6a7040, .6),
+  pueblo: (L, ch, x, z, R, edge) => { if (edge && R() < .55) { const h = 2 + R() * 1.5; L.box(x, h / 2, z, .4, h, .4, 0x4a7a3a); L.box(x + .45, h * .6, z, .3, .3, .3, 0x4a7a3a); L.box(x + .55, h * .75, z, .26, .6, .26, 0x4a7a3a); L.box(x - .4, h * .5, z, .26, .26, .26, 0x4a7a3a); L.box(x - .5, h * .62, z, .24, .5, .24, 0x4a7a3a); ch.obs.push(addCircle(x, z, .35)); } else v3Bush(L, x, z, 0x8a9a6a, .7); },   // saguaro / sage
+  turf: (L, ch, x, z, R, edge) => R() < .5 ? vPut(L, V3G.ball, 0x5a5a58, x, .2, z, 0, R() * 3, 0, .6 + R() * .5, .35, .6) : v3Tuft(L, x, z, 0x6a8a4a, .45),
+  tibet: (L, ch, x, z, R, edge) => edge && R() < .5 ? v3Tree(L, ch, x, z, 3 + R() * 2, 0x4a3420, 0x3a5a3a, 'pine', R) : (vPut(L, V3G.ball, 0x8a8a88, x, .2, z, 0, 0, 0, .6, .3, .5), vPut(L, V3G.ball, 0x9a9a98, x, .45, z, 0, 1, 0, .4, .2, .35)),   // mani stone piles
+  fort: (L, ch, x, z, R, edge) => edge && R() < .5 ? v3Tree(L, ch, x, z, 4, 0x3a2a20, 0, 'dead', R) : vPut(L, V3G.ball, 0x5a5654, x, .25, z, 0, R() * 3, 0, .7, .4, .6),
+};
+function v3Veg(L, ch, v, R, houses) { const f = V3_VEG[v.style]; if (!f) return;
+  const ok = (x, z, r) => waterAt(x, z) < -.6 && !houses.some(o => Math.hypot(o.x - x, o.z - z) < r) && Math.hypot(x - (v.x + 6), z - (v.z + 5.5)) > 3 && Math.hypot(x - (v.x + 2.5), z - (v.z - 6.5)) > 3 && Math.hypot(x - v.x, z - v.z) > 8;
+  for (let i = 0; i < 26; i++) { const a = R() * 6.283, d = v.R - 3 + R() * 7, x = v.x + Math.cos(a) * d, z = v.z + Math.sin(a) * d; if (ok(x, z, 4.5)) f(L, ch, x, z, R, true); }
+  for (let i = 0; i < 14; i++) { const a = R() * 6.283, d = 9 + R() * (v.R - 11), x = v.x + Math.cos(a) * d, z = v.z + Math.sin(a) * d; if (ok(x, z, 3.6)) f(L, ch, x, z, R, false); } }
 /* ============ 传送石碑（owner 22 Nov：每个村庄一块，另外几块在特别的地方；走到才解锁，免费传送）============
    - 每个村庄的广场上一块（vil3All），另外 7 块在特别的地标旁边（TELE_LM）。
    - 走到石碑 7 米内就点亮（存档 S.tele），点亮的石碑头上的水晶会发光、地上的光圈会转。
@@ -26258,7 +26313,7 @@ function teleModel(T) { const g = new THREE.Group(); g.position.set(T.x, 0, T.z)
   for (let i = 0; i < 4; i++) { const a = i / 4 * 6.283 + Math.PI / 4, s = m(new THREE.BoxGeometry(.1, .5, .02), TELE_MAT.runeOff, Math.cos(a) * .34, 2.6, Math.sin(a) * .34); s.rotation.y = -a + Math.PI / 2; rune.push(s); }
   const cr = m(new THREE.OctahedronGeometry(.42, 0), TELE_MAT.off, 0, 4.4); cr.scale.y = 1.5;
   const ring = new THREE.Mesh(new THREE.RingGeometry(1.75, 2.05, 32), TELE_MAT.ring); ring.rotation.x = -Math.PI / 2; ring.position.y = .05; g.add(ring);
-  const lab = labelSprite(T.n + ' · ' + T2('传送石碑', 'Waystone'), '#9ff0ff', .8); lab.position.set(0, 5.6, 0); g.add(lab);
+  const lab = npcLabel(T.n, T2('传送石碑', 'Waystone'), '#9ff0ff'); lab.position.set(0, 5.6, 0); g.add(lab);
   scene.add(g); return { g, cr, rune, ring, lab }; }
 function teleShow(T, B) { const on = teleOn(T); B.cr.material = on ? TELE_MAT.on : TELE_MAT.off; for (const r of B.rune) r.material = on ? TELE_MAT.runeOn : TELE_MAT.runeOff; B.ring.visible = on; B.on = on; }
 function teleBuild(T, ch) { if (TELE.built.has(T.id)) return; const B = teleModel(T); B.T = T; B.obs = addCircle(T.x, T.z, 1.1); teleShow(T, B); TELE.built.set(T.id, B); if (ch) { ch.meshes.push(B.g); B.ch = ch; } }
@@ -26739,6 +26794,142 @@ shopSave = (o => function () { const r = o(); try { const s = vqS(); r.vq = { a:
 shopLoad = (o => function (d) { o(d); S.vq = { a: {}, d: {}, b: {} }; try { const q = d && d.sh && d.sh.vq; if (q) { if (q.a && typeof q.a === 'object') for (const k in q.a) if (VQ.by[k] || vqBounty(k)) S.vq.a[k] = +q.a[k] || 0;
     for (const k of q.d || []) S.vq.d[k] = 1; for (const k of q.b || []) S.vq.b[k] = 1; } } catch (e) { } setTimeout(vqTrk, 0);
   for (const [id, vv] of VQ.SN) { scene.remove(vv.h.g); } VQ.SN.clear(); })(shopLoad);
+/* ============ 任务板 2.0 + 任务奖励换成材料（owner 22 Nov：任务板要精致，参考别的游戏；奖励按晶石价值，不一定给余烬币，可以给更好的材料）============
+   奖励：每个任务的总价值 = 原来写的余烬币 ÷ 20（晶石）+ 写明的物品。其中约 70% 换成这个地区用得上的好材料
+     （按地区从 VB_POOL 里挑，单价用晶石商店的价格 econGem），剩下的才给余烬币。同一个任务每次显示的奖励都一样。
+   任务板：木板背景上钉着一张张羊皮纸卡片（像原神的委托 / 很多游戏的悬赏板）：
+     顶部村名横幅 + 地区等级 + 悬赏刷新倒计时；分页 委托 / 悬赏 / 进行中；
+     每张卡：左边任务类型图标、标题、委托人、难度星、目标和进度条、奖励物品格子（按稀有度描边）、按钮 接下 / 追踪 / 交付；
+     做完的卡盖一个「已完成」印章。
+   追踪：进行中的任务可以「追踪」，没有主线目标的时候，地图标记就指向它（去的地方 / 要找的人 / 交任务的人）。 */
+const VB_POOL = [null, ['metal', 'powder', 'circuit', 'med'], ['metal', 'powder', 'circuit', 'estone', 'med'], ['powder', 'circuit', 'estone', 'steel', 'bpf'], ['circuit', 'estone', 'steel', 'serum', 'bpf'],
+  ['estone', 'steel', 'serum', 'bpf'], ['estone', 'steel', 'serum', 'crystal'], ['steel', 'serum', 'crystal', 'eluck'], ['serum', 'crystal', 'heart', 'eluck'], ['crystal', 'heart', 'eluck', 'elock'], ['crystal', 'heart', 'core', 'elock']];
+const VBD = { tab: 'npc', track: null, price: null };
+function vbPrice() { if (VBD.price) return VBD.price; let g = {}; try { g = econGem(); } catch (e) { } if (!g.elem) g.elem = 12; if (!g.eluck) g.eluck = 50; if (!g.elock) g.elock = 80; return VBD.price = g; }
+function vqTier(q) { if (q.bounty) return vil3ById(q.vil).t; const N = NPC_BY[q.npc], v = N && N.vil && vil3ById(N.vil); return Math.max(1, Math.min(10, (q.need && q.need.tier) || (v ? v.t : 1))); }
+vqRw = function (q) { if (q._rw) return Object.assign({}, q._rw); const P = vbPrice(), R = {}, src = q.rw || {}, t = vqTier(q);
+  for (const k in src) if (k !== 'coin') R[k] = src[k];
+  if (R.xp && R.xp < 1) R.xp = stXp(vqRef(q), R.xp);
+  let V = (src.coin || 0) / 20;   // gems' worth of the coin part
+  if (V > 1) { const pool = VB_POOL[t].filter(k => P[k] && P[k] <= V * .75); if (pool.length) { const h = hash2(q.id.length * 977 + q.id.charCodeAt(0), (q.id.charCodeAt(q.id.length - 1) || 1) * 31 + t);
+      const k = pool[h % pool.length], n = Math.max(1, Math.round(V * .7 / P[k])); R[k] = (R[k] || 0) + n; V -= n * P[k]; } }
+  const coin = Math.max(0, Math.round(V * 20 / 10) * 10); if (coin) R.coin = coin;
+  q._rw = R; return Object.assign({}, R); };
+vqRwTxt = function (q) { const R = vqRw(q); return Object.keys(R).map(k => k === 'gear' ? (GQ[R.gear] ? GQ[R.gear].n : '') + '装备' : vqItN(k) + ' ×' + R[k]).join(' · '); };
+/* ---- reward tiles ---- */
+const VB_RC = ['#8a8478', '#5aa86a', '#4a8ad8', '#a060e0', '#e8a830', '#ff5a5a'];
+function vbRar(k, n) { if (k === 'xp') return 1; if (k === 'coin') return 0; if (k === 'gem') return 3; if (k === 'gear') return Math.min(5, n); const m = (typeof MAT !== 'undefined' && MAT[k]) || null; return m && m.r != null ? m.r : k === 'med' || k === 'ammo' ? 0 : 1; }
+function vbIcon(k) { if (k === 'xp' && typeof ABY_RIC !== 'undefined') return ABY_RIC.xp; if (k === 'gem' && typeof ABY_RIC !== 'undefined') return ABY_RIC.gem; try { return svgIcon(k === 'gear' ? 'armor' : k); } catch (e) { return ''; } }
+function vbTiles(q, small) { const R = vqRw(q), order = ['xp', 'gear', 'core', 'heart', 'elock', 'eluck', 'crystal', 'serum', 'steel', 'bpf', 'estone', 'elem', 'circuit', 'powder', 'metal', 'med', 'ammo', 'gem', 'coin'];
+  const ks = Object.keys(R).sort((a, b) => (order.indexOf(a) + 99) % 99 - (order.indexOf(b) + 99) % 99);
+  return '<div class="vbtiles' + (small ? ' sm' : '') + '">' + ks.map(k => { const n = R[k], r = vbRar(k, n), nm = k === 'gear' ? (GQ[n] ? GQ[n].n : '') + '装备' : vqItN(k);
+    return '<div class="vbt" style="--rc:' + VB_RC[r] + '" title="' + nm + '"><i>' + vbIcon(k) + '</i><b>' + (k === 'gear' ? '' : '×' + (n >= 10000 ? Math.round(n / 1000) + 'k' : n)) + '</b><small>' + nm + '</small></div>'; }).join('') + '</div>'; }
+/* ---- type icons ---- */
+const VB_IC = {
+  kill: '<path d="M10 40l20-20M14 44l-6-6M30 20l6-14 6 6-14 6M38 40L18 20M34 44l6-6M18 20L12 6 6 12l14 6" stroke="currentColor" stroke-width="3.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  crate: '<path d="M8 18h32v22H8z M8 18l6-8h20l6 8 M8 27h32 M21 27v6h6v-6" stroke="currentColor" stroke-width="3" fill="none" stroke-linejoin="round"/>',
+  search: '<circle cx="21" cy="21" r="11" stroke="currentColor" stroke-width="3.4" fill="none"/><path d="M29 29l11 11" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>',
+  boss: '<path d="M10 20c0-9 6-14 14-14s14 5 14 14c0 6-3 9-5 10v6H15v-6c-2-1-5-4-5-10z" stroke="currentColor" stroke-width="3" fill="none"/><circle cx="18" cy="21" r="3.4" fill="currentColor"/><circle cx="30" cy="21" r="3.4" fill="currentColor"/><path d="M20 36v5M24 36v5M28 36v5" stroke="currentColor" stroke-width="2.6"/>',
+  event: '<path d="M24 5l5.6 11.4 12.6 1.8-9.1 8.9 2.1 12.5L24 33.7l-11.2 5.9 2.1-12.5-9.1-8.9 12.6-1.8z" stroke="currentColor" stroke-width="3" fill="none" stroke-linejoin="round"/>',
+  hunt: '<ellipse cx="24" cy="31" rx="9" ry="7" fill="currentColor"/><circle cx="13" cy="20" r="4" fill="currentColor"/><circle cx="20" cy="12" r="4" fill="currentColor"/><circle cx="28" cy="12" r="4" fill="currentColor"/><circle cx="35" cy="20" r="4" fill="currentColor"/>',
+  cook: '<path d="M8 22h32l-3 16H11z M5 22h38" stroke="currentColor" stroke-width="3" fill="none" stroke-linejoin="round"/><path d="M18 16c0-4 4-4 4-8M26 16c0-4 4-4 4-8" stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round"/>',
+  have: '<path d="M8 16l16-8 16 8v18l-16 8-16-8z M8 16l16 8 16-8 M24 24v18" stroke="currentColor" stroke-width="3" fill="none" stroke-linejoin="round"/>',
+  goto: '<path d="M14 42V6 M14 8h22l-5 7 5 7H14" stroke="currentColor" stroke-width="3.2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>',
+  talk: '<path d="M8 10h32v20H22l-9 8v-8H8z" stroke="currentColor" stroke-width="3" fill="none" stroke-linejoin="round"/><circle cx="17" cy="20" r="2.4" fill="currentColor"/><circle cx="24" cy="20" r="2.4" fill="currentColor"/><circle cx="31" cy="20" r="2.4" fill="currentColor"/>' };
+const VB_TC = { kill: '#c8462e', boss: '#8a2a6a', crate: '#b8862e', search: '#3a7a8a', event: '#d89a2a', hunt: '#6a8a3a', cook: '#c86a3a', have: '#5a6ab8', goto: '#2e8a6a', talk: '#7a6ab8' };
+const vbIco = k => '<svg viewBox="0 0 48 48">' + (VB_IC[k] || VB_IC.have) + '</svg>';
+function vbStars(q) { const t = vqTier(q), k = q.need.k, base = k === 'boss' ? 3 : k === 'kill' && q.need.n >= 30 ? 2 : k === 'event' ? 2 : 1; return Math.max(1, Math.min(3, base)); }
+function vbProg(q) { const n = q.need.n || 1; if (q.need.k === 'have') return Math.min(1, vqHave(q.need.item) / n); if (!(q.id in vqS().a)) return 0; return Math.min(1, (vqS().a[q.id] || 0) / n); }
+/* one card */
+function vbCard(q, st, opt) { const N = q.npc ? NPC_BY[q.npc] : null, col = VB_TC[q.need.k] || '#7a6a5a', pr = vbProg(q), showP = st === 'act' || st === 'ready' || (q.need.k === 'have' && st !== 'done');
+  const c = document.createElement('div'); c.className = 'vbc s-' + st; c.style.setProperty('--tc', col);
+  c.innerHTML = '<span class="vbpin"></span><div class="vbhd"><span class="vbic">' + vbIco(q.need.k) + '</span><div class="vbtt"><b>' + q.t.replace(/ · .*$/, '') + '</b><small>' + (N ? N.n + (N.role ? ' · ' + N.role : '') : '村庄任务板') + '</small></div><span class="vbst">' + '★'.repeat(vbStars(q)) + '<i>' + '★'.repeat(3 - vbStars(q)) + '</i></span></div>' +
+    (q.d ? '<p class="vbd">' + q.d + '</p>' : '') + '<div class="vbgoal"><span>' + vqNeedTxt(q) + '</span>' + (showP ? '<em>' + vqProg(q) + '</em>' : '') + '</div>' + (showP ? '<div class="vbbar"><i style="width:' + Math.round(pr * 100) + '%"></i></div>' : '') +
+    '<div class="vbrw"><span>奖励</span>' + vbTiles(q) + '</div>' + (st === 'done' ? '<div class="vbstamp">已完成</div>' : '');
+  const f = document.createElement('div'); f.className = 'vbft'; c.appendChild(f);
+  const btn = (t, cls, fn, dis) => { const b = document.createElement('button'); b.className = 'vbb ' + (cls || ''); b.textContent = t; b.disabled = !!dis; if (fn) b.addEventListener('click', e => { e.stopPropagation(); fn(); }); f.appendChild(b); return b; };
+  if (opt && opt.btns) opt.btns(btn, st); return c; }
+/* ---- the board ---- */
+function vbLeft() { const ms = (vqDay() + 1) * 86400000 - 8 * 3600000 - Date.now(), h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60; return h + ' 小时 ' + m + ' 分'; }
+vqBoardOpen = function (v) { audioInit(); VQ.bv = v; VBD.tab = VBD.tab === 'act' ? 'act' : 'npc'; openPanel('vqlog', renderBoard); };
+renderBoard = function () { const v = VQ.bv, box = $('vqList'), ov = $('vqlog'); if (!v || !box) return; ov.classList.add('vbon'); box.innerHTML = ''; const s = vqS(), B = vqBounties(v);
+  const npcQ = []; for (const N of NPCS.filter(N => N.vil === v.id)) for (const q of N.q || []) { const st = vqState(q); if (st !== 'lock') npcQ.push([q, st]); }
+  const act = Object.keys(s.a).map(id => VQ.by[id] || vqBounty(id)).filter(Boolean);
+  const head = document.createElement('div'); head.className = 'vbhead';
+  head.innerHTML = '<div class="vbban"><b>' + v.name + '</b><span>' + regionLabel(v.t) + ' · Lv.' + tierBand(v.t)[0] + '-' + tierBand(v.t)[1] + '</span></div><p>' + v.desc + '</p>';
+  box.appendChild(head);
+  const tabs = document.createElement('div'); tabs.className = 'vbtabs'; const open = npcQ.filter(x => x[1] === 'open').length, brd = B.filter(q => !s.b[q.id] && !(q.id in s.a)).length;
+  [['npc', '委托', open], ['bounty', '悬赏', brd], ['act', '进行中', act.length]].forEach(([k, t, n]) => { const b = document.createElement('button'); b.className = 'vbtab' + (VBD.tab === k ? ' on' : ''); b.innerHTML = t + (n ? '<i>' + n + '</i>' : '');
+    b.addEventListener('click', () => { VBD.tab = k; renderBoard(); }); tabs.appendChild(b); });
+  box.appendChild(tabs);
+  const list = document.createElement('div'); list.className = 'vblist'; box.appendChild(list);
+  const empty = t => { const e = document.createElement('div'); e.className = 'vbempty'; e.textContent = t; list.appendChild(e); };
+  if (VBD.tab === 'bounty') { const n = document.createElement('div'); n.className = 'vbnote'; n.textContent = '每天两张悬赏，在任务板交付 · 距离刷新 ' + vbLeft(); list.appendChild(n);
+    for (const q of B) { const done = !!s.b[q.id], a = q.id in s.a, st = done ? 'done' : a ? (vqReady(q) ? 'ready' : 'act') : 'open';
+      list.appendChild(vbCard(q, st, { btns: (btn, st) => { if (st === 'open') btn('接下悬赏', 'go', () => { if (vqAccept(q)) renderBoard(); });
+        else if (st === 'ready') btn('交付', 'ok', () => { if (q.need.k === 'have') vqTake(q.need.item, q.need.n); delete s.a[q.id]; s.b[q.id] = 1; vqPay(q); vbFx(); vqTrk(); saveGame(); renderBoard(); });
+        else if (st === 'act') { vbTrackBtn(btn, q); } } })); } }
+  else if (VBD.tab === 'npc') { if (!npcQ.length) empty('这个村子现在没有人需要帮忙。');
+    npcQ.sort((a, b) => ['ready', 'open', 'act', 'done'].indexOf(a[1]) - ['ready', 'open', 'act', 'done'].indexOf(b[1]));
+    for (const [q, st] of npcQ) list.appendChild(vbCard(q, st, { btns: (btn, st) => { const N = NPC_BY[q.npc];
+      if (st === 'open') btn('接下委托', 'go', () => { if (vqAccept(q)) { VBD.tab = 'npc'; renderBoard(); } });
+      else if (st === 'ready') { btn('找' + N.n + '交付', 'ok', null, true); vbTrackBtn(btn, q); }
+      else if (st === 'act') vbTrackBtn(btn, q); } })); }
+  else { if (!act.length) empty('还没有接任务。'); for (const q of act) list.appendChild(vbCard(q, vqReady(q) ? 'ready' : 'act', { btns: (btn, st) => { vbTrackBtn(btn, q); btn('放弃', 'ghost', () => { delete s.a[q.id]; if (VBD.track === q.id) VBD.track = null; vqTrk(); saveGame(); renderBoard(); }); } })); } };
+function vbTrackBtn(btn, q) { const on = VBD.track === q.id; btn(on ? '追踪中' : '追踪', on ? 'trk on' : 'trk', () => { VBD.track = on ? null : q.id; try { localStorage.setItem('ember_vqtrk', VBD.track || ''); } catch (e) { } if ($('vqlog').classList.contains('vbon') && VQ.bv) renderBoard(); else renderVqLog(); }); }
+function vbFx() { try { sfxTone(523, 1046, .3, .08, 'triangle'); sfxTone(784, 1568, .4, .06, 'sine', { delay: .1 }); } catch (e) { } }
+/* the quest log (tap the tracker) uses the same cards */
+renderVqLog = function () { const box = $('vqList'), ov = $('vqlog'); if (!box) return; ov.classList.add('vbon'); box.innerHTML = ''; const s = vqS(), act = Object.keys(s.a).map(id => VQ.by[id] || vqBounty(id)).filter(Boolean);
+  const head = document.createElement('div'); head.className = 'vbhead'; head.innerHTML = '<div class="vbban"><b>任务</b><span>进行中 ' + act.length + ' / ' + VQ.MAX + '</span></div>'; box.appendChild(head);
+  const list = document.createElement('div'); list.className = 'vblist'; box.appendChild(list);
+  if (!act.length) { const e = document.createElement('div'); e.className = 'vbempty'; e.textContent = '现在没有任务。去村子里找头上有黄色「!」的人，或者看村子中间的任务板。'; list.appendChild(e); }
+  for (const q of act) { const N = q.npc ? NPC_BY[q.npc] : null, v = N && N.vil ? vil3ById(N.vil) : q.vil ? vil3ById(q.vil) : null;
+    const c = vbCard(q, vqReady(q) ? 'ready' : 'act', { btns: btn => { vbTrackBtn(btn, q); btn('放弃', 'ghost', () => { delete s.a[q.id]; if (VBD.track === q.id) VBD.track = null; vqTrk(); saveGame(); renderVqLog(); }); } });
+    if (v) { const w = document.createElement('div'); w.className = 'vbwhere'; w.textContent = (vqReady(q) ? '✓ 可以交了 · ' : '') + (N ? '找' + N.n : '回任务板') + ' · ' + regionLabel(v.t) + ' · ' + v.name; c.insertBefore(w, c.querySelector('.vbft')); }
+    list.appendChild(c); } };
+// closing the board: drop the board look so other uses of the window are plain
+closePanel = (o => function (id) { const r = o.apply(this, arguments); try { if (id === 'vqlog') $('vqlog').classList.remove('vbon'); } catch (e) { } return r; })(closePanel);
+// offer in the talk box: the reward as tiles
+npcOffer = (o => function (q) { o(q); try { const sm = document.querySelector('#npcDlg .ndt small'); if (sm) sm.innerHTML = '任务：' + vqNeedTxt(q) + vbTiles(q, true); } catch (e) { } })(npcOffer);
+/* tracking: the map marker points at the tracked quest when the story has no person / place for you */
+try { VBD.track = localStorage.getItem('ember_vqtrk') || null; } catch (e) { }
+function vbTarget() { const id = VBD.track, s = vqS(); if (!id || !(id in s.a)) return null; const q = VQ.by[id] || vqBounty(id); if (!q) return null;
+  if (vqReady(q)) { if (q.npc) { const P = vqNpcPos(q.npc); return P && { x: P.x, z: P.z, n: NPC_BY[q.npc].n, isl: P.isl }; } const v = vil3ById(q.vil); return v && v.board ? { x: v.board.x, z: v.board.z, n: '任务板' } : v ? { x: v.x, z: v.z, n: v.name } : null; }
+  if (q.need.k === 'goto') { const P = vqPlace(q.need.place); return P && { x: P.x, z: P.z, n: q.need.place }; }
+  if (q.need.k === 'talk') { const P = vqNpcPos(q.need.npc); return P && { x: P.x, z: P.z, n: NPC_BY[q.need.npc].n, isl: P.isl }; }
+  return null; }
+qmTarget = (o => function () { const r = o(); try { if (S.dead || (typeof DUN !== 'undefined' && DUN.on)) return r;
+    let st = null; try { if (!stDone() && !stLocked() && S.story.seen === S.story.c) st = stStep(); } catch (e) { }
+    if (st && (st.k === 'talk' || st.k === 'goto')) return r;
+    const T = vbTarget(); if (T) { if (T.isl) return S.isl ? T : { x: player.pos.x, z: player.pos.z - 1, n: '回岛' }; return S.isl ? QM_PIER() : T; } } catch (e) { } return r; })(qmTarget);
+/* ---- look ---- */
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+  '#vqlog.vbon{background:radial-gradient(120% 80% at 50% 0%,#4a3424 0%,#2a1c14 55%,#1a110c 100%)}#vqlog.vbon>h2{display:none}' +
+  '#vqlog.vbon #vqList{max-width:min(620px,100%);width:100%;margin:0 auto;text-align:left}.vbtab{white-space:nowrap}' +
+  '.vbhead{margin:4px 0 10px;text-align:center}.vbban{position:relative;display:inline-flex;flex-direction:column;align-items:center;padding:10px 34px 8px;background:linear-gradient(180deg,#8a2a22,#6a1c16);border:2px solid #d8a850;border-radius:6px;box-shadow:0 4px 0 #3a120c,0 8px 18px rgba(0,0,0,.45)}' +
+  '.vbban:before,.vbban:after{content:"";position:absolute;top:10px;width:18px;height:calc(100% - 4px);background:#5a1610;z-index:-1}.vbban:before{left:-12px;clip-path:polygon(0 0,100% 0,100% 100%,0 100%,40% 50%)}.vbban:after{right:-12px;clip-path:polygon(0 0,100% 0,60% 50%,100% 100%,0 100%)}' +
+  '.vbban b{font-size:21px;letter-spacing:4px;color:#ffe8b8;text-shadow:0 2px 0 rgba(0,0,0,.4)}.vbban span{font-size:12px;color:#f0c888;margin-top:1px}.vbhead p{margin:10px 8px 0;color:#d8bf98;font-size:13px;font-style:italic}' +
+  '.vbtabs{display:flex;gap:6px;margin:0 2px 10px;padding:4px;background:rgba(0,0,0,.28);border-radius:12px;border:1px solid rgba(216,168,80,.25)}' +
+  '.vbtab{flex:1;padding:9px 6px;border:0;border-radius:9px;background:transparent;color:#c9a88a;font-weight:800;font-size:14px;position:relative}.vbtab.on{background:linear-gradient(180deg,#e8c070,#c8963c);color:#3a2210;box-shadow:inset 0 -2px 0 rgba(0,0,0,.2)}' +
+  '.vbtab i{display:inline-block;min-width:17px;height:17px;line-height:17px;margin-left:5px;border-radius:9px;background:#c8462e;color:#fff;font-size:11px;font-style:normal;padding:0 4px}' +
+  '.vblist{display:flex;flex-direction:column;gap:12px;padding:2px 2px 18px}.vbnote{color:#c9a88a;font-size:12px;text-align:center}.vbempty{color:#c9a88a;text-align:center;padding:30px 10px}' +
+  '.vbc{position:relative;background:linear-gradient(180deg,#f4e8cc,#e8d8b4);color:#3a2a1a;border-radius:6px;padding:20px 14px 12px 18px;box-shadow:0 2px 0 #b8a07a,0 8px 16px rgba(0,0,0,.35);border-left:6px solid var(--tc);overflow:hidden}' +
+  '.vbc:after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(60% 40% at 90% 10%,rgba(255,255,255,.35),transparent),radial-gradient(80% 60% at 10% 100%,rgba(160,120,60,.18),transparent)}' +
+  '.vbpin{position:absolute;top:6px;left:50%;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ff9a8a,#b8281c 60%,#6a100a);box-shadow:0 2px 2px rgba(0,0,0,.4);z-index:2}' +
+  '.vbhd{display:flex;align-items:center;gap:10px}.vbic{flex:none;width:40px;height:40px;border-radius:50%;background:var(--tc);color:#fff8e8;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 -3px 0 rgba(0,0,0,.25),0 0 0 2px rgba(255,255,255,.5)}.vbic svg{width:26px;height:26px}' +
+  '.vbtt{flex:1;min-width:0}.vbtt b{display:block;font-size:16px;color:#2a1a0e}.vbtt small{color:#7a5a3a;font-size:12px}.vbst{color:#d8902a;font-size:14px;letter-spacing:1px;white-space:nowrap}.vbst i{color:rgba(120,90,50,.3);font-style:normal}' +
+  '#vqList .vbc p.vbd{margin:8px 0 4px;font-size:13px;color:#5a4028!important;line-height:1.5;text-align:left;opacity:1}.vbgoal{display:flex;justify-content:space-between;gap:8px;margin-top:6px;font-size:13px;font-weight:700;color:#3a2a1a}.vbgoal:before{content:"◆";color:var(--tc);margin-right:4px}.vbgoal span{flex:1}.vbgoal em{font-style:normal;color:var(--tc)}' +
+  '.vbbar{height:6px;border-radius:3px;background:rgba(90,60,30,.18);margin-top:5px;overflow:hidden}.vbbar i{display:block;height:100%;background:linear-gradient(90deg,var(--tc),#e8b040);border-radius:3px}' +
+  '.vbrw{margin-top:10px;padding-top:8px;border-top:1px dashed rgba(120,90,50,.35)}.vbrw>span{display:block;font-size:12px;font-weight:800;color:#7a5a3a;margin-bottom:5px;letter-spacing:2px}' +
+  '.vbtiles{display:flex;flex-wrap:wrap;gap:6px}.vbt{width:56px;position:relative;text-align:center}.vbt i{display:flex;width:50px;height:50px;margin:0 auto;border-radius:8px;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 35%,#4a3a30,#241a14);box-shadow:inset 0 0 0 2px var(--rc),inset 0 -12px 18px -10px var(--rc)}' +
+  '.vbt i svg,.vbt i img{width:34px;height:34px}.vbt b{position:absolute;right:2px;top:34px;font-size:11px;color:#fff;text-shadow:0 1px 2px #000,0 0 2px #000}.vbt small{display:block;font-size:10px;color:#6a4a2a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+  '.vbtiles.sm{margin-top:8px}.vbtiles.sm .vbt i{width:42px;height:42px}.vbtiles.sm .vbt{width:48px}.vbtiles.sm .vbt b{top:27px}.vbtiles.sm .vbt small{color:#c9a88a}' +
+  '.vbft{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}#vqList .vbb{padding:8px 16px;border-radius:20px;border:0;font-weight:800;font-size:13px!important;line-height:1.2;min-width:0;width:auto;height:auto;margin:0;letter-spacing:0;color:#fff8e8;background:#8a7a5a}#vqList .vbb.go{background:linear-gradient(180deg,#e8a040,#c8702a);box-shadow:0 3px 0 #8a4a18}#vqList .vbb.ok{background:linear-gradient(180deg,#6ac85a,#3a9a3a);box-shadow:0 3px 0 #2a6a2a}' +
+  '#vqList .vbb.trk{background:transparent;color:#7a5a3a;border:1.5px solid #b8986a}#vqList .vbb.trk.on{background:#3a7a8a;color:#fff;border-color:#3a7a8a}#vqList .vbb.ghost{background:transparent;color:#9a7a5a;border:1.5px solid rgba(150,110,70,.4)}.vbb:disabled{opacity:.6}' +
+  '.vbc.s-done{filter:saturate(.5);opacity:.8}.vbstamp{position:absolute;right:16px;top:44px;transform:rotate(-14deg);border:3px solid rgba(180,40,30,.75);color:rgba(180,40,30,.8);font-weight:900;font-size:20px;padding:2px 10px;border-radius:6px;letter-spacing:4px}' +
+  '.vbc.s-ready{box-shadow:0 0 0 2px #6ac85a,0 8px 16px rgba(0,0,0,.35)}.vbwhere{margin-top:8px;font-size:12px;color:#3a7a8a;font-weight:700}' +
+  '@media (orientation:landscape) and (max-height:560px){#vqlog.vbon #vqList{max-width:min(1000px,100%)}#vqlog.vbon .vbhead{display:flex;align-items:center;gap:14px;text-align:left;margin:0 0 8px}.vbhead p{margin:0;flex:1}.vbban{padding:6px 26px 5px}.vbban b{font-size:18px}#vqlog.vbon .vbtabs{max-width:420px;margin:0 auto 10px}#vqlog.vbon .vblist{display:grid;grid-template-columns:1fr 1fr;align-items:start}.vbnote,.vbempty{grid-column:1/-1}}' +
+  '@media (max-width:420px){.vbt{width:50px}.vbt i{width:44px;height:44px}.vbt b{top:29px}.vbc{padding:20px 11px 11px 14px}}' })); } catch (e) { }
 /* ============ 主线 2.0：余烬与种子（owner 22 Nov：主线是整个世界的故事，从灰港一路到余烬之心；没有结尾，可以续写）============
    序章和第 1 章的教学步骤不变（只改了第 1 章的结尾），第 2-10 章全部重写：
      林岚博士（余烬计划负责人）三年前从地底挖出「余烬之种」，想让人永远不死，结果造成了现在的世界。
@@ -27920,4 +28111,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795309603').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795312188').catch(()=>{});</script></body></html>
