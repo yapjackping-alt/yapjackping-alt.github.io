@@ -25993,7 +25993,8 @@ function vil3All() { if (VIL3_ALL) return VIL3_ALL; VIL3_ALL = [];
       let wet = waterAt(x, z) > -1.2; for (let q = 0; q < 10 && !wet; q++) { const b = q / 10 * 6.283; if (waterAt(x + Math.cos(b) * (R + 8), z + Math.sin(b) * (R + 8)) > -.8) wet = true; }
       if (wet) continue;
       if (TOWNS.some(T => Math.hypot(x - T[0], z - T[1]) < T[2] + R + 20)) continue;
-      if (typeof lmNear === 'function' && lmNear(x, z, R + 25)) continue;
+      /* only the fixed landmarks here: lmNear also builds the random ones, which ask for roads, lairs and villages — 20 s on start-up */
+      if (typeof lmFixed === 'function' && lmFixed().some(F => Math.hypot(F.x - x, F.z - z) < (F.R || 20) * (F.big || 1) + R + 25)) continue;
       if (VIL3_ALL.some(v => Math.hypot(v.x - x, v.z - z) < v.R + R + 80)) continue;
       bx = x; bz = z; ok = true; }
     const v = { id, name: n, t, style, x: bx, z: bz, R, desc, seed: hash2(Math.round(bx), Math.round(bz)) };
@@ -26300,7 +26301,7 @@ const TELE_MAT = { stone: new THREE.MeshLambertMaterial({ color: 0x6e6a74, flatS
 function teleAll() { if (TELE.all) return TELE.all; const A = [];
   for (const v of vil3All()) A.push({ id: 'tv_' + v.id, n: v.name, t: v.t, x: v.x + 6, z: v.z + 5.5, vil: v.id });
   try { for (const L of lmFixed()) { if (!TELE_LM.includes(L.name)) continue; const C = REGC[L.t] || [0, 0], a = Math.atan2(C[1] - L.z, C[0] - L.x); let x = L.x, z = L.z, d = (L.R || 20) * (L.big || 1) + 7;
-      for (let k = 0; k < 24; k++) { const b = a + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * .45; x = L.x + Math.cos(b) * d; z = L.z + Math.sin(b) * d; if (waterAt(x, z) < -1 && !lmNear(x, z, 2)) break; }
+      for (let k = 0; k < 24; k++) { const b = a + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * .45; x = L.x + Math.cos(b) * d; z = L.z + Math.sin(b) * d; if (waterAt(x, z) < -1) break; }
       A.push({ id: 'tl_' + L.id, n: L.name, t: L.t, x, z, lm: L.id }); } } catch (e) { console.warn('tele lm', e); }
   return TELE.all = A; }
 const teleOn = T => !!(S.tele && S.tele[T.id]);
@@ -26595,8 +26596,6 @@ function vqPlace(name) { try { const L = lmFixed().find(q => q.name === name); i
   const P = plAll().find(q => q.n === name); if (P) return { x: P.x, z: P.z, r: 60 }; const V = vil3All().find(v => v.name === name); if (V) return { x: V.x, z: V.z, r: V.R + 10 }; return null; }
 /* the quest's reference level (for XP) = the middle of its land's band, or the giver's land */
 function vqRef(q) { const N = NPC_BY[q.npc], v = N && N.vil && vil3ById(N.vil); const t = (q.need && q.need.tier) || (v ? v.t : 1); return Math.max(1, 10 * t - 5); }
-function vqRw(q) { const R = Object.assign({}, q.rw || {}); if (R.xp && R.xp < 1) R.xp = stXp(vqRef(q), R.xp); return R; }
-function vqRwTxt(q) { const R = vqRw(q); return Object.keys(R).map(k => k === 'gear' ? (GQ[R.gear] ? GQ[R.gear].n : '') + '装备' : vqItN(k) + ' ×' + R[k]).join(' · '); }
 function vqPay(q) { const R = vqRw(q), got = [];
   for (const k in R) { const n = R[k]; if (!n) continue; if (k === 'xp') addXp(n); else if (k === 'gem') addGem(n, '任务奖励'); else if (k === 'gear') { try { giveGear(n); } catch (e) { } } else gain(k, n); got.push(k === 'gear' ? (GQ[n] ? GQ[n].n : '') + '装备' : vqItN(k) + ' ×' + n); }
   feed('任务奖励：' + got.join(' · '), '#9fe8a0'); refreshHud(); }
@@ -26648,9 +26647,7 @@ function npcDlgEl() { let d = $('npcDlg'); if (d) return d; if (!document.body |
     '#bTalk{position:absolute;right:calc(var(--sr) + 214px);bottom:calc(var(--sb) + 196px);display:none;font-size:15px;min-width:96px;border-color:#ffd27a;background:rgba(60,40,16,.9);color:#fff2d8}' +
     '#bBoard{position:absolute;right:calc(var(--sr) + 214px);bottom:calc(var(--sb) + 150px);display:none;font-size:15px;min-width:86px;border-color:#e8c890;background:rgba(60,44,24,.9);color:#fff2d8}' +
     '@media (orientation:portrait){#bTalk{right:calc(var(--sr) + 14px);bottom:calc(var(--sb) + 408px)}#bBoard{right:calc(var(--sr) + 14px);bottom:calc(var(--sb) + 360px)}}body.gvOn #bTalk,body.bOpen #bTalk,body.gvOn #bBoard,body.bOpen #bBoard{display:none!important}' +
-    '#vqTrk{margin-top:6px;font-size:12px;line-height:1.45;color:#f4e4d0;cursor:pointer}#vqTrk:empty{display:none}#vqTrk div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#vqTrk div.ok{color:#9fe8a0}#vqTrk b{color:#ffe08a;font-weight:700}' +
-    '.vqrow{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04);margin-bottom:8px}.vqrow b{color:#ffe9d8}.vqrow p{margin:4px 0;color:#d8c4b0;font-size:13px}.vqrow small{color:#c9a88a;font-size:12px}.vqrow .rw{color:#9fe8a0;font-size:12px}' +
-    '.vqrow .vqb{display:flex;gap:8px;margin-top:6px}.vqrow.done{opacity:.5}.vqh{margin:14px 2px 6px;color:#ffd8b0;font-weight:800}' })); return d; }
+    '#vqTrk{margin-top:6px;font-size:12px;line-height:1.45;color:#f4e4d0;cursor:pointer}#vqTrk:empty{display:none}#vqTrk div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#vqTrk div.ok{color:#9fe8a0}#vqTrk b{color:#ffe08a;font-weight:700}' })); return d; }
 function npcOpen(vv) { const N = vv.npc; if (!N || S.dead) return; const d = npcDlgEl(); if (!d) return; audioInit();
   VQ.d = { vv, N, lines: null, after: null }; d.querySelector('.ndh b').textContent = N.n; d.querySelector('.ndh span').textContent = N.role || '';
   d.classList.add('show'); S.paused = true; S._npcPause = true; try { inputReset(); } catch (e) { }
@@ -26702,32 +26699,12 @@ function vqTrk() { const e = $('vqTrk'); if (!e) return; const s = vqS(), ids = 
 setTimeout(() => { const e = $('vqTrk'); if (e && e.addEventListener) e.addEventListener('click', ev => { ev.stopPropagation(); if (!S.started || S.dead) return; openPanel('vqlog', renderVqLog); }); }, 0);
 // the story tracker repaints its own innerHTML: put our line back after it
 stTrk = (o => function () { o(); try { const t = $('storyTrk'); let e = $('vqTrk'); if (t && t.appendChild && (!e || e.parentNode !== t)) { if (!e) { e = document.createElement('div'); e.id = 'vqTrk'; e.addEventListener('click', ev => { ev.stopPropagation(); if (!S.started || S.dead) return; openPanel('vqlog', renderVqLog); }); } t.appendChild(e); } vqTrk(); } catch (er) { } })(stTrk);
-function renderVqLog() { const box = $('vqList'); if (!box) return; box.innerHTML = ''; const s = vqS(), ids = Object.keys(s.a);
-  if (!ids.length) { const n = document.createElement('div'); n.className = 'snote'; n.textContent = '现在没有接任务。村子里头上有黄色「!」的人，或者村子中间的任务板，都有任务。'; box.appendChild(n); }
-  for (const id of ids) { const q = VQ.by[id] || vqBounty(id); if (!q) { delete s.a[id]; continue; } const r = vqReady(q), who = q.npc ? NPC_BY[q.npc] : null, v = who && who.vil ? vil3ById(who.vil) : q.vil ? vil3ById(q.vil) : null;
-    const row = document.createElement('div'); row.className = 'vqrow'; row.innerHTML = '<b>' + q.t + '</b><p>' + vqNeedTxt(q) + (vqProg(q) ? '　' + vqProg(q) : '') + '</p><small>' + (r ? '✓ 可以交了 · ' : '') + (who ? '找' + who.n : '在任务板交') + (v ? '（' + regionLabel(v.t) + ' · ' + v.name + '）' : '') + '</small><div class="rw">奖励：' + vqRwTxt(q) + '</div>';
-    const bb = document.createElement('div'); bb.className = 'vqb'; const ab = document.createElement('button'); ab.className = 'sbtn ghostb'; ab.textContent = '放弃'; ab.addEventListener('click', () => { delete s.a[id]; vqTrk(); saveGame(); renderVqLog(); }); bb.appendChild(ab); row.appendChild(bb); box.appendChild(row); } }
 /* ---- the task board in every village ---- */
 function vqBoardBuild(ch, L, v) { const x = v.x + 2.5, z = v.z - 6.5, ry = Math.atan2(v.x - x, v.z - z);
   for (const s of [-1, 1]) { const [px, pz] = v3F(x, z, ry)(s * 1.1, 0); L.box(px, 1.1, pz, .14, 2.2, .14, 0x5a3e28); }
   L.box(x, 1.55, z, 2.4, 1.3, .1, 0x7a5a3a, 0, ry, 0); L.box(x, 2.3, z, 2.7, .12, .4, 0x4a3420, 0, ry, 0);
   const [fx, fz] = v3F(x, z, ry)(0, .07); for (let i = 0; i < 5; i++) { const [px, pz] = v3F(fx, fz, ry)(-.8 + (i % 3) * .8, 0); L.box(px, 1.75 - Math.floor(i / 3) * .5, pz, .5, .4, .02, [0xf0e8d0, 0xe8dcc0, 0xf8f0e0][i % 3], 0, ry, (i % 2 - .5) * .12); }
   ch.obs.push(addCircle(x, z, 1.2)); v.board = { x, z }; }
-function vqBoardOpen(v) { audioInit(); VQ.bv = v; openPanel('vqlog', renderBoard); }
-function renderBoard() { const v = VQ.bv, box = $('vqList'); if (!v || !box) return; box.innerHTML = ''; const s = vqS();
-  const head = document.createElement('div'); head.className = 'snote'; head.textContent = v.name + ' · ' + regionLabel(v.t) + '　' + v.desc; box.appendChild(head);
-  const h1 = document.createElement('div'); h1.className = 'vqh'; h1.textContent = '今日悬赏（每天更新）'; box.appendChild(h1);
-  for (const q of vqBounties(v)) { const done = !!s.b[q.id], act = q.id in s.a, r = act && vqReady(q);
-    const row = document.createElement('div'); row.className = 'vqrow' + (done ? ' done' : ''); row.innerHTML = '<b>' + q.t + '</b><p>' + vqNeedTxt(q) + (act && vqProg(q) ? '　' + vqProg(q) : '') + '</p><div class="rw">奖励：' + vqRwTxt(q) + '</div>';
-    const bb = document.createElement('div'); bb.className = 'vqb'; const b = document.createElement('button'); b.className = 'sbtn' + (done || (act && !r) ? ' ghostb' : '');
-    b.textContent = done ? '今天已完成' : r ? '交任务' : act ? '进行中' : '接下'; b.disabled = done || (act && !r);
-    b.addEventListener('click', () => { if (r) { if (q.need.k === 'have') vqTake(q.need.item, q.need.n); delete s.a[q.id]; s.b[q.id] = 1; vqPay(q); vqTrk(); saveGame(); } else if (!act) vqAccept(q); renderBoard(); });
-    bb.appendChild(b); row.appendChild(bb); box.appendChild(row); }
-  const h2 = document.createElement('div'); h2.className = 'vqh'; h2.textContent = '村民的请求'; box.appendChild(h2);
-  for (const N of NPCS.filter(N => N.vil === v.id)) for (const q of N.q || []) { const st = vqState(q); if (st === 'lock') continue;
-    const row = document.createElement('div'); row.className = 'vqrow' + (st === 'done' ? ' done' : ''); row.innerHTML = '<b>' + q.t + '</b><small>　' + N.n + (N.role ? '（' + N.role + '）' : '') + '</small><p>' + (q.d || '') + '</p><p>' + vqNeedTxt(q) + (st === 'act' || st === 'ready' ? '　' + vqProg(q) : '') + '</p><div class="rw">奖励：' + vqRwTxt(q) + '</div>';
-    const bb = document.createElement('div'); bb.className = 'vqb'; const b = document.createElement('button'); b.className = 'sbtn' + (st === 'open' ? '' : ' ghostb'); b.disabled = st !== 'open';
-    b.textContent = st === 'open' ? '接下' : st === 'ready' ? '去找' + N.n + '交' : st === 'act' ? '进行中' : '已完成'; b.addEventListener('click', () => { if (vqAccept(q)) renderBoard(); }); bb.appendChild(b); row.appendChild(bb); box.appendChild(row); } }
 /* ---- people: wander, face you, run indoors, the near one gets the 说话 button; story people appear where the story wants ---- */
 function vqLoc(N) { const c = S.story ? S.story.c : 0, a = N.at && N.at(c); if (!a) return null;
   if (a.isl) return { isl: true, x: HOME.x + a.x, z: HOME.z + a.z };
@@ -26807,7 +26784,7 @@ const VB_POOL = [null, ['metal', 'powder', 'circuit', 'med'], ['metal', 'powder'
 const VBD = { tab: 'npc', track: null, price: null };
 function vbPrice() { if (VBD.price) return VBD.price; let g = {}; try { g = econGem(); } catch (e) { } if (!g.elem) g.elem = 12; if (!g.eluck) g.eluck = 50; if (!g.elock) g.elock = 80; return VBD.price = g; }
 function vqTier(q) { if (q.bounty) return vil3ById(q.vil).t; const N = NPC_BY[q.npc], v = N && N.vil && vil3ById(N.vil); return Math.max(1, Math.min(10, (q.need && q.need.tier) || (v ? v.t : 1))); }
-vqRw = function (q) { if (q._rw) return Object.assign({}, q._rw); const P = vbPrice(), R = {}, src = q.rw || {}, t = vqTier(q);
+function vqRw(q) { if (q._rw) return Object.assign({}, q._rw); const P = vbPrice(), R = {}, src = q.rw || {}, t = vqTier(q);
   for (const k in src) if (k !== 'coin') R[k] = src[k];
   if (R.xp && R.xp < 1) R.xp = stXp(vqRef(q), R.xp);
   let V = (src.coin || 0) / 20;   // gems' worth of the coin part
@@ -26815,7 +26792,7 @@ vqRw = function (q) { if (q._rw) return Object.assign({}, q._rw); const P = vbPr
       const k = pool[h % pool.length], n = Math.max(1, Math.round(V * .7 / P[k])); R[k] = (R[k] || 0) + n; V -= n * P[k]; } }
   const coin = Math.max(0, Math.round(V * 20 / 10) * 10); if (coin) R.coin = coin;
   q._rw = R; return Object.assign({}, R); };
-vqRwTxt = function (q) { const R = vqRw(q); return Object.keys(R).map(k => k === 'gear' ? (GQ[R.gear] ? GQ[R.gear].n : '') + '装备' : vqItN(k) + ' ×' + R[k]).join(' · '); };
+function vqRwTxt(q) { const R = vqRw(q); return Object.keys(R).map(k => k === 'gear' ? (GQ[R.gear] ? GQ[R.gear].n : '') + '装备' : vqItN(k) + ' ×' + R[k]).join(' · '); };
 /* ---- reward tiles ---- */
 const VB_RC = ['#8a8478', '#5aa86a', '#4a8ad8', '#a060e0', '#e8a830', '#ff5a5a'];
 function vbRar(k, n) { if (k === 'xp') return 1; if (k === 'coin') return 0; if (k === 'gem') return 3; if (k === 'gear') return Math.min(5, n); const m = (typeof MAT !== 'undefined' && MAT[k]) || null; return m && m.r != null ? m.r : k === 'med' || k === 'ammo' ? 0 : 1; }
@@ -26851,8 +26828,8 @@ function vbCard(q, st, opt) { const N = q.npc ? NPC_BY[q.npc] : null, col = VB_T
   if (opt && opt.btns) opt.btns(btn, st); return c; }
 /* ---- the board ---- */
 function vbLeft() { const ms = (vqDay() + 1) * 86400000 - 8 * 3600000 - Date.now(), h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60; return h + ' 小时 ' + m + ' 分'; }
-vqBoardOpen = function (v) { audioInit(); VQ.bv = v; VBD.tab = VBD.tab === 'act' ? 'act' : 'npc'; openPanel('vqlog', renderBoard); };
-renderBoard = function () { const v = VQ.bv, box = $('vqList'), ov = $('vqlog'); if (!v || !box) return; ov.classList.add('vbon'); box.innerHTML = ''; const s = vqS(), B = vqBounties(v);
+function vqBoardOpen(v) { audioInit(); VQ.bv = v; VBD.tab = VBD.tab === 'act' ? 'act' : 'npc'; openPanel('vqlog', renderBoard); };
+function renderBoard() { const v = VQ.bv, box = $('vqList'), ov = $('vqlog'); if (!v || !box) return; ov.classList.add('vbon'); box.innerHTML = ''; const s = vqS(), B = vqBounties(v);
   const npcQ = []; for (const N of NPCS.filter(N => N.vil === v.id)) for (const q of N.q || []) { const st = vqState(q); if (st !== 'lock') npcQ.push([q, st]); }
   const act = Object.keys(s.a).map(id => VQ.by[id] || vqBounty(id)).filter(Boolean);
   const head = document.createElement('div'); head.className = 'vbhead';
@@ -26876,10 +26853,9 @@ renderBoard = function () { const v = VQ.bv, box = $('vqList'), ov = $('vqlog');
       else if (st === 'ready') { btn('找' + N.n + '交付', 'ok', null, true); vbTrackBtn(btn, q); }
       else if (st === 'act') vbTrackBtn(btn, q); } })); }
   else { if (!act.length) empty('还没有接任务。'); for (const q of act) list.appendChild(vbCard(q, vqReady(q) ? 'ready' : 'act', { btns: (btn, st) => { vbTrackBtn(btn, q); btn('放弃', 'ghost', () => { delete s.a[q.id]; if (VBD.track === q.id) VBD.track = null; vqTrk(); saveGame(); renderBoard(); }); } })); } };
-function vbTrackBtn(btn, q) { const on = VBD.track === q.id; btn(on ? '追踪中' : '追踪', on ? 'trk on' : 'trk', () => { VBD.track = on ? null : q.id; try { localStorage.setItem('ember_vqtrk', VBD.track || ''); } catch (e) { } if ($('vqlog').classList.contains('vbon') && VQ.bv) renderBoard(); else renderVqLog(); }); }
 function vbFx() { try { sfxTone(523, 1046, .3, .08, 'triangle'); sfxTone(784, 1568, .4, .06, 'sine', { delay: .1 }); } catch (e) { } }
 /* the quest log (tap the tracker) uses the same cards */
-renderVqLog = function () { const box = $('vqList'), ov = $('vqlog'); if (!box) return; ov.classList.add('vbon'); box.innerHTML = ''; const s = vqS(), act = Object.keys(s.a).map(id => VQ.by[id] || vqBounty(id)).filter(Boolean);
+function renderVqLog() { const box = $('vqList'), ov = $('vqlog'); if (!box) return; ov.classList.add('vbon'); box.innerHTML = ''; const s = vqS(), act = Object.keys(s.a).map(id => VQ.by[id] || vqBounty(id)).filter(Boolean);
   const head = document.createElement('div'); head.className = 'vbhead'; head.innerHTML = '<div class="vbban"><b>任务</b><span>进行中 ' + act.length + ' / ' + VQ.MAX + '</span></div>'; box.appendChild(head);
   const list = document.createElement('div'); list.className = 'vblist'; box.appendChild(list);
   if (!act.length) { const e = document.createElement('div'); e.className = 'vbempty'; e.textContent = '现在没有任务。去村子里找头上有黄色「!」的人，或者看村子中间的任务板。'; list.appendChild(e); }
@@ -26918,18 +26894,42 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
   '.vbpin{position:absolute;top:6px;left:50%;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ff9a8a,#b8281c 60%,#6a100a);box-shadow:0 2px 2px rgba(0,0,0,.4);z-index:2}' +
   '.vbhd{display:flex;align-items:center;gap:10px}.vbic{flex:none;width:40px;height:40px;border-radius:50%;background:var(--tc);color:#fff8e8;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 -3px 0 rgba(0,0,0,.25),0 0 0 2px rgba(255,255,255,.5)}.vbic svg{width:26px;height:26px}' +
   '.vbtt{flex:1;min-width:0}.vbtt b{display:block;font-size:16px;color:#2a1a0e}.vbtt small{color:#7a5a3a;font-size:12px}.vbst{color:#d8902a;font-size:14px;letter-spacing:1px;white-space:nowrap}.vbst i{color:rgba(120,90,50,.3);font-style:normal}' +
-  '#vqList .vbc p.vbd{margin:8px 0 4px;font-size:13px;color:#5a4028!important;line-height:1.5;text-align:left;opacity:1}.vbgoal{display:flex;justify-content:space-between;gap:8px;margin-top:6px;font-size:13px;font-weight:700;color:#3a2a1a}.vbgoal:before{content:"◆";color:var(--tc);margin-right:4px}.vbgoal span{flex:1}.vbgoal em{font-style:normal;color:var(--tc)}' +
+  '.vbc p.vbd{margin:8px 0 4px;font-size:13px;color:#5a4028!important;line-height:1.5;text-align:left;opacity:1}.vbgoal{display:flex;justify-content:space-between;gap:8px;margin-top:6px;font-size:13px;font-weight:700;color:#3a2a1a}.vbgoal:before{content:"◆";color:var(--tc);margin-right:4px}.vbgoal span{flex:1}.vbgoal em{font-style:normal;color:var(--tc)}' +
   '.vbbar{height:6px;border-radius:3px;background:rgba(90,60,30,.18);margin-top:5px;overflow:hidden}.vbbar i{display:block;height:100%;background:linear-gradient(90deg,var(--tc),#e8b040);border-radius:3px}' +
   '.vbrw{margin-top:10px;padding-top:8px;border-top:1px dashed rgba(120,90,50,.35)}.vbrw>span{display:block;font-size:12px;font-weight:800;color:#7a5a3a;margin-bottom:5px;letter-spacing:2px}' +
   '.vbtiles{display:flex;flex-wrap:wrap;gap:6px}.vbt{width:56px;position:relative;text-align:center}.vbt i{display:flex;width:50px;height:50px;margin:0 auto;border-radius:8px;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 35%,#4a3a30,#241a14);box-shadow:inset 0 0 0 2px var(--rc),inset 0 -12px 18px -10px var(--rc)}' +
   '.vbt i svg,.vbt i img{width:34px;height:34px}.vbt b{position:absolute;right:2px;top:34px;font-size:11px;color:#fff;text-shadow:0 1px 2px #000,0 0 2px #000}.vbt small{display:block;font-size:10px;color:#6a4a2a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
   '.vbtiles.sm{margin-top:8px}.vbtiles.sm .vbt i{width:42px;height:42px}.vbtiles.sm .vbt{width:48px}.vbtiles.sm .vbt b{top:27px}.vbtiles.sm .vbt small{color:#c9a88a}' +
-  '.vbft{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}#vqList .vbb{padding:8px 16px;border-radius:20px;border:0;font-weight:800;font-size:13px!important;line-height:1.2;min-width:0;width:auto;height:auto;margin:0;letter-spacing:0;color:#fff8e8;background:#8a7a5a}#vqList .vbb.go{background:linear-gradient(180deg,#e8a040,#c8702a);box-shadow:0 3px 0 #8a4a18}#vqList .vbb.ok{background:linear-gradient(180deg,#6ac85a,#3a9a3a);box-shadow:0 3px 0 #2a6a2a}' +
-  '#vqList .vbb.trk{background:transparent;color:#7a5a3a;border:1.5px solid #b8986a}#vqList .vbb.trk.on{background:#3a7a8a;color:#fff;border-color:#3a7a8a}#vqList .vbb.ghost{background:transparent;color:#9a7a5a;border:1.5px solid rgba(150,110,70,.4)}.vbb:disabled{opacity:.6}' +
+  '.vbft{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}.vbc .vbb{padding:8px 16px;border-radius:20px;border:0;font-weight:800;font-size:13px!important;line-height:1.2;min-width:0;width:auto;height:auto;margin:0;letter-spacing:0;color:#fff8e8;background:#8a7a5a}.vbc .vbb.go{background:linear-gradient(180deg,#e8a040,#c8702a);box-shadow:0 3px 0 #8a4a18}.vbc .vbb.ok{background:linear-gradient(180deg,#6ac85a,#3a9a3a);box-shadow:0 3px 0 #2a6a2a}' +
+  '.vbc .vbb.trk{background:transparent;color:#7a5a3a;border:1.5px solid #b8986a}.vbc .vbb.trk.on{background:#3a7a8a;color:#fff;border-color:#3a7a8a}.vbc .vbb.ghost{background:transparent;color:#9a7a5a;border:1.5px solid rgba(150,110,70,.4)}.vbb:disabled{opacity:.6}' +
   '.vbc.s-done{filter:saturate(.5);opacity:.8}.vbstamp{position:absolute;right:16px;top:44px;transform:rotate(-14deg);border:3px solid rgba(180,40,30,.75);color:rgba(180,40,30,.8);font-weight:900;font-size:20px;padding:2px 10px;border-radius:6px;letter-spacing:4px}' +
   '.vbc.s-ready{box-shadow:0 0 0 2px #6ac85a,0 8px 16px rgba(0,0,0,.35)}.vbwhere{margin-top:8px;font-size:12px;color:#3a7a8a;font-weight:700}' +
   '@media (orientation:landscape) and (max-height:560px){#vqlog.vbon #vqList{max-width:min(1000px,100%)}#vqlog.vbon .vbhead{display:flex;align-items:center;gap:14px;text-align:left;margin:0 0 8px}.vbhead p{margin:0;flex:1}.vbban{padding:6px 26px 5px}.vbban b{font-size:18px}#vqlog.vbon .vbtabs{max-width:420px;margin:0 auto 10px}#vqlog.vbon .vblist{display:grid;grid-template-columns:1fr 1fr;align-items:start}.vbnote,.vbempty{grid-column:1/-1}}' +
   '@media (max-width:420px){.vbt{width:50px}.vbt i{width:44px;height:44px}.vbt b{top:29px}.vbc{padding:20px 11px 11px 14px}}' })); } catch (e) { }
+/* ---- the task book (tap the story tracker) and the 任务 window both show your village quests (owner 22 Nov: 接了任务查不到) ---- */
+function vbActCards(box) { const s = vqS(), act = Object.keys(s.a).map(id => VQ.by[id] || vqBounty(id)).filter(Boolean);
+  const list = document.createElement('div'); list.className = 'vblist vbin'; box.appendChild(list);
+  if (!act.length) { const e = document.createElement('div'); e.className = 'vbempty'; e.textContent = '现在没有村庄任务。去村子里找头上有黄色「!」的人，或者看村子中间的任务板。'; list.appendChild(e); return; }
+  for (const q of act) { const N = q.npc ? NPC_BY[q.npc] : null, v = N && N.vil ? vil3ById(N.vil) : q.vil ? vil3ById(q.vil) : null;
+    const c = vbCard(q, vqReady(q) ? 'ready' : 'act', { btns: btn => { vbTrackBtn(btn, q); btn('放弃', 'ghost', () => { delete s.a[q.id]; if (VBD.track === q.id) VBD.track = null; vqTrk(); saveGame(); vbRefresh(); }); } });
+    if (v) { const w = document.createElement('div'); w.className = 'vbwhere'; w.textContent = (vqReady(q) ? '✓ 可以交了 · ' : '') + (N ? '找' + N.n : '回任务板') + ' · ' + regionLabel(v.t) + ' · ' + v.name; c.insertBefore(w, c.querySelector('.vbft')); }
+    list.appendChild(c); } }
+function vbRefresh() { try { if ($('vqlog').classList.contains('show')) { if (VQ.bv && $('vqlog').classList.contains('vbon') && $('vqList').querySelector('.vbtabs')) renderBoard(); else renderVqLog(); } if ($('story').classList.contains('show')) renderStory(); if ($('quest').classList.contains('show')) renderQuest(); } catch (e) { } }
+function vbTrackBtn(btn, q) { const on = VBD.track === q.id; btn(on ? '追踪中' : '追踪', on ? 'trk on' : 'trk', () => { VBD.track = on ? null : q.id; try { localStorage.setItem('ember_vqtrk', VBD.track || ''); } catch (e) { } vbRefresh(); }); };
+renderStory = (o => function () { const vq = ST2.book === 'vq'; if (vq) ST2.book = 'story'; let r; try { r = o.apply(this, arguments); } finally { if (vq) ST2.book = 'vq'; }
+  try { const tabs = $('stTabs'), box = $('storyList'); const n = Object.keys(vqS().a).length;
+    if (tabs) { let b = tabs.querySelector('.vbtk'); if (!b) { b = document.createElement('button'); b.className = 'sbtn vbtk'; b.addEventListener('click', () => { ST2.book = 'vq'; renderStory(); }); tabs.insertBefore(b, tabs.children[1] || null); }
+      b.textContent = '村庄任务' + (n ? ' · ' + n : ''); tabs.querySelectorAll('.sbtn').forEach(x => { if (x === b) x.classList.toggle('on', vq); else if (vq) x.classList.remove('on'); }); }
+    if (vq && box) { box.innerHTML = ''; vbActCards(box); } } catch (e) { console.warn('vb book', e); }
+  return r; })(renderStory);
+// the 任务 window (daily / weekly): a strip on top that leads to your village quests
+renderQuest = (o => function () { const r = o.apply(this, arguments); try { const box = $('questList'), n = Object.keys(vqS().a).length; if (!box) return r;
+    const d = document.createElement('div'); d.className = 'vbqs'; d.innerHTML = '<b>村庄任务</b><span>' + (n ? '进行中 ' + n + ' 个' : '还没有接') + '</span>';
+    const b = document.createElement('button'); b.className = 'sbtn'; b.textContent = '查看'; b.addEventListener('click', () => { closePanel('quest'); openPanel('vqlog', renderVqLog); }); d.appendChild(b);
+    const tabs = box.querySelector('.tabs'); box.insertBefore(d, tabs ? tabs.nextSibling : box.firstChild); } catch (e) { } return r; })(renderQuest);
+// the tracker line: open the quest log even when the story tracker is folded
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+  '#storyList .vbin{padding-top:6px}#storyList .vbc{text-align:left}.vbqs{display:flex;align-items:center;gap:10px;margin:8px 0;padding:10px 12px;border-radius:12px;background:linear-gradient(90deg,rgba(232,192,112,.18),rgba(232,192,112,.05));border:1px solid rgba(232,192,112,.35)}.vbqs b{color:#ffd8a0}.vbqs span{flex:1;color:#c9a88a;font-size:13px}' })); } catch (e) { }
 /* ============ 主线 2.0：余烬与种子（owner 22 Nov：主线是整个世界的故事，从灰港一路到余烬之心；没有结尾，可以续写）============
    序章和第 1 章的教学步骤不变（只改了第 1 章的结尾），第 2-10 章全部重写：
      林岚博士（余烬计划负责人）三年前从地底挖出「余烬之种」，想让人永远不死，结果造成了现在的世界。
@@ -27051,7 +27051,7 @@ storyPoll = (o => function () { o(); try { if (!S.started || S.dead || stDone() 
 // after a step, Old Chen's line comes as before; talk steps need no extra line
 // ---- the open end ----
 stTrk = (o => function () { o(); try { if (stDone()) { const e = $('storyTrk'); if (e) { e.innerHTML = '<b>主线 · 第一部完</b><span>故事未完待续……</span>'; const v = $('vqTrk'); if (v) e.appendChild(v); else { } } } } catch (er) { } })(stTrk);
-renderStory = (o => function () { o(); try { const box = $('storyList'); if (!box) return; const c = document.createElement('div'); c.className = 'stcard lock'; c.innerHTML = '<div class="sth"><b>第二部</b><span>未完待续</span></div><div class="sts">· 光吞没了一切之后，发生了什么？</div>'; box.appendChild(c); } catch (e) { } })(renderStory);
+renderStory = (o => function () { o(); try { const box = $('storyList'); if (!box || (typeof ST2 !== 'undefined' && ST2.book !== 'story')) return; const c = document.createElement('div'); c.className = 'stcard lock'; c.innerHTML = '<div class="sth"><b>第二部</b><span>未完待续</span></div><div class="sts">· 光吞没了一切之后，发生了什么？</div>'; box.appendChild(c); } catch (e) { } })(renderStory);
 // ---- old saves: in the middle of chapter 2-10 → that chapter starts again with the new talk ----
 const ST4_V = 4;
 storySave = (o => function () { const a = o(); a[4] = ST4_V; return a; })(storySave);
@@ -28111,4 +28111,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795312188').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795314051').catch(()=>{});</script></body></html>
