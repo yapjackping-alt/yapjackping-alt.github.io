@@ -1896,7 +1896,7 @@ function chunkPieces(cx, cz) { const k = cx + ',' + cz; let P = _pcC.get(k); if 
     for (let q = 0; q + 3 < p.length; q += 2) { const ax = p[q], az = p[q + 1], bx = p[q + 2], bz = p[q + 3];
       if (Math.max(ax, bx) < x0 || Math.min(ax, bx) > x1 || Math.max(az, bz) < z0 || Math.min(az, bz) > z1) continue;
       if (rLifted(r, (ax + bx) / 2, (az + bz) / 2)) continue;
-      if (typeof lmNear === 'function') { const Lm = lmNear((ax + bx) / 2, (az + bz) / 2, 1); if (Lm && Lm.type !== 'bridge') continue; }   /* roads stop at a landmark instead of running through it */
+      if (typeof lmNear === 'function') { const Lm = lmNear((ax + bx) / 2, (az + bz) / 2, 1); if (Lm && Lm.type !== 'bridge') continue; } if (typeof vil3Road === 'function' && vil3Road((ax + bx) / 2, (az + bz) / 2)) continue;   /* roads end at a village's edge */   /* roads stop at a landmark instead of running through it */
       P.push({ ax, az, bx, bz, w: r.w, R: r.R, road: r }); } }
   if (_pcC.size > 3000) _pcC.clear(); _pcC.set(k, P); return P; }
 // pieces touching a rectangle (kept under the old name)
@@ -5982,86 +5982,20 @@ function traitHurt(n, src) {
 }
 function traitKill() { if (tp('swift')) S.swiftT = 3; }
 const swiftMul = () => S.swiftT > 0 ? 1 + .15 * tp('swift') : 1;
-
-/* ============ villages: small tribes of survivors you can trade with ============
-   One chance per 320 m cell (about 4 in 10), placed away from the cell edges, so villages are rare: you can
-   easily walk 200 m without seeing one. Inside the fence zombies never come. Every villager has their own
-   temper and their own prices, which change each day. */
-const VIL_CELL = 560, VIL_R = 24, _vilC = new Map();
-const VIL_NAMES = ['老王', '阿强', '小梅', '铁柱', '秀兰', '阿福', '大川', '春花', '老李', '阿珍', '石头', '翠萍', '阿坤', '玉兰', '老周', '小六'];
-const VIL_ROLES = ['猎户', '铁匠', '药师', '拾荒者', '农夫', '老兵', '商贩', '木匠'];
+/* ============ villages: the trading with villagers lives here; the fixed villages, their people and what they do are
+   z_vil3.js / z_npcs.js / z_vquest.js (22 Nov). */
+const VIL_CELL = 560, VIL_R = 24;
 const VIL_MOOD = [['大方', .6, .9, 1.3, 1.8], ['老实', .85, 1.15, .95, 1.25], ['精明', 1.0, 1.35, .75, 1.0], ['贪心', 1.2, 1.7, .5, .8]];   // [name, sell×min, sell×max, buy×min, buy×max]
-const VIL_TRIBE = ['灰烬', '石溪', '野狼', '松针', '红土', '铁锚', '黑鸦', '晨星'];
-function villageAt(i, j) {
-  const k = i + ',' + j; if (_vilC.has(k)) return _vilC.get(k);
-  let v = null; const h = hash2(i * 7 + 101, j * 13 + 57);
-  if (h % 100 < 28) {
-    const x = (i + .25 + ((h >>> 8) % 1000) / 1000 * .5) * VIL_CELL, z = (j + .25 + ((h >>> 18) % 1000) / 1000 * .5) * VIL_CELL;
-    let wet = Math.abs(x - HOME.x) < 1200 && Math.abs(z - HOME.z) < 1200;
-    for (let a = 0; a < 8 && !wet; a++) if (waterAt(x + Math.cos(a * .785) * (VIL_R + 4), z + Math.sin(a * .785) * (VIL_R + 4)) > -.6) wet = true;
-    if (!wet && waterAt(x, z) < -.6) v = { id: i + '_' + j, i, j, x, z, seed: h, name: VIL_TRIBE[h % VIL_TRIBE.length] + '部落' };
-  }
-  if (_vilC.size > 3000) _vilC.clear(); _vilC.set(k, v); return v;
-}
+function villageAt(i, j) { return null; }   /* the fixed villages live in z_vil3.js */
 function villagesNear(x, z) { const i0 = Math.floor(x / VIL_CELL), j0 = Math.floor(z / VIL_CELL), out = []; for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const v = villageAt(i0 + i, j0 + j); if (v) out.push(v); } return out; }
 function villageNear(x, z, r) { for (const v of villagesNear(x, z)) if (Math.hypot(v.x - x, v.z - z) < VIL_R + (r || 0)) return v; return null; }
 
 /* ---- building a village into the chunk that holds its centre ---- */
 const VILLS = [];
 let nearVil = null;
-function villageChunk(ch, cx, cz, L, W, mark) {
-  for (const v of villagesNear(cx * CH + CH / 2, cz * CH + CH / 2)) {
-    if (Math.floor(v.x / CH) !== cx || Math.floor(v.z / CH) !== cz) continue;
-    const R = mulberry32(v.seed), rr = (a, b) => a + R() * (b - a);
-    // packed-earth ground, fence ring with four gates, a fire in the middle
-    const disc = new THREE.Mesh(new THREE.CircleGeometry(VIL_R - 1, 28), mat(0x6a5440)); disc.rotation.x = -Math.PI / 2; disc.position.set(v.x, .035, v.z); scene.add(disc); ch.meshes.push(disc);
-    for (let k = 0; k < 64; k++) { const a = k / 64 * Math.PI * 2; if (k % 16 < 2) continue; const px = v.x + Math.cos(a) * VIL_R, pz = v.z + Math.sin(a) * VIL_R;
-      L.box(px, .7, pz, .22, 1.4 + (k % 3) * .15, .22, 0x5a3e28, 0, -a, 0); if (k % 2) L.box(px, .95, pz, .14, .1, 2.5, 0x6a4a30, 0, -a, 0); ch.obs.push(addCircle(px, pz, .3)); }
-    for (let k = 0; k < 4; k++) { const a = (k / 4 + 1 / 64) * Math.PI * 2, px = v.x + Math.cos(a) * VIL_R, pz = v.z + Math.sin(a) * VIL_R; L.box(px, 1.6, pz, .3, 3.2, .3, 0x4a3420); }
-    for (let k = 0; k < 8; k++) { const a = k / 8 * 6.28; L.box(v.x + Math.cos(a) * 1.1, .12, v.z + Math.sin(a) * 1.1, .34, .24, .34, 0x6a6460); }
-    for (let k = 0; k < 5; k++) { const a = k / 5 * 6.28; L.box(v.x + Math.cos(a) * .4, .2, v.z + Math.sin(a) * .4, .18, .18, .9, 0x4a2a1a, 0, -a, 0); }
-    const sp = new THREE.Sprite(flameMat); sp.position.set(v.x, 1.1, v.z); sp.scale.set(2, 2.4, 1); scene.add(sp); ch.meshes.push(sp); const f = { sp, s: R() * 6, base: 2.2 }; flames.push(f); ch.flames.push(f);
-    ch.obs.push(addCircle(v.x, v.z, 1.3, { pass: true }));
-    // huts around the square, doors to the fire
-    const nh = 4 + Math.floor(R() * 3);
-    for (let k = 0; k < nh; k++) {
-      const a = k / nh * 6.283 + rr(-.15, .15), d = rr(13, 16), hx = v.x + Math.cos(a) * d, hz = v.z + Math.sin(a) * d, s = rr(2.6, 3.4), col = [0x8a6a48, 0x7a5a3c, 0x9a7a54][k % 3];
-      L.box(hx, 1.1, hz, s, 2.2, s, col, 0, -a, 0); L.box(hx - Math.cos(a) * s / 2, .8, hz - Math.sin(a) * s / 2, .1, 1.6, .9, 0x2a1a12, 0, -a, 0);
-      const roof = new THREE.Mesh(new THREE.ConeGeometry(s * .85, 1.6, 4), mat([0x6a4a2a, 0x5a3a30, 0x7a6a40][k % 3])); roof.position.set(hx, 3.0, hz); roof.rotation.y = Math.PI / 4 - a; scene.add(roof); ch.meshes.push(roof);
-      ch.obs.push(addBox(hx, hz, s / 2, s / 2));
-      if (R() < .6) { L.box(hx + Math.cos(a + 1.6) * (s / 2 + .5), .35, hz + Math.sin(a + 1.6) * (s / 2 + .5), .7, .7, .7, 0x6a4a30); }   // a crate by the hut
-    }
-    // villagers
-    const nv = 3 + Math.floor(R() * 3);
-    for (let k = 0; k < nv; k++) {
-      const a = k / nv * 6.283 + .4, d = rr(4, 8), x = v.x + Math.cos(a) * d, z = v.z + Math.sin(a) * d, hs = v.seed + k * 7919;
-      const hm = makeHuman({ skin: [0xe0b090, 0xc89870, 0xa8784e, 0xf0c8a0][hs % 4], shirt: [0x7a3a2a, 0x3a5a3a, 0x5a4a7a, 0x8a7a4a, 0x2a4a6a, 0x6a2a4a][(hs >>> 3) % 6], pants: [0x3a2e24, 0x2a2a33, 0x4a3a2a][(hs >>> 6) % 3] });
-      if ((hs >>> 9) % 3 === 0) box(.56, .14, .56, mat(0x8a7a50), 0, hm.hip + 1.3, 0, hm.body);         // straw hat
-      else if ((hs >>> 9) % 3 === 1) box(.48, .2, .48, mat(0x5a2a2a), 0, hm.hip + 1.34, 0, hm.body);     // headband
-      hm.armL.rotation.x = hm.armR.rotation.x = -.1; hm.g.position.set(x, 0, z); scene.add(hm.g); ch.meshes.push(hm.g); blob(.7, hm.g);
-      const mood = VIL_MOOD[(hs >>> 12) % 4], name = VIL_NAMES[(hs >>> 2) % VIL_NAMES.length], role = VIL_ROLES[(hs >>> 15) % VIL_ROLES.length];
-      const lab = labelSprite(role + ' ' + name, '#ffe9a8', .9); lab.position.set(0, 2.9, 0); hm.g.add(lab);
-      const vv = { h: hm, x, z, hx: x, hz: z, tx: x, tz: z, wt: R() * 3, name, role, mood, vid: v.id, idx: k, seed: hs, vil: v, walk: 0, stock: {} };
-      VILLS.push(vv); ch.vills.push(vv);
-    }
-    mark(v.x, v.z, VIL_R, VIL_R);
-  }
-}
+function villageChunk(ch, cx, cz, L, W, mark) { }   /* built by z_vil3.js */
 function unloadVillagers(ch) { for (const v of ch.vills || []) { const i = VILLS.indexOf(v); if (i >= 0) VILLS.splice(i, 1); if (nearVil === v) nearVil = null; } }
-function villageTick(dt) {
-  nearVil = null; let bd = 3.2;
-  for (const v of VILLS) {
-    const p = v.h.g.position, dp = Math.hypot(player.pos.x - p.x, player.pos.z - p.z);
-    if (dp < 6 && !S.dead) { const want = Math.atan2(player.pos.x - p.x, player.pos.z - p.z); let d = want - v.h.g.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); v.h.g.rotation.y += d * Math.min(1, dt * 5); v.h.legL.rotation.x = v.h.legR.rotation.x = 0; if (dp < bd) { bd = dp; nearVil = v; } continue; }
-    v.wt -= dt; if (v.wt <= 0) { v.wt = 3 + Math.random() * 5; const a = Math.random() * 6.28, r = Math.random() * 4; v.tx = v.hx + Math.cos(a) * r; v.tz = v.hz + Math.sin(a) * r; }
-    const dx = v.tx - p.x, dz = v.tz - p.z, d = Math.hypot(dx, dz);
-    if (d > .2) { p.x += dx / d * 1.1 * dt; p.z += dz / d * 1.1 * dt; v.h.g.rotation.y = Math.atan2(dx, dz); v.walk += dt * 7; const sw = Math.sin(v.walk) * .5; v.h.legL.rotation.x = sw; v.h.legR.rotation.x = -sw; }
-    else { v.h.legL.rotation.x = v.h.legR.rotation.x = 0; }
-  }
-  // the first time you reach a village
-  const vg = villageNear(player.pos.x, player.pos.z, 0);
-  if (vg && !S.isl && DN_seen(vg)) banner(vg.name, '幸存者的村子 · 丧尸进不来 · 和村民聊聊，他们的价格各不相同', 3.4);
-}
+function villageTick(dt) { }   /* z_vquest.js */
 const _vSeen = new Set(); function DN_seen(v) { if (_vSeen.has(v.id)) return false; _vSeen.add(v.id); return true; }
 
 /* ---- each villager's offers: what they sell, what they buy, at their own prices (new every day) ---- */
@@ -16383,44 +16317,6 @@ stAdvance = (o => function () { o(); try { stSkinPay(); } catch (e) { } })(stAdv
 stRwTxt = (o => function (R) { let t = o(R); try { const i = STORY.findIndex(C => C.rw === R), a = ST_SKIN[i]; if (a && stSkinOk(a)) t += ' · ' + stSkinName(a); } catch (e) { } return t; })(stRwTxt);
 shopSave = (o => function () { const r = o(); try { if (r.st2) r.st2.sk = ST2.sk; } catch (e) { } return r; })(shopSave);
 shopLoad = (o => function (d) { o(d); ST2.sk = 0; try { const g = d && d.sh && d.sh.st2; if (g) ST2.sk = g.sk | 0; } catch (e) { } setTimeout(() => { try { if (S.started) stSkinPay(); } catch (e) { } }, 3000); })(shopLoad);
-/* ============ longer story chapters 2-10 (owner: "chapters 2-10 are too short") ============
-   Each chapter had 3 steps (go there, one task, a finale). New steps go in BEFORE the finale, each with a line from 老陈.
-   Old saves: storySave now carries a version (5th field = 3); a save without it that is on the finale of one of these
-   chapters is moved forward by the number of new steps, so nobody repeats or skips anything. */
-const ST3_ADD = {
-  2: [{ k: 'search', n: 2, tier: 2, say: T2('哨站的人走得很急，房子里可能还留着东西。去搜两栋。', 'The outpost people left in a hurry. The houses may still hold something. Search two.'), d: T2('在森林或更深处搜索 2 栋建筑', 'Search 2 buildings in the forest or deeper') },
-    { k: 'crate', n: 4, tier: 2, say: T2('林子里散落着补给箱，是空投掉偏了的。能捡就捡。', 'Supply crates lie scattered in the woods: airdrops that missed. Grab what you can.'), d: T2('在森林或更深处打开 4 个箱子', 'Open 4 crates in the forest or deeper') },
-    { k: 'wlv', n: 5, say: T2('外面的丧尸只会越来越硬。回去把武器升一升，至少到 5 级。', 'The zombies only get tougher. Upgrade a weapon, at least to level 5.'), d: T2('把任意一把武器升到 Lv.5', 'Upgrade any weapon to Lv.5') }],
-  3: [{ k: 'kill', n: 25, tier: 3, say: T2('水塔周围全是被叫过去的丧尸，先清外围，别让它们围上来。', 'The tower is ringed by zombies it called in. Clear the outside first, don\'t let them close in.'), d: T2('在荒漠或更深处击败 25 只丧尸', 'Defeat 25 zombies in the desert or deeper') },
-    { k: 'gear', n: 4, say: T2('首领的一击能要你半条命。穿好装备再上，至少 4 件。', 'One hit from the boss can take half your life. Gear up first: at least 4 pieces.'), d: T2('身上穿着 4 件装备', 'Wear 4 pieces of gear') },
-    { k: 'event', n: 1, say: T2('我收到一个空投信号，就在荒漠里。拿到补给再去打首领。', 'I picked up an airdrop signal in the desert. Get the supplies, then go for the boss.'), d: T2('完成 1 个空投或精英事件', 'Finish 1 airdrop or elite event') }],
-  4: [{ k: 'crate', n: 5, tier: 4, say: T2('实验室的人把样本藏在箱子里运走，沼泽里应该还有几箱。', 'The lab people moved samples out in crates. There should be a few left in the swamp.'), d: T2('在沼泽或更深处打开 5 个箱子', 'Open 5 crates in the swamp or deeper') },
-    { k: 'search', n: 3, tier: 4, say: T2('沼泽边的房子以前是采样点，去翻翻有没有记录。', 'The houses by the swamp used to be sampling stations. See if any records are left.'), d: T2('在沼泽或更深处搜索 3 栋建筑', 'Search 3 buildings in the swamp or deeper') },
-    { k: 'event', n: 2, say: T2('精英丧尸身上的血清最浓。去找两次空投或者精英。', 'Elite zombies carry the strongest serum. Find two airdrops or elites.'), d: T2('完成 2 个空投或精英事件', 'Finish 2 airdrop or elite events') }],
-  5: [{ k: 'kill', n: 35, tier: 5, say: T2('雪地里的丧尸冻得很硬，打不动就多打几枪。清出一片地方。', 'The snow zombies are frozen hard. Keep shooting. Clear an area.'), d: T2('在雪原或更深处击败 35 只丧尸', 'Defeat 35 zombies in the snowfield or deeper') },
-    { k: 'crate', n: 5, tier: 5, say: T2('实验室的人撤离时丢下了补给。冷天里，每一箱都是命。', 'The lab staff dropped supplies when they fled. In this cold, every crate is a life.'), d: T2('在雪原或更深处打开 5 个箱子', 'Open 5 crates in the snowfield or deeper') },
-    { k: 'wlv', n: 15, say: T2('守门的东西不好对付。把武器升到 15 级再去。', 'What guards the gate is no joke. Get a weapon to level 15 first.'), d: T2('把任意一把武器升到 Lv.15', 'Upgrade any weapon to Lv.15') }],
-  6: [{ k: 'search', n: 4, tier: 6, say: T2('废城里有工厂的控制室，余烬的运输记录也许还在。搜 4 栋楼。', 'There are factory control rooms in the ruins. The Ember shipping records may still be there. Search 4 buildings.'), d: T2('在废城或更深处搜索 4 栋建筑', 'Search 4 buildings in the ruins or deeper') },
-    { k: 'fish', n: 3, say: T2('城里的东西都被污染了。回岛上钓几条鱼，我们得靠干净的食物撑下去。', 'Everything in the city is tainted. Go home and catch some fish: we need clean food to keep going.'), d: T2('钓到 3 条鱼', 'Catch 3 fish') },
-    { k: 'event', n: 2, say: T2('城里有两股精英在抢地盘，打掉它们，路就通了。', 'Two elite packs are fighting over the city. Break them and the road opens.'), d: T2('完成 2 个空投或精英事件', 'Finish 2 airdrop or elite events') }],
-  7: [{ k: 'kill', n: 45, tier: 7, say: T2('车队要从峡谷里过，路两边全是丧尸。先清一遍。', 'The convoy has to go through the canyon, and both sides are full of zombies. Clear them first.'), d: T2('在峡谷或更深处击败 45 只丧尸', 'Defeat 45 zombies in the canyon or deeper') },
-    { k: 'crate', n: 6, tier: 7, say: T2('之前的车队翻了好几辆，货箱还在石头堆里。', 'Several trucks of the last convoy tipped over. Their cargo is still in the rocks.'), d: T2('在峡谷或更深处打开 6 个箱子', 'Open 6 crates in the canyon or deeper') },
-    { k: 'cook', n: 2, say: T2('车队的人饿了好几天了。回去做两顿饭，我让人来拿。', 'The convoy crew hasn\'t eaten in days. Cook two meals and I\'ll send someone for them.'), d: T2('用锅炉烹饪 2 份食物', 'Cook 2 meals on the stove') }],
-  8: [{ k: 'crate', n: 6, tier: 8, say: T2('熔岩边上有当年的勘探箱，里面有耐热的材料。', 'Old survey crates sit by the lava, with heat-proof materials inside.'), d: T2('在熔火之地或更深处打开 6 个箱子', 'Open 6 crates in the Molten Land or deeper') },
-    { k: 'event', n: 2, say: T2('火里的精英丧尸身上有首领之心的碎片。去找它们。', 'The elite zombies in the fire carry shards of boss hearts. Hunt them.'), d: T2('完成 2 个空投或精英事件', 'Finish 2 airdrop or elite events') },
-    { k: 'boss', n: 1, tier: 8, say: T2('熔火之地的首领守着最大的一颗心。打倒它。', 'The Molten Land\'s boss guards the biggest heart. Bring it down.'), d: T2('在熔火之地或更深处击败 1 个首领', 'Defeat 1 boss in the Molten Land or deeper') }],
-  9: [{ k: 'kill', n: 55, tier: 9, say: T2('影子里的东西看不清，听声音开枪。先清出一条路。', 'You can\'t see what\'s in the shadows. Shoot at the sound. Clear a path first.'), d: T2('在暗影荒原或更深处击败 55 只丧尸', 'Defeat 55 zombies in the Shadow Wastes or deeper') },
-    { k: 'search', n: 4, tier: 9, say: T2('低语是从那些废屋里传出来的。一栋一栋搜。', 'The whispers come from those ruined houses. Search them one by one.'), d: T2('在暗影荒原或更深处搜索 4 栋建筑', 'Search 4 buildings in the Shadow Wastes or deeper') },
-    { k: 'event', n: 3, say: T2('它们在聚集。打散三次，别让它们集合成群。', 'They are gathering. Break them up three times before they become a horde.'), d: T2('完成 3 个空投或精英事件', 'Finish 3 airdrop or elite events') }],
-  10: [{ k: 'crate', n: 8, tier: 10, say: T2('核心周围有小队留下的补给，是我们最后的一批。全拿上。', 'Our team left supplies around the core: the very last of them. Take everything.'), d: T2('在余烬核心打开 8 个箱子', 'Open 8 crates in the Ember Core') },
-    { k: 'event', n: 3, say: T2('核心在召唤精英保护自己。打掉三批，它就没有护卫了。', 'The core is calling elites to guard it. Break three waves and it stands alone.'), d: T2('完成 3 个空投或精英事件', 'Finish 3 airdrop or elite events') },
-    { k: 'have', item: 'heart', n: 3, say: T2('要关掉核心，需要三颗首领之心的能量。准备好就去做最后一战。', 'Shutting down the core takes the power of three boss hearts. When you have them, go for the last fight.'), d: T2('拥有 3 颗首领之心', 'Own 3 Boss Hearts') }]
-};
-const ST3_V = 3;
-for (const c in ST3_ADD) { const C = STORY[c]; if (!C || C._st3) continue; C._st3 = ST3_ADD[c].length; C.steps.splice(C.steps.length - 1, 0, ...ST3_ADD[c]); }
-storySave = (o => function () { const a = o(); a[4] = ST3_V; return a; })(storySave);
-storyLoad = (o => function (a) { o(a);
-  try { if (Array.isArray(a) && (a[4] | 0) < ST3_V) { const C = STORY[S.story.c]; if (C && C._st3 && S.story.s >= C.steps.length - 1 - C._st3) { S.story.s += C._st3; } } } catch (e) { } })(storyLoad);
 /* ============ 剧情档案 + 跳过 (《留存优化方案》 part C; owner picked it 16 Nov) ============
    - The talk box has a 「跳过」 button: it closes the box and drops the lines still waiting in the queue. Nothing is lost:
      every line is in the archive.
@@ -16970,137 +16866,10 @@ setInterval(() => { try { if (S.started && !S.paused) stTrk(); } catch (e) { } }
 /* ---- the tracker stays put under the health panel (dragging it was removed: it got lost too easily) ---- */
 try { localStorage.removeItem('ember_trkpos'); } catch (x) { }
 try { const st = document.createElement('style'); st.textContent = '#storyTrk .qmline{color:#ffd27a;opacity:.95}'; document.head.appendChild(st); } catch (x) { }
-var VIL2_PY = 0;
-/* ============ villages 2.0: a real little countryside hamlet, not a safe camp ============
-   - No fence ring, no safe zone: zombies can walk right in.
-   - Every villager has their own little house (gable roof, door, window, a yard with a broken fence, a vegetable patch,
-     a wood pile …), scattered at odd angles like a real country village, joined by dirt paths that wander to a well.
-   - Armed guards walk a patrol loop round the village and shoot zombies that come near.
-   - When zombies get close, villagers run home and hide indoors; they come back out once it's quiet. */
-const VIL2_DIRT = [0x7a6248, 0x6e5840, 0x84694c], VIL2_WALL = [0x9a7a56, 0x8a6a48, 0xb09070, 0x7e6a58, 0xa88462, 0x9c8c74], VIL2_ROOF = [0x6a3a2a, 0x5a4a3a, 0x7a5a32, 0x4a4040, 0x8a4a30];
+/* ============ village guards (the village builder itself is z_vil3.js since 22 Nov) ============ */
 const GUARDS = [];
-const _rot = (lx, lz, ry) => [lx * Math.cos(ry) + lz * Math.sin(ry), -lx * Math.sin(ry) + lz * Math.cos(ry)];
-villageChunk = function (ch, cx, cz, L, W, mark) {
-  ch.guards = ch.guards || [];
-  for (const v of villagesNear(cx * CH + CH / 2, cz * CH + CH / 2)) {
-    if (Math.floor(v.x / CH) !== cx || Math.floor(v.z / CH) !== cz) continue;
-    const R = mulberry32(v.seed), rr = (a, b) => a + R() * (b - a), pick = A => A[Math.floor(R() * A.length)];
-    // ---- the well in the middle (a little off-centre), a fire pit to one side ----
-    const wx = v.x + rr(-2, 2), wz = v.z + rr(-2, 2);
-    for (let k = 0; k < 10; k++) { const a = k / 10 * 6.283; L.box(wx + Math.cos(a) * .9, .35, wz + Math.sin(a) * .9, .5, .7, .36, 0x7a746c, 0, -a, 0); }
-    L.box(wx, .05, wz, 1.3, .06, 1.3, 0x1a2a34); L.box(wx - .85, 1.2, wz, .14, 2.0, .14, 0x4a3420); L.box(wx + .85, 1.2, wz, .14, 2.0, .14, 0x4a3420); L.box(wx, 2.15, wz, 2.2, .12, .14, 0x4a3420);
-    L.box(wx - .45, 2.45, wz, 1.3, .1, 1.5, 0x6a4a30, 0, 0, .5); L.box(wx + .45, 2.45, wz, 1.3, .1, 1.5, 0x6a4a30, 0, 0, -.5); L.box(wx + .1, 1.5, wz, .3, .35, .3, 0x6a4a30);
-    ch.obs.push(addCircle(wx, wz, 1.2));
-    const fa = rr(0, 6.28), fx = v.x + Math.cos(fa) * 5.5, fz = v.z + Math.sin(fa) * 5.5;
-    for (let k = 0; k < 7; k++) { const a = k / 7 * 6.28; L.box(fx + Math.cos(a) * .9, .12, fz + Math.sin(a) * .9, .32, .24, .32, 0x6a6460); }
-    for (let k = 0; k < 2; k++) { const a = rr(0, 6.28); L.box(fx + Math.cos(a) * 1.7, .25, fz + Math.sin(a) * 1.7, 1.4, .3, .35, 0x5a3e28, 0, -a, 0); }   // log benches
-    const sp = new THREE.Sprite(flameMat); sp.position.set(fx, 1, fz); sp.scale.set(1.6, 2, 1); scene.add(sp); ch.meshes.push(sp); const fl = { sp, s: R() * 6, base: 1.8 }; flames.push(fl); ch.flames.push(fl);
-    ch.obs.push(addCircle(fx, fz, 1.1, { pass: true }));
-    // ---- houses, scattered at odd angles ----
-    const houses = [], nh = 5 + Math.floor(R() * 4);
-    for (let tries = 0; tries < 80 && houses.length < nh; tries++) {
-      const a = rr(0, 6.283), d = rr(8, 19.5), hx = v.x + Math.cos(a) * d, hz = v.z + Math.sin(a) * d, w = rr(3.2, 4.6), dp = rr(3, 3.9);
-      if (houses.some(o => Math.hypot(o.x - hx, o.z - hz) < (o.w + w) / 2 + 3.2) || Math.hypot(hx - wx, hz - wz) < 5.5 || Math.hypot(hx - fx, hz - fz) < 4.5) continue;
-      if (waterAt(hx, hz) > -.6) continue;
-      // face roughly toward the middle, but crooked (± 70°)
-      const ry = Math.atan2(v.x - hx, v.z - hz) + rr(-1.2, 1.2);
-      houses.push({ x: hx, z: hz, w, d: dp, ry, h: rr(2.1, 2.7) });
-    }
-    houses.forEach((H, k) => {
-      const { x: hx, z: hz, w, d: dp, ry, h } = H, wall = pick(VIL2_WALL), roof = pick(VIL2_ROOF), P = (lx, lz) => { const [a, b] = _rot(lx, lz, ry); return [hx + a, hz + b]; };
-      // trodden ground round the house
-      L.box(hx, .028, hz, w + rr(2.5, 4), .012, dp + rr(2.5, 4.5), pick(VIL2_DIRT), 0, ry, 0);
-      // walls (a darker base course), door, a window or two
-      L.box(hx, h / 2, hz, w, h, dp, wall, 0, ry, 0); L.box(hx, .18, hz, w + .08, .36, dp + .08, 0x5a4a3c, 0, ry, 0);
-      let [px, pz] = P(rr(-w * .2, w * .2), dp / 2 + .03); L.box(px, .85, pz, .95, 1.7, .08, 0x3a2416, 0, ry, 0);   // door (front, +z side)
-      H.door = P(0, dp / 2 + 1.2);
-      [[P(w / 2 + .03, rr(-.5, .5)), ry + Math.PI / 2], [P(-w / 2 - .03, rr(-.5, .5)), ry + Math.PI / 2]].forEach(([[qx, qz], r], i) => { if (i && R() < .5) return; L.box(qx, h * .58, qz, .75, .6, .08, 0x2a3a48, 0, r, 0); L.box(qx, h * .58 - .36, qz, .9, .08, .14, 0x4a3420, 0, r, 0); });
-      // gable roof: two tilted slabs along the depth, overhanging
-      const rise = rr(1.0, 1.5), half = w / 2 + .35, tilt = Math.atan2(rise, half), len = Math.hypot(rise, half) + .1;
-      for (const sd of [-1, 1]) { const [qx, qz] = P(sd * half / 2, 0); L.box(qx, h + rise / 2, qz, len, .14, dp + .7, roof, 0, ry, -sd * tilt); }
-      for (const sd of [-1, 1]) { const [qx, qz] = P(0, sd * dp / 2); L.box(qx, h + rise * .35, qz, w * .62, rise * .7, .06, wall, 0, ry, 0); }   // gable ends
-      if (R() < .55) { const [qx, qz] = P(rr(-w / 4, w / 4), rr(-dp / 4, dp / 4)); L.box(qx, h + rise + .2, qz, .45, 1.2, .45, 0x5a5048, 0, ry, 0); }   // chimney
-      ch.obs.push(addCircle(hx, hz, Math.max(w, dp) * .5 + .1));
-      // a yard on one side: a broken fence (2-3 sides, gaps, a leaning post), a vegetable patch, a wood pile or hay
-      const ys = R() < .5 ? 1 : -1, yx = ys * (w / 2 + 2.4), yw = rr(3.4, 4.6), yd = dp + rr(.5, 2);
-      for (let s = 0; s < 3; s++) { if (R() < .25) continue; const n = Math.ceil((s === 1 ? yw : yd) / 1.2);
-        for (let i = 0; i <= n; i++) { if (R() < .18) continue; let lx, lz; if (s === 0) { lx = yx - yw / 2; lz = -yd / 2 + i * yd / n; } else if (s === 1) { lx = yx - yw / 2 + i * yw / n; lz = yd / 2; } else { lx = yx + yw / 2; lz = -yd / 2 + i * yd / n; }
-          const [qx, qz] = P(lx, lz); L.box(qx, .5, qz, .12, 1 + rr(-.15, .15), .12, 0x5a3e28, rr(-.15, .15), ry, rr(-.15, .15)); }
-        const [mx, mz] = P(s === 1 ? yx : s === 0 ? yx - yw / 2 : yx + yw / 2, s === 1 ? yd / 2 : 0); L.box(mx, .7, mz, s === 1 ? yw : .07, .08, s === 1 ? .07 : yd, 0x6a4a30, 0, ry, rr(-.05, .05)); }
-      if (R() < .75) for (let r2 = 0; r2 < 3; r2++) for (let c = 0; c < 4; c++) { const [qx, qz] = P(yx - yw / 2 + .8 + c * (yw - 1.6) / 3, -yd / 2 + 1 + r2 * (yd - 2) / 2); L.box(qx, .2, qz, .45, .35 + R() * .2, .45, R() < .2 ? 0xc84a2a : 0x4a8a3a, 0, rr(0, 3), 0); }
-      if (R() < .6) { const [qx, qz] = P(-ys * (w / 2 + .5), rr(-dp / 3, dp / 3)); for (let i = 0; i < 5; i++) L.box(qx, .18 + Math.floor(i / 3) * .3, qz + (i % 3 - 1) * .3, .9, .28, .28, 0x7a5a3a, 0, ry + Math.PI / 2, 0); }
-      else if (R() < .6) { const [qx, qz] = P(-ys * (w / 2 + .8), rr(-dp / 3, dp / 3)); L.box(qx, .45, qz, 1.1, .9, 1.1, 0xc8a85a, 0, rr(0, 3), 0); }
-      if (R() < .4) { const [ax, az] = P(yx - yw / 2, yd / 2 + 1.2), [bx, bz] = P(yx + yw / 2, yd / 2 + 1.2); L.box(ax, .9, az, .08, 1.8, .08, 0x4a3420); L.box(bx, .9, bz, .08, 1.8, .08, 0x4a3420);   // a washing line
-        for (let i = 0; i < 3; i++) { const t = .25 + i * .25; L.box(ax + (bx - ax) * t, 1.45, az + (bz - az) * t, .55, .6, .03, [0xd8d0c0, 0x8a4a4a, 0x4a6a8a][i], 0, Math.atan2(bx - ax, bz - az) + Math.PI / 2, 0); } }
-      // a dirt path from the door to the well, with a bend
-      { const [dx, dz] = H.door, mx2 = (dx + wx) / 2 + rr(-2.5, 2.5), mz2 = (dz + wz) / 2 + rr(-2.5, 2.5), col = pick(VIL2_DIRT);
-        for (const [ax, az, bx, bz] of [[dx, dz, mx2, mz2], [mx2, mz2, wx, wz]]) { const ln = Math.hypot(bx - ax, bz - az); VIL2_PY = (VIL2_PY + 1) % 8; L.box((ax + bx) / 2, .026 + VIL2_PY * .004, (az + bz) / 2, rr(1.1, 1.5), .012, ln + 1, col, 0, Math.atan2(bx - ax, bz - az), 0); } }   /* paths meet at the well: each one a little higher, or they flicker */
-    });
-    // a cart, some barrels, a stray crate or two between the houses
-    for (let i = 0; i < 4; i++) { const a = rr(0, 6.28), d = rr(6, 18), qx = v.x + Math.cos(a) * d, qz = v.z + Math.sin(a) * d; if (houses.some(o => Math.hypot(o.x - qx, o.z - qz) < Math.max(o.w, o.d) / 2 + 1.5)) continue;
-      if (i === 0) { L.box(qx, .7, qz, 1.4, .5, 2.2, 0x7a5a3a, 0, a, 0); for (const sd of [-1, 1]) { const [ox, oz] = _rot(sd * .8, 0, a); L.box(qx + ox, .45, qz + oz, .12, .9, .9, 0x4a3420, 0, a, 0); } ch.obs.push(addCircle(qx, qz, 1.1)); }
-      else { L.box(qx, .45, qz, .6, .9, .6, i % 2 ? 0x6a4a30 : 0x5a5a5a, 0, a, 0); ch.obs.push(addCircle(qx, qz, .4)); } }
-    // ---- villagers: one or two per house, each lives in their own house ----
-    let idx = 0;
-    houses.forEach((H, k) => { const n = k < 2 || R() < .35 ? 1 : 1; for (let q = 0; q < n; q++) {
-      const hs = v.seed + idx * 7919, [x, z] = H.door;
-      const hm = makeHuman({ skin: [0xe0b090, 0xc89870, 0xa8784e, 0xf0c8a0][hs % 4], shirt: [0x7a3a2a, 0x3a5a3a, 0x5a4a7a, 0x8a7a4a, 0x2a4a6a, 0x6a2a4a][(hs >>> 3) % 6], pants: [0x3a2e24, 0x2a2a33, 0x4a3a2a][(hs >>> 6) % 3] });
-      if ((hs >>> 9) % 3 === 0) box(.56, .14, .56, mat(0x8a7a50), 0, hm.hip + 1.3, 0, hm.body); else if ((hs >>> 9) % 3 === 1) box(.48, .2, .48, mat(0x5a2a2a), 0, hm.hip + 1.34, 0, hm.body);
-      hm.armL.rotation.x = hm.armR.rotation.x = -.1; hm.g.position.set(x, 0, z); scene.add(hm.g); ch.meshes.push(hm.g); blob(.7, hm.g);
-      const mood = VIL_MOOD[(hs >>> 12) % 4], name = VIL_NAMES[(hs >>> 2) % VIL_NAMES.length], role = VIL_ROLES[(hs >>> 15) % VIL_ROLES.length];
-      const lab = labelSprite(role + ' ' + name, '#ffe9a8', .9); lab.position.set(0, 2.9, 0); hm.g.add(lab);
-      const vv = { h: hm, x, z, hx: x, hz: z, tx: x, tz: z, wt: R() * 3, name, role, mood, vid: v.id, idx, seed: hs, vil: v, walk: 0, stock: {}, house: H, well: [wx, wz] };
-      VILLS.push(vv); ch.vills.push(vv); idx++; } });
-    // ---- guards: 2-3, armed, walking a crooked loop round the village ----
-    const ng = 2 + (R() < .5 ? 1 : 0), loop = []; for (let i = 0; i < 7; i++) { const a = i / 7 * 6.283 + rr(-.25, .25), d = rr(16, 22); loop.push([v.x + Math.cos(a) * d, v.z + Math.sin(a) * d]); }
-    const t = tierAt(v.x, v.z);
-    for (let g = 0; g < ng; g++) {
-      const hm = makeHuman({ skin: [0xe0b090, 0xc89870, 0xa8784e][g % 3], shirt: 0x3e4a34, pants: 0x2a2e24 });
-      box(.6, .2, .6, mat(0x4a5a3a), 0, hm.hip + 1.36, 0, hm.body);   // helmet
-      box(.74, .62, .44, mat(0x2e3428), 0, hm.hip + .5, 0, hm.body);   // vest
-      try { const G = new THREE.Group(); hm.body.add(G); G.add(buildWeapon('rifle', wTier(Math.max(1, 10 * t - 5)), '')); const Q = POSE.rifle || POSE.gun; G.position.set(Q.pos[0], hm.hip + Q.pos[1], Q.pos[2]); G.rotation.set(Q.rest[0], Q.rest[1], Q.rest[2]); hm.armL.rotation.set(Q.armL[0], Q.armL[1], Q.armL[2]); hm.armR.rotation.set(Q.armR[0], Q.armR[1], Q.armR[2]); } catch (e) { }
-      const i0 = Math.floor(g * 7 / ng), [x, z] = loop[i0]; hm.g.position.set(x, 0, z); scene.add(hm.g); ch.meshes.push(hm.g); blob(.7, hm.g);
-      const lab = labelSprite(T2('守卫 ', 'Guard ') + VIL_NAMES[(v.seed >>> (g * 3)) % VIL_NAMES.length], '#a8e0ff', .9); lab.position.set(0, 2.9, 0); hm.g.add(lab);
-      const gd = { h: hm, loop, i: i0, dir: g % 2 ? -1 : 1, cd: rr(0, 1), walk: 0, t, vil: v, wait: 0 }; GUARDS.push(gd); ch.guards.push(gd);
-    }
-    mark(v.x, v.z, VIL_R, VIL_R);
-  }
-};
 unloadVillagers = (o => function (ch) { o(ch); for (const g of ch.guards || []) { const i = GUARDS.indexOf(g); if (i >= 0) GUARDS.splice(i, 1); } })(unloadVillagers);
 
-/* ---- every frame: villagers go about their day or run home; guards patrol and shoot ---- */
-const _zNear = (x, z, r) => { let b = null, bd = r; for (const o of zombies) { if (o.dead || o.animal || o.mirror) continue; const d = Math.hypot(o.pos.x - x, o.pos.z - z); if (d < bd) { bd = d; b = o; } } return b; };
-villageTick = function (dt) {
-  nearVil = null; let bd = 3.2;
-  for (const v of VILLS) {
-    const p = v.h.g.position, dp = Math.hypot(player.pos.x - p.x, player.pos.z - p.z), danger = !!_zNear(p.x, p.z, 15);
-    if (danger) v.calm = 0; else v.calm = (v.calm || 0) + dt;
-    // hiding indoors: invisible until it has been quiet for a while, then step back out of the door
-    if (v.hid) { if (v.calm > 6) { v.hid = false; v.h.g.visible = true; } continue; }
-    if (danger && v.house) { v.tx = v.house.door[0]; v.tz = v.house.door[1]; v.run = true; }
-    else { v.run = false;
-      if (dp < 6 && !S.dead) { const want = Math.atan2(player.pos.x - p.x, player.pos.z - p.z); let d = want - v.h.g.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); v.h.g.rotation.y += d * Math.min(1, dt * 5); v.h.legL.rotation.x = v.h.legR.rotation.x = 0; if (dp < bd) { bd = dp; nearVil = v; } continue; }
-      v.wt -= dt; if (v.wt <= 0) { v.wt = 4 + Math.random() * 6;   // pottering about the yard, sometimes a walk to the well
-        if (v.well && Math.random() < .25) { v.tx = v.well[0] + (Math.random() - .5) * 3; v.tz = v.well[1] + (Math.random() - .5) * 3; } else { const a = Math.random() * 6.28, r = Math.random() * 3.5; v.tx = v.hx + Math.cos(a) * r; v.tz = v.hz + Math.sin(a) * r; } } }
-    const dx = v.tx - p.x, dz = v.tz - p.z, d = Math.hypot(dx, dz), sp = v.run ? 4.2 : 1.1;
-    if (d > .25) { p.x += dx / d * sp * dt; p.z += dz / d * sp * dt; v.h.g.rotation.y = Math.atan2(dx, dz); v.walk += dt * (v.run ? 13 : 7); const sw = Math.sin(v.walk) * (v.run ? .8 : .5); v.h.legL.rotation.x = sw; v.h.legR.rotation.x = -sw; }
-    else { v.h.legL.rotation.x = v.h.legR.rotation.x = 0; if (v.run) { v.hid = true; v.h.g.visible = false; if (nearVil === v) nearVil = null; } }
-  }
-  for (const g of GUARDS) {
-    const p = g.h.g.position, z = _zNear(p.x, p.z, 24);
-    if (z) {   // stop, turn, shoot
-      g.h.legL.rotation.x = g.h.legR.rotation.x = 0; g.h.g.rotation.y = Math.atan2(z.pos.x - p.x, z.pos.z - p.z); g.cd -= dt;
-      if (g.cd <= 0) { g.cd = .55 + Math.random() * .3; const yaw = g.h.g.rotation.y;
-        try { tracer(p.x + Math.sin(yaw) * .8, 1.45, p.z + Math.cos(yaw) * .8, z.pos.x, 1.1 * (z.sc || 1), z.pos.z, 0xffd08a); } catch (e) { }
-        hurtZombie(z, z.boss ? z.max * .006 : Math.max(10, z.max * .14), 0, 0); }
-      continue; }
-    const [tx, tz] = g.loop[g.i], dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz);
-    if (d < .4) { g.wait -= dt; if (g.wait <= 0) { g.i = (g.i + g.dir + g.loop.length) % g.loop.length; g.wait = Math.random() < .3 ? 2 + Math.random() * 3 : 0; } g.h.legL.rotation.x = g.h.legR.rotation.x = 0; continue; }
-    p.x += dx / d * 1.5 * dt; p.z += dz / d * 1.5 * dt; g.h.g.rotation.y = Math.atan2(dx, dz); g.walk += dt * 8; const sw = Math.sin(g.walk) * .55; g.h.legL.rotation.x = sw; g.h.legR.rotation.x = -sw;
-  }
-  const vg = villageNear(player.pos.x, player.pos.z, 0);
-  if (vg && !S.isl && DN_seen(vg)) banner(vg.name, T2('幸存者的村子 · 有守卫巡逻，但丧尸也会闯进来 · 村民们价格各不相同', 'A survivor village · guards patrol, but zombies can get in · every villager has their own prices'), 3.4);
-};
 /* ============ 伙伴 2.0: little dwarves and elves who level up with you ============
    - Companions are no longer humans: each is a 矮人 (short, stocky, beard, horned helmet; +15% life) or a 精灵 (slim,
      pointed ears, green hood and cape, carries a bow; +12% damage). They stand well under your shoulder.
@@ -26056,6 +25825,1046 @@ drawExtraRadar = (o => function (tx, tz, edgeMark) { o(tx, tz, edgeMark);
     else for (const P of plAll()) { const x = tx(P.x), y = tz(P.z); if (x < -60 * k || y < -30 * k || x > W + 60 * k || y > W + 30 * k) continue;
       txt(P.n, x, y, P.cap ? 15 : 12.5, P.cap ? '#fff2e4' : '#e8d8c8', P.cap ? 900 : 700); if (P.cap) txt(biomeOf(P.t).n + ' · Lv.' + tierBand(P.t)[0] + '-' + tierBand(P.t)[1], x, y + 15 * k, 10, 'hsl(' + (120 - (P.t - 1) * 13) + ',85%,72%)', 700); }
     c.textBaseline = 'alphabetic'; } catch (e) { } })(drawExtraRadar);
+/* ============ 人物模型 2.0（owner 22 Nov：村民要各有特色，一眼看清男女、大人小孩老人）============
+   makeNpc(o) 和 makeHuman 一样返回 {g, body, head, legL, legR, armL, armR, hip}，原来的走路动画照样能用。
+   o.sex 'm' | 'f'，o.age 'kid' | 'adult' | 'old'
+   - 女：肩窄、收腰，长发 / 马尾 / 发髻，有嘴唇颜色，常穿裙子或长袍
+   - 男：肩宽，短发 / 光头，眉毛粗，老人有白胡子
+   - 小孩：整个人小（×0.62），头相对大，腿短
+   - 老人：白 / 灰头发，驼背，拄拐杖，走得慢
+   o.hat：帽子 / 头饰（按地区风格），o.acc：身上的小东西（背篓、渔网、围裙、披风、毛皮领 …）
+   颜色：o.skin, o.hairC, o.top, o.bottom, o.trim（衣服边/腰带的颜色） */
+const NPC_SKIN = [0xf2c9a4, 0xe0b090, 0xc89870, 0xa8784e, 0x8a5a3a, 0x6e452c];
+function npcBox(w, h, d, c, x, y, z, parent, rx, ry, rz) { const m = box(w, h, d, typeof c === 'number' ? mat(c) : c, x, y, z, parent); if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0); return m; }
+function makeNpc(o) {
+  o = o || {}; const sex = o.sex === 'f' ? 'f' : 'm', age = o.age || 'adult', kid = age === 'kid', old = age === 'old';
+  const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+  const skin = o.skin != null ? o.skin : NPC_SKIN[1], hairC = o.hairC != null ? o.hairC : old ? (sex === 'f' ? 0xd8d4cc : 0xc8c4bc) : 0x2a1e18;
+  const top = o.top != null ? o.top : 0x6a4a3a, bot = o.bottom != null ? o.bottom : 0x3a3028, trim = o.trim != null ? o.trim : 0x2a2018;
+  const hip = kid ? .72 : 1.0, legH = kid ? .72 : 1, f = sex === 'f';
+  // ---- torso: men broad and square, women narrower with a waist
+  if (f) { npcBox(.56, .44, .34, top, 0, hip + .6, 0, body); npcBox(.46, .38, .3, top, 0, hip + .19, 0, body); npcBox(.48, .07, .31, trim, 0, hip + .36, 0, body); }
+  else { npcBox(.66, .82, .38, top, 0, hip + .42, 0, body); npcBox(.67, .08, .39, trim, 0, hip + .08, 0, body); }
+  // ---- head (a child's head is big for the body)
+  const hs = kid ? 1.22 : 1, hy = hip + .83 + .22 * hs, head = npcBox(.44 * hs, .44 * hs, .44 * hs, skin, 0, hy, 0, body);
+  const fz = .222 * hs, ey = hy + .03 * hs, ex = .1 * hs;
+  // eyes (bigger for children and women), brows, mouth
+  const eS = (kid ? .085 : f ? .075 : .065) * hs;
+  for (const s of [-1, 1]) { npcBox(eS, eS, .02, 0x1a1418, s * ex, ey, fz, body); npcBox(eS * .4, eS * .4, .01, 0xffffff, s * ex + .015 * s, ey + .015, fz + .012, body);
+    if (f && !kid) npcBox(eS * 1.3, .02, .02, 0x1a1418, s * ex, ey + eS * .62, fz + .004, body, 0, 0, s * -.15);
+    else npcBox(eS * 1.5, old ? .035 : .03, .02, old ? 0xe8e4dc : hairC, s * ex, ey + eS * .9, fz, body, 0, 0, s * .08); }
+  npcBox(.13 * hs, .03, .02, f ? 0xc0505a : 0x7a4a40, 0, hy - .12 * hs, fz, body);
+  if ((f || kid) && !old) for (const s of [-1, 1]) npcBox(.07 * hs, .04, .01, 0xf0a0a0, s * .14 * hs, hy - .06 * hs, fz + .002, body);   // a little blush
+  if (old) for (const s of [-1, 1]) npcBox(.08 * hs, .015, .01, 0x8a6a58, s * ex, ey - eS * .9, fz + .003, body);   // wrinkles under the eyes
+  // ---- hair
+  const hairK = o.hair || (old && !f ? 'bald' : f ? (old ? 'bun' : kid ? 'pony' : 'long') : 'short'), HW = .46 * hs, top0 = hy + .22 * hs;
+  if (hairK !== 'none' && hairK !== 'bald') { npcBox(HW, .1 * hs, HW, hairC, 0, top0 + .02, 0, body); npcBox(HW, .26 * hs, .08, hairC, 0, top0 - .12 * hs, -.2 * hs, body);
+    for (const s of [-1, 1]) npcBox(.05, .18 * hs, HW * .9, hairC, s * .225 * hs, top0 - .08 * hs, -.02, body); }
+  if (hairK === 'short') npcBox(HW * .9, .06, .05, hairC, 0, top0 - .02, .2 * hs, body);   // fringe
+  if (hairK === 'bald') { for (const s of [-1, 1]) npcBox(.05, .14, .32, hairC, s * .225, hy - .02, -.04, body); npcBox(.44, .12, .06, hairC, 0, hy - .02, -.22, body); }
+  if (hairK === 'long' || hairK === 'braid2') { npcBox(HW, .58 * hs, .08, hairC, 0, top0 - .36 * hs, -.22 * hs, body); for (const s of [-1, 1]) npcBox(.06, .5 * hs, .14, hairC, s * .225 * hs, top0 - .3 * hs, .08 * hs, body);
+    npcBox(HW * .9, .07, .05, hairC, 0, top0 - .03, .2 * hs, body); }
+  if (hairK === 'pony') { npcBox(.14, .42 * hs, .12, hairC, 0, top0 - .3 * hs, -.3 * hs, body, .25); npcBox(.1, .08, .1, o.trim || 0xc84a4a, 0, top0 - .07 * hs, -.27 * hs, body); npcBox(HW * .9, .07, .05, hairC, 0, top0 - .03, .2 * hs, body); }
+  if (hairK === 'bun') { npcBox(.2, .18, .2, hairC, 0, top0 + .08, -.12, body); npcBox(HW * .9, .06, .05, hairC, 0, top0 - .03, .2 * hs, body); }
+  if (hairK === 'braid') { npcBox(HW * .9, .07, .05, hairC, 0, top0 - .03, .2 * hs, body); for (const s of [-1, 1]) { npcBox(.09, .5 * hs, .09, hairC, s * .2 * hs, top0 - .42 * hs, .1, body); npcBox(.1, .06, .1, o.trim || 0xc84a4a, s * .2 * hs, top0 - .68 * hs, .1, body); } }
+  // ---- beard / moustache
+  if (o.beard || (old && !f && o.beard !== false)) { const bc = o.beardC || (old ? 0xe8e4dc : hairC); npcBox(.34, .2, .08, bc, 0, hy - .2, fz - .02, body); npcBox(.2, .05, .04, bc, 0, hy - .08, fz + .01, body); }
+  // ---- legs: trousers, or bare legs under a skirt / robe
+  const legL = new THREE.Group(), legR = new THREE.Group(), armL = new THREE.Group(), armR = new THREE.Group();
+  const lx = f ? .12 : .17, lw = f ? .2 : .25, skirt = o.skirt != null ? o.skirt : f && !kid ? 'skirt' : f ? 'skirt' : null;
+  legL.position.set(-lx, hip, 0); legR.position.set(lx, hip, 0);
+  const legC = skirt === 'robe' ? bot : skirt ? (o.legC || (old ? 0x3a3a40 : skin)) : bot;
+  npcBox(lw, legH, lw + .02, legC, 0, -legH / 2, 0, legL); npcBox(lw, legH, lw + .02, legC, 0, -legH / 2, 0, legR);
+  const shoe = o.shoe != null ? o.shoe : 0x2a2018;
+  npcBox(lw + .02, .14, .34, shoe, 0, -legH + .05, .05, legL); npcBox(lw + .02, .14, .34, shoe, 0, -legH + .05, .05, legR);
+  if (skirt === 'skirt') { const sk = new THREE.Mesh(new THREE.CylinderGeometry(.27, .42, .62 * legH, 8), mat(bot)); sk.position.set(0, hip - .25 * legH, 0); body.add(sk);
+    const hem = new THREE.Mesh(new THREE.CylinderGeometry(.425, .43, .06, 8), mat(trim)); hem.position.set(0, hip - .55 * legH, 0); body.add(hem); }
+  if (skirt === 'robe') { const sk = new THREE.Mesh(new THREE.CylinderGeometry(.3, .44, .88 * legH, 8), mat(o.robeC || top)); sk.position.set(0, hip - .38 * legH, 0); body.add(sk); }
+  // ---- arms (women's thinner)
+  const aw = f ? .17 : .21, ax = f ? .36 : .43, ay = hip + (f ? .74 : .76);
+  armL.position.set(-ax, ay, 0); armR.position.set(ax, ay, 0);
+  npcBox(aw, .7, aw, o.sleeve != null ? o.sleeve : top, 0, -.33, 0, armL); npcBox(aw, .7, aw, o.sleeve != null ? o.sleeve : top, 0, -.33, 0, armR);
+  npcBox(aw - .02, .18, aw - .02, skin, 0, -.76, 0, armL); npcBox(aw - .02, .18, aw - .02, skin, 0, -.76, 0, armR);
+  body.add(legL, legR, armL, armR);
+  const H = { g, body, head, legL, legR, armL, armR, hip, sex, age, hy, hs, top0 };
+  // ---- old: a stoop and a walking stick
+  if (old) { body.rotation.x = .12; if (o.cane !== false) { npcBox(.06, 1.05, .06, 0x5a3e28, 0, -.95, .12, armR, .12); npcBox(.14, .06, .06, 0x5a3e28, 0, -.42, .12, armR); } }
+  npcHat(H, o.hat, o); npcAcc(H, o.acc, o);
+  g.scale.setScalar((o.scale || 1) * (kid ? .62 : old ? .95 : f ? .95 : 1));
+  return H;
+}
+/* ---- hats and head wear by region ---- */
+function npcHat(H, k, o) { if (!k) return; const b = H.body, hs = H.hs, T = H.top0, c = o.hatC;
+  const cyl = (rt, rb, h, col, y, seg, z) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg || 10), mat(col)); m.position.set(0, y, z || 0); b.add(m); return m; };
+  switch (k) {
+    case 'songkok': cyl(.25 * hs, .25 * hs, .2, c || 0x1a1a20, T + .1, 12); break;                                     // black Malay cap
+    case 'tudung': npcBox(.52 * hs, .2, .52 * hs, c || 0x4a7a8a, 0, T + .02, -.01, b); npcBox(.52 * hs, .5 * hs, .1, c || 0x4a7a8a, 0, T - .24 * hs, -.24 * hs, b);   // head scarf round the face
+      for (const s of [-1, 1]) npcBox(.07, .48 * hs, .5 * hs, c || 0x4a7a8a, s * .25 * hs, T - .22 * hs, -.02, b); npcBox(.5 * hs, .22, .44 * hs, c || 0x4a7a8a, 0, T - .56 * hs, -.02, b); break;
+    case 'conical': cyl(.02, .5 * hs, .26, c || 0xc8a868, T + .1, 12); break;                                         // woven conical straw hat
+    case 'straw': cyl(.5 * hs, .5 * hs, .04, c || 0xc8a868, T + .02, 12); cyl(.24 * hs, .25 * hs, .16, c || 0xc8a868, T + .1, 12); break;
+    case 'fur': npcBox(.58 * hs, .2, .58 * hs, c || 0x8a7058, 0, T + .02, 0, b); npcBox(.62 * hs, .62 * hs, .14, c || 0x8a7058, 0, T - .28 * hs, -.22 * hs, b);       // fur hood framing the face
+      for (const s of [-1, 1]) npcBox(.1, .56 * hs, .52 * hs, c || 0x8a7058, s * .28 * hs, T - .24 * hs, 0, b); npcBox(.64 * hs, .08, .08, 0xe8e0d0, 0, T + .02, .27 * hs, b); break;
+    case 'beanie': npcBox(.5 * hs, .2, .5 * hs, c || 0x8a3a3a, 0, T + .05, 0, b); npcBox(.12, .1, .12, 0xe8e0d0, 0, T + .2, 0, b); break;
+    case 'keffiyeh': npcBox(.52 * hs, .14, .52 * hs, c || 0xe8e0d0, 0, T + .02, 0, b); npcBox(.54 * hs, .62 * hs, .1, c || 0xe8e0d0, 0, T - .3 * hs, -.24 * hs, b);       // desert head cloth with a black cord
+      for (const s of [-1, 1]) npcBox(.07, .56 * hs, .4 * hs, c || 0xe8e0d0, s * .26 * hs, T - .28 * hs, -.04, b); npcBox(.54 * hs, .05, .54 * hs, 0x1a1a1a, 0, T + .1, 0, b); break;
+    case 'turban': npcBox(.52 * hs, .22, .52 * hs, c || 0x3a5a8a, 0, T + .08, 0, b); npcBox(.4 * hs, .14, .4 * hs, c || 0x3a5a8a, 0, T + .22, 0, b, 0, .4); break;
+    case 'veil': npcBox(.52 * hs, .14, .52 * hs, c || 0x6a3a5a, 0, T + .02, 0, b); npcBox(.5 * hs, .7 * hs, .08, c || 0x6a3a5a, 0, T - .34 * hs, -.24 * hs, b); for (const s of [-1, 1]) npcBox(.06, .6 * hs, .46 * hs, c || 0x6a3a5a, s * .25 * hs, T - .3 * hs, -.02, b); break;
+    case 'bandana': npcBox(.48 * hs, .1, .48 * hs, c || 0xb83a2a, 0, T - .01, 0, b); npcBox(.1, .16, .06, c || 0xb83a2a, 0, T - .1, -.25 * hs, b); break;
+    case 'cap': npcBox(.48 * hs, .14, .48 * hs, c || 0x3a4a5a, 0, T + .03, 0, b); npcBox(.44 * hs, .04, .2, c || 0x3a4a5a, 0, T - .02, .3 * hs, b); break;
+    case 'hardhat': npcBox(.5 * hs, .18, .5 * hs, c || 0xe8b820, 0, T + .06, 0, b); npcBox(.6 * hs, .04, .6 * hs, c || 0xe8b820, 0, T - .02, 0, b); npcBox(.1, .08, .04, 0xfff0b0, 0, T + .04, .26 * hs, b); break;
+    case 'helmet': npcBox(.52 * hs, .2, .52 * hs, c || 0x4a5a3a, 0, T + .06, 0, b); break;
+    case 'monk': break;   // shaved head (hair 'none') + robe sash in npcAcc
+    case 'feather': npcBox(.48 * hs, .08, .48 * hs, c || 0x8a3a2a, 0, T - .02, 0, b); npcBox(.05, .34, .03, 0xe8e0d0, .05, T + .16, -.22 * hs, b, -.2); npcBox(.05, .28, .03, 0x2a2a2a, -.04, T + .13, -.23 * hs, b, -.3); break;
+    case 'wool': npcBox(.5 * hs, .2, .5 * hs, c || 0xb8322a, 0, T + .06, 0, b); for (const s of [-1, 1]) npcBox(.08, .3, .2, c || 0xb8322a, s * .26 * hs, T - .16, 0, b); break;   // Andean / Tibetan wool hat with ear flaps
+    case 'scarf': npcBox(.5 * hs, .12, .5 * hs, c || 0x6a8a4a, 0, T + .01, 0, b); npcBox(.14, .12, .12, c || 0x6a8a4a, 0, T - .04, -.27 * hs, b); break;   // simple head scarf tied at the back
+    case 'goggles': npcBox(.48 * hs, .08, .48 * hs, 0x3a2a20, 0, T - .06, 0, b); for (const s of [-1, 1]) npcBox(.13, .1, .05, c || 0x6ac8d8, s * .1 * hs, T - .02, .24 * hs, b); break;
+    case 'crown': for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283; npcBox(.06, .14, .06, c || 0xd8b040, Math.cos(a) * .2 * hs, T + .1, Math.sin(a) * .2 * hs, b); } npcBox(.46 * hs, .06, .46 * hs, c || 0xd8b040, 0, T + .02, 0, b); break;
+  } }
+/* ---- things they wear or carry ---- */
+function npcAcc(H, list, o) { if (!list) return; const b = H.body, hip = H.hip, f = H.sex === 'f', W = f ? .56 : .68;
+  for (const k of [].concat(list)) switch (k) {
+    case 'apron': npcBox(W * .8, .62, .03, o.apronC || 0xe8e0d0, 0, hip + .25, .2, b); break;
+    case 'sarong': { const m = new THREE.Mesh(new THREE.CylinderGeometry(.31, .36, .5, 8), mat(o.sarongC || 0x8a3a4a)); m.position.set(0, hip - .14, 0); b.add(m); npcBox(.62, .06, .38, 0xd8b040, 0, hip + .1, 0, b); break; }
+    case 'basket': npcBox(.44, .5, .3, 0xa8885a, 0, hip + .45, -.36, b); npcBox(.46, .04, .32, 0x7a5a3a, 0, hip + .72, -.36, b); break;
+    case 'net': npcBox(.5, .5, .04, 0x8a8a6a, -.12, hip + .3, -.22, b, 0, 0, .3); break;
+    case 'pack': npcBox(.5, .62, .24, 0x5a4a32, 0, hip + .45, -.32, b); npcBox(.5, .12, .26, 0x3a2e20, 0, hip + .78, -.32, b); break;
+    case 'cloak': npcBox(W + .1, 1.0, .06, o.cloakC || 0x3a3040, 0, hip + .32, -.22, b, .06); break;
+    case 'furcoat': npcBox(W + .1, .2, .44, 0xe8e0d0, 0, hip + .78, 0, b); npcBox(W + .06, .1, .42, 0xe8e0d0, 0, hip + .02, 0, b); break;
+    case 'poncho': npcBox(W + .26, .5, .5, o.ponchoC || 0xb8502a, 0, hip + .6, 0, b); npcBox(W + .28, .06, .52, o.trim || 0x2a4a6a, 0, hip + .38, 0, b); npcBox(W + .28, .05, .52, 0xe8d8a0, 0, hip + .5, 0, b); break;
+    case 'robe': npcBox(.2, .9, .4, o.sashC || 0xd8a020, .14, hip + .4, 0, b, 0, 0, -.5); break;   // monk's sash over one shoulder
+    case 'vest': npcBox(W + .04, .6, .42, o.vestC || 0x2e3428, 0, hip + .46, 0, b); break;
+    case 'belt': npcBox(W + .04, .1, .41, 0x3a2a1a, 0, hip + .1, 0, b); npcBox(.12, .1, .03, 0xd8b040, 0, hip + .1, .21, b); break;
+    case 'glasses': for (const s of [-1, 1]) npcBox(.12, .09, .02, 0x1a1a1a, s * .1 * H.hs, H.hy + .03, .235 * H.hs, b); npcBox(.06, .02, .02, 0x1a1a1a, 0, H.hy + .04, .235 * H.hs, b); break;
+    case 'scarfN': npcBox(W * .8, .12, .44, o.scarfC || 0xb83a2a, 0, hip + .82, 0, b); npcBox(.14, .34, .06, o.scarfC || 0xb83a2a, .12, hip + .62, .22, b); break;
+    case 'beads': npcBox(W * .6, .06, .4, 0xc8302a, 0, hip + .8, .02, b); npcBox(.06, .06, .03, 0x3ab0a0, 0, hip + .7, .21, b); break;
+    case 'gloves': for (const a of [H.armL, H.armR]) npcBox(.2, .2, .2, 0x3a3028, 0, -.76, 0, a); break;
+    case 'tool': npcBox(.06, .9, .06, 0x5a3e28, 0, -.7, .16, H.armR, 1.2); npcBox(.3, .14, .08, 0x8a8a90, 0, -.74, .6, H.armR, 1.2); break;   // a hammer / hoe in hand
+    case 'book': npcBox(.26, .32, .08, 0x6a2a2a, 0, -.72, .12, H.armL, .6); break;
+    case 'lantern': npcBox(.16, .22, .16, 0xffc860, 0, -.95, .05, H.armL); npcBox(.04, .14, .04, 0x2a2a2a, 0, -.8, .05, H.armL); break;
+    case 'gun': try { const G = buildWeapon('rifle', 2, ''); G.scale.setScalar(.85); G.position.set(0, -.62, .3); G.rotation.set(1.3, 0, 0); H.armR.add(G); } catch (e) { } break;
+    case 'doll': npcBox(.14, .2, .1, 0xe8c8a0, 0, -.82, .1, H.armL); npcBox(.12, .12, .1, 0xc84a5a, 0, -.94, .1, H.armL); break;   // a child's rag doll
+    case 'staff': npcBox(.07, 1.9, .07, 0x6a4a30, 0, -.5, .14, H.armR); npcBox(.16, .16, .16, o.staffC || 0x6ac8d8, 0, .5, .14, H.armR); break;
+  } }
+/* a speech mark above a person: '!' new task, '?' task ready to hand in, '…' only chat */
+const NPC_MARK = {};
+function npcMarkMat(ch, col) { const k = ch + col; if (NPC_MARK[k]) return NPC_MARK[k];
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64; const c = cv.getContext && cv.getContext('2d'); if (!c) return null;
+  c.fillStyle = 'rgba(20,12,10,.75)'; c.beginPath(); c.arc(32, 32, 27, 0, 7); c.fill(); c.strokeStyle = col; c.lineWidth = 4; c.stroke();
+  c.fillStyle = col; c.font = '900 40px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(ch, 32, 34);
+  return NPC_MARK[k] = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false, transparent: true }); }
+/* ============ 固定村庄 3.0（owner 22 Nov：村庄位置固定、各有特色，参考真实世界的部落和村庄）============
+   每个地区 2 个村庄（共 20 个），位置、名字、风格、里面的人全部是定好的，每个玩家看到的都一样。
+   风格（STYLE）：
+     kampung 马来甘榜高脚屋   nordic 北欧红木屋     desert 沙漠土屋+帐篷   swamp 水乡高脚棚屋   arctic 雪屋+帐篷
+     shanty  废铁棚户区       pueblo 土坯崖屋        turf   冰岛草皮屋       tibet  藏式白墙寺村     fort   最后的堡垒
+   每个村庄中间有一块传送石碑（z_tele.js）和一块任务板（z_vquest.js），村里的人见 z_npcs.js。
+   原来随机生成的村庄（m_village.js villageAt）全部换成这张表。 */
+const VIL3 = [
+  // [id, 名字, 地区, 风格, 锚点 x, z, 半径, 一句话]
+  ['v1a', '渔光村', 1, 'kampung', -1500, 6650, 30, '海边的甘榜渔村，高脚木屋一排排面朝大海'],
+  ['v1b', '椰林村', 1, 'kampung', 1500, 5450, 30, '椰子树下的甘榜，马来、华人、印度人住在一起'],
+  ['v2a', '鸦巢村', 2, 'nordic', -3300, 4450, 30, '林子里的伐木村，红墙木屋，屋顶长着草'],
+  ['v2b', '樵夫营', 2, 'nordic', -4250, 3850, 26, '伐木工的营地，堆满了木头'],
+  ['v3a', '驼铃驿', 3, 'desert', 3700, 4400, 30, '商队歇脚的驿站，土屋和帐篷围着一口井'],
+  ['v3b', '枯井镇', 3, 'desert', 2950, 3650, 26, '守着最后一口井的小镇'],
+  ['v4a', '腐木屯', 4, 'swamp', -5350, 250, 30, '建在烂泥上的高脚棚屋，木板路连着家家户户'],
+  ['v4b', '沉船湾', 4, 'swamp', -6750, 1450, 26, '靠一艘搁浅的旧船过活的水乡'],
+  ['v5a', '雪狼坡', 5, 'arctic', -3350, -3000, 28, '雪屋和兽皮帐篷，猎人的村子'],
+  ['v5b', '白桦营', 5, 'arctic', -3650, -4800, 26, '牧鹿人的帐篷营地'],
+  ['v6a', '废铁棚户区', 6, 'shanty', 1350, 2750, 30, '城外用废铁搭起来的棚屋区，什么都能修'],
+  ['v6b', '河畔集市', 6, 'shanty', -1950, 1900, 28, '银溪边上的集市，城里逃出来的人都在这里'],
+  ['v7a', '断崖村', 7, 'pueblo', 4900, 1250, 30, '靠着红色崖壁一层层叠起来的土坯屋'],
+  ['v7b', '东岸部落', 7, 'pueblo', 6900, 850, 26, '海边峡谷口的小部落'],
+  ['v8a', '火山矿工营', 8, 'turf', 4300, -3700, 30, '草皮屋顶的矿工营地，挨着温泉'],
+  ['v8b', '黑石营', 8, 'turf', 3550, -3450, 26, '黑色火山石垒起来的铁匠营地'],
+  ['v9a', '石碑寺', 9, 'tibet', -450, -4400, 30, '白墙红边的山寺，经幡在风里响'],
+  ['v9b', '紫晶村', 9, 'tibet', -1150, -3250, 26, '紫晶林边上的小村，靠采药为生'],
+  ['v10a', '最后的堡垒', 10, 'fort', -550, -6450, 34, '人类在余烬之心外面最后的据点'],
+  ['v10b', '灰烬哨站', 10, 'fort', 1700, -6300, 26, '堡垒东边的前哨'],
+];
+const VIL3_GROUND = { kampung: 0x8a7050, nordic: 0x6a5a40, desert: 0xc8a878, swamp: 0x4a4a34, arctic: 0xe4ecf0, shanty: 0x5a5048, pueblo: 0xb87a52, turf: 0x5a5a4a, tibet: 0x9a8a70, fort: 0x5e5a54 };
+let VIL3_ALL = null;
+/* where each village really sits: the anchor, moved (if needed) to dry open ground in its own land, out of towns and
+   away from landmarks; then the same spot forever */
+function vil3All() { if (VIL3_ALL) return VIL3_ALL; VIL3_ALL = [];
+  for (const [id, n, t, style, ax, az, R, desc] of VIL3) { let bx = ax, bz = az, ok = false;
+    for (let k = 0; k < 90 && !ok; k++) { const a = k * 2.399, r = k ? 25 + k * 14 : 0, x = ax + Math.cos(a) * r, z = az + Math.sin(a) * r;
+      if (tierAt(x, z) !== t || Math.hypot(x, z) > coastR(x, z) - R - 120) continue;
+      let wet = waterAt(x, z) > -1.2; for (let q = 0; q < 10 && !wet; q++) { const b = q / 10 * 6.283; if (waterAt(x + Math.cos(b) * (R + 8), z + Math.sin(b) * (R + 8)) > -.8) wet = true; }
+      if (wet) continue;
+      if (TOWNS.some(T => Math.hypot(x - T[0], z - T[1]) < T[2] + R + 20)) continue;
+      if (typeof lmNear === 'function' && lmNear(x, z, R + 25)) continue;
+      if (VIL3_ALL.some(v => Math.hypot(v.x - x, v.z - z) < v.R + R + 80)) continue;
+      bx = x; bz = z; ok = true; }
+    const v = { id, name: n, t, style, x: bx, z: bz, R, desc, seed: hash2(Math.round(bx), Math.round(bz)) };
+    VIL3_ALL.push(v); }
+  return VIL3_ALL; }
+const vil3ById = id => vil3All().find(v => v.id === id);
+/* the old villageAt / villagesNear / villageNear / villagesWide answer from the fixed list */
+villageAt = function (i, j) { for (const v of vil3All()) if (Math.floor(v.x / VIL_CELL) === i && Math.floor(v.z / VIL_CELL) === j) return v; return null; };
+villagesNear = function (x, z) { if (Math.abs(x - HOME.x) < 3000 && Math.abs(z - HOME.z) < 3000) return []; return vil3All().filter(v => Math.abs(v.x - x) < 900 && Math.abs(v.z - z) < 900); };
+villageNear = function (x, z, r) { if (Math.abs(x - HOME.x) < 3000 && Math.abs(z - HOME.z) < 3000) return null; for (const v of vil3All()) if (Math.hypot(v.x - x, v.z - z) < v.R + (r || 0)) return v; return null; };
+villagesWide = function (px, pz, half) { return vil3All().filter(v => Math.abs(v.x - px) < half + 60 && Math.abs(v.z - pz) < half + 60); };
+function vil3Road(x, z) { for (const v of vil3All()) if (Math.hypot(v.x - x, v.z - z) < v.R - 2) return v; return null; }
+
+/* ---- geometry helper: any shape into a chunk batch, world coordinates, the same rotation order as Batch.box ---- */
+const V3G = { cyl: new THREE.CylinderGeometry(1, 1, 1, 10), cyl6: new THREE.CylinderGeometry(1, 1, 1, 6), cone: new THREE.ConeGeometry(1, 1, 10), cone4: new THREE.ConeGeometry(1, 1, 4), dome: new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), ball: new THREE.IcosahedronGeometry(1, 0), halfcyl: new THREE.CylinderGeometry(1, 1, 1, 10, 1, false, 0, Math.PI) };
+/* plain math (the same rotation order as Batch.box: z, then x, then y) so it also works in the headless tests */
+function vPut(B, geo, col, x, y, z, rx, ry, rz, sx, sy, sz) {
+  let g = geo; if (g.index && g.toNonIndexed) g = geo._ni || (geo._ni = geo.toNonIndexed()); const P = g && g.attributes && g.attributes.position; if (!P || !P.array) return;
+  _bc.set(col); const r = _bc.r, gg = _bc.g, b = _bc.b; sx = sx || 1; sy = sy || 1; sz = sz || 1; rx = rx || 0; ry = ry || 0; rz = rz || 0;
+  const sX = Math.sin(rx), cX = Math.cos(rx), sY = Math.sin(ry), cY = Math.cos(ry), sZ = Math.sin(rz), cZ = Math.cos(rz), A = P.array;
+  for (let i = 0; i < P.count; i++) { const px = A[i * 3] * sx, py = A[i * 3 + 1] * sy, pz = A[i * 3 + 2] * sz;
+    const X = px * cZ - py * sZ, Y = px * sZ + py * cZ, Y2 = Y * cX - pz * sX, Z2 = Y * sX + pz * cX;
+    B.p.push(X * cY + Z2 * sY + x, Y2 + y, -X * sY + Z2 * cY + z); B.n.push(0, 1, 0); B.c.push(r, gg, b); } }
+// a frame for one house: local (lx, lz) → world, front = local +z
+function v3F(x, z, ry) { const c = Math.cos(ry), s = Math.sin(ry); return (lx, lz) => [x + lx * c + lz * s, z - lx * s + lz * c]; }
+function v3Palm(L, x, z, R) { let px = x, pz = z, py = 0; const a = R() * 6.28, lean = .06 + R() * .06, n = 6;
+  for (let i = 0; i < n; i++) { const h = .9; L.box(px, py + h / 2, pz, .32 - i * .02, h, .32 - i * .02, 0x8a6a48, Math.cos(a) * lean * i * .5, 0, Math.sin(a) * lean * i * .5); px += Math.sin(a) * lean * h * 1.2; pz += Math.cos(a) * lean * h * 1.2; py += h; }
+  for (let k = 0; k < 7; k++) { const b = k / 7 * 6.283; L.box(px + Math.sin(b) * 1.1, py - .15, pz + Math.cos(b) * 1.1, .5, .08, 2.4, k % 2 ? 0x3a7a32 : 0x4a8a3a, .45, b, 0); }
+  for (let k = 0; k < 3; k++) L.box(px + (k - 1) * .2, py - .35, pz + .1, .22, .22, .22, 0x6a4a2a); return [px, pz]; }
+function v3Flags(L, ax, az, bx, bz, y0) { const n = Math.max(4, Math.round(Math.hypot(bx - ax, bz - az) / .7)), C = [0x3a6ac8, 0xf0f0f0, 0xc83a2a, 0x3a9a4a, 0xe8c030];
+  for (let i = 1; i < n; i++) { const t = i / n, sag = Math.sin(t * Math.PI) * .6; L.box(ax + (bx - ax) * t, y0 - sag, az + (bz - az) * t, .36, .42, .02, C[i % 5], 0, Math.atan2(bx - ax, bz - az) + Math.PI / 2, 0); } }
+
+/* ---- one house per style. Returns the door (where its owner stands) ---- */
+const V3_HOUSE = {
+  kampung(L, ch, x, z, ry, R) { const F = v3F(x, z, ry), w = 4 + R() * 1.2, d = 3.6 + R() * .8, h = 2, st = 1.05, wall = [0xb8885a, 0xa8784a, 0xc8986a][Math.floor(R() * 3)], roof = R() < .5 ? 0x5a3a2a : 0x8a5a3a;
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) { const [px, pz] = F((i - 1) * (w / 2 - .2), (j - 1) * (d / 2 - .2)); L.box(px, st / 2, pz, .18, st, .18, 0x5a3e28); }   // stilts
+    L.box(x, st, z, w + .3, .14, d + .9, 0x8a6a48, 0, ry, 0);   // floor with a front verandah
+    L.box(x, st + h / 2, z, w, h, d, wall, 0, ry, 0);
+    for (const s of [-1, 1]) { const [px, pz] = F(s * w * .28, d / 2 + .02); L.box(px, st + h * .55, pz, .7, .7, .06, 0x2a5a6a, 0, ry, 0); }   // blue shutters
+    { const [px, pz] = F(0, d / 2 + .02); L.box(px, st + .8, pz, .8, 1.5, .06, 0x3a2416, 0, ry, 0); }
+    const rise = 1.6, half = w / 2 + .5, tilt = Math.atan2(rise, half), len = Math.hypot(rise, half) + .2;
+    for (const s of [-1, 1]) { const [px, pz] = F(s * half / 2, 0); L.box(px, st + h + rise / 2, pz, len, .12, d + 1.4, roof, 0, ry, -s * tilt); }
+    for (const s of [-1, 1]) { const [px, pz] = F(0, s * (d / 2 + .7)); L.box(px, st + h + rise * .35, pz, w * .7, rise * .7, .05, wall, 0, ry, 0);
+      for (const t of [-1, 1]) { const [qx, qz] = F(t * .3, s * (d / 2 + .72)); L.box(qx, st + h + rise + .25, qz, .1, .9, .08, roof, 0, ry, t * .7); } }   // crossed gable tips
+    for (let i = 0; i < 4; i++) { const [px, pz] = F(0, d / 2 + .9 + i * .38); L.box(px, st - .2 - i * .25, pz, 1.1, .1, .36, 0x7a5a3a, 0, ry, 0); }   // front steps
+    ch.obs.push(addCircle(x, z, Math.max(w, d) * .5 + .2)); return F(0, d / 2 + 2.3); },
+  nordic(L, ch, x, z, ry, R) { const F = v3F(x, z, ry), w = 4.2 + R() * 1.4, d = 3.6 + R() * .8, h = 2.3, wall = R() < .7 ? 0x8a2a22 : 0x6a4a30, turf = R() < .5;
+    L.box(x, .2, z, w + .2, .4, d + .2, 0x6a6660, 0, ry, 0); L.box(x, .4 + h / 2, z, w, h, d, wall, 0, ry, 0);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const [px, pz] = F(sx * w / 2, sz * d / 2); L.box(px, .4 + h / 2, pz, .16, h, .16, 0xe8e4dc, 0, ry, 0); }
+    for (const s of [-1, 1]) { const [px, pz] = F(s * w * .28, d / 2 + .02); L.box(px, 1.6, pz, .8, .8, .06, 0xe8e4dc, 0, ry, 0); L.box(px, 1.6, pz, .6, .6, .08, 0x2a3a48, 0, ry, 0); }
+    { const [px, pz] = F(0, d / 2 + .03); L.box(px, 1.25, pz, .9, 1.7, .06, 0x3a2416, 0, ry, 0); }
+    const rise = 2, half = w / 2 + .4, tilt = Math.atan2(rise, half), len = Math.hypot(rise, half) + .15;
+    for (const s of [-1, 1]) { const [px, pz] = F(s * half / 2, 0); L.box(px, .4 + h + rise / 2, pz, len, .2, d + .6, turf ? 0x4a6a32 : 0x2a2a2e, 0, ry, -s * tilt); }
+    for (const s of [-1, 1]) { const [px, pz] = F(0, s * d / 2); L.box(px, .4 + h + rise * .35, pz, w * .66, rise * .7, .06, wall, 0, ry, 0); }
+    { const [px, pz] = F(w * .25, 0); L.box(px, .4 + h + rise, pz, .5, 1.2, .5, 0x6a6660, 0, ry, 0); }
+    { const [px, pz] = F(-w / 2 - .7, 0); for (let i = 0; i < 6; i++) L.box(px, .2 + Math.floor(i / 3) * .36, pz + (i % 3 - 1) * .36, 1.6, .34, .34, 0x8a6a48, 0, ry + Math.PI / 2, 0); }   // log pile
+    ch.obs.push(addCircle(x, z, Math.max(w, d) * .5 + .2)); return F(0, d / 2 + 1.2); },
+  desert(L, ch, x, z, ry, R) { const F = v3F(x, z, ry);
+    if (R() < .4) {   // Bedouin tent: low dark cloth on poles, a rug in front
+      const w = 5 + R() * 1.5, d = 3.4, col = R() < .5 ? 0x3a2e28 : 0x5a3e2a;
+      for (const s of [-1, 1]) { const [px, pz] = F(s * w / 4, 0); L.box(px, 1.3, pz, w / 2 + .2, .08, d, col, 0, ry, -s * .22); }
+      for (const s of [-1, 1]) { const [px, pz] = F(0, s * d / 2); L.box(px, .7, pz, w + .2, 1.3, .05, col, 0, ry, 0); }
+      for (let i = -1; i <= 1; i++) { const [px, pz] = F(i * w / 2.2, d / 2); L.box(px, .8, pz, .1, 1.6, .1, 0x6a4a30, 0, ry, 0); }
+      { const [px, pz] = F(0, d / 2 + 1.2); L.box(px, .03, pz, 2.4, .04, 1.6, 0xa83a2a, 0, ry, 0); L.box(px, .05, pz, 1.8, .02, 1.1, 0xd8a040, 0, ry, 0); }
+      ch.obs.push(addCircle(x, z, w * .45)); return F(0, d / 2 + 2.2); }
+    const w = 3.6 + R() * 1.2, d = 3.4 + R(), h = 2.6 + R() * .6, wall = [0xc8a070, 0xd0aa7a, 0xb8905e][Math.floor(R() * 3)];
+    L.box(x, h / 2, z, w, h, d, wall, 0, ry, 0); L.box(x, h + .15, z, w + .1, .3, d + .1, wall, 0, ry, 0, .92);
+    { const [px, pz] = F(0, d / 2 + .02); L.box(px, .95, pz, .9, 1.9, .06, 0x3a2a1e, 0, ry, 0); L.box(px, 1.95, pz, .9, .3, .06, 0x3a2a1e, 0, ry, 0, 1); }
+    for (const s of [-1, 1]) { const [px, pz] = F(s * w * .3, d / 2 + .02); L.box(px, h * .62, pz, .4, .5, .06, 0x1a1410, 0, ry, 0); }
+    for (let i = 0; i < 3; i++) { const [px, pz] = F(-w / 2 + .6 + i * (w - 1.2) / 2, d / 2 + .1); L.box(px, h - .3, pz, .14, .14, .5, 0x6a4a30, 0, ry, 0); }   // roof beams poke out
+    if (R() < .5) { const [px, pz] = F(w * .2, -d * .1); L.box(px, h + .32, pz, 1.4, .04, 1, [0xa83a2a, 0x3a5a8a][Math.floor(R() * 2)], 0, ry, 0); }   // a rug drying on the roof
+    ch.obs.push(addCircle(x, z, Math.max(w, d) * .5 + .1)); return F(0, d / 2 + 1.1); },
+  swamp(L, ch, x, z, ry, R) { const F = v3F(x, z, ry), w = 3.6 + R(), d = 3.2 + R() * .6, st = 1.5, h = 2, wall = [0x6a6a52, 0x5a5a48, 0x7a6a50][Math.floor(R() * 3)];
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const [px, pz] = F(sx * (w / 2 - .2), sz * (d / 2 - .2)); L.box(px, st / 2, pz, .16, st, .16, 0x3a2e22); }
+    L.box(x, st, z, w + 1, .12, d + .6, 0x6a5a40, 0, ry, 0); L.box(x, st + h / 2, z, w, h, d, wall, 0, ry, 0);
+    for (let i = 0; i < 5; i++) { const [px, pz] = F(-w / 2 + i * w / 4, d / 2 + .03); L.box(px, st + h / 2, pz, .05, h, .04, 0x3a3a2e, 0, ry, 0); }   // plank lines
+    { const [px, pz] = F(.6, d / 2 + .04); L.box(px, st + .8, pz, .8, 1.5, .06, 0x2a2018, 0, ry, 0); }
+    { const [px, pz] = F(-w * .25, d / 2 + .04); L.box(px, st + 1.2, pz, .6, .5, .06, 0x1a2a2a, 0, ry, 0); }
+    { const [px, pz] = F(0, 0); L.box(px, st + h + .45, pz, w + .8, .08, d + 1, 0x7a5a42, 0, ry, .2); }   // rusty tin roof, one slope
+    for (let i = 0; i < 4; i++) { const [px, pz] = F(.6, d / 2 + .6 + i * .9); L.box(px, st - .1 - i * .33, pz, 1, .08, .8, 0x6a5a40, 0, ry, 0); }   // plank ramp down
+    if (R() < .6) { const [px, pz] = F(-w / 2 - 1, 1); L.box(px, .25, pz, .9, .5, 2.4, 0x5a3e28, 0, ry, 0); }   // a little boat pulled up
+    ch.obs.push(addCircle(x, z, Math.max(w, d) * .5 + .2)); return F(.6, d / 2 + 4); },
+  arctic(L, ch, x, z, ry, R) { const F = v3F(x, z, ry);
+    if (R() < .55) { const r = 2 + R() * .5; vPut(L, V3G.dome, 0xeef4f8, x, 0, z, 0, 0, 0, r, r * .9, r);   // igloo
+      for (let i = 0; i < 4; i++) vPut(L, V3G.cyl, 0xd8e4ec, x, r * .9 * (i + 1) / 5, z, 0, 0, 0, r * Math.cos(Math.asin((i + 1) / 5)) + .02, .03, r * Math.cos(Math.asin((i + 1) / 5)) + .02);   // block rows
+      const [ex, ez] = F(0, r); vPut(L, V3G.halfcyl, 0xeef4f8, ex, 0, ez, Math.PI / 2, ry + Math.PI / 2, 0, .75, 1.4, .75);
+      const [dx2, dz2] = F(0, r + .72); L.box(dx2, .4, dz2, .8, .8, .04, 0x2a3440, 0, ry, 0);
+      ch.obs.push(addCircle(x, z, r + .2)); return F(0, r + 1.8); }
+    const r = 1.9 + R() * .4, h = 3.6; vPut(L, V3G.cone, R() < .5 ? 0x8a7a60 : 0x6a5a48, x, h / 2, z, 0, ry, 0, r, h, r);   // Sami lavvu
+    for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283; L.box(x + Math.cos(a) * .25, h + .3, z + Math.sin(a) * .25, .06, .9, .06, 0x5a3e28, Math.sin(a) * .3, 0, -Math.cos(a) * .3); }
+    vPut(L, V3G.cyl, 0xc83a2a, x, .9, z, 0, 0, 0, r * .76, .14, r * .76); vPut(L, V3G.cyl, 0x2a5aa8, x, .72, z, 0, 0, 0, r * .8, .1, r * .8);   // coloured bands
+    { const [px, pz] = F(0, r * .8); L.box(px, .7, pz, .7, 1.3, .05, 0x2a2018, 0, ry, 0); }
+    { const [px, pz] = F(r + 1.2, 0); L.box(px, 1.1, pz, .1, 2.2, .1, 0x5a3e28); L.box(px, 2.1, pz + 1, .1, .1, 2.2, 0x5a3e28); L.box(px, 1.1, pz + 2, .1, 2.2, .1, 0x5a3e28);
+      for (let i = 0; i < 4; i++) L.box(px, 1.7, pz + .4 + i * .4, .08, .5, .16, 0x9aa0a8); }   // fish drying rack
+    ch.obs.push(addCircle(x, z, r + .1)); return F(0, r + 1.2); },
+  shanty(L, ch, x, z, ry, R) { const F = v3F(x, z, ry), w = 3.4 + R() * 1.4, d = 3 + R(), h = 2.3, C = [0x8a5a3a, 0x5a6a7a, 0x6a7a5a, 0x9a7a4a, 0x7a4a4a, 0x4a5a6a];
+    for (let i = 0; i < 4; i++) { const [px, pz] = F(-w / 2 + (i + .5) * w / 4, 0); L.box(px, h / 2, pz, w / 4 + .02, h + (R() - .5) * .3, d, C[Math.floor(R() * C.length)], 0, ry, 0); }   // patchwork metal walls
+    for (let i = 0; i < 6; i++) { const [px, pz] = F(-w / 2 + i * w / 5, d / 2 + .03); L.box(px, h / 2, pz, .04, h, .03, 0x2a2a2a, 0, ry, 0); }
+    { const [px, pz] = F(.4, d / 2 + .04); L.box(px, .85, pz, .8, 1.7, .05, 0x3a3030, 0, ry, 0); }
+    { const [px, pz] = F(0, 0); L.box(px, h + .25, pz, w + .6, .06, d + .7, C[Math.floor(R() * C.length)], 0, ry, -.14); }
+    if (R() < .45) { const [px, pz] = F(-w * .15, -d * .1); const w2 = w * .6; L.box(px, h + .3 + 1, pz, w2, 2, d * .7, C[Math.floor(R() * C.length)], 0, ry, 0); L.box(px, h + 2.4, pz, w2 + .4, .06, d * .7 + .4, 0x5a4a3a, 0, ry, .12);
+      const [lx, lz] = F(w / 2 + .2, 0); L.box(lx, h, lz, .5, h * 2, .08, 0x6a5a40, -.2, ry + Math.PI / 2, 0); }   // a second shack on top + ladder
+    { const [px, pz] = F(-w / 2 - .4, d / 2 - .2); L.box(px, .25, pz, .9, .06, 1.6, [0x3a6aa8, 0x2a8a5a][Math.floor(R() * 2)], 0, ry, .3); }   // a tarp
+    ch.obs.push(addCircle(x, z, Math.max(w, d) * .5 + .2)); return F(.4, d / 2 + 1.1); },
+  pueblo(L, ch, x, z, ry, R) { const F = v3F(x, z, ry), w = 4.4 + R() * 1.4, d = 4 + R(), h = 2.4, col = [0xc87a4a, 0xb86a3e, 0xd08a58][Math.floor(R() * 3)];
+    L.box(x, h / 2, z, w, h, d, col, 0, ry, 0);
+    const [ux, uz] = F(-w * .15, -d * .2); L.box(ux, h + 1.1, uz, w * .62, 2.2, d * .6, col, 0, ry, 0, 1.06);   // stepped upper storey
+    for (let i = 0; i < 4; i++) { const [px, pz] = F(-w / 2 + .5 + i * (w - 1) / 3, d / 2 + .1); L.box(px, h - .25, pz, .16, .16, .6, 0x6a4a30, 0, ry, 0); }   // vigas
+    for (let i = 0; i < 3; i++) { const [px, pz] = F(-w * .15 - w * .31 + .4 + i * (w * .62 - .8) / 2, -d * .2 + d * .3 + .1); L.box(px, h + 1.95, pz, .14, .14, .5, 0x6a4a30, 0, ry, 0); }
+    { const [px, pz] = F(w * .2, d / 2 + .02); L.box(px, .9, pz, .7, 1.4, .06, 0x2a1a12, 0, ry, 0); L.box(px, 1.75, pz, 1.1, .4, .06, 0x2a1a12, 0, ry, 0); }   // T-shaped door
+    { const [px, pz] = F(-w * .3, d / 2 + .02); L.box(px, 1.5, pz, .45, .45, .06, 0x2a1a12, 0, ry, 0); }
+    { const [lx, lz] = F(w * .25, d * .1 + .3); L.box(lx - .2, h + 1, lz, .08, 2.6, .08, 0x6a4a30, -.2, ry, 0); L.box(lx + .3, h + 1, lz, .08, 2.6, .08, 0x6a4a30, -.2, ry, 0);
+      for (let i = 0; i < 5; i++) L.box(lx + .05, h + .1 + i * .45, lz + .25 - i * .09, .55, .06, .06, 0x6a4a30, 0, ry, 0); }   // ladder to the roof
+    { const [px, pz] = F(-w / 2 - .5, d / 4); vPut(L, V3G.dome, 0xa86a3e, px, 0, pz, 0, 0, 0, .7, .7, .7); }   // horno oven
+    ch.obs.push(addCircle(x, z, Math.max(w, d) * .5 + .2)); return F(w * .2, d / 2 + 1.2); },
+  turf(L, ch, x, z, ry, R) { const F = v3F(x, z, ry), w = 4 + R(), d = 4.4 + R(), h = 1.1;
+    L.box(x, h / 2, z, w, h, d, 0x6a6660, 0, ry, 0);   // low stone walls
+    const rise = 2.2, half = w / 2 + .3, tilt = Math.atan2(rise, half), len = Math.hypot(rise, half) + .2;
+    for (const s of [-1, 1]) { const [px, pz] = F(s * half / 2, 0); L.box(px, h + rise / 2, pz, len, .4, d + .3, 0x5a7a3a, 0, ry, -s * tilt); }
+    { const [px, pz] = F(0, d / 2 + .1); L.box(px, h + rise * .4, pz, w * .78, rise * .8 + h, .1, 0xe8e4dc, 0, ry, 0); L.box(px, .9, pz + 0, .8, 1.6, .12, 0x3a2416, 0, ry, 0);
+      L.box(px, h + rise * .85, pz, .4, .4, .12, 0x2a3440, 0, ry, 0); L.box(px, h + rise * .55, pz, w * .8, .08, .14, 0x8a2a22, 0, ry, 0); }   // white wooden gable front
+    ch.obs.push(addCircle(x, z, Math.max(w, d) * .5 + .2)); return F(0, d / 2 + 1.2); },
+  tibet(L, ch, x, z, ry, R) { const F = v3F(x, z, ry), w = 4.4 + R() * 1.2, d = 4 + R(), h = 3 + R() * .8;
+    L.box(x, h / 2, z, w, h, d, 0xeeeae0, 0, ry, 0); L.box(x, .3, z, w + .3, .6, d + .3, 0xd8d0c0, 0, ry, 0);
+    L.box(x, h - .25, z, w + .06, .5, d + .06, 0x6a1a1a, 0, ry, 0); L.box(x, h + .12, z, w + .3, .24, d + .3, 0x2a2a2a, 0, ry, 0);   // maroon band, dark roof edge
+    for (const s of [-1, 1]) { const [px, pz] = F(s * w * .28, d / 2 + .03); L.box(px, h * .55, pz, .6, .7, .06, 0x1a1a1a, 0, ry, 0); L.box(px, h * .55 + .45, pz, .8, .14, .1, 0xc83a2a, 0, ry, 0); }   // black window frames
+    { const [px, pz] = F(0, d / 2 + .04); L.box(px, .95, pz, .9, 1.9, .06, 0x8a2a22, 0, ry, 0); L.box(px, 2.0, pz, 1.3, .18, .2, 0x3a6ac8, 0, ry, 0); }
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const [px, pz] = F(sx * (w / 2 + .05), sz * (d / 2 + .05)); L.box(px, h + .5, pz, .1, .8, .1, 0x6a4a30); }
+    ch.obs.push(addCircle(x, z, Math.max(w, d) * .5 + .2)); return F(0, d / 2 + 1.1); },
+  fort(L, ch, x, z, ry, R) { const F = v3F(x, z, ry), w = 6 + R() * 2, d = 3.6, h = 2.4;   // barracks: long low hut with a curved metal roof
+    L.box(x, h / 2, z, w, h, d, 0x7a7670, 0, ry, 0);
+    vPut(L, V3G.halfcyl, 0x5a6050, x, h, z, Math.PI / 2, ry + Math.PI / 2, 0, d / 2 + .2, w + .3, 1.1);
+    { const [px, pz] = F(0, d / 2 + .02); L.box(px, .95, pz, 1, 1.9, .06, 0x2a2a2a, 0, ry, 0); }
+    for (const s of [-1, 1]) { const [px, pz] = F(s * w * .3, d / 2 + .02); L.box(px, 1.5, pz, .7, .5, .06, 0x1a2228, 0, ry, 0); }
+    for (let i = 0; i < 6; i++) { const [px, pz] = F(-w / 2 + .5 + i * .5, d / 2 + 1); L.box(px, .25 + (i % 2) * .3, pz, .5, .3, .35, 0x8a7a5a, 0, ry, 0); }   // sandbags
+    ch.obs.push(addCircle(x, z, w * .45)); return F(0, d / 2 + 1.6); },
+};
+/* the middle of each village */
+const V3_CENTRE = {
+  kampung(L, ch, v, R) { const x = v.x - 5, z = v.z + 3;   // wakaf: a raised open pavilion
+    L.box(x, .6, z, 3, .12, 3, 0x8a6a48); for (const s of [-1, 1]) for (const t of [-1, 1]) L.box(x + s * 1.35, 1.2, z + t * 1.35, .14, 2.4, .14, 0x5a3e28);
+    for (const s of [-1, 1]) L.box(x + s * .9, 2.8, z, 2.1, .1, 3.6, 0x5a3a2a, 0, 0, -s * .6); ch.obs.push(addCircle(x, z, 1.8));
+    for (let k = 0; k < 6; k++) { const a = k / 6 * 6.283 + .3, r = v.R - 3 + R() * 2; const [px, pz] = v3Palm(L, v.x + Math.cos(a) * r, v.z + Math.sin(a) * r, R); ch.obs.push(addCircle(v.x + Math.cos(a) * r, v.z + Math.sin(a) * r, .3)); } },
+  nordic(L, ch, v, R) { const x = v.x - 4, z = v.z + 3; for (let k = 0; k < 8; k++) { const a = k / 8 * 6.28; L.box(x + Math.cos(a), .14, z + Math.sin(a), .4, .28, .4, 0x6a6460); }
+    v3Fire(ch, x, z); L.box(v.x + 5, 1.2, v.z - 3, .9, 2.4, .5, 0x7a7670, 0, .3, 0); L.box(v.x + 5, 1.5, v.z - 2.74, .7, 1.4, .04, 0x8a2a22, 0, .3, 0); ch.obs.push(addCircle(v.x + 5, v.z - 3, .7)); },   // fire + a rune stone
+  desert(L, ch, v, R) { const x = v.x - 4, z = v.z + 3; for (let k = 0; k < 10; k++) { const a = k / 10 * 6.283; L.box(x + Math.cos(a) * .9, .4, z + Math.sin(a) * .9, .5, .8, .36, 0xb8905e, 0, -a, 0); }
+    L.box(x, .05, z, 1.3, .06, 1.3, 0x1a2a34); L.box(x - .8, 1.3, z, .14, 2.2, .14, 0x6a4a30); L.box(x + .8, 1.3, z, .14, 2.2, .14, 0x6a4a30); L.box(x, 2.35, z, 1.9, .12, .14, 0x6a4a30); ch.obs.push(addCircle(x, z, 1.2));
+    for (let k = 0; k < 5; k++) { const a = k / 5 * 6.283 + .7, r = 7 + R() * 3; v3Palm(L, v.x + Math.cos(a) * r, v.z + Math.sin(a) * r, R); ch.obs.push(addCircle(v.x + Math.cos(a) * r, v.z + Math.sin(a) * r, .3)); } },
+  swamp(L, ch, v, R) { L.box(v.x - 3, .5, v.z + 3, 7, .12, 5, 0x6a5a40); for (let i = 0; i < 6; i++) L.box(v.x - 6 + i * 1.3, .25, v.z + 3 + (i % 2 ? 2.4 : -2.4), .14, .5, .14, 0x3a2e22);   // a shared deck
+    v3Fire(ch, v.x - 3, v.z + 3, .6); for (let k = 0; k < 7; k++) { const a = R() * 6.28, r = 6 + R() * (v.R - 8); L.box(v.x + Math.cos(a) * r, .05, v.z + Math.sin(a) * r, 2 + R() * 3, .02, 1.5 + R() * 2, 0x2a3a2a); } },   // puddles
+  arctic(L, ch, v, R) { const x = v.x - 4, z = v.z + 3; for (let k = 0; k < 8; k++) { const a = k / 8 * 6.28; L.box(x + Math.cos(a), .14, z + Math.sin(a), .4, .28, .4, 0x6a6460); } v3Fire(ch, x, z);
+    L.box(v.x + 5, .3, v.z - 3, 1, .1, 2.6, 0x6a4a30, 0, .5, 0); for (const s of [-1, 1]) L.box(v.x + 5 + s * .4, .15, v.z - 3, .06, .1, 2.8, 0x3a2a1a, 0, .5, 0); },   // a sled
+  shanty(L, ch, v, R) { for (let k = 0; k < 3; k++) { const a = k / 3 * 6.283 + .4, x = v.x + Math.cos(a) * 5, z = v.z + Math.sin(a) * 5; vPut(L, V3G.cyl, 0x5a4a3a, x, .5, z, 0, 0, 0, .35, 1, .35); v3Fire(ch, x, z, .9); ch.obs.push(addCircle(x, z, .4)); }
+    for (let k = 0; k < 3; k++) { const a = k / 3 * 6.283 + 1.4, x = v.x + Math.cos(a) * 7, z = v.z + Math.sin(a) * 7, ry = Math.atan2(v.x - x, v.z - z);   // market stalls
+      L.box(x, .5, z, 2.2, 1, .9, 0x6a5a40, 0, ry, 0); L.box(x, 2.1, z, 2.6, .06, 1.6, [0xc83a2a, 0x3a6ac8, 0xe8a030][k], 0, ry, .1); for (const s of [-1, 1]) { const [px, pz] = v3F(x, z, ry)(s * 1.1, -.6); L.box(px, 1.1, pz, .08, 2.2, .08, 0x4a3a2a); } ch.obs.push(addCircle(x, z, 1.1)); } },
+  pueblo(L, ch, v, R) { const x = v.x - 4, z = v.z + 3; vPut(L, V3G.cyl, 0xa86a3e, x, .4, z, 0, 0, 0, 2.4, .8, 2.4); L.box(x, .82, z, 1, .04, 1, 0x2a1a12);   // kiva
+    L.box(x - .3, 1.6, z, .08, 2.6, .08, 0x6a4a30, .2); L.box(x + .3, 1.6, z, .08, 2.6, .08, 0x6a4a30, .2); ch.obs.push(addCircle(x, z, 2.4)); v3Fire(ch, v.x + 4, v.z - 2, .8); },
+  turf(L, ch, v, R) { const x = v.x - 4, z = v.z + 3; for (let k = 0; k < 12; k++) { const a = k / 12 * 6.283; L.box(x + Math.cos(a) * 2.2, .2, z + Math.sin(a) * 2.2, .7, .4, .5, 0x3a3a3a, 0, -a, 0); }
+    L.box(x, .1, z, 3.8, .06, 3.8, 0x5ab8c0); ch.obs.push(addCircle(x, z, 2.3)); v.spring = [x, z]; v3Fire(ch, v.x + 4, v.z - 2, .8); },   // a hot spring pool (steam in vil3Tick)
+  tibet(L, ch, v, R) { const x = v.x - 4, z = v.z + 3;   // white stupa
+    L.box(x, .6, z, 3, 1.2, 3, 0xeeeae0); L.box(x, 1.4, z, 2.4, .4, 2.4, 0xeeeae0); vPut(L, V3G.dome, 0xeeeae0, x, 1.6, z, 0, 0, 0, 1.2, 1.3, 1.2);
+    L.box(x, 3.1, z, .7, .5, .7, 0xd8b040); vPut(L, V3G.cone, 0xd8b040, x, 4.1, z, 0, 0, 0, .35, 1.6, .35); ch.obs.push(addCircle(x, z, 1.8));
+    L.box(v.x + 5, 3, v.z - 3, .14, 6, .14, 0x6a4a30); ch.obs.push(addCircle(v.x + 5, v.z - 3, .3));
+    for (let k = 0; k < 4; k++) { const a = k / 4 * 6.283 + .5; v3Flags(L, v.x + 5, v.z - 3, v.x + Math.cos(a) * (v.R - 6), v.z + Math.sin(a) * (v.R - 6), 5.8); } },
+  fort(L, ch, v, R) { L.box(v.x - 4, 4, v.z + 3, .16, 8, .16, 0x8a8a8a); L.box(v.x - 3.3, 7.3, v.z + 3, 1.3, .8, .04, 0x2a5aa8); ch.obs.push(addCircle(v.x - 4, v.z + 3, .3));
+    v3Fire(ch, v.x + 4, v.z - 2, .8);
+    // stone wall ring with four gaps and four towers
+    const W = v.R - 1; for (let k = 0; k < 56; k++) { const a = k / 56 * 6.283; if (k % 14 < 2) continue; const x = v.x + Math.cos(a) * W, z = v.z + Math.sin(a) * W; L.box(x, 1.1, z, 2.6, 2.2, .7, 0x7a7670, 0, -a + Math.PI / 2, 0); ch.obs.push(addCircle(x, z, .6)); }
+    for (let k = 0; k < 4; k++) { const a = (k + .5) / 4 * 6.283, x = v.x + Math.cos(a) * W, z = v.z + Math.sin(a) * W; L.box(x, 2.5, z, 2.2, 5, 2.2, 0x6a6660); L.box(x, 5.2, z, 2.6, .4, 2.6, 0x5a5650); ch.obs.push(addCircle(x, z, 1.4)); } },
+};
+function v3Fire(ch, x, z, s) { s = s || 1; const sp = new THREE.Sprite(flameMat); sp.position.set(x, .9 * s, z); sp.scale.set(1.5 * s, 1.9 * s, 1); scene.add(sp); ch.meshes.push(sp); const f = { sp, s: Math.random() * 6, base: 1.7 * s }; flames.push(f); ch.flames.push(f); ch.obs.push(addCircle(x, z, .9 * s, { pass: true })); }
+
+/* ---- the village builder (replaces z_village2's) ---- */
+villageChunk = function (ch, cx, cz, L, W, mark) {
+  ch.guards = ch.guards || [];
+  for (const v of vil3All()) {
+    if (Math.floor(v.x / CH) !== cx || Math.floor(v.z / CH) !== cz) continue;
+    const R = mulberry32(v.seed), st = v.style;
+    // ground: the village's own earth, a soft round patch
+    vPut(L, V3G.cyl, VIL3_GROUND[st] || 0x6a5440, v.x, .07, v.z, 0, 0, 0, v.R + 2, .02, v.R + 2);
+    vPut(L, V3G.cyl, VIL3_GROUND[st] || 0x6a5440, v.x, .078, v.z, 0, 0, 0, 7.5, .02, 7.5);
+    try { V3_CENTRE[st](L, ch, v, R); } catch (e) { console.warn('vil centre', e); }
+    // houses scattered round the square (two loose rings), each facing the middle a little crooked, a path to the square
+    const npcs = typeof npcsOfVil === 'function' ? npcsOfVil(v.id) : [], nh = Math.max(7, Math.min(11, npcs.length + 3)), houses = [], fortR = st === 'fort' ? v.R - 6 : v.R - 4;
+    for (let tries = 0; tries < 160 && houses.length < nh; tries++) { const a = R() * 6.283, d = 10.5 + R() * (fortR - 10.5), x = v.x + Math.cos(a) * d, z = v.z + Math.sin(a) * d;
+      if (houses.some(o => Math.hypot(o.x - x, o.z - z) < 7.6) || waterAt(x, z) > -.6) continue;
+      if (Math.hypot(x - (v.x + 6), z - (v.z + 5.5)) < 8.5 || Math.hypot(x - (v.x + 2.5), z - (v.z - 6.5)) < 7) continue;
+      const ry = Math.atan2(v.x - x, v.z - z) + (R() - .5) * .6;
+      try { const door = V3_HOUSE[st](L, ch, x, z, ry, R); houses.push({ x, z, ry, door }); } catch (e) { console.warn('vil house', e); } }
+    const PC = { kampung: 0x9a8058, nordic: 0x7a6a4c, desert: 0xd8b888, swamp: 0x5a5a40, arctic: 0xd0dce4, shanty: 0x6a6056, pueblo: 0xc88a60, turf: 0x6a6a58, tibet: 0xaa9a80, fort: 0x6e6a64 }[st] || 0x7a6248;
+    houses.forEach((H, k) => { const [dx, dz] = H.door, ex = v.x + (dx - v.x) * 7 / Math.max(7.1, Math.hypot(dx - v.x, dz - v.z)), ez = v.z + (dz - v.z) * 7 / Math.max(7.1, Math.hypot(dx - v.x, dz - v.z)), ln = Math.hypot(ex - dx, ez - dz);
+      if (ln > .5) L.box((dx + ex) / 2, .085 + (k % 4) * .003, (dz + ez) / 2, 1.4, .012, ln + .8, PC, 0, Math.atan2(ex - dx, ez - dz), 0); });
+    // small things between the houses: barrels, crates, a garden patch, style props
+    for (let i = 0; i < 9; i++) { const a = R() * 6.283, d = 8 + R() * (v.R - 9), x = v.x + Math.cos(a) * d, z = v.z + Math.sin(a) * d;
+      if (houses.some(o => Math.hypot(o.x - x, o.z - z) < 4.2) || waterAt(x, z) > -.6 || Math.hypot(x - (v.x + 6), z - (v.z + 5.5)) < 3) continue;
+      const k = Math.floor(R() * 4);
+      if (k === 0) { vPut(L, V3G.cyl, st === 'shanty' || st === 'fort' ? 0x4a5a4a : 0x6a4a30, x, .45, z, 0, 0, 0, .3, .9, .3); ch.obs.push(addCircle(x, z, .35)); }
+      else if (k === 1) { L.box(x, .3, z, .6, .6, .6, 0x7a5a3a, 0, a, 0); L.box(x + .5, .25, z + .2, .5, .5, .5, 0x6a4a30, 0, a + .4, 0); ch.obs.push(addCircle(x, z, .6)); }
+      else if (k === 2 && st !== 'arctic' && st !== 'desert') { for (let r2 = 0; r2 < 3; r2++) for (let c = 0; c < 3; c++) L.box(x + (c - 1) * .7, .2, z + (r2 - 1) * .7, .4, .3 + R() * .2, .4, R() < .2 ? 0xc84a2a : 0x4a8a3a, 0, R() * 3, 0); }
+      else { V3_PROP[st] && V3_PROP[st](L, ch, x, z, a, R); } }
+    v.houses = houses;
+    // the people who live here, each at their own door (extra ones in the square)
+    npcs.forEach((N, i) => { const H = houses[i % Math.max(1, houses.length)], home = H && i < houses.length ? H.door : [v.x + Math.cos(i * 2.1) * 4, v.z + Math.sin(i * 2.1) * 4];
+      try { const vv = npcSpawn(N, home[0], home[1], v, H); ch.meshes.push(vv.h.g); VILLS.push(vv); ch.vills.push(vv); } catch (e) { console.warn('npc', N.id, e); } });
+    // guards on a loop
+    const ng = st === 'fort' ? 4 : 2, loop = []; for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283 + (R() - .5) * .3, d = v.R - 2 + R() * 3; loop.push([v.x + Math.cos(a) * d, v.z + Math.sin(a) * d]); }
+    for (let g = 0; g < ng; g++) { const spec = Object.assign({ sex: g % 3 === 2 ? 'f' : 'm', age: 'adult', top: 0x3e4a34, bottom: 0x2a2e24, acc: ['vest'] }, V3_GUARD[st] || {});
+      const hm = makeNpc(spec); try { const G = new THREE.Group(); hm.body.add(G); G.add(buildWeapon('rifle', wTier(Math.max(1, 10 * v.t - 5)), '')); const Q = POSE.rifle || POSE.gun; G.position.set(Q.pos[0], hm.hip + Q.pos[1], Q.pos[2]); G.rotation.set(Q.rest[0], Q.rest[1], Q.rest[2]); hm.armR.rotation.x = hm.armL.rotation.x = -1.2; } catch (e) { }
+      const i0 = Math.floor(g * 8 / ng), [x, z] = loop[i0]; hm.g.position.set(x, 0, z); scene.add(hm.g); ch.meshes.push(hm.g); blob(.7, hm.g);
+      const lab = labelSprite(T2('守卫', 'Guard'), '#a8e0ff', .8); lab.position.set(0, 2.9, 0); hm.g.add(lab);
+      const gd = { h: hm, loop, i: i0, dir: g % 2 ? -1 : 1, cd: R(), walk: 0, t: v.t, vil: v, wait: 0 }; GUARDS.push(gd); ch.guards.push(gd); }
+    // teleport stone + task board
+    try { if (typeof teleBuildVil === 'function') teleBuildVil(ch, v); } catch (e) { console.warn('tele', e); }
+    try { if (typeof vqBoardBuild === 'function') vqBoardBuild(ch, L, v); } catch (e) { console.warn('board', e); }
+    mark(v.x, v.z, v.R, v.R);
+  }
+};
+const V3_PROP = {
+  kampung(L, ch, x, z, a) { L.box(x, .3, z, .9, .5, 2.6, 0x3a6a8a, 0, a, 0); L.box(x, .58, z, .7, .06, 2.2, 0x8a6a48, 0, a, 0); ch.obs.push(addCircle(x, z, 1)); },   // a small boat
+  nordic(L, ch, x, z, a) { for (let i = 0; i < 6; i++) L.box(x, .2 + Math.floor(i / 3) * .36, z + (i % 3 - 1) * .36, 1.6, .34, .34, 0x8a6a48, 0, a, 0); ch.obs.push(addCircle(x, z, .9)); },
+  desert(L, ch, x, z, a) { for (let i = 0; i < 3; i++) vPut(L, V3G.ball, 0xb8784a, x + Math.cos(i * 2.1) * .5, .3, z + Math.sin(i * 2.1) * .5, 0, 0, 0, .3, .35, .3); ch.obs.push(addCircle(x, z, .8)); },   // clay pots
+  swamp(L, ch, x, z, a) { L.box(x, .9, z, .1, 1.8, .1, 0x3a2e22); L.box(x + 1.2, .9, z, .1, 1.8, .1, 0x3a2e22); L.box(x + .6, 1.6, z, 1.4, .05, .05, 0x3a2e22); for (let i = 0; i < 3; i++) L.box(x + .3 + i * .3, 1.4, z, .1, .4, .2, 0x8a9a8a); },
+  arctic(L, ch, x, z) { vPut(L, V3G.ball, 0xf4f8fa, x, .45, z, 0, 0, 0, .5, .45, .5); vPut(L, V3G.ball, 0xf4f8fa, x, 1.1, z, 0, 0, 0, .34, .32, .34); L.box(x, 1.12, z + .3, .06, .06, .2, 0xe86a2a); ch.obs.push(addCircle(x, z, .5)); },   // a snowman
+  shanty(L, ch, x, z, a) { L.box(x, .5, z, 1.8, 1, 1, 0x6a3a2a, 0, a, 0); L.box(x, .2, z + .1, 1.6, .4, .9, 0x2a2a2a, 0, a, 0); ch.obs.push(addCircle(x, z, 1)); },   // a dead car seat / scrap pile
+  pueblo(L, ch, x, z) { vPut(L, V3G.dome, 0xa86a3e, x, 0, z, 0, 0, 0, .8, .8, .8); ch.obs.push(addCircle(x, z, .8)); },
+  turf(L, ch, x, z, a) { for (let i = 0; i < 4; i++) vPut(L, V3G.ball, 0x3a3a3a, x + Math.cos(i * 1.6) * .6, .25, z + Math.sin(i * 1.6) * .6, 0, i, 0, .4, .3, .4); },
+  tibet(L, ch, x, z) { L.box(x, 1.5, z, .1, 3, .1, 0x6a4a30); L.box(x, 2.6, z + .3, .04, .9, .5, [0x3a6ac8, 0xc83a2a, 0x3a9a4a, 0xe8c030][Math.floor(Math.random() * 4)]); ch.obs.push(addCircle(x, z, .2)); },   // a prayer flag pole
+  fort(L, ch, x, z, a) { for (let i = 0; i < 5; i++) L.box(x + (i - 2) * .5, .2 + (i % 2) * .25, z, .5, .3, .35, 0x8a7a5a, 0, a, 0); ch.obs.push(addCircle(x, z, 1.2)); },
+};
+const V3_GUARD = { kampung: { hat: 'songkok', top: 0x2a5a4a }, nordic: { hat: 'fur', top: 0x5a4a3a, beard: true }, desert: { hat: 'keffiyeh', top: 0xc8b890 }, swamp: { hat: 'conical', top: 0x4a5a3a }, arctic: { hat: 'fur', top: 0x6a5a48, acc: ['furcoat'] },
+  shanty: { hat: 'bandana', top: 0x4a4a52 }, pueblo: { hat: 'feather', top: 0x8a4a2a }, turf: { hat: 'wool', top: 0x5a6a7a }, tibet: { hat: 'wool', top: 0x7a2a2a }, fort: { hat: 'helmet', top: 0x3e4a34, acc: ['vest'] } };
+/* a named person in a village (or anywhere): model, name tag, the fields the old trade code reads */
+function npcSpawn(N, x, z, v, H) {
+  const hm = makeNpc(N.look || {}); hm.g.position.set(x, 0, z); hm.g.rotation.y = v ? Math.atan2(v.x - x, v.z - z) : 0; scene.add(hm.g); blob(.6, hm.g);
+  const lab = labelSprite(N.n + (N.role ? ' · ' + N.role : ''), N.story ? '#ffd27a' : '#ffe9a8', .85); lab.position.set(0, (N.look && N.look.age === 'kid') ? 3.6 : 2.9, 0); hm.g.add(lab);
+  const seed = hash2(N.id.length * 131 + N.id.charCodeAt(0), N.id.charCodeAt(N.id.length - 1) * 17 + 5);
+  return { h: hm, x, z, hx: x, hz: z, tx: x, tz: z, wt: Math.random() * 3, name: N.n, role: N.role || '', mood: VIL_MOOD[N.mood != null ? N.mood : seed % 4], vid: v ? v.id : N.id, idx: 0, seed, vil: v || null, walk: 0, stock: {}, house: H ? { door: H.door } : null, well: v ? [v.x, v.z] : null, npc: N, lab }; }
+/* ============ 传送石碑（owner 22 Nov：每个村庄一块，另外几块在特别的地方；走到才解锁，免费传送）============
+   - 每个村庄的广场上一块（vil3All），另外 7 块在特别的地标旁边（TELE_LM）。
+   - 走到石碑 7 米内就点亮（存档 S.tele），点亮的石碑头上的水晶会发光、地上的光圈会转。
+   - 站在石碑旁边按「传送石碑」，或者在大地图上按「传送」：列出所有石碑（按地区），点亮的可以直接传过去。
+     在岛上也能用（等于坐船直达）。副本里、死了、岛上防守中、今日挑战进行中不能传。 */
+const TELE_LM = ['南岬灯塔', '千年古树', '黄沙古堡', '废城电视塔', '雪山冰洞', '坠落的运输机', '余烬王座'];
+const TELE = { all: null, built: new Map(), near: null, t: 0, going: false };
+const TELE_MAT = { stone: new THREE.MeshLambertMaterial({ color: 0x6e6a74, flatShading: true }), dark: new THREE.MeshLambertMaterial({ color: 0x4a4650, flatShading: true }),
+  off: new THREE.MeshLambertMaterial({ color: 0x8a8a96, flatShading: true }), on: new THREE.MeshBasicMaterial({ color: 0x7ff0ff }),
+  runeOff: new THREE.MeshBasicMaterial({ color: 0x3a3a48 }), runeOn: new THREE.MeshBasicMaterial({ color: 0x5ae0ff }),
+  ring: new THREE.MeshBasicMaterial({ color: 0x5ae0ff, transparent: true, opacity: .55, side: THREE.DoubleSide, depthWrite: false }) };
+function teleAll() { if (TELE.all) return TELE.all; const A = [];
+  for (const v of vil3All()) A.push({ id: 'tv_' + v.id, n: v.name, t: v.t, x: v.x + 6, z: v.z + 5.5, vil: v.id });
+  try { for (const L of lmFixed()) { if (!TELE_LM.includes(L.name)) continue; const C = REGC[L.t] || [0, 0], a = Math.atan2(C[1] - L.z, C[0] - L.x); let x = L.x, z = L.z, d = (L.R || 20) * (L.big || 1) + 7;
+      for (let k = 0; k < 24; k++) { const b = a + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * .45; x = L.x + Math.cos(b) * d; z = L.z + Math.sin(b) * d; if (waterAt(x, z) < -1 && !lmNear(x, z, 2)) break; }
+      A.push({ id: 'tl_' + L.id, n: L.name, t: L.t, x, z, lm: L.id }); } } catch (e) { console.warn('tele lm', e); }
+  return TELE.all = A; }
+const teleOn = T => !!(S.tele && S.tele[T.id]);
+/* the stone itself */
+function teleModel(T) { const g = new THREE.Group(); g.position.set(T.x, 0, T.z);
+  const m = (geo, mt, x, y, z) => { const o = new THREE.Mesh(geo, mt); o.position.set(x || 0, y, z || 0); g.add(o); return o; };
+  m(new THREE.CylinderGeometry(1.5, 1.7, .3, 8), TELE_MAT.dark, 0, .15); m(new THREE.CylinderGeometry(1.1, 1.3, .3, 8), TELE_MAT.stone, 0, .45);
+  const ob = m(new THREE.CylinderGeometry(.32, .55, 3.2, 4), TELE_MAT.stone, 0, 2.2); ob.rotation.y = Math.PI / 4;
+  const rune = []; for (let i = 0; i < 3; i++) { const r = m(new THREE.CylinderGeometry(.5 - i * .06, .5 - i * .06, .07, 4), TELE_MAT.runeOff, 0, 1.2 + i * .8); r.rotation.y = Math.PI / 4; r.scale.set(1.04 - i * .02, 1, 1.04 - i * .02); rune.push(r); }
+  for (let i = 0; i < 4; i++) { const a = i / 4 * 6.283 + Math.PI / 4, s = m(new THREE.BoxGeometry(.1, .5, .02), TELE_MAT.runeOff, Math.cos(a) * .34, 2.6, Math.sin(a) * .34); s.rotation.y = -a + Math.PI / 2; rune.push(s); }
+  const cr = m(new THREE.OctahedronGeometry(.42, 0), TELE_MAT.off, 0, 4.4); cr.scale.y = 1.5;
+  const ring = new THREE.Mesh(new THREE.RingGeometry(1.75, 2.05, 32), TELE_MAT.ring); ring.rotation.x = -Math.PI / 2; ring.position.y = .05; g.add(ring);
+  const lab = labelSprite(T.n + ' · ' + T2('传送石碑', 'Waystone'), '#9ff0ff', .8); lab.position.set(0, 5.6, 0); g.add(lab);
+  scene.add(g); return { g, cr, rune, ring, lab }; }
+function teleShow(T, B) { const on = teleOn(T); B.cr.material = on ? TELE_MAT.on : TELE_MAT.off; for (const r of B.rune) r.material = on ? TELE_MAT.runeOn : TELE_MAT.runeOff; B.ring.visible = on; B.on = on; }
+function teleBuild(T, ch) { if (TELE.built.has(T.id)) return; const B = teleModel(T); B.T = T; B.obs = addCircle(T.x, T.z, 1.1); teleShow(T, B); TELE.built.set(T.id, B); if (ch) { ch.meshes.push(B.g); B.ch = ch; } }
+function teleDrop(id) { const B = TELE.built.get(id); if (!B) return; scene.remove(B.g); try { removeObstacle(B.obs); } catch (e) { } try { memFree(B.g); } catch (e) { } TELE.built.delete(id); }
+function teleBuildVil(ch, v) { const T = teleAll().find(q => q.vil === v.id); if (T) { teleDrop(T.id); teleBuild(T, ch); ch.obs.push(TELE.built.get(T.id).obs); } }
+onChunkLoad.push((cx, cz) => { for (const T of teleAll()) if (T.lm && Math.floor(T.x / CH) === cx && Math.floor(T.z / CH) === cz) teleBuild(T); });
+onChunkUnload.push((cx, cz) => { for (const [id, B] of [...TELE.built]) if (Math.floor(B.T.x / CH) === cx && Math.floor(B.T.z / CH) === cz) { if (B.ch) TELE.built.delete(id); else teleDrop(id); } });
+/* every frame: light the stone you walk up to, spin the crystals, the walk-up button */
+function teleTick(dt) { TELE.near = null; if (S.isl || S.dun || !S.started) { teleBtn(); return; }
+  const t = performance.now() / 1000;
+  for (const B of TELE.built.values()) { const T = B.T, d = Math.hypot(player.pos.x - T.x, player.pos.z - T.z);
+    if (d > 160) continue;
+    B.cr.rotation.y += dt * (B.on ? 1.6 : .4); B.cr.position.y = 4.4 + Math.sin(t * 1.7 + T.x) * (B.on ? .18 : .05); if (B.on) B.ring.rotation.z += dt * .6;
+    if (d < 7 && !S.dead) { if (!teleOn(T)) teleUnlock(T, B); if (d < 4.2) TELE.near = T; } }
+  teleBtn(); }
+function teleUnlock(T, B) { S.tele = S.tele || {}; S.tele[T.id] = 1; if (B) teleShow(T, B);
+  banner(T2('传送石碑已点亮', 'Waystone awakened'), T.n + T2(' · 以后可以从任何石碑或大地图传送到这里', ' · you can travel here from any waystone or the map'), 3.6);
+  try { sfxTone(520, 1040, .5, .12, 'sine'); sfxTone(780, 1560, .6, .08, 'triangle', { delay: .15 }); } catch (e) { }
+  try { fxRing(T.x, T.z, .5, 5, .9, 0x7ff0ff, .8, .1); } catch (e) { } saveGame(); }
+function teleBtn() { const b = $('bTele'); if (!b) return; const show = !!TELE.near && !S.dead; b.style.display = show ? 'block' : 'none'; }
+petsTick = (o => function (dt) { o(dt); try { teleTick(dt); } catch (e) { } })(petsTick);
+/* can you travel right now? */
+function teleWhyNot() { if (S.dead) return T2('倒下了', 'You are down');
+  if (S.dun || (typeof DUN !== 'undefined' && DUN.on)) return T2('先离开副本', 'Leave the dungeon first');
+  if (typeof ID !== 'undefined' && ID.on) return T2('海岛正在被袭击，先守住', 'The island is under attack');
+  if (typeof WV !== 'undefined' && WV.on) return T2('挑战还在进行', 'The challenge is still on');
+  if (S.boat) return T2('先下船', 'Get off the boat first');
+  if (typeof PVP !== 'undefined' && PVP.m) return T2('竞技场里不能传送', 'Not inside the arena');
+  return null; }
+function teleGo(T) { const why = teleWhyNot(); if (why) { feed(why, '#ff9b8a'); return; } if (!teleOn(T)) { feed(T2('这块石碑还没点亮，先走到它旁边', 'Walk up to this waystone first'), '#ff9b8a'); return; }
+  closePanel('tele'); try { closePanel('bigmap'); } catch (e) { }
+  const go = () => { TELE.going = true; try { goGround(T.x + 2.5, T.z + 2.5); } finally { TELE.going = false; } banner(T.n, T2('传送石碑', 'Waystone') + ' · ' + regionLabel(T.t), 3); };
+  try { sfxTone(300, 1200, .8, .1, 'sine'); } catch (e) { }
+  if (S.isl) voyage(T2('传送到 · ', 'Travelling to · ') + T.n, go); else fadeThen(go); }
+// no welcome horde when you step out of a waystone
+spawnWave = (o => function () { if (TELE.going) return; return o.apply(this, arguments); })(spawnWave);
+/* the list of all stones */
+function renderTele() { const box = $('teleList'); if (!box) return; box.innerHTML = '';
+  const n = teleAll().filter(teleOn).length, head = document.createElement('div'); head.className = 'snote'; head.textContent = T2('已点亮 ', 'Awakened ') + n + ' / ' + teleAll().length + T2(' 块 · 走到石碑旁边就会点亮', ' · walk up to a waystone to awaken it'); box.appendChild(head);
+  for (let t = 1; t <= TIERS_N; t++) { const L = teleAll().filter(T => T.t === t); if (!L.length) continue;
+    const h = document.createElement('div'); h.className = 'tlh'; const b = tierBand(t); h.innerHTML = '<b>' + regionLabel(t) + '</b><span>Lv.' + b[0] + '-' + b[1] + '</span>'; box.appendChild(h);
+    for (const T of L) { const on = teleOn(T), r = document.createElement('div'); r.className = 'tlr' + (on ? ' on' : '');
+      const here = !S.isl && Math.hypot(player.pos.x - T.x, player.pos.z - T.z) < 30;
+      r.innerHTML = '<i class="tlic"></i><div><b>' + T.n + '</b><small>' + (T.vil ? T2('村庄', 'Village') : T2('特别地点', 'Special place')) + (on ? '' : T2(' · 还没去过', ' · not visited yet')) + '</small></div>';
+      const bt = document.createElement('button'); bt.className = 'sbtn' + (on && !here ? '' : ' ghostb'); bt.textContent = here ? T2('你在这里', 'You are here') : on ? T2('传送', 'Go') : T2('未点亮', 'Locked'); bt.disabled = !on || here;
+      bt.addEventListener('click', e => { e.stopPropagation(); teleGo(T); }); r.appendChild(bt); box.appendChild(r); } } }
+function teleOpen() { if (!S.started) return; audioInit(); openPanel('tele', renderTele); }
+{ const H = $('hud'); if (H && H.appendChild && document.createElement && document.head) {
+  const b = document.createElement('button'); b.className = 'btn2'; b.id = 'bTele'; b.textContent = T2('传送石碑', 'Waystone'); H.appendChild(b); b.addEventListener('click', e => { e.stopPropagation(); teleOpen(); });
+  const o = document.createElement('div'); o.className = 'overlay scroll'; o.id = 'tele'; o.innerHTML = '<h2>' + T2('传送石碑', 'Waystones') + '</h2><div id="teleList" class="slist"></div>';
+  const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => closePanel('tele')); o.appendChild(x); document.body.appendChild(o);
+  document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+    '#bTele{position:absolute;right:calc(var(--sr) + 214px);bottom:calc(var(--sb) + 150px);display:none;font-size:15px;min-width:86px;border-color:#7ff0ff;background:rgba(16,50,70,.9);color:#e8fdff}' +
+    '@media (orientation:portrait){#bTele{right:calc(var(--sr) + 14px);bottom:calc(var(--sb) + 360px)}}body.gvOn #bTele,body.bOpen #bTele{display:none!important}' +
+    '.m2p{white-space:nowrap}#m2scale{white-space:nowrap}@media (max-width:440px){.m2p{padding:8px 11px}.m2pills{gap:6px}}' +
+    '#teleList .tlh{display:flex;justify-content:space-between;align-items:baseline;margin:14px 2px 6px;color:#ffd8b0}#teleList .tlh span{font-size:12px;color:#c9a88a}' +
+    '#teleList .tlr{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.04);margin-bottom:6px;opacity:.6}#teleList .tlr.on{opacity:1;background:rgba(90,224,255,.08)}' +
+    '#teleList .tlr>div{flex:1;min-width:0}#teleList .tlr b{display:block;color:#f4ecff}#teleList .tlr small{color:#a8a0b8;font-size:12px}#teleList .tlr .sbtn{min-width:76px}' +
+    '#teleList .tlic{width:14px;height:20px;flex:none;background:#6a6a78;clip-path:polygon(50% 0,100% 40%,50% 100%,0 40%)}#teleList .tlr.on .tlic{background:#7ff0ff;box-shadow:0 0 8px #7ff0ff}' })); } }
+try { if (typeof KE_LIST !== 'undefined' && !KE_LIST.includes('bTele')) KE_LIST.push('bTele'); } catch (e) { }
+/* the big map: a 传送 pill, and every stone as a small diamond (bright = awakened) */
+setTimeout(function telePill() { try { const p = document.querySelector('.m2pills'); if (!p) { setTimeout(telePill, 1000); return; } if ($('m2tele')) return;
+  const b = document.createElement('button'); b.className = 'm2p'; b.id = 'm2tele'; b.textContent = T2('传送', 'Travel'); b.addEventListener('click', e => { e.stopPropagation(); teleOpen(); }); p.insertBefore(b, p.firstChild); } catch (e) { } }, 800);
+drawExtraRadar = (o => function (tx, tz, edgeMark) { o(tx, tz, edgeMark); try { if (S.isl || S.dun) return; const c = mctx, k = _mapK || 2, W = c.canvas.width, vr = MAPV.on ? MAPV.vr : 0, sc = tx(1) - tx(0);
+  for (const T of teleAll()) { if (T.lm && MAPV.on && vr > 2500) continue; const x = tx(T.x), y = tz(T.z); if (x < -20 || y < -20 || x > W + 20 || y > W + 20) continue; const on = teleOn(T), r = (on ? 5 : 4) * k;
+    c.fillStyle = 'rgba(0,0,0,.55)'; c.beginPath(); c.moveTo(x, y - r * 1.5 - k); c.lineTo(x + r + k, y); c.lineTo(x, y + r * 1.5 + k); c.lineTo(x - r - k, y); c.closePath(); c.fill();
+    c.fillStyle = on ? '#7ff0ff' : '#8a8a96'; c.beginPath(); c.moveTo(x, y - r * 1.5); c.lineTo(x + r, y); c.lineTo(x, y + r * 1.5); c.lineTo(x - r, y); c.closePath(); c.fill();
+    if (MAPV.on && vr <= 4000 && T.lm) { c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = on ? '#bff6ff' : '#c8c8d0'; c.fillText(T.n, x, y - r * 1.5 - 5 * k); } } } catch (e) { } })(drawExtraRadar);
+/* save */
+shopSave = (o => function () { const r = o(); try { r.tele = Object.keys(S.tele || {}); } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.tele = {}; try { const a = d && d.sh && d.sh.tele; if (Array.isArray(a)) for (const id of a) if (typeof id === 'string') S.tele[id] = 1; } catch (e) { }
+  for (const [id, B] of TELE.built) teleShow(B.T, B); })(shopLoad);
+/* ============ 世界上的人（owner 22 Nov：每个角色都是安排好的，每个都能对话，有的会发布任务）============
+   NPCS：每个人的名字、身份、长相（makeNpc 的参数）、闲聊、任务。
+   vil = 住在哪个村（z_vil3.js），at(c) = 跟着主线走的人（返回 {x,z} 或 {isl:true,x,z}，c = 现在第几章；null = 不出现）。
+   story:true 的人名牌是金色的。任务写法见 z_vquest.js。 */
+const SK = NPC_SKIN;
+const NPCS = [
+  /* ===== 灰港 · 渔光村（马来渔村） ===== */
+  { id: 'adu', n: '阿都伯', role: '渔村村长', vil: 'v1a', story: true, look: { sex: 'm', age: 'old', hat: 'songkok', skin: SK[3], top: 0x2a6a8a, acc: ['sarong'], sarongC: 0x6a2a3a },
+    chat: ['年轻人，海是会骗人的。今天风平浪静，明天就把你整条船吞下去。', '三年前那一晚，天上落下来的不是雨，是会发光的灰。', '我们甘榜的人，一起吃饭，一起守夜，这样才活得下来。'],
+    q: [{ id: 'adu1', t: '修补渔网', d: '阿都伯的渔网破了，要藤条补。', need: { k: 'have', item: 'vine', n: 6 }, intro: '网破了，鱼都跑了。帮我找几根藤条，我自己补。', done: '好！今晚大家有鱼吃了。拿着，这是我攒的一点钱。', rw: { coin: 120, xp: .1, med: 1 } }] },
+  { id: 'timah', n: '蒂玛', role: '厨娘', vil: 'v1a', trade: true, look: { sex: 'f', age: 'adult', hat: 'tudung', hatC: 0xc84a6a, skin: SK[3], top: 0xe8a040, bottom: 0x6a2a4a, trim: 0x2a2018 },
+    chat: ['饿了吗？椰浆饭刚煮好，香不香？', '我丈夫出海三年没回来。我每天还是多煮一碗。', '做饭的时候，小孩子就不会想起害怕的事。'],
+    q: [{ id: 'timah1', t: '晚饭的鱼', d: '蒂玛要给全村煮晚饭，缺几条鱼。', need: { k: 'cook', n: 2 }, intro: '今晚全村一起吃饭，我一个人煮不过来。你回岛上帮我做两顿吧？', done: '谢谢你，孩子们吃得好开心。', rw: { coin: 100, xp: .08, ammo: 30 } }] },
+  { id: 'ali', n: '小阿里', role: '渔夫的儿子', vil: 'v1a', look: { sex: 'm', age: 'kid', skin: SK[3], top: 0xf0f0e8, bottom: 0x2a4a8a, hat: 'songkok' },
+    chat: ['你看到我爸爸的船了吗？蓝色的，船头画着一只鸟。', '我会游泳！比阿都伯游得还快！', '晚上我不怕丧尸，我怕的是太安静。'] },
+  { id: 'nora', n: '诺拉', role: '织布的姑娘', vil: 'v1a', look: { sex: 'f', age: 'adult', hat: 'tudung', hatC: 0x3a8a7a, skin: SK[2], top: 0x8a3a8a, bottom: 0x3a2a5a },
+    chat: ['这块蜡染布，我画了一个月。外面再乱，美的东西也要有人做。', '我想把每个村子的花纹都织进一块布里，等世界好了，挂在海边。'],
+    q: [{ id: 'nora1', t: '南岬的花', d: '诺拉想要南岬灯塔下的野花做染料。', need: { k: 'goto', place: '南岬灯塔' }, intro: '听说南岬灯塔下面开着一种紫色的花，可以做染料。你路过的时候帮我看看还在不在？', done: '还在？太好了……灯塔还亮着吗？那就好。', rw: { coin: 150, xp: .1 } }] },
+  /* ===== 灰港 · 椰林村（马来、华人、印度人一起住） ===== */
+  { id: 'raj', n: '拉吉', role: '椰农', vil: 'v1b', trade: true, look: { sex: 'm', age: 'adult', skin: SK[4], top: 0xe8e0d0, bottom: 0x3a3a5a, hat: 'bandana', hatC: 0xd86a2a, beard: true },
+    chat: ['椰子树是好东西，水能喝，肉能吃，壳能烧。', '我爷爷从印度坐船来，我在这里出生。这里就是我的家。', '我们三家人轮流守夜，谁也不能少。'],
+    q: [{ id: 'raj1', t: '赶走椰林里的丧尸', d: '椰林边总有丧尸晃来晃去。', need: { k: 'kill', n: 12, tier: 1 }, intro: '这几天林子边上来了一群丧尸，孩子们不敢出去捡椰子。帮我清一清？', done: '好样的！这袋椰糖你拿去，路上吃。', rw: { coin: 150, xp: .1, ammo: 40 } }] },
+  { id: 'meiling', n: '美玲', role: '杂货店老板娘', vil: 'v1b', trade: true, look: { sex: 'f', age: 'adult', skin: SK[0], top: 0xd84a4a, bottom: 0x2a2a3a, hair: 'pony', acc: ['apron'] },
+    chat: ['来来来，看看有什么要的，熟客打折。', '我阿嫲说过，乱世做生意，第一要讲信用。', '你是从海岛来的？那边真的没有丧尸吗？真好。'] },
+  { id: 'jiajia', n: '嘉嘉', role: '美玲的女儿', vil: 'v1b', look: { sex: 'f', age: 'kid', skin: SK[0], top: 0xf0c0d0, bottom: 0x6a4a8a, hair: 'pony', acc: ['doll'] },
+    chat: ['我的布娃娃叫小椰子。', '妈妈说等丧尸都不见了，我们就去看海上的烟花。'],
+    q: [{ id: 'jiajia1', t: '嘉嘉的秘密', d: '嘉嘉想给阿都伯的孙子小阿里带一句话。', need: { k: 'talk', npc: 'ali' }, intro: '你会去渔光村吗？帮我跟小阿里说，他借我的贝壳我还没弄丢，我会还他的！', done: '他说什么？他说贝壳送我了？哇！', rw: { coin: 60, xp: .06 }, reply: '嘉嘉说贝壳还在？……那、那送给她好了。别告诉她是我说的！' }] },
+  { id: 'chenpo', n: '陈婆婆', role: '草药婆婆', vil: 'v1b', look: { sex: 'f', age: 'old', skin: SK[0], top: 0x3a4a6a, bottom: 0x2a2a3a },
+    chat: ['人老了，记性不好，可是草药的味道一闻就记得。', '那些灰落下来以后，有些草长得特别好，有些全死了。奇怪得很。'],
+    q: [{ id: 'chenpo1', t: '老婆婆的药', d: '陈婆婆的药箱空了。', need: { k: 'have', item: 'med', n: 2 }, intro: '村里好几个人发烧，我的药都用完了。你有医疗包吗？给我两个。', done: '好孩子，菩萨会保佑你的。这个护身的东西你戴着。', rw: { coin: 200, xp: .1, estone: 2 } }] },
+  /* ===== 枯木林 · 鸦巢村（北欧伐木村） ===== */
+  { id: 'ingrid', n: '英格丽奶奶', role: '鸦巢村村长', vil: 'v2a', story: true, look: { sex: 'f', age: 'old', skin: SK[0], hairC: 0xe8e4dc, hair: 'braid', top: 0x3a5a8a, bottom: 0x2a3a5a, acc: ['cloak'], cloakC: 0x6a2a22 },
+    chat: ['乌鸦是聪明的鸟，它们比我们早知道哪里有死人。', '我们的祖先坐着长船来到这片林子。我们不会离开。', '火不能灭。火灭了，村子的心就停了。'] },
+  { id: 'bjorn', n: '比约恩', role: '铁匠', vil: 'v2a', trade: true, look: { sex: 'm', age: 'adult', skin: SK[0], hairC: 0xa8602a, top: 0x5a4a3a, bottom: 0x3a3028, beard: true, beardC: 0xa8602a, acc: ['apron', 'gloves'], apronC: 0x3a2a1a, scale: 1.08 },
+    chat: ['斧头钝了就拿来，我给你磨得能劈开石头。', '我的锤子打过三百把斧头，也砸碎过三十个丧尸的脑袋。', '哈！你这把武器做工不错，谁打的？'],
+    q: [{ id: 'bjorn1', t: '好铁', d: '比约恩想打一把新斧头。', need: { k: 'have', item: 'metal', n: 10 }, intro: '我想给守卫打几把新斧头，可是铁不够了。弄十块铁片来？', done: '好铁！等着，这几块强化石是我的谢礼。', rw: { coin: 180, xp: .1, estone: 3 } }] },
+  { id: 'astrid', n: '阿斯特丽', role: '女猎人', vil: 'v2a', look: { sex: 'f', age: 'adult', skin: SK[0], hairC: 0xd8b060, hair: 'braid', top: 0x4a5a3a, bottom: 0x3a3a2a, acc: ['cloak', 'belt'], cloakC: 0x5a4a3a },
+    chat: ['林子里的狼都疯了，我已经很久没听到它们正常地嚎叫。', '我的箭不多了，每一支都要射中。'],
+    q: [{ id: 'astrid1', t: '林中狩猎', d: '阿斯特丽要储备过冬的肉。', need: { k: 'hunt', n: 3 }, intro: '冬天快到了，村里的肉不够。帮我打几只野兽？野猪、鹿都行。', done: '干得漂亮。你是个好猎人。', rw: { coin: 160, xp: .1, powder: 3 } },
+      { id: 'astrid2', t: '狼群首领', d: '一只变异的大家伙在林子里游荡。', pre: 'astrid1', need: { k: 'boss', n: 1, tier: 2 }, intro: '林子深处有个大家伙，它把狼群都赶跑了。我一个人打不过它。你愿意吗？', done: '它倒下了？……英格丽奶奶会为你唱一首歌的。', rw: { coin: 400, xp: .2, gear: 2 } }] },
+  { id: 'olaf', n: '小奥拉夫', role: '铁匠的儿子', vil: 'v2a', look: { sex: 'm', age: 'kid', skin: SK[0], hairC: 0xe8c070, top: 0x8a3a2a, bottom: 0x3a3028 },
+    chat: ['等我长大，我要打一把比爸爸还大的锤子！', '你看过真正的雪吗？奶奶说北边的山上全是雪。'] },
+  /* ===== 枯木林 · 樵夫营 ===== */
+  { id: 'erik', n: '埃里克', role: '年轻的伐木工', vil: 'v2b', story: true, look: { sex: 'm', age: 'adult', skin: SK[0], hairC: 0xc89040, top: 0xa83a2a, bottom: 0x2a3a5a, acc: ['belt'], hat: 'beanie', hatC: 0x3a5a3a },
+    at: c => c === 2 ? { lm: '千年古树', off: 14 } : null,
+    chat: ['我欠你一条命。以后要砍树，喊我。', '那些灰袍的人……我到现在还会梦见他们。'] },
+  { id: 'thor', n: '托尔大叔', role: '伐木队队长', vil: 'v2b', trade: true, look: { sex: 'm', age: 'old', skin: SK[1], hairC: 0xb0a898, hair: 'bald', top: 0x5a3a2a, bottom: 0x3a3028, beard: true, acc: ['tool'] },
+    chat: ['一棵树要长一百年，砍倒只要一个下午。所以每砍一棵，我们种两棵。', '我的队员少了一半。剩下的，我一个都不能再丢。'],
+    q: [{ id: 'thor1', t: '木头', d: '樵夫营要加固营地的围栏。', need: { k: 'have', item: 'wood', n: 30 }, intro: '我们的人手不够，砍不完要用的木头。你能帮我们弄三十根吗？', done: '好木头！今晚就把围栏补上。', rw: { coin: 200, xp: .1, metal: 6 } }] },
+  { id: 'sigrid', n: '西格丽', role: '营地厨子', vil: 'v2b', trade: true, look: { sex: 'f', age: 'adult', skin: SK[0], hairC: 0xd8a050, hair: 'bun', top: 0x6a6a8a, bottom: 0x4a3a2a, acc: ['apron'] },
+    chat: ['炖肉还有一点，要不要？不要钱，下次带点盐来就行。', '男人们砍树，我负责让他们活着回来吃饭。'] },
+  /* ===== 流沙原 · 驼铃驿（沙漠商队驿站） ===== */
+  { id: 'hasan', n: '哈桑', role: '商队队长', vil: 'v3a', story: true, trade: true, look: { sex: 'm', age: 'adult', skin: SK[3], hat: 'keffiyeh', top: 0xe8dcc0, skirt: 'robe', robeC: 0xe8dcc0, beard: true, acc: ['belt'] },
+    chat: ['沙漠里没有路，只有星星和骆驼记得方向。', '以前我的商队有四十头骆驼，现在只剩下这些人和一口井。', '朋友，坐下喝杯茶吧。在沙漠里，拒绝主人的茶是不礼貌的。'] },
+  { id: 'layla', n: '莱拉', role: '织毯人', vil: 'v3a', trade: true, look: { sex: 'f', age: 'adult', hat: 'veil', hatC: 0x8a2a4a, skin: SK[3], top: 0x2a4a8a, skirt: 'robe', robeC: 0x2a4a8a },
+    chat: ['每张毯子上的花纹，都是一个家族的故事。', '我把丈夫的名字织进了这张毯子，这样我就不会忘记他。'],
+    q: [{ id: 'layla1', t: '染料', d: '莱拉要用元素晶核磨成的粉染毯子。', need: { k: 'have', item: 'elem', n: 1 }, intro: '我听说丧尸身上掉的晶核磨碎了，会出现很美的蓝色。你能给我一颗吗？', done: '看！这就是沙漠夜空的颜色。这些钱你收下。', rw: { coin: 260, xp: .1 } }] },
+  { id: 'yusuf', n: '优素福爷爷', role: '说书人', vil: 'v3a', look: { sex: 'm', age: 'old', hat: 'turban', hatC: 0xe8e0d0, skin: SK[3], top: 0x6a5a3a, skirt: 'robe', robeC: 0x6a5a3a },
+    chat: ['我给你讲一个故事吧：很久以前，沙漠里有一座会唱歌的城堡……', '黄沙古堡里住着一个小精灵，晚上会唱歌。商队的人都不敢靠近。', '故事是不会死的，只要还有人愿意听。'] },
+  { id: 'sami', n: '小萨米', role: '放骆驼的孩子', vil: 'v3a', look: { sex: 'm', age: 'kid', skin: SK[3], hat: 'keffiyeh', hatC: 0xd8c8a0, top: 0xc8a060, bottom: 0x6a5a3a },
+    chat: ['我的骆驼叫月亮，它比我还会找水！', '昨天晚上我看见古堡那边有一点亮光，像星星掉在地上。'],
+    q: [{ id: 'sami1', t: '走丢的骆驼', d: '小萨米的骆驼「月亮」跑到风蚀岩那边去了。', need: { k: 'goto', place: '风蚀岩' }, intro: '月亮昨天晚上跑掉了，我猜它去了风蚀岩那边。我不敢一个人去……你帮我看看？', done: '你在风蚀岩看到骆驼脚印了？它会自己回来的！它最聪明了！', rw: { coin: 120, xp: .08 } }] },
+  /* ===== 流沙原 · 枯井镇 ===== */
+  { id: 'amina', n: '阿米娜', role: '守井人', vil: 'v3b', look: { sex: 'f', age: 'adult', hat: 'veil', hatC: 0x3a6a6a, skin: SK[2], top: 0x8a5a3a, skirt: 'robe', robeC: 0x8a5a3a },
+    chat: ['这口井，是我们最后的水。我每天都要打上来尝一尝，怕它有毒。', '水比金子贵。你记住这句话。'],
+    q: [{ id: 'amina1', t: '井边的威胁', d: '一群丧尸总在夜里靠近水井。', need: { k: 'kill', n: 20, tier: 3 }, intro: '每天晚上，都有丧尸被水声吸引过来。帮我把附近清干净吧。', done: '今晚终于可以安心睡觉了。谢谢你。', rw: { coin: 300, xp: .1, powder: 4 } }] },
+  { id: 'karim', n: '卡里姆', role: '杂货商', vil: 'v3b', trade: true, look: { sex: 'm', age: 'adult', hat: 'turban', hatC: 0x8a3a2a, skin: SK[2], top: 0x3a5a5a, bottom: 0x3a3028, beard: true },
+    chat: ['便宜卖，便宜卖！沙漠里找不到第二家了！', '我什么都卖，除了水。水是不卖的。'] },
+  /* ===== 流沙原 · 黄沙古堡里的孩子 ===== */
+  { id: 'xiaohe', n: '小禾', role: '', story: true, look: { sex: 'f', age: 'kid', skin: SK[1], hairC: 0x2a1e18, hair: 'braid', trim: 0xe8e0d0, top: 0xe8e0d0, bottom: 0x6a8a5a, acc: ['doll'] },
+    at: c => c === 3 ? { lm: '黄沙古堡', off: 4, inside: true } : c >= 4 && c <= 8 ? { isl: true, x: -3.5, z: 6 } : c >= 10 ? { lm: '余烬王座', off: 6 } : null,
+    chat: ['（小禾看着你，没有说话，手里抱着一个旧布娃娃。）', '老陈爷爷说，我妈妈是很厉害的科学家。', '我做梦的时候，梦见地下有一颗很大很大的种子，它在哭。', '我不怕丧尸，它们好像看不见我。'] },
+  /* ===== 腐沼 · 腐木屯（水乡高脚棚屋） ===== */
+  { id: 'meipo', n: '梅婆', role: '药师', vil: 'v4a', story: true, trade: true, look: { sex: 'f', age: 'old', hat: 'conical', skin: SK[2], top: 0x3a3a2a, bottom: 0x2a2a20, acc: ['basket'] },
+    chat: ['沼泽里什么都有：毒，也有解药。看你会不会找。', '我年轻的时候，在城里的大实验室洗过试管。那时候我还不知道他们在做什么。', '喝口茶吧，这茶能解一点点毒。'] },
+  { id: 'ason', n: '阿山', role: '撑船人', vil: 'v4a', trade: true, look: { sex: 'm', age: 'adult', hat: 'conical', skin: SK[2], top: 0x4a5a3a, bottom: 0x2a2a20 },
+    chat: ['水路比陆路安全，丧尸不会游泳……大部分不会。', '要过河吗？给我一点子弹就行。'],
+    q: [{ id: 'ason1', t: '沼泽里的毒物', d: '阿山的水路上全是毒丧尸。', need: { k: 'kill', n: 25, tier: 4 }, intro: '我的船道被一群毒丧尸堵住了，它们吐的东西会烂掉木头。帮我清出一条路。', done: '好，船又能走了。你要去哪里，跟我说一声。', rw: { coin: 350, xp: .1, serum: 1 } }] },
+  { id: 'xiaolian', n: '小莲', role: '采莲的女孩', vil: 'v4a', look: { sex: 'f', age: 'kid', hat: 'conical', skin: SK[2], top: 0xe8a0b0, bottom: 0x3a3a2a, hair: 'pony' },
+    chat: ['沼泽里的莲花，晚上会发光，是余烬的颜色。梅婆不许我摘。', '我数过，这里有一百零七只青蛙。'] },
+  /* ===== 腐沼 · 沉船湾 ===== */
+  { id: 'laocai', n: '老蔡', role: '老渔夫', vil: 'v4b', look: { sex: 'm', age: 'old', hat: 'conical', skin: SK[2], top: 0x5a5a4a, bottom: 0x2a2a20, acc: ['net'] },
+    chat: ['那艘船搁浅了三十年，比我住得还久。', '鱼越来越少了。剩下的鱼，眼睛都是红的。'],
+    q: [{ id: 'laocai1', t: '沉船里的箱子', d: '老蔡说附近的箱子里还有能用的东西。', need: { k: 'crate', n: 5, tier: 4 }, intro: '这一带漂来了好多箱子，我老了，翻不动。你去翻翻，有用的你拿，没用的就算了。', done: '好，你自己留着。人老了，用不了那么多东西。', rw: { coin: 300, xp: .1, med: 2 } }] },
+  { id: 'axiu', n: '阿秀', role: '卖鱼干的', vil: 'v4b', trade: true, look: { sex: 'f', age: 'adult', hat: 'scarf', hatC: 0x6a8a4a, skin: SK[2], top: 0x8a6a8a, bottom: 0x3a3a2a, hair: 'bun' },
+    chat: ['鱼干要不要？晒了三天，香得很。', '我男人去城里找药，一年了。我还在等。'] },
+  /* ===== 寒霜岭 · 雪狼坡（北极猎人） ===== */
+  { id: 'aku', n: '阿库', role: '猎人', vil: 'v5a', story: true, look: { sex: 'm', age: 'adult', hat: 'fur', skin: SK[2], top: 0x6a5038, bottom: 0x4a3a2a, acc: ['furcoat'] },
+    chat: ['冰会说话，你要学会听。咔嚓一声，就是让你快跑。', '雪狼不是坏东西。坏的是让它们发疯的东西。', '我奶奶讲的故事，比任何地图都准。'] },
+  { id: 'nuya', n: '努雅奶奶', role: '讲故事的老人', vil: 'v5a', story: true, look: { sex: 'f', age: 'old', hat: 'fur', hatC: 0xa89070, skin: SK[2], top: 0x8a6a4a, bottom: 0x5a4a3a, acc: ['furcoat'] },
+    chat: ['很久以前，冰下面睡着一个巨人。它醒的时候，大地就会发光。', '坐近一点，孩子，火边暖和。', '我们的祖先说：雪是天的信，冰是地的锁。'] },
+  { id: 'kaka', n: '小卡卡', role: '阿库的女儿', vil: 'v5a', look: { sex: 'f', age: 'kid', hat: 'fur', hatC: 0xe8d8c0, skin: SK[2], top: 0xc84a3a, bottom: 0x4a3a2a },
+    chat: ['我堆了一个雪人，它的眼睛是两块黑石头！', '爸爸说我十岁就能跟他去打猎。还有两年。'] },
+  { id: 'sinuk', n: '西努克', role: '皮毛商', vil: 'v5a', trade: true, look: { sex: 'm', age: 'adult', hat: 'fur', hatC: 0x5a4a3a, skin: SK[2], top: 0x4a3a2a, bottom: 0x3a2a1a, acc: ['pack'] },
+    chat: ['好皮子能救命。在这里，冷比丧尸杀的人还多。', '换东西吗？我收铁，也收子弹。'],
+    q: [{ id: 'sinuk1', t: '雪原补给', d: '西努克需要火药做信号弹。', need: { k: 'have', item: 'powder', n: 6 }, intro: '暴风雪的时候，信号弹能救命。我缺火药，你有吗？六份就够。', done: '好。下次暴风雪，会有人因为你活下来。', rw: { coin: 380, xp: .1, crystal: 1 } }] },
+  /* ===== 寒霜岭 · 白桦营（牧鹿人） ===== */
+  { id: 'aila', n: '艾拉', role: '牧鹿人', vil: 'v5b', trade: true, look: { sex: 'f', age: 'adult', hat: 'wool', hatC: 0x2a5aa8, skin: SK[0], top: 0x2a5aa8, bottom: 0x3a3a4a, acc: ['belt'], trim: 0xc83a2a },
+    chat: ['我的鹿群只剩十二头了。每一头我都叫得出名字。', '我们跟着鹿走，鹿跟着苔藓走，苔藓跟着季节走。'],
+    q: [{ id: 'aila1', t: '护送鹿群', d: '狼和丧尸一起围着鹿群打转。', need: { k: 'kill', n: 30, tier: 5 }, intro: '鹿群周围全是饿疯的东西。帮我把它们赶开吧，我的鹿快吓死了。', done: '它们安静了。谢谢你，这是鹿角做的护符。', rw: { coin: 450, xp: .1, estone: 4 } }] },
+  { id: 'nils', n: '老尼尔斯', role: '营地长者', vil: 'v5b', look: { sex: 'm', age: 'old', hat: 'wool', hatC: 0xc83a2a, skin: SK[0], top: 0x2a5aa8, bottom: 0x3a3a4a },
+    chat: ['我唱过的歌比你走过的路还多。要不要听一首？', '冰洞那边，三年前来过一群穿白大褂的人，他们挖了很久。'] },
+  /* ===== 铁锈城 · 废铁棚户区 ===== */
+  { id: 'laotie', n: '老铁', role: '机修工', vil: 'v6a', story: true, trade: true, look: { sex: 'm', age: 'old', hat: 'goggles', skin: SK[1], top: 0x4a4a52, bottom: 0x3a3a42, acc: ['apron', 'gloves'], apronC: 0x5a4a3a, beard: false },
+    chat: ['只要还有电线和螺丝，我就能修好任何东西。', '老陈？那个老顽固还活着？哈哈，他欠我一包烟！', '城里的电视塔还能用，只要有人敢爬上去。'] },
+  { id: 'luosi', n: '小螺丝', role: '捡破烂的孩子', vil: 'v6a', look: { sex: 'm', age: 'kid', hat: 'cap', hatC: 0xc8402a, skin: SK[1], top: 0x6a6a5a, bottom: 0x3a3a42, acc: ['pack'] },
+    chat: ['你知道吗？这个废铁堆里埋着一台没坏的收音机，我找了好久！', '老铁爷爷说我是他见过最会找东西的人。'],
+    q: [{ id: 'luosi1', t: '翻废墟', d: '小螺丝想知道城里的房子里还有什么。', need: { k: 'search', n: 4 }, intro: '城里的房子我都不敢进去，里面有怪声。你帮我搜一搜？找到好东西给我看看！', done: '哇，好多东西！这个零件送你，算我们是朋友了！', rw: { coin: 400, xp: .1, circuit: 2 } }] },
+  { id: 'hongjie', n: '红姐', role: '市场老大', vil: 'v6a', trade: true, look: { sex: 'f', age: 'adult', skin: SK[1], hair: 'long', hairC: 0x8a2a2a, top: 0x2a2a2a, bottom: 0x3a3a42, acc: ['belt', 'scarfN'], scarfC: 0xc83a2a },
+    chat: ['在我的地盘，没人敢抢东西。想做生意就守规矩。', '钱？钱早就没用了。我只认子弹、药和零件。'] },
+  { id: 'apao', n: '阿炮', role: '枪械师', vil: 'v6a', look: { sex: 'm', age: 'adult', hat: 'bandana', hatC: 0x2a2a2a, skin: SK[3], top: 0x5a4a3a, bottom: 0x2a2a30, acc: ['vest', 'gun'] },
+    chat: ['枪要擦，子弹要省，人要冷静。', '你的枪声我在三条街外就听见了。下次装个消音器。'],
+    q: [{ id: 'apao1', t: '城里的硬骨头', d: '城里的铁甲丧尸越来越多。', need: { k: 'kill', n: 40, tier: 6 }, intro: '城里有一群穿着防弹衣的丧尸，子弹打上去都弹开。你敢去吗？杀四十只回来。', done: '有两下子！这些精钢你拿去，打穿铁甲用得着。', rw: { coin: 600, xp: .1, steel: 2 } }] },
+  /* ===== 铁锈城 · 河畔集市 ===== */
+  { id: 'pangshu', n: '胖叔', role: '集市摊主', vil: 'v6b', trade: true, look: { sex: 'm', age: 'adult', skin: SK[1], top: 0xd8c8a0, bottom: 0x3a3a42, hair: 'bald', acc: ['apron'], scale: 1.12 },
+    chat: ['来看看，都是好货！城里搬出来的！', '我以前是开餐馆的。现在嘛，什么都卖。'] },
+  { id: 'lili', n: '丽丽', role: '卖花的女孩', vil: 'v6b', look: { sex: 'f', age: 'kid', skin: SK[1], top: 0xe8e060, bottom: 0x3a5a8a, hair: 'pony', trim: 0xe84a8a },
+    chat: ['这朵花是在银溪边上摘的，送你！不要钱！', '城里以前有好多好多灯，晚上像白天一样。'] },
+  { id: 'drhe', n: '何医生', role: '诊所医生', vil: 'v6b', look: { sex: 'f', age: 'adult', skin: SK[0], top: 0xf0f0f0, bottom: 0x3a4a6a, hair: 'bun', acc: ['glasses'] },
+    chat: ['被咬了不一定会变，只要伤口没发光，就还有救。', '我需要更多的血清。没有血清，我什么都做不了。'],
+    q: [{ id: 'drhe1', t: '血清', d: '何医生的诊所缺血清。', need: { k: 'have', item: 'serum', n: 3 }, intro: '有三个病人等着打血清，我手上一支都没有了。你能帮我弄到三支吗？', done: '……够了，三个人都能活下来。我欠你三条命。', rw: { coin: 600, xp: .12, med: 3 } }] },
+  /* ===== 赤岩谷 · 断崖村（土坯崖屋） ===== */
+  { id: 'yanying', n: '岩鹰', role: '部落酋长', vil: 'v7a', story: true, look: { sex: 'm', age: 'adult', hat: 'feather', skin: SK[3], hair: 'long', top: 0x8a4a2a, bottom: 0x5a3a22, acc: ['beads', 'poncho'], ponchoC: 0x8a3a2a },
+    chat: ['山会记住每一个走过它的人。', '我们的祖先在这片崖壁上住了一千年。丧尸不会是最后一个敌人。', '说话之前，先听风。'] },
+  { id: 'xiaoque', n: '小雀', role: '部落的侦察兵', vil: 'v7a', story: true, look: { sex: 'f', age: 'kid', skin: SK[3], hair: 'braid', top: 0xc87a3a, bottom: 0x5a3a22, acc: ['beads'] },
+    chat: ['我能爬上最高的崖壁，比任何人都快！', '我看到过灰袍的人，他们走路一点声音都没有。'] },
+  { id: 'zhiyun', n: '织云婆婆', role: '陶器匠', vil: 'v7a', trade: true, look: { sex: 'f', age: 'old', skin: SK[3], hair: 'braid', hairC: 0xd8d4cc, top: 0x3a6a8a, bottom: 0x5a3a22, acc: ['poncho'], ponchoC: 0xd8a040 },
+    chat: ['陶罐上的每一圈花纹，都是一场雨。', '泥土是有记忆的。你听，它在说话。'] },
+  { id: 'huilang', n: '灰狼', role: '猎手', vil: 'v7a', look: { sex: 'm', age: 'adult', hat: 'bandana', hatC: 0xc83a2a, skin: SK[3], hair: 'long', top: 0x6a4a2a, bottom: 0x4a3a22, acc: ['beads', 'belt'] },
+    chat: ['峡谷里的丧尸皮很厚，要打它们的头。', '我的弓已经换成枪了。时代变了。'],
+    q: [{ id: 'huilang1', t: '峡谷清剿', d: '峡谷里的厚皮丧尸越来越多。', need: { k: 'kill', n: 45, tier: 7 }, intro: '这条峡谷是我们的家，现在全是丧尸。跟我一起清理它吧——你清四十五只，我去守崖口。', done: '峡谷又是我们的了。今晚为你敲鼓。', rw: { coin: 700, xp: .1, steel: 3 } }] },
+  /* ===== 赤岩谷 · 东岸部落 ===== */
+  { id: 'chenguang', n: '晨光', role: '织布人', vil: 'v7b', trade: true, look: { sex: 'f', age: 'adult', skin: SK[3], hair: 'long', top: 0xd8a040, bottom: 0x8a3a2a, acc: ['poncho', 'beads'], ponchoC: 0x3a6a8a },
+    chat: ['太阳每天都会升起，这是唯一不会变的事。', '我的毯子能挡风沙，也能挡子弹……开玩笑的。'] },
+  { id: 'shugen', n: '老树根', role: '部落长者', vil: 'v7b', look: { sex: 'm', age: 'old', hat: 'feather', skin: SK[3], hair: 'long', hairC: 0xd8d4cc, top: 0x6a4a2a, bottom: 0x5a3a22, acc: ['beads'], beard: false },
+    chat: ['赤岩深洞里有古老的壁画。画的是一颗燃烧的种子，和一个孩子。', '年轻人总是急。山不急，所以山活得最久。'],
+    q: [{ id: 'shugen1', t: '深洞的壁画', d: '老树根想知道赤岩深洞的壁画还在不在。', need: { k: 'goto', place: '赤岩深洞' }, intro: '我太老了，走不到赤岩深洞了。你去看看那幅壁画还在吗？回来告诉我。', done: '还在……那个孩子的手上，捧着一团火。祖先早就知道了。', rw: { coin: 500, xp: .12, crystal: 1 } }] },
+  /* ===== 熔火原 · 火山矿工营（冰岛草皮屋） ===== */
+  { id: 'karin', n: '卡琳', role: '矿工队长', vil: 'v8a', story: true, look: { sex: 'f', age: 'adult', hat: 'hardhat', skin: SK[0], hair: 'pony', hairC: 0xd8a050, top: 0x4a5a6a, bottom: 0x3a3a42, acc: ['vest', 'gloves'], vestC: 0xe86a2a } ,
+    chat: ['熔岩底下有矿，也有更可怕的东西。我们只挖矿。', '在这里，戴好头盔，跟着我走，别乱碰发光的石头。', '温泉是这里唯一的好东西。泡一泡，什么烦恼都没了。'] },
+  { id: 'guna', n: '古纳', role: '矿工', vil: 'v8a', trade: true, look: { sex: 'm', age: 'adult', hat: 'hardhat', hatC: 0xe8e0d0, skin: SK[0], top: 0x5a4a3a, bottom: 0x3a3a42, beard: true, beardC: 0x8a5a2a, acc: ['gloves', 'tool'], scale: 1.1 },
+    chat: ['我一锤子能敲开一块火山石。你行吗？', '卡琳队长是这里最勇敢的人。我只是最壮的。'] },
+  { id: 'sig', n: '老西格', role: '退休的矿工', vil: 'v8a', look: { sex: 'm', age: 'old', hat: 'wool', hatC: 0x5a6a7a, skin: SK[0], top: 0x5a6a7a, bottom: 0x3a3a42 },
+    chat: ['我在矿里挖了四十年，从来没见过那种发光的石头。直到三年前。', '温泉的水，以前是清的。'],
+    q: [{ id: 'sig1', t: '熔岩边的勘探箱', d: '老西格当年的勘探箱还在熔岩边。', need: { k: 'crate', n: 6, tier: 8 }, intro: '当年我们留了几箱勘探工具在熔岩边上，里面有耐热的材料。帮我拿回来，你可以留下一半。', done: '哈，还是老样子。这些你拿着，我老了用不上。', rw: { coin: 800, xp: .1, heart: 1 } }] },
+  { id: 'freya', n: '小芙蕾雅', role: '卡琳的妹妹', vil: 'v8a', look: { sex: 'f', age: 'kid', hat: 'wool', hatC: 0xe84a4a, skin: SK[0], hair: 'pony', hairC: 0xe8c070, top: 0x4a8a6a, bottom: 0x3a3a42 },
+    chat: ['姐姐说等火山不发脾气了，就带我去看北极光。', '我会唱火山之歌，你想听吗？咕噜咕噜，轰隆轰隆！'] },
+  /* ===== 熔火原 · 黑石营 ===== */
+  { id: 'haldo', n: '哈尔多', role: '黑石铁匠', vil: 'v8b', trade: true, look: { sex: 'm', age: 'adult', skin: SK[1], hair: 'bald', top: 0x2a2a2a, bottom: 0x3a3028, beard: true, beardC: 0x2a2a2a, acc: ['apron', 'gloves'], apronC: 0x4a2a1a, scale: 1.08 },
+    chat: ['火山石做的刀，比钢还硬。', '黑石营的炉子，三年没有熄过。'] },
+  { id: 'yingya', n: '英雅', role: '巡逻队长', vil: 'v8b', look: { sex: 'f', age: 'adult', hat: 'helmet', hatC: 0x3a3a3a, skin: SK[1], hair: 'pony', top: 0x3a4a5a, bottom: 0x2a2a30, acc: ['vest', 'gun'] },
+    chat: ['火里面的精英丧尸，身上带着首领之心的碎片。', '我的队员都很勇敢。勇敢的人死得最快。'],
+    q: [{ id: 'yingya1', t: '熔岩里的精英', d: '英雅要你帮忙清除精英丧尸。', need: { k: 'event', n: 2 }, intro: '熔岩边上有两批精英丧尸在集结。我的人手不够，你去打散它们。', done: '打散了？太好了。这是黑石营的谢礼。', rw: { coin: 900, xp: .12, estone: 6 } }] },
+  /* ===== 暗影原 · 石碑寺（藏式山寺） ===== */
+  { id: 'tenzin', n: '丹增喇嘛', role: '石碑寺住持', vil: 'v9a', story: true, look: { sex: 'm', age: 'old', hair: 'none', skin: SK[2], top: 0x8a2a2a, skirt: 'robe', robeC: 0x8a2a2a, acc: ['robe'], beard: false },
+    chat: ['黑暗不是敌人。害怕黑暗的心，才是。', '经幡每被风吹动一次，就是念了一遍经。', '坐下来，喝一碗酥油茶。急着走的人，看不清路。'] },
+  { id: 'drolma', n: '卓玛', role: '茶馆老板娘', vil: 'v9a', trade: true, look: { sex: 'f', age: 'adult', skin: SK[2], hair: 'braid', top: 0x3a6a8a, skirt: 'robe', robeC: 0x5a3a2a, acc: ['apron', 'beads'], apronC: 0xc83a2a, trim: 0xd8a040 },
+    chat: ['酥油茶要趁热喝，凉了就不香了。', '我的阿爸是牧民，阿妈是唱歌的。我两样都不会，只会煮茶。'] },
+  { id: 'tashi', n: '小扎西', role: '小喇嘛', vil: 'v9a', look: { sex: 'm', age: 'kid', hair: 'none', skin: SK[2], top: 0x8a2a2a, skirt: 'robe', robeC: 0x8a2a2a, acc: ['robe'] },
+    chat: ['师父说，我念经的时候不能想糖果。可是我总是想。', '石碑圈那边的石头，晚上会发出紫色的光。'],
+    q: [{ id: 'tashi1', t: '石碑圈', d: '小扎西想知道石碑圈的石头为什么发光。', need: { k: 'goto', place: '石碑圈' }, intro: '师父不让我去石碑圈。你去帮我看看，那些石头上面写的是什么字？', done: '你说上面刻着一颗种子？和师父的经书上画的一样！', rw: { coin: 600, xp: .1, crystal: 2 } }] },
+  { id: 'tsering', n: '次仁', role: '向导', vil: 'v9a', look: { sex: 'm', age: 'adult', hat: 'wool', hatC: 0x6a4a2a, skin: SK[2], top: 0x6a4a2a, bottom: 0x3a2a1a, acc: ['pack', 'scarfN'], scarfC: 0xd8a040 },
+    chat: ['暗影原的路会自己移动。跟紧我，别回头。', '我带过一百个人穿过这里，只丢过三个。'],
+    q: [{ id: 'tsering1', t: '影子里的东西', d: '次仁的路被影子里的丧尸堵住了。', need: { k: 'kill', n: 55, tier: 9 }, intro: '路上全是看不见的东西，只能听声音打。你敢跟我去吗？清掉五十五只，路就通了。', done: '你比我想的还要强。这是我收着的好东西。', rw: { coin: 1000, xp: .1, heart: 1 } }] },
+  /* ===== 暗影原 · 紫晶村 ===== */
+  { id: 'yangjin', n: '央金', role: '采药人', vil: 'v9b', trade: true, look: { sex: 'f', age: 'adult', hat: 'wool', hatC: 0x8a3a6a, skin: SK[2], hair: 'braid', top: 0x6a3a6a, skirt: 'robe', robeC: 0x4a2a3a, acc: ['basket'] },
+    chat: ['紫晶林的蘑菇能治病，也能让人做噩梦。分清楚很重要。', '我男人是被影子带走的。我每天都在林子边等他。'] },
+  { id: 'gesang', n: '老格桑', role: '老牧民', vil: 'v9b', look: { sex: 'm', age: 'old', hat: 'wool', hatC: 0x6a4a2a, skin: SK[2], top: 0x8a6a4a, bottom: 0x4a3a2a },
+    chat: ['以前这里是草原，牦牛多得数不清。', '紫晶长出来的那一年，草就死了。'],
+    q: [{ id: 'gesang1', t: '紫晶林的首领', d: '一只大家伙占了紫晶林。', need: { k: 'boss', n: 1, tier: 9 }, intro: '林子里有个大家伙，把我们的牦牛都吃光了。你能打倒它吗？', done: '它倒下了？……草原会回来的，会的。', rw: { coin: 1200, xp: .2, gear: 4 } }] },
+  /* ===== 余烬之心 · 最后的堡垒 ===== */
+  { id: 'qinyue', n: '秦岳', role: '堡垒指挥官', vil: 'v10a', story: true, look: { sex: 'm', age: 'adult', hat: 'helmet', hatC: 0x3a4a3a, skin: SK[1], top: 0x3e4a34, bottom: 0x2a2e24, acc: ['vest', 'belt', 'gun'], scale: 1.05 },
+    chat: ['这里是人类最后一道墙。墙在，人就在。', '我手下有两百个兵，三年来，每天都在少。', '你是老陈的人？好。我们需要每一个能打的人。'] },
+  { id: 'suqing', n: '苏青', role: '军医', vil: 'v10a', trade: true, look: { sex: 'f', age: 'adult', skin: SK[0], hair: 'bun', top: 0xe8e8e0, bottom: 0x3e4a34, acc: ['belt'] },
+    chat: ['别在我面前受伤，我已经没有绷带了。', '我缝过上千个伤口。最难缝的，是心里的。'],
+    q: [{ id: 'suqing1', t: '前线的药', d: '苏青的医疗站缺药。', need: { k: 'have', item: 'med', n: 5 }, intro: '前线天天有人受伤，医疗包永远不够。给我五个，我替那些士兵谢谢你。', done: '……五个人今晚不用截肢了。谢谢。', rw: { coin: 1000, xp: .1, gem: 20 } }] },
+  { id: 'hanshu', n: '韩叔', role: '老兵', vil: 'v10a', look: { sex: 'm', age: 'old', hat: 'cap', hatC: 0x3e4a34, skin: SK[1], top: 0x3e4a34, bottom: 0x2a2e24, acc: ['scarfN'], scarfC: 0x6a6a5a },
+    chat: ['我打过两场仗。这一场，是最没有道理的。', '年轻人，活下去，比什么都重要。'],
+    q: [{ id: 'hanshu1', t: '最后的补给', d: '韩叔要守住堡垒的补给线。', need: { k: 'event', n: 3 }, intro: '核心在召唤精英保护自己。打掉三批，补给车才过得来。', done: '补给到了。你干得比我年轻时还好。', rw: { coin: 1500, xp: .12, estone: 8 } }] },
+  { id: 'xiaoshi', n: '小石头', role: '堡垒里的孤儿', vil: 'v10a', look: { sex: 'm', age: 'kid', hat: 'helmet', hatC: 0x5a6a4a, skin: SK[1], top: 0x6a6a5a, bottom: 0x2a2e24 },
+    chat: ['我长大要当兵，跟秦叔叔一样！', '秦叔叔说，我是堡垒里最小的兵。'] },
+  /* ===== 余烬之心 · 灰烬哨站 ===== */
+  { id: 'luoying', n: '洛英', role: '哨站狙击手', vil: 'v10b', look: { sex: 'f', age: 'adult', hat: 'helmet', skin: SK[1], hair: 'pony', top: 0x4a4a3a, bottom: 0x2a2e24, acc: ['vest', 'gun'] },
+    chat: ['从这里能看到余烬王座。它每天晚上都在发光。', '我数过，它的光一次比一次亮。'],
+    q: [{ id: 'luoying1', t: '王座下的守卫', d: '余烬之心的首领挡住了侦察的路。', need: { k: 'boss', n: 1, tier: 10 }, intro: '王座周围有个大家伙守着，我们的侦察兵过不去。帮我们打开这条路。', done: '路通了。侦察兵今晚就能出发。谢谢你。', rw: { coin: 2000, xp: .2, gear: 5 } }] },
+  { id: 'heishan', n: '黑山', role: '哨站补给官', vil: 'v10b', trade: true, look: { sex: 'm', age: 'adult', hat: 'cap', hatC: 0x3e4a34, skin: SK[4], top: 0x3e4a34, bottom: 0x2a2e24, acc: ['vest'] },
+    chat: ['补给不多，省着用。', '要子弹？用东西换。'] },
+];
+const NPC_BY = {}; for (const N of NPCS) NPC_BY[N.id] = N;
+function npcsOfVil(vid) { return NPCS.filter(N => N.vil === vid && !(N.at && N.at(S.story ? S.story.c : 0))); }
+/* ============ 对话、村民任务、村庄任务板（owner 22 Nov）============
+   - 走到任何有名字的人旁边，出现「和 X 说话」：对话框里有 主线 / 接任务 / 交任务 / 交易 / 聊聊 / 再见。
+   - 头上的标记：金色 ! = 主线要找他，黄色 ! = 有新任务，绿色 ? = 任务可以交了。
+   - 任务种类（need.k）：kill 打丧尸、crate 开箱子、search 搜房子、boss 打首领、event 空投/精英、hunt 打猎、cook 做饭、
+     have 交东西（交的时候扣掉）、goto 去一个地方、talk 帮忙带话给另一个人。tier = 在这个地区或更深的地方才算。
+   - 每个村庄的任务板：这个村子所有人的任务（可以在板上直接接），加上每天 2 个悬赏（在板上交）。
+   - 最多同时接 6 个任务。左上主线下面显示正在做的任务，点开可以看全部、放弃。 */
+const vqPick = A => A[Math.floor(Math.random() * A.length)];
+const VQ = { by: {}, near: null, d: null, t: 0, marks: 0, SN: new Map(), board: null, MAX: 6 };
+for (const N of NPCS) for (const q of N.q || []) { q.npc = N.id; VQ.by[q.id] = q; }
+const vqS = () => (S.vq = S.vq || { a: {}, d: {}, b: {} });
+const vqHave = k => k === 'med' ? S.med | 0 : k === 'ammo' ? S.reserve | 0 : matHave(k);
+const vqTake = (k, n) => { if (k === 'med') S.med -= n; else if (k === 'ammo') S.reserve -= n; else matAdd(k, -n); };
+const vqItN = k => k === 'coin' ? '余烬币' : k === 'gem' ? '晶石' : k === 'ammo' ? '子弹' : k === 'med' ? '医疗包' : k === 'xp' ? '经验' : k === 'gear' ? '装备' : (MAT[k] && MAT[k].n) || (ITEMS[k] && ITEMS[k].n) || k;
+/* where a named place is: landmark, place, village or waystone */
+function vqPlace(name) { try { const L = lmFixed().find(q => q.name === name); if (L) return { x: L.x, z: L.z, r: (L.R || 20) * (L.big || 1) + 25 }; } catch (e) { }
+  const P = plAll().find(q => q.n === name); if (P) return { x: P.x, z: P.z, r: 60 }; const V = vil3All().find(v => v.name === name); if (V) return { x: V.x, z: V.z, r: V.R + 10 }; return null; }
+/* the quest's reference level (for XP) = the middle of its land's band, or the giver's land */
+function vqRef(q) { const N = NPC_BY[q.npc], v = N && N.vil && vil3ById(N.vil); const t = (q.need && q.need.tier) || (v ? v.t : 1); return Math.max(1, 10 * t - 5); }
+function vqRw(q) { const R = Object.assign({}, q.rw || {}); if (R.xp && R.xp < 1) R.xp = stXp(vqRef(q), R.xp); return R; }
+function vqRwTxt(q) { const R = vqRw(q); return Object.keys(R).map(k => k === 'gear' ? (GQ[R.gear] ? GQ[R.gear].n : '') + '装备' : vqItN(k) + ' ×' + R[k]).join(' · '); }
+function vqPay(q) { const R = vqRw(q), got = [];
+  for (const k in R) { const n = R[k]; if (!n) continue; if (k === 'xp') addXp(n); else if (k === 'gem') addGem(n, '任务奖励'); else if (k === 'gear') { try { giveGear(n); } catch (e) { } } else gain(k, n); got.push(k === 'gear' ? (GQ[n] ? GQ[n].n : '') + '装备' : vqItN(k) + ' ×' + n); }
+  feed('任务奖励：' + got.join(' · '), '#9fe8a0'); refreshHud(); }
+/* state of one quest: 'lock' 'open' 'act' 'ready' 'done' */
+function vqState(q) { const s = vqS(); if (s.d[q.id]) return 'done'; if (q.id in s.a) return vqReady(q) ? 'ready' : 'act';
+  if (q.pre && !s.d[q.pre]) return 'lock'; if (q.ch && (S.story ? S.story.c : 0) < q.ch) return 'lock'; if (q.lv && S.level < q.lv) return 'lock'; return 'open'; }
+function vqReady(q) { const s = vqS(), p = s.a[q.id] || 0, n = q.need.n || 1; if (q.need.k === 'have') return vqHave(q.need.item) >= n; return p >= n; }
+function vqProg(q) { const s = vqS(), n = q.need.n || 1; if (q.need.k === 'have') return Math.min(n, vqHave(q.need.item)) + '/' + n; if (n <= 1) return vqReady(q) ? '完成' : ''; return Math.min(n, Math.floor(s.a[q.id] || 0)) + '/' + n; }
+function vqNeedTxt(q) { const N = q.need; switch (N.k) {
+  case 'kill': return '击败 ' + N.n + ' 只丧尸' + (N.tier ? '（' + regionLabel(N.tier) + '或更深）' : '');
+  case 'crate': return '打开 ' + N.n + ' 个箱子' + (N.tier ? '（' + regionLabel(N.tier) + '或更深）' : '');
+  case 'search': return '搜索 ' + N.n + ' 栋房子'; case 'boss': return '击败 ' + (N.n || 1) + ' 个首领' + (N.tier ? '（' + regionLabel(N.tier) + '或更深）' : '');
+  case 'event': return '完成 ' + N.n + ' 次空投或精英事件'; case 'hunt': return '打猎 ' + N.n + ' 只野兽'; case 'cook': return '在岛上做 ' + N.n + ' 顿饭';
+  case 'have': return '带来 ' + vqItN(N.item) + ' ×' + N.n; case 'goto': return '去「' + N.place + '」看看'; case 'talk': return '把话带给' + (NPC_BY[N.npc] ? NPC_BY[N.npc].n : '');
+  } return q.d || ''; }
+function vqAccept(q) { const s = vqS(); if (Object.keys(s.a).length >= VQ.MAX) { feed('同时最多接 ' + VQ.MAX + ' 个任务，先完成几个吧', '#ff9b8a'); return false; }
+  s.a[q.id] = 0; feed('接下任务：' + q.t, '#ffc94a'); try { sfxTone(660, 990, .18, .06, 'triangle'); } catch (e) { } vqTrk(); saveGame(); return true; }
+function vqFinish(q) { const s = vqS(); if (q.need.k === 'have') vqTake(q.need.item, q.need.n); delete s.a[q.id]; s.d[q.id] = 1; vqPay(q);
+  banner('任务完成', q.t, 2.6); try { sfxTone(523, 1046, .35, .08, 'triangle'); sfxTone(784, 1568, .4, .06, 'sine', { delay: .12 }); } catch (e) { } vqTrk(); saveGame(); }
+/* progress from the game's events (inside dungeons questTick is muted already) */
+function vqEvent(k, n, ctx) { const s = vqS(); let ch = false;
+  for (const id in s.a) { const q = VQ.by[id] || vqBounty(id); if (!q || q.need.k !== k) continue;
+    if (q.need.tier) { const t = ctx && ctx.tier != null ? ctx.tier : stHere(); if (t < q.need.tier) continue; }
+    if (q.need.vt) { const t = ctx && ctx.tier != null ? ctx.tier : stHere(); if (t !== q.need.vt) continue; }
+    const was = vqReady(q); s.a[id] = Math.min(q.need.n || 1, (s.a[id] || 0) + (n || 1)); ch = true;
+    if (!was && vqReady(q)) feed('任务「' + q.t + '」完成了，回去找' + (q.npc ? NPC_BY[q.npc].n : '任务板'), '#9fe8a0'); }
+  if (ch) vqTrk(); }
+questTick = (o => function (k, n, ctx) { o(k, n, ctx); try { vqEvent(k, n, ctx); } catch (e) { console.warn('vq', e); } })(questTick);
+/* ---- daily bounties on each board (two a day per village) ---- */
+function vqBounty(id) { const m = /^b:([^:]+):(\d+):(\d)$/.exec(id); if (!m) return null; const v = vil3ById(m[1]); if (!v) return null; const day = +m[2], i = +m[3], t = v.t;
+  const R = mulberry32(hash2(day * 31 + i, v.seed % 100000)), kind = Math.floor(R() * 3), mats = [['wood', 20], ['metal', 8], ['powder', 3], ['stone', 15], ['vine', 8]], mt = mats[Math.floor(R() * mats.length)];
+  const need = kind === 0 ? { k: 'kill', n: 12 + 3 * t, vt: t } : kind === 1 ? { k: 'have', item: mt[0], n: Math.round(mt[1] * (1 + t * .15)) } : { k: 'crate', n: 3 + Math.floor(t / 3), tier: t };
+  return { id, bounty: true, vil: v.id, t: ['清剿悬赏', '物资悬赏', '搜寻悬赏'][kind] + ' · ' + v.name, need, rw: { coin: 50 * t + 40, xp: .06 }, d: '' }; }
+const vqDay = () => Math.floor((Date.now() / 1000 / 3600 + 8) / 24);   /* resets at midnight, Malaysia time */
+function vqBounties(v) { return [0, 1].map(i => vqBounty('b:' + v.id + ':' + vqDay() + ':' + i)); }
+vqRef = (o => function (q) { if (q.bounty) return Math.max(1, 10 * vil3ById(q.vil).t - 5); return o(q); })(vqRef);
+/* ---- the dialogue box ---- */
+function npcDlgEl() { let d = $('npcDlg'); if (d) return d; if (!document.body || !document.body.appendChild) return null;
+  d = document.createElement('div'); d.id = 'npcDlg'; d.innerHTML = '<div class="ndb"><div class="ndh"><b></b><span></span></div><div class="ndt"></div><div class="ndo"></div></div>'; document.body.appendChild(d);
+  ['pointerdown', 'touchstart'].forEach(ev => d.addEventListener(ev, e => e.stopPropagation()));
+  d.addEventListener('click', e => { e.stopPropagation(); if (VQ.d && VQ.d.lines && !e.target.closest('button')) npcNextLine(); });
+  document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+    '#npcDlg{position:fixed;left:0;right:0;bottom:0;z-index:60;display:none;padding:0 12px calc(var(--sb,0px) + 12px);pointer-events:auto}#npcDlg.show{display:block}' +
+    '#npcDlg .ndb{max-width:640px;margin:0 auto;background:linear-gradient(180deg,rgba(34,22,20,.96),rgba(20,12,14,.97));border:1px solid rgba(255,190,140,.35);border-radius:16px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.5)}' +
+    '#npcDlg .ndh{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}#npcDlg .ndh b{color:#ffd27a;font-size:16px}#npcDlg .ndh span{color:#c9a88a;font-size:12px}' +
+    '#npcDlg .ndt{color:#fff2e4;font-size:15px;line-height:1.55;min-height:2.6em;white-space:pre-line}#npcDlg .ndt small{display:block;color:#c9a88a;font-size:12px;margin-top:6px}#npcDlg .ndt .rw{color:#9fe8a0}' +
+    '#npcDlg .ndo{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}#npcDlg .ndo button{flex:1 1 auto;min-width:120px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,190,140,.3);background:rgba(255,255,255,.06);color:#ffe9d8;font-weight:700;font-size:14px;text-align:left}' +
+    '#npcDlg .ndo button.st{border-color:#ffc94a;color:#ffd27a;background:rgba(255,201,74,.12)}#npcDlg .ndo button.ok{border-color:#8fd16f;color:#bff0a8;background:rgba(143,209,111,.12)}#npcDlg .ndo button.q{border-color:#ffe08a}#npcDlg .ndo .tap{color:#c9a88a;font-size:12px;align-self:center}' +
+    '#bTalk{position:absolute;right:calc(var(--sr) + 214px);bottom:calc(var(--sb) + 196px);display:none;font-size:15px;min-width:96px;border-color:#ffd27a;background:rgba(60,40,16,.9);color:#fff2d8}' +
+    '#bBoard{position:absolute;right:calc(var(--sr) + 214px);bottom:calc(var(--sb) + 150px);display:none;font-size:15px;min-width:86px;border-color:#e8c890;background:rgba(60,44,24,.9);color:#fff2d8}' +
+    '@media (orientation:portrait){#bTalk{right:calc(var(--sr) + 14px);bottom:calc(var(--sb) + 408px)}#bBoard{right:calc(var(--sr) + 14px);bottom:calc(var(--sb) + 360px)}}body.gvOn #bTalk,body.bOpen #bTalk,body.gvOn #bBoard,body.bOpen #bBoard{display:none!important}' +
+    '#vqTrk{margin-top:6px;font-size:12px;line-height:1.45;color:#f4e4d0;cursor:pointer}#vqTrk:empty{display:none}#vqTrk div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#vqTrk div.ok{color:#9fe8a0}#vqTrk b{color:#ffe08a;font-weight:700}' +
+    '.vqrow{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04);margin-bottom:8px}.vqrow b{color:#ffe9d8}.vqrow p{margin:4px 0;color:#d8c4b0;font-size:13px}.vqrow small{color:#c9a88a;font-size:12px}.vqrow .rw{color:#9fe8a0;font-size:12px}' +
+    '.vqrow .vqb{display:flex;gap:8px;margin-top:6px}.vqrow.done{opacity:.5}.vqh{margin:14px 2px 6px;color:#ffd8b0;font-weight:800}' })); return d; }
+function npcOpen(vv) { const N = vv.npc; if (!N || S.dead) return; const d = npcDlgEl(); if (!d) return; audioInit();
+  VQ.d = { vv, N, lines: null, after: null }; d.querySelector('.ndh b').textContent = N.n; d.querySelector('.ndh span').textContent = N.role || '';
+  d.classList.add('show'); S.paused = true; S._npcPause = true; try { inputReset(); } catch (e) { }
+  // turn to face you
+  try { vv.h.g.rotation.y = Math.atan2(player.pos.x - vv.h.g.position.x, player.pos.z - vv.h.g.position.z); } catch (e) { }
+  const st = vqStoryStep(N); if (st) { npcSay(st.lines, () => { stAdvance(); npcMenu(); }); return; }
+  npcMenu(vqPick(N.chat || ['……'])); }
+function npcClose() { const d = $('npcDlg'); if (d) d.classList.remove('show'); VQ.d = null; if (S._npcPause) { S._npcPause = false; S.paused = false; } setTimeout(() => { try { stShowNext(); } catch (e) { } }, 150); }
+function npcSay(lines, after) { VQ.d.lines = lines.map(l => typeof l === 'string' ? [VQ.d.N.n, l] : l); VQ.d.after = after; npcNextLine(); }
+function npcNextLine() { const D = VQ.d, d = $('npcDlg'); if (!D || !d) return; const L = D.lines.shift();
+  if (!L) { D.lines = null; const f = D.after; D.after = null; if (f) f(); return; }
+  d.querySelector('.ndh b').textContent = L[0] == null ? D.N.n : L[0]; d.querySelector('.ndh span').textContent = L[0] === D.N.n ? (D.N.role || '') : '';
+  d.querySelector('.ndt').textContent = L[1]; const o = d.querySelector('.ndo'); o.innerHTML = '<span class="tap">点一下继续 ▸</span>';
+  try { sfxTone(880, 1100, .05, .03, 'square'); } catch (e) { } }
+function npcMenu(text) { const D = VQ.d, d = $('npcDlg'); if (!D || !d) return; const N = D.N;
+  d.querySelector('.ndh b').textContent = N.n; d.querySelector('.ndh span').textContent = N.role || '';
+  if (text != null) d.querySelector('.ndt').textContent = text;
+  const o = d.querySelector('.ndo'); o.innerHTML = ''; const add = (t, cls, f) => { const b = document.createElement('button'); b.textContent = t; if (cls) b.className = cls; b.addEventListener('click', e => { e.stopPropagation(); f(); }); o.appendChild(b); };
+  // messages you are carrying for this person
+  for (const id in vqS().a) { const q = VQ.by[id]; if (q && q.need.k === 'talk' && q.need.npc === N.id && !vqReady(q)) add('带话：' + NPC_BY[q.npc].n + '让我告诉你……', 'q', () => { vqS().a[id] = 1; vqTrk(); saveGame(); npcSay([q.reply || '……我知道了，谢谢你。'], () => npcMenu()); }); }
+  for (const q of N.q || []) { const s = vqState(q);
+    if (s === 'open') add('任务：' + q.t, 'q', () => npcOffer(q));
+    else if (s === 'ready') add('交任务：' + q.t, 'ok', () => npcSay([q.done || '谢谢你。'], () => { vqFinish(q); npcMenu(); }));
+    else if (s === 'act') add('任务进行中：' + q.t + (vqProg(q) ? '（' + vqProg(q) + '）' : ''), '', () => npcMenu(vqNeedTxt(q) + '。'));
+  }
+  if (N.trade && D.vv.vil) add('交易', '', () => { npcClose(); nearVil = D.vv; try { openShop(); } catch (e) { } });
+  add('聊聊', '', () => npcMenu(vqPick(N.chat || ['……'])));
+  add('再见', '', npcClose); }
+function npcOffer(q) { const d = $('npcDlg'); d.querySelector('.ndt').innerHTML = ''; const t = d.querySelector('.ndt');
+  t.appendChild(document.createTextNode(q.intro || q.d)); const sm = document.createElement('small'); sm.innerHTML = '任务：' + vqNeedTxt(q) + '<br><span class="rw">奖励：' + vqRwTxt(q) + '</span>'; t.appendChild(sm);
+  const o = d.querySelector('.ndo'); o.innerHTML = ''; const add = (tx, cls, f) => { const b = document.createElement('button'); b.textContent = tx; if (cls) b.className = cls; b.addEventListener('click', e => { e.stopPropagation(); f(); }); o.appendChild(b); };
+  add('好，交给我', 'ok', () => { if (vqAccept(q)) npcMenu('拜托你了。'); else npcMenu(); }); add('现在不行', '', () => npcMenu('没关系，有空再来。')); }
+// is the story waiting for you to talk to this person?
+function vqStoryStep(N) { try { if (stDone() || stLocked() || S.story.seen !== S.story.c) return null; const st = stStep(); if (st && st.k === 'talk' && st.npc === N.id) return st; } catch (e) { } return null; }
+stCalm = (o => function () { if (VQ.d) return false; return o(); })(stCalm);
+/* ---- walk-up buttons ---- */
+{ const H = $('hud'); if (H && H.appendChild && document.createElement) {
+  const b = document.createElement('button'); b.className = 'btn2'; b.id = 'bTalk'; b.textContent = '说话'; H.appendChild(b); b.addEventListener('click', e => { e.stopPropagation(); if (VQ.near) npcOpen(VQ.near); });
+  const b2 = document.createElement('button'); b2.className = 'btn2'; b2.id = 'bBoard'; b2.textContent = '任务板'; H.appendChild(b2); b2.addEventListener('click', e => { e.stopPropagation(); if (VQ.board) vqBoardOpen(VQ.board); });
+  npcDlgEl();
+  const L = $('left'), trk = $('storyTrk'); if (L && L.insertBefore && trk) { const t = document.createElement('div'); t.id = 'vqTrk'; trk.appendChild(t); }
+  const ov = document.createElement('div'); ov.className = 'overlay scroll'; ov.id = 'vqlog'; ov.innerHTML = '<h2>任务</h2><div id="vqList" class="slist"></div>';
+  const x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', '关闭'); x.textContent = '✕'; x.addEventListener('click', () => closePanel('vqlog')); ov.appendChild(x); document.body.appendChild(ov); } }
+try { if (typeof KE_LIST !== 'undefined') for (const id of ['bTalk', 'bBoard']) if (!KE_LIST.includes(id)) KE_LIST.unshift(id); } catch (e) { }
+/* ---- tracker line under the story ---- */
+function vqTrk() { const e = $('vqTrk'); if (!e) return; const s = vqS(), ids = Object.keys(s.a); if (!ids.length) { e.innerHTML = ''; return; }
+  e.innerHTML = ids.slice(0, 2).map(id => { const q = VQ.by[id] || vqBounty(id); if (!q) return ''; const r = vqReady(q), who = q.npc ? NPC_BY[q.npc].n : '任务板';
+    return '<div class="' + (r ? 'ok' : '') + '"><b>任务</b> ' + (r ? '✓ 回去找' + who : '▸ ' + q.t + (vqProg(q) ? ' ' + vqProg(q) : '')) + '</div>'; }).join('') + (ids.length > 2 ? '<div>还有 ' + (ids.length - 2) + ' 个任务</div>' : ''); }
+setTimeout(() => { const e = $('vqTrk'); if (e && e.addEventListener) e.addEventListener('click', ev => { ev.stopPropagation(); if (!S.started || S.dead) return; openPanel('vqlog', renderVqLog); }); }, 0);
+// the story tracker repaints its own innerHTML: put our line back after it
+stTrk = (o => function () { o(); try { const t = $('storyTrk'); let e = $('vqTrk'); if (t && t.appendChild && (!e || e.parentNode !== t)) { if (!e) { e = document.createElement('div'); e.id = 'vqTrk'; e.addEventListener('click', ev => { ev.stopPropagation(); if (!S.started || S.dead) return; openPanel('vqlog', renderVqLog); }); } t.appendChild(e); } vqTrk(); } catch (er) { } })(stTrk);
+function renderVqLog() { const box = $('vqList'); if (!box) return; box.innerHTML = ''; const s = vqS(), ids = Object.keys(s.a);
+  if (!ids.length) { const n = document.createElement('div'); n.className = 'snote'; n.textContent = '现在没有接任务。村子里头上有黄色「!」的人，或者村子中间的任务板，都有任务。'; box.appendChild(n); }
+  for (const id of ids) { const q = VQ.by[id] || vqBounty(id); if (!q) { delete s.a[id]; continue; } const r = vqReady(q), who = q.npc ? NPC_BY[q.npc] : null, v = who && who.vil ? vil3ById(who.vil) : q.vil ? vil3ById(q.vil) : null;
+    const row = document.createElement('div'); row.className = 'vqrow'; row.innerHTML = '<b>' + q.t + '</b><p>' + vqNeedTxt(q) + (vqProg(q) ? '　' + vqProg(q) : '') + '</p><small>' + (r ? '✓ 可以交了 · ' : '') + (who ? '找' + who.n : '在任务板交') + (v ? '（' + regionLabel(v.t) + ' · ' + v.name + '）' : '') + '</small><div class="rw">奖励：' + vqRwTxt(q) + '</div>';
+    const bb = document.createElement('div'); bb.className = 'vqb'; const ab = document.createElement('button'); ab.className = 'sbtn ghostb'; ab.textContent = '放弃'; ab.addEventListener('click', () => { delete s.a[id]; vqTrk(); saveGame(); renderVqLog(); }); bb.appendChild(ab); row.appendChild(bb); box.appendChild(row); } }
+/* ---- the task board in every village ---- */
+function vqBoardBuild(ch, L, v) { const x = v.x + 2.5, z = v.z - 6.5, ry = Math.atan2(v.x - x, v.z - z);
+  for (const s of [-1, 1]) { const [px, pz] = v3F(x, z, ry)(s * 1.1, 0); L.box(px, 1.1, pz, .14, 2.2, .14, 0x5a3e28); }
+  L.box(x, 1.55, z, 2.4, 1.3, .1, 0x7a5a3a, 0, ry, 0); L.box(x, 2.3, z, 2.7, .12, .4, 0x4a3420, 0, ry, 0);
+  const [fx, fz] = v3F(x, z, ry)(0, .07); for (let i = 0; i < 5; i++) { const [px, pz] = v3F(fx, fz, ry)(-.8 + (i % 3) * .8, 0); L.box(px, 1.75 - Math.floor(i / 3) * .5, pz, .5, .4, .02, [0xf0e8d0, 0xe8dcc0, 0xf8f0e0][i % 3], 0, ry, (i % 2 - .5) * .12); }
+  ch.obs.push(addCircle(x, z, 1.2)); v.board = { x, z }; }
+function vqBoardOpen(v) { audioInit(); VQ.bv = v; openPanel('vqlog', renderBoard); }
+function renderBoard() { const v = VQ.bv, box = $('vqList'); if (!v || !box) return; box.innerHTML = ''; const s = vqS();
+  const head = document.createElement('div'); head.className = 'snote'; head.textContent = v.name + ' · ' + regionLabel(v.t) + '　' + v.desc; box.appendChild(head);
+  const h1 = document.createElement('div'); h1.className = 'vqh'; h1.textContent = '今日悬赏（每天更新）'; box.appendChild(h1);
+  for (const q of vqBounties(v)) { const done = !!s.b[q.id], act = q.id in s.a, r = act && vqReady(q);
+    const row = document.createElement('div'); row.className = 'vqrow' + (done ? ' done' : ''); row.innerHTML = '<b>' + q.t + '</b><p>' + vqNeedTxt(q) + (act && vqProg(q) ? '　' + vqProg(q) : '') + '</p><div class="rw">奖励：' + vqRwTxt(q) + '</div>';
+    const bb = document.createElement('div'); bb.className = 'vqb'; const b = document.createElement('button'); b.className = 'sbtn' + (done || (act && !r) ? ' ghostb' : '');
+    b.textContent = done ? '今天已完成' : r ? '交任务' : act ? '进行中' : '接下'; b.disabled = done || (act && !r);
+    b.addEventListener('click', () => { if (r) { if (q.need.k === 'have') vqTake(q.need.item, q.need.n); delete s.a[q.id]; s.b[q.id] = 1; vqPay(q); vqTrk(); saveGame(); } else if (!act) vqAccept(q); renderBoard(); });
+    bb.appendChild(b); row.appendChild(bb); box.appendChild(row); }
+  const h2 = document.createElement('div'); h2.className = 'vqh'; h2.textContent = '村民的请求'; box.appendChild(h2);
+  for (const N of NPCS.filter(N => N.vil === v.id)) for (const q of N.q || []) { const st = vqState(q); if (st === 'lock') continue;
+    const row = document.createElement('div'); row.className = 'vqrow' + (st === 'done' ? ' done' : ''); row.innerHTML = '<b>' + q.t + '</b><small>　' + N.n + (N.role ? '（' + N.role + '）' : '') + '</small><p>' + (q.d || '') + '</p><p>' + vqNeedTxt(q) + (st === 'act' || st === 'ready' ? '　' + vqProg(q) : '') + '</p><div class="rw">奖励：' + vqRwTxt(q) + '</div>';
+    const bb = document.createElement('div'); bb.className = 'vqb'; const b = document.createElement('button'); b.className = 'sbtn' + (st === 'open' ? '' : ' ghostb'); b.disabled = st !== 'open';
+    b.textContent = st === 'open' ? '接下' : st === 'ready' ? '去找' + N.n + '交' : st === 'act' ? '进行中' : '已完成'; b.addEventListener('click', () => { if (vqAccept(q)) renderBoard(); }); bb.appendChild(b); row.appendChild(bb); box.appendChild(row); } }
+/* ---- people: wander, face you, run indoors, the near one gets the 说话 button; story people appear where the story wants ---- */
+function vqLoc(N) { const c = S.story ? S.story.c : 0, a = N.at && N.at(c); if (!a) return null;
+  if (a.isl) return { isl: true, x: HOME.x + a.x, z: HOME.z + a.z };
+  const P = vqPlace(a.lm); if (!P) return null; const L = lmFixed().find(q => q.name === a.lm);
+  let x = P.x, z = P.z; const C = REGC[L ? L.t : 1]; const ang = Math.atan2(C[1] - z, C[0] - x), r0 = a.inside ? a.off : (L ? L.R * (L.big || 1) : 20) + a.off;
+  for (let k = 0; k < 30; k++) { const b = ang + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * .35, px = P.x + Math.cos(b) * r0, pz = P.z + Math.sin(b) * r0; if (!overlapsAny(px, pz, .6, .6, .2) && waterAt(px, pz) < -.5) { x = px; z = pz; break; } }
+  return { x, z }; }
+function vqStoryNpcs() { for (const N of NPCS) { if (!N.at) continue; const want = vqLoc(N), cur = VQ.SN.get(N.id);
+    const ok = want && (want.isl ? S.isl : !S.isl && !S.dun && Math.hypot(player.pos.x - want.x, player.pos.z - want.z) < 160);
+    if (cur && (!ok || Math.hypot(cur.hx - want.x, cur.hz - want.z) > 3 || !!cur.isl !== !!want.isl)) { scene.remove(cur.h.g); try { memFree(cur.h.g); } catch (e) { } VQ.SN.delete(N.id); }
+    if (ok && !VQ.SN.has(N.id)) { const vv = npcSpawn(N, want.x, want.z, null, null); vv.free = true; vv.isl = !!want.isl; VQ.SN.set(N.id, vv); } } }
+const _vqDanger = (x, z, r) => { for (const o of zombies) { if (o.dead || o.animal || o.mirror || o.pvp) continue; if (Math.hypot(o.pos.x - x, o.pos.z - z) < r) return true; } return false; };
+villageTick = function (dt) {
+  nearVil = null; VQ.near = null; let bd = 3.4;
+  const people = VILLS.concat([...VQ.SN.values()]);
+  for (const v of people) { const p = v.h.g.position, dp = Math.hypot(player.pos.x - p.x, player.pos.z - p.z);
+    if (dp > 120) continue;
+    const danger = !v.free && v.house && _vqDanger(p.x, p.z, 14); if (danger) v.calm = 0; else v.calm = (v.calm || 0) + dt;
+    if (v.hid) { if (v.calm > 6) { v.hid = false; v.h.g.visible = true; } continue; }
+    if (danger) { v.tx = v.house.door[0]; v.tz = v.house.door[1]; v.run = true; }
+    else { v.run = false;
+      if (dp < 6 && !S.dead) { const want = Math.atan2(player.pos.x - p.x, player.pos.z - p.z); let d = want - v.h.g.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); v.h.g.rotation.y += d * Math.min(1, dt * 5); v.h.legL.rotation.x = v.h.legR.rotation.x = 0; v.tx = p.x; v.tz = p.z; }
+      else { v.wt -= dt; if (v.wt <= 0) { v.wt = 4 + Math.random() * 6; const old = v.npc && v.npc.look && v.npc.look.age === 'old', r = v.free ? 1.2 : old ? 2 : 3.5, a = Math.random() * 6.28; v.tx = v.hx + Math.cos(a) * r; v.tz = v.hz + Math.sin(a) * r; } } }
+    if (dp < bd && !S.dead && v.npc) { bd = dp; VQ.near = v; }
+    const dx = v.tx - p.x, dz = v.tz - p.z, d = Math.hypot(dx, dz), old = v.npc && v.npc.look && v.npc.look.age === 'old', sp = v.run ? 4.2 : old ? .6 : 1.1;
+    if (d > .25 && !(dp < 6 && !v.run)) { p.x += dx / d * sp * dt; p.z += dz / d * sp * dt; v.h.g.rotation.y = Math.atan2(dx, dz); v.walk += dt * (v.run ? 13 : old ? 4 : 7); const sw = Math.sin(v.walk) * (v.run ? .8 : old ? .25 : .5); v.h.legL.rotation.x = sw; v.h.legR.rotation.x = -sw; }
+    else if (!(dp < 6)) { v.h.legL.rotation.x = v.h.legR.rotation.x = 0; if (v.run) { v.hid = true; v.h.g.visible = false; } } }
+  for (const g of GUARDS) { const p = g.h.g.position; if (Math.hypot(player.pos.x - p.x, player.pos.z - p.z) > 140) continue; let z = null, zd = 24; for (const o of zombies) { if (o.dead || o.animal || o.mirror || o.pvp) continue; const dd = Math.hypot(o.pos.x - p.x, o.pos.z - p.z); if (dd < zd) { zd = dd; z = o; } }
+    if (z) { g.h.legL.rotation.x = g.h.legR.rotation.x = 0; g.h.g.rotation.y = Math.atan2(z.pos.x - p.x, z.pos.z - p.z); g.cd -= dt;
+      if (g.cd <= 0) { g.cd = .55 + Math.random() * .3; const yaw = g.h.g.rotation.y; try { tracer(p.x + Math.sin(yaw) * .8, 1.45, p.z + Math.cos(yaw) * .8, z.pos.x, 1.1 * (z.sc || 1), z.pos.z, 0xffd08a); } catch (e) { } hurtZombie(z, z.boss ? z.max * .006 : Math.max(10, z.max * .14), 0, 0); } continue; }
+    const [tx, tz] = g.loop[g.i], dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz);
+    if (d < .4) { g.wait -= dt; if (g.wait <= 0) { g.i = (g.i + g.dir + g.loop.length) % g.loop.length; g.wait = Math.random() < .3 ? 2 + Math.random() * 3 : 0; } g.h.legL.rotation.x = g.h.legR.rotation.x = 0; continue; }
+    p.x += dx / d * 1.5 * dt; p.z += dz / d * 1.5 * dt; g.h.g.rotation.y = Math.atan2(dx, dz); g.walk += dt * 8; const sw = Math.sin(g.walk) * .55; g.h.legL.rotation.x = sw; g.h.legR.rotation.x = -sw; }
+  // the board you are standing at
+  VQ.board = null; if (!S.isl && !S.dead) for (const v of vil3All()) if (v.board && Math.hypot(player.pos.x - v.board.x, player.pos.z - v.board.z) < 3.4) VQ.board = v;
+  // the first time you walk into a village
+  const vg = !S.isl && villageNear(player.pos.x, player.pos.z, 0); if (vg && DN_seen(vg)) banner(vg.name, regionLabel(vg.t) + ' · ' + vg.desc, 3.4);
+  VQ.t -= dt; if (VQ.t <= 0) { VQ.t = .5; try { vqStoryNpcs(); vqMarks(); vqPoll(); } catch (e) { console.warn('vq tick', e); } }
+  const tb = $('bTalk'); if (tb) { const show = !!VQ.near && !S.dead && !VQ.d; tb.style.display = show ? 'block' : 'none'; if (show) { const t = '和' + VQ.near.name + '说话'; if (tb.textContent !== t) tb.textContent = t; } }
+  const bb = $('bBoard'); if (bb) bb.style.display = VQ.board && !S.dead && !VQ.d ? 'block' : 'none';
+};
+// island: villageTick only runs on the mainland in the old loop — make sure story people on the island still move and talk
+petsTick = (o => function (dt) { o(dt); try { if (S.isl && !S.paused) villageTick(dt); } catch (e) { } })(petsTick);
+/* goto quests: arrive at the place */
+function vqPoll() { if (S.isl || S.dun) return; const s = vqS(); let ch = false;
+  for (const id in s.a) { const q = VQ.by[id]; if (!q || q.need.k !== 'goto' || vqReady(q)) continue; const P = vqPlace(q.need.place); if (P && Math.hypot(player.pos.x - P.x, player.pos.z - P.z) < P.r) { s.a[id] = 1; ch = true; feed('任务「' + q.t + '」完成了，回去找' + NPC_BY[q.npc].n, '#9fe8a0'); } }
+  if (ch) { vqTrk(); saveGame(); } }
+/* marks over heads */
+function vqMarkOf(N) { if (vqStoryStep(N)) return ['!', '#ffb030']; let m = null;
+  for (const id in vqS().a) { const q = VQ.by[id]; if (q && q.need.k === 'talk' && q.need.npc === N.id && !vqReady(q)) m = ['?', '#ffe08a']; }
+  for (const q of N.q || []) { const s = vqState(q); if (s === 'ready') return ['?', '#8fe870']; if (s === 'open' && !m) m = ['!', '#ffe08a']; } return m; }
+function vqMarks() { for (const v of VILLS.concat([...VQ.SN.values()])) { if (!v.npc) continue; const m = vqMarkOf(v.npc), key = m ? m.join('') : '';
+  if (v._mk === key) continue; v._mk = key; if (v.mark) { v.h.g.remove(v.mark); v.mark = null; }
+  if (m) { const mt = npcMarkMat(m[0], m[1]); if (mt) { const sp = new THREE.Sprite(mt); sp.scale.set(.7, .7, 1); sp.position.set(0, (v.npc.look && v.npc.look.age === 'kid') ? 4.4 : 3.6, 0); v.h.g.add(sp); v.mark = sp; } } } }
+/* quest marker on the maps: the story's person / place first, then your quests */
+qmTarget = (o => function () { try { if (!S.dead && !(typeof DUN !== 'undefined' && DUN.on)) {
+    let st = null; try { if (!stDone() && !stLocked() && S.story.seen === S.story.c) st = stStep(); } catch (e) { }
+    if (st && (st.k === 'talk' || st.k === 'goto')) { const T = st.k === 'talk' ? vqNpcPos(st.npc) : vqPlace(st.place); if (T) { if (T.isl) return S.isl ? { x: T.x, z: T.z, n: NPC_BY[st.npc].n } : { x: player.pos.x, z: player.pos.z - 1, n: T2('回岛', 'Home') }; return S.isl ? QM_PIER() : { x: T.x, z: T.z, n: st.k === 'talk' ? NPC_BY[st.npc].n : st.place }; } } } } catch (e) { }
+  return o(); })(qmTarget);
+function vqNpcPos(id) { const N = NPC_BY[id]; if (!N) return null; const cur = VQ.SN.get(id) || VILLS.find(v => v.npc === N); if (cur) return { x: cur.h.g.position.x, z: cur.h.g.position.z, isl: !!cur.isl };
+  if (N.at) { const L = vqLoc(N); if (L) return L; } if (N.vil) { const v = vil3ById(N.vil); return v ? { x: v.x, z: v.z } : null; } return null; }
+/* save */
+shopSave = (o => function () { const r = o(); try { const s = vqS(); r.vq = { a: s.a, d: Object.keys(s.d), b: Object.keys(s.b).filter(k => k.split(':')[2] == vqDay()) }; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.vq = { a: {}, d: {}, b: {} }; try { const q = d && d.sh && d.sh.vq; if (q) { if (q.a && typeof q.a === 'object') for (const k in q.a) if (VQ.by[k] || vqBounty(k)) S.vq.a[k] = +q.a[k] || 0;
+    for (const k of q.d || []) S.vq.d[k] = 1; for (const k of q.b || []) S.vq.b[k] = 1; } } catch (e) { } setTimeout(vqTrk, 0);
+  for (const [id, vv] of VQ.SN) { scene.remove(vv.h.g); } VQ.SN.clear(); })(shopLoad);
+/* ============ 主线 2.0：余烬与种子（owner 22 Nov：主线是整个世界的故事，从灰港一路到余烬之心；没有结尾，可以续写）============
+   序章和第 1 章的教学步骤不变（只改了第 1 章的结尾），第 2-10 章全部重写：
+     林岚博士（余烬计划负责人）三年前从地底挖出「余烬之种」，想让人永远不死，结果造成了现在的世界。
+     她用自己的血让种子沉睡，把女儿小禾藏在黄沙古堡。小禾身上有种子的力量，丧尸看不见她。
+     「守火会」（灰袍人，首领「司火者」）把种子当成神，要用小禾唤醒它。
+     第 10 章停在：小禾在余烬王座前听见了妈妈的声音 —— 未完待续。
+   新步骤：talk（和某个人说话，npc = z_npcs.js 的 id，lines = 对话），goto（走到某个地方，place = 地标 / 地名 / 村名）。
+   旧存档：在第 2-10 章中间的，从那一章的开头重新开始（新的开场对话会再放一次）。 */
+const S4 = (w, t) => [w, t];
+const ST4 = {
+  1: { end: [S4('老陈', '你已经会在这个世界活下去了。'), S4('老陈', '听着，我收音机里有个奇怪的信号，是从灰港的渔光村传出来的……是阿都伯的老电台。等你再强一点，去看看他。')] },
+  2: { t: '林中的求救', lv: 8, tier: 2, rw: { coin: 600, estone: 6, gem: 40 },
+    intro: [S4('老陈', '阿都伯的电台又响了，他说有急事。去灰港的渔光村找他。')],
+    steps: [
+      { k: 'talk', npc: 'adu', d: '到灰港 · 渔光村找阿都伯', lines: [S4('阿都伯', '你就是老陈说的那个人？好，好。'), S4('阿都伯', '昨晚我的电台收到北边枯木林的求救。是鸦巢村的英格丽，她说伐木队五天没回来了。'), S4('阿都伯', '我老了，走不动了。你替我去一趟吧。')] },
+      { k: 'reach', tier: 2, d: '去「枯木林」', say: '枯木林的丧尸跑得很快，别被围住。' },
+      { k: 'talk', npc: 'ingrid', d: '到鸦巢村找英格丽奶奶', lines: [S4('英格丽奶奶', '外乡人，乌鸦告诉我你会来。'), S4('英格丽奶奶', '我的伐木队去了樵夫营。只有一只乌鸦飞回来，嘴里叼着一块灰色的布。'), S4('英格丽奶奶', '去樵夫营看看吧。我老了，等不起坏消息。')] },
+      { k: 'talk', npc: 'thor', d: '到樵夫营找托尔大叔', lines: [S4('托尔大叔', '英格丽派你来的？……我们遭了埋伏。'), S4('托尔大叔', '穿灰袍的人，十几个。奇怪的是，丧尸就在他们身边走来走去，一口都不咬他们。'), S4('托尔大叔', '他们抓了我，一直问东边沙漠里那座古堡怎么走。我趁乱跑回来了。'), S4('托尔大叔', '可是埃里克……那孩子往千年古树那边跑了。求你，去找他。')] },
+      { k: 'kill', n: 15, tier: 2, d: '击败 15 只丧尸，打通去千年古树的路' },
+      { k: 'talk', npc: 'erik', d: '去千年古树找失踪的埃里克', lines: [S4('埃里克', '别开枪！我是人！'), S4('埃里克', '我在这棵老树上躲了两天……灰袍的人一直在下面找我。'), S4('埃里克', '我听见他们说话。他们要去沙漠的古堡找一把「钥匙」。'), S4('埃里克', '还有，他们掉了这个——一台旧录音机。你拿去吧。')] },
+    ],
+    end: [S4('老陈', '我放了那台录音机……'), S4('录音', '「……我是林岚，余烬计划的负责人。如果有人听到这段录音，请找到我的女儿。她在黄沙古堡。她是唯一的……」'), S4('老陈', '林岚……这个名字我认识。三年前，她是我们之中最聪明的人。'), S4('老陈', '去沙漠，比灰袍的人先找到那个孩子。')] },
+  3: { t: '沙中的孩子', lv: 18, tier: 3, rw: { coin: 1000, estone: 8, gem: 50, gear: 3 },
+    intro: [S4('老陈', '流沙原白天热得要命。先去驼铃驿找商队队长哈桑，他认识沙漠里每一条路。')],
+    steps: [
+      { k: 'reach', tier: 3, d: '去「流沙原」' },
+      { k: 'talk', npc: 'hasan', d: '到驼铃驿找哈桑', lines: [S4('哈桑', '老陈的朋友，就是我的朋友。先喝杯茶。'), S4('哈桑', '灰袍的人？三天前来过，抢走了我们一半的水。'), S4('哈桑', '黄沙古堡……优素福爷爷说那里住着一个「会唱歌的小精灵」。我的人不敢去。'), S4('哈桑', '最奇怪的是：古堡外面围满了丧尸，可是它们只围着，从来不进去。')] },
+      { k: 'kill', n: 25, tier: 3, d: '击败 25 只丧尸，清出去古堡的路', say: '去古堡的路上全是丧尸，先清出一条路。' },
+      { k: 'goto', place: '黄沙古堡', d: '去黄沙古堡', say: '古堡里好像有人。慢慢靠近，别吓到她。' },
+      { k: 'talk', npc: 'xiaohe', d: '和古堡里的孩子说话', lines: [S4('小禾', '……你也是来抓我的吗？'), S4('你', '不是。我是来带你回家的。'), S4('小禾', '我没有家了。妈妈让我在这里等她，她说她会回来的。'), S4('小禾', '那些丧尸，它们好像看不见我。可是灰袍的人看得见。'), S4('小禾', '我叫小禾。妈妈说，禾就是会发芽的种子。'), S4('老陈', '（电台）孩子，别怕。我是老陈，你妈妈的老朋友。跟着这个人走，我们在海岛等你。')] },
+      { k: 'boss', n: 1, tier: 3, d: '击败堵在古堡外的首领', say: '外面有个大家伙堵着路！干掉它，带孩子出去！' },
+    ],
+    end: [S4('老陈', '孩子到岛上了。我给她煮了碗粥，她一句话都不说，只是抱着那个布娃娃。'), S4('老陈', '她脖子上挂着一块小石头，在发光……跟余烬的光一模一样。'), S4('老陈', '腐沼有个老药师叫梅婆，以前在林岚的实验室干过活。也许她知道这是什么。')] },
+  4: { t: '毒沼的药师', lv: 28, tier: 4, rw: { coin: 1500, estone: 10, gem: 50 },
+    intro: [S4('老陈', '小禾说想跟你说话。回岛上看看她吧。')],
+    steps: [
+      { k: 'talk', npc: 'xiaohe', d: '回海岛和小禾说话', lines: [S4('小禾', '你回来啦。'), S4('小禾', '我昨晚又做梦了。地底下有一颗很大很大的种子，它在哭，一直叫我的名字。'), S4('小禾', '这块石头是妈妈给我的。她说，害怕的时候就握着它。'), S4('小禾', '你能帮我问问，它到底是什么吗？')] },
+      { k: 'reach', tier: 4, d: '去「腐沼」', say: '腐沼的毒气会一直伤你，别待太久。' },
+      { k: 'talk', npc: 'meipo', d: '到腐木屯找梅婆', lines: [S4('梅婆', '这块石头……你从哪里来的？'), S4('梅婆', '这是「种子碎片」。三年前，林岚博士从地底下挖出了一颗东西，我们叫它「余烬之种」。'), S4('梅婆', '她想用它让人永远不死。结果……你也看到了。'), S4('梅婆', '这块碎片被净化过。只有林岚的血脉，才能让它这样发光。'), S4('梅婆', '孩子身上有种子的力量，所以丧尸不碰她。灰袍的人叫「守火会」，他们把种子当成神。'), S4('梅婆', '他们要用那孩子去唤醒它。'), S4('梅婆', '我能做一副药，让孩子不再做那个梦。给我两支变异血清。')] },
+      { k: 'have', item: 'serum', n: 2, d: '收集 2 支变异血清' },
+      { k: 'kill', n: 30, tier: 4, d: '击败 30 只丧尸（梅婆熬药的时候守着腐木屯）' },
+      { k: 'talk', npc: 'meipo', d: '回腐木屯找梅婆拿药', lines: [S4('梅婆', '药好了。让孩子睡前喝一口，她会睡得安稳。'), S4('梅婆', '还有一件事……林岚当年把最重要的研究记录，藏在了寒霜岭的冰洞里。'), S4('梅婆', '去找它。一定要在守火会之前。')] },
+    ],
+    end: [S4('老陈', '药我收到了，小禾睡着了，睡得很香。'), S4('老陈', '守火会的人在沼泽边出现过。他们知道孩子在我们这里了。我得在岛上多加几道锁。')] },
+  5: { t: '冰下的故事', lv: 38, tier: 5, rw: { coin: 2200, estone: 12, gem: 60, gear: 4 },
+    intro: [S4('老陈', '寒霜岭冷得会让你变慢，多带点医疗包。去雪狼坡找猎人阿库，他知道冰洞的路。')],
+    steps: [
+      { k: 'reach', tier: 5, d: '去「寒霜岭」' },
+      { k: 'talk', npc: 'aku', d: '到雪狼坡找猎人阿库', lines: [S4('阿库', '冰洞？三年前有一群穿白大褂的人在那里挖了很久。后来，再也没人敢去。'), S4('阿库', '去之前，先听听我奶奶的故事。她知道冰下面睡着什么。')] },
+      { k: 'talk', npc: 'nuya', d: '听努雅奶奶讲故事', lines: [S4('努雅奶奶', '坐近一点，孩子，火边暖和。'), S4('努雅奶奶', '很久很久以前，冰下面睡着一个发光的巨人。它的心，是一颗种子。'), S4('努雅奶奶', '有一个女人，把自己的一滴血滴在种子上，种子就睡着了。'), S4('努雅奶奶', '可是种子做梦的时候，会想起那滴血……会去找流着同样的血的孩子。'), S4('努雅奶奶', '去吧。冰会告诉你剩下的故事。')] },
+      { k: 'goto', place: '雪山冰洞', d: '去雪山冰洞' },
+      { k: 'boss', n: 1, tier: 5, d: '击败守在冰洞附近的首领' },
+      { k: 'crate', n: 4, tier: 5, d: '在寒霜岭打开 4 个箱子，找到研究记录' },
+    ],
+    end: [S4('录音', '「第 217 天。种子在回应。它不是植物，它是活的，它会学习。」'), S4('录音', '「我把自己的血封进了种子，让它沉睡。可是封印不会永远有效。」'), S4('录音', '「如果它醒了……只有小禾能让它再睡去。对不起，宝贝。妈妈没有别的办法了。」'),
+      S4('老陈', '……原来是这样。林岚可能还活着。'), S4('老陈', '铁锈城的老铁能修好城里的电视塔。有了它，我们的信号能传遍整片大陆。')] },
+  6: { t: '锈城的广播', lv: 48, tier: 6, rw: { coin: 3000, estone: 14, gem: 60 },
+    intro: [S4('老陈', '城外的废铁棚户区有个机修工叫老铁，是我的老朋友。他能修好任何东西。')],
+    steps: [
+      { k: 'reach', tier: 6, d: '去「铁锈城」' },
+      { k: 'talk', npc: 'laotie', d: '到废铁棚户区找老铁', lines: [S4('老铁', '老陈？那个老顽固还活着？他欠我一包烟！'), S4('老铁', '电视塔？能修。我缺电子元件，还缺一个敢爬上去的疯子。'), S4('老铁', '你就是那个疯子吧？哈哈，好！')] },
+      { k: 'have', item: 'circuit', n: 5, d: '收集 5 个电子元件' },
+      { k: 'kill', n: 40, tier: 6, d: '击败 40 只丧尸，清理电视塔周围' },
+      { k: 'goto', place: '废城电视塔', d: '爬上废城电视塔，装好零件' },
+      { k: 'talk', npc: 'laotie', d: '回去找老铁', lines: [S4('老铁', '信号通了！整片大陆都听得到老陈的声音了！'), S4('老铁', '等一下……有人回话。'), S4('岩鹰', '（电台）海岛的朋友，我是赤岩谷的岩鹰。守火会在我们的峡谷里扎了营。他们在说一个孩子。')] },
+    ],
+    end: [S4('老陈', '所有村子都听到了我们的广播。有人回话，说他们还活着。'), S4('老陈', '这片大陆上，人还没死绝。我们还有希望。')] },
+  7: { t: '赤岩谷的誓言', lv: 58, tier: 7, rw: { coin: 4000, estone: 16, gem: 70, gear: 4 },
+    intro: [S4('老陈', '赤岩谷的丧尸皮很厚，打久一点才倒。岩鹰酋长在断崖村等你。')],
+    steps: [
+      { k: 'reach', tier: 7, d: '去「赤岩谷」' },
+      { k: 'talk', npc: 'yanying', d: '到断崖村找岩鹰酋长', lines: [S4('岩鹰', '你就是那个修好电视塔的人。'), S4('岩鹰', '守火会占了赤岩深洞。他们烧了我们祖先留下的壁画。'), S4('岩鹰', '小雀跟踪过他们。去问问她吧。')] },
+      { k: 'talk', npc: 'xiaoque', d: '问问小雀看到了什么', lines: [S4('小雀', '我跟着他们走了三天！他们走路一点声音都没有。'), S4('小雀', '他们的首领戴着面具，他们叫他「司火者」。'), S4('小雀', '司火者说，种子在北边的熔火原下面。他们要在那里点一把大火，「迎接新神」。'), S4('小雀', '他们还说……「钥匙在海岛上」。')] },
+      { k: 'event', n: 2, d: '完成 2 次空投或精英事件' },
+      { k: 'goto', place: '赤岩深洞', d: '去赤岩深洞' },
+      { k: 'boss', n: 1, tier: 7, d: '击败峡谷里的首领' },
+    ],
+    end: [S4('岩鹰', '守火会的营地空了。他们已经往北去了。'), S4('老陈', '熔火原……种子就在那里。可是他们说钥匙在海岛上……'), S4('老陈', '我会守着小禾。你去熔火原，找火山矿工营的卡琳，她认识火山的每一条矿道。')] },
+  8: { t: '火山下的矿工', lv: 68, tier: 8, rw: { coin: 5000, estone: 18, gem: 70 },
+    intro: [S4('老陈', '熔火原的地是烫的，跟着矿工走，别乱碰发光的石头。')],
+    steps: [
+      { k: 'reach', tier: 8, d: '去「熔火原」' },
+      { k: 'talk', npc: 'karin', d: '到火山矿工营找卡琳', lines: [S4('卡琳', '守火会？他们抢了我们的炸药，往坠机地那边去了。'), S4('卡琳', '那架运输机是三年前掉下来的。上面装的，是林岚博士的东西。')] },
+      { k: 'goto', place: '坠落的运输机', d: '去坠落的运输机' },
+      { k: 'crate', n: 6, tier: 8, d: '在熔火原打开 6 个箱子，找林岚的东西' },
+      { k: 'boss', n: 1, tier: 8, d: '击败熔火原的首领' },
+      { k: 'talk', npc: 'karin', d: '回矿工营找卡琳', lines: [S4('卡琳', '你找到了？……是一段录音。'), S4('录音', '「种子会回应它的血脉。守火会知道这件事——他们想用小禾唤醒它。」'), S4('录音', '「我在余烬之心，种子的根就在那里。我会守着它，直到最后。」'), S4('卡琳', '她……还活着？')] },
+    ],
+    end: [S4('老陈', '林岚还活着，在余烬之心……'), S4('老陈', '暗影原的石碑寺，丹增喇嘛研究种子的古书很多年了。去问问他，怎么才能走进余烬之心。')] },
+  9: { t: '暗影中的寺', lv: 78, tier: 9, rw: { coin: 6000, estone: 20, gem: 80 },
+    intro: [S4('老陈', '暗影原里看不清东西，听声音开枪。石碑寺在山上，经幡最多的地方就是。')],
+    steps: [
+      { k: 'reach', tier: 9, d: '去「暗影原」' },
+      { k: 'talk', npc: 'tenzin', d: '到石碑寺找丹增喇嘛', lines: [S4('丹增喇嘛', '你来了。我等了你很久。'), S4('丹增喇嘛', '这些石碑上刻的，都是同一个故事：一颗燃烧的种子，和一个捧着火的孩子。'), S4('丹增喇嘛', '每过三百年，种子就会醒一次。每一次，都有一个孩子让它重新睡去。'), S4('丹增喇嘛', '可是那些孩子……最后都去了哪里，石碑上没有写。'), S4('丹增喇嘛', '去暗影古树吧。古书说，从那里能看见通往王座的路。')] },
+      { k: 'goto', place: '暗影古树', d: '去暗影古树' },
+      { k: 'kill', n: 55, tier: 9, d: '击败 55 只丧尸' },
+      { k: 'search', n: 4, tier: 9, d: '在暗影原搜索 4 栋房子' },
+      { k: 'talk', npc: 'tenzin', d: '回石碑寺找丹增喇嘛', lines: [S4('丹增喇嘛', '……孩子，坐下。你的电台在响。'), S4('老陈', '（电台，声音很急）出事了！守火会的人从海上来……他们带走了小禾！'), S4('老陈', '我拦不住他们……对不起……对不起……'), S4('丹增喇嘛', '去吧。余烬之心在北方。愿你的路上有光。')] },
+    ],
+    end: [S4('老陈', '我没事，只是受了点伤。'), S4('老陈', '他们往余烬之心去了。那里有人类最后的堡垒，去找秦岳指挥官，他会帮你。')] },
+  10: { t: '余烬之心', lv: 88, tier: 10, rw: { coin: 8000, estone: 25, gem: 100, gear: 5 },
+    intro: [S4('老陈', '这是最后的路了。把你能带的都带上。'), S4('老陈', '……把她带回来。')],
+    steps: [
+      { k: 'reach', tier: 10, d: '去「余烬之心」' },
+      { k: 'talk', npc: 'qinyue', d: '到最后的堡垒找秦岳指挥官', lines: [S4('秦岳', '老陈的人？好。我们需要每一个能打的人。'), S4('秦岳', '今天早上，一队灰袍的人带着一个小女孩，从堡垒外面走过去，往王座去了。'), S4('秦岳', '我们开了枪，可是丧尸像潮水一样护着他们。'), S4('秦岳', '要去王座，就得先打穿这些丧尸潮。')] },
+      { k: 'event', n: 3, d: '完成 3 次空投或精英事件' },
+      { k: 'kill', n: 60, tier: 10, d: '击败 60 只丧尸' },
+      { k: 'boss', n: 1, tier: 10, d: '击败守在王座下的首领' },
+      { k: 'goto', place: '余烬王座', d: '去余烬王座' },
+      { k: 'talk', npc: 'xiaohe', d: '找到小禾', lines: [S4('小禾', '你来了。'), S4('小禾', '我不怕。它在叫我……叫得好温柔。'), S4('', '（王座下面，一团光慢慢亮起来。一个女人的声音响起。）'), S4('林岚', '小禾……你终于来了。'), S4('小禾', '……妈妈？'), S4('', '（光吞没了一切。）')] },
+    ],
+    end: [S4('老陈', '喂？喂！你还在吗？！……那道光是什么？！'), S4('', '（电台里只剩下沙沙的杂音。）'), S4('', '—— 第一部 · 完 ——　故事未完待续')] },
+};
+(() => { for (const c in ST4) { const C = STORY[c], D = ST4[c]; if (!C) continue; Object.assign(C, D); if (D.steps) C.steps = D.steps.map(s => Object.assign({}, s)); } })();
+// story chapter step rewards: talk steps are teaching-sized (10%), goto 12%, the rest as before (z_story2's stStepRw)
+// ---- the new step kinds ----
+storyPoll = (o => function () { o(); try { if (!S.started || S.dead || stDone() || stLocked() || S.story.seen !== S.story.c) return; const st = stStep(); if (!st || st.k !== 'goto' || S.isl || S.dun) return;
+  const P = vqPlace(st.place); if (P && Math.hypot(player.pos.x - P.x, player.pos.z - P.z) < P.r) stAdvance(); } catch (e) { } })(storyPoll);
+// after a step, Old Chen's line comes as before; talk steps need no extra line
+// ---- the open end ----
+stTrk = (o => function () { o(); try { if (stDone()) { const e = $('storyTrk'); if (e) { e.innerHTML = '<b>主线 · 第一部完</b><span>故事未完待续……</span>'; const v = $('vqTrk'); if (v) e.appendChild(v); else { } } } } catch (er) { } })(stTrk);
+renderStory = (o => function () { o(); try { const box = $('storyList'); if (!box) return; const c = document.createElement('div'); c.className = 'stcard lock'; c.innerHTML = '<div class="sth"><b>第二部</b><span>未完待续</span></div><div class="sts">· 光吞没了一切之后，发生了什么？</div>'; box.appendChild(c); } catch (e) { } })(renderStory);
+// ---- old saves: in the middle of chapter 2-10 → that chapter starts again with the new talk ----
+const ST4_V = 4;
+storySave = (o => function () { const a = o(); a[4] = ST4_V; return a; })(storySave);
+storyLoad = (o => function (a) { o(a); try { if (Array.isArray(a) && (a[4] | 0) < ST4_V && S.story.c >= 2 && S.story.c <= 10) { S.story.s = 0; S.story.p = 0; S.story.seen = -1; } } catch (e) { } })(storyLoad);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -26714,7 +27523,7 @@ function drawMap(ctx, W, range, big, k) {
         c.fill(); } }
     // villages
     if (vr <= 2000) for (const vg of villagesNear(px, pz).concat(big ? villagesWide(px, pz, half) : [])) { const vx = tx(vg.x), vz = tz(vg.z); if (vx < -20 || vz < -20 || vx > W + 20 || vz > W + 20) continue;
-      c.strokeStyle = 'rgba(255,214,120,.8)'; c.lineWidth = 1.4 * k; c.beginPath(); c.arc(vx, vz, Math.max(5 * k, VIL_R * sc), 0, 7); c.stroke(); mapPin(c, vx, vz, 5.5 * k, '#e8b450', '村', k);
+      c.strokeStyle = 'rgba(255,214,120,.8)'; c.lineWidth = 1.4 * k; c.beginPath(); c.arc(vx, vz, Math.max(5 * k, (vg.R || VIL_R) * sc), 0, 7); c.stroke(); mapPin(c, vx, vz, 5.5 * k, '#e8b450', '村', k);
       if (big && vr <= 1000) { c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#ffe9a8'; c.fillText(vg.name, vx, vz - 10 * k); } }
     // roads: the real segments (asphalt darker with a dashed centre line; dirt / sand / snow tracks in their own colour)
     if (vr <= 5000) { const rds = roadsIn(px - half, pz - half, px + half, pz + half, vr > 3000); c.lineJoin = c.lineCap = 'round';
@@ -27111,4 +27920,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795305562').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795309603').catch(()=>{});</script></body></html>
