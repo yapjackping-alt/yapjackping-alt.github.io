@@ -8527,12 +8527,12 @@ function renderMall() {
     const r = el2('div', 'gbtns');
     [[1, '抽 1 次', GCOST[1] + ' 晶石'], [10, '抽 10 次', GCOST[10] + ' 晶石']].forEach(([n, t, c]) => { const b = el2('button', 'gbtn' + (n === 10 ? ' ten' : ''), '<b>' + t + '</b><small>' + icHtml('gem:1') + c + '</small>'); b.addEventListener('click', () => gacha(n)); r.appendChild(b); });
     hero.appendChild(r); box.appendChild(hero);
-    if (gPool === 'att') { const vb = el2('button', 'go gvbtn', '配件库 · ' + S.av.length + ' 件 · 碎片 ' + (S.avf | 0)); vb.addEventListener('click', () => { closePanel('mall'); openAttVault(); }); box.appendChild(vb); }
+    if (gPool === 'att') { const vb = el2('button', 'go gvbtn', '配件库 · ' + S.av.length + ' 件 · 碎片 ' + (S.gv.f | 0)); vb.addEventListener('click', () => { closePanel('mall'); openAttVault(); }); box.appendChild(vb); }
     if (gPool === 'gear') { const vb = el2('button', 'go gvbtn', '装备库 · ' + S.gv.g.length + ' 件 · 碎片 ' + S.gv.f); vb.addEventListener('click', () => { closePanel('mall'); openVault(); }); box.appendChild(vb); }
     box.appendChild(el2('h3', '', '奖池一览'));
     gTiers().forEach(G => { const row = el2('div', 'gpool'); row.style.setProperty('--gc', G.c); row.appendChild(el2('div', 'gpt', '<b>' + G.n + '</b><small>' + (G.p * 100).toFixed(1) + '%</small>'));
       const cells = el2('div', 'gpc'); poolCards(gPool, G).forEach(c => cells.appendChild(c)); row.appendChild(cells); box.appendChild(row); });
-    box.appendChild(el2('div', 'snote', gPool === 'att' ? '配件抽到后先放进「配件库」：想要的取出来装到武器上，不要的分解成配件碎片，60 碎片换一个指定的黄金配件，200 碎片换神话配件。' : W ? '武器外观会随机给你的一把武器；重复的换成 强化石 ×5。' : gPool === 'gear' ? '装备按你现在的等级生成，抽到后先放进「装备库」：想要的取出来，不要的分解成碎片，碎片可以换指定部位的黄金或神话装备。材料直接进背包。' : '重复的外观会换成 强化石 ×8；狗狗满了换成强化石。'));
+    box.appendChild(el2('div', 'snote', gPool === 'att' ? '配件抽到后先放进「配件库」：想要的取出来装到武器上，不要的分解成碎片（和装备库共用），60 碎片换一个指定的黄金配件，200 碎片换神话配件。' : W ? '武器外观会随机给你的一把武器；重复的换成 强化石 ×5。' : gPool === 'gear' ? '装备按你现在的等级生成，抽到后先放进「装备库」：想要的取出来，不要的分解成碎片，碎片可以换指定部位的黄金或神话装备。材料直接进背包。' : '重复的外观会换成 强化石 ×8；狗狗满了换成强化石。'));
     if (_lastDraw.length && false) { box.appendChild(el2('h3', '', '本次获得'));
       const g = el2('div', 'gres'); _lastDraw.forEach((o, i) => { const c = rwCard(o.n, 'rev', null, o.G.n, o.G.r); c.style.setProperty('--gc', o.G.c); c.style.animationDelay = (i * .09) + 's'; g.appendChild(c); }); box.appendChild(g); }
   } else if (mallTab === 'skin') { try { skinShopRender(box, el2); } catch (e) { console.warn(e); }
@@ -9071,7 +9071,7 @@ function passBooks(box) {
   box.appendChild(wrap);
 }
 /* ============ 装备库: gear from the 装备补给箱 waits here instead of going straight into your bag ============
-   Take out the pieces you want; break the rest into 装备碎片. Fragments buy a 黄金 or 神话 piece for the slot you
+   Take out the pieces you want; break the rest into 碎片 (one pool shared with the attachment vault, z_bp.js). Fragments buy a 黄金 or 神话 piece for the slot you
    choose: a big pity on top of the 120-draw mythic pity. Materials from the box still go straight to your bag.
    Fragments per piece: 特级 1 · 高级 2 · 史诗 6 · 黄金 30 · 神话 120. Costs: 黄金 60 · 神话 200 (about 45 / 150 draws). */
 S.gv = { g: [], f: 0 };
@@ -9080,7 +9080,7 @@ function vaultPut(it) { S.gv.g.push(it); if (S.gv.g.length > GV_MAX) { const x =
 let gvSel = 0, gvQ = 5;
 function renderVault() {
   const box = $('vaultList'); if (!box) return; box.innerHTML = ''; const G = S.gv.g;
-  const top = pel2('div', 'gvtop', '<div class="gvfr">' + svgIcon('crystal') + '<b>' + S.gv.f + '</b><span>' + T2('装备碎片', 'Gear Shards') + '</span></div><div class="gvn">' + T2('库里 ' + G.length + ' 件 · 背包 ' + S.ginv.length + ' / ' + gcap(), G.length + ' in vault · bag ' + S.ginv.length + ' / ' + gcap()) + '</div>');
+  const top = pel2('div', 'gvtop', '<div class="gvfr">' + svgIcon('crystal') + '<b>' + S.gv.f + '</b><span>' + T2('碎片 · 和配件库共用', 'Shards · shared with attachments') + '</span></div><div class="gvn">' + T2('库里 ' + G.length + ' 件 · 背包 ' + S.ginv.length + ' / ' + gcap(), G.length + ' in vault · bag ' + S.ginv.length + ' / ' + gcap()) + '</div>');
   box.appendChild(top);
   // exchange: pick a slot and a quality
   const ex = pel2('div', 'gvex'); ex.appendChild(pel2('h3', '', T2('碎片兑换（大保底）', 'Shard exchange (big pity)')));
@@ -12161,11 +12161,11 @@ function renderBpm() {
 } catch (e) { } } }
 
 /* ---- 配件补给箱 in the shop: drawn attachments wait in the 配件库 ---- */
-S.av = []; S.mp5 = 0; S.avf = 0;
+S.av = []; S.mp5 = 0;   /* shards: one shared pool with the gear vault (S.gv.f, owner 23 Nov: 货币太多) */
 const AV_MAX = 300, AV_FR = [1, 1, 2, 6, 30, 120], AV_COST = { 2: 5, 3: 15, 4: 60, 5: 200 };
 let avSel = ['mz', 0], avQ = 5;
 const attName = (sl, kd) => (ATT_K[sl] && ATT_K[sl][kd] ? ATT_K[sl][kd].n : '配件');
-const attPrize = (q, lab) => [() => { const sl = pick(['mz', 'gr', 'bl', 'hd', 'el', 'el']), kd = rint(0, ATT_K[sl].length - 1); return { n: GQ[q].n + '配件「' + attName(sl, kd) + '」（已放进配件库）', f: () => { S.av.push([sl, kd, q]); if (S.av.length > AV_MAX) { const x = S.av.shift(); S.avf += AV_FR[x[2]]; } } }; }, null, lab || GQ[q].n + '配件（随机）'];
+const attPrize = (q, lab) => [() => { const sl = pick(['mz', 'gr', 'bl', 'hd', 'el', 'el']), kd = rint(0, ATT_K[sl].length - 1); return { n: GQ[q].n + '配件「' + attName(sl, kd) + '」（已放进配件库）', f: () => { S.av.push([sl, kd, q]); if (S.av.length > AV_MAX) { const x = S.av.shift(); S.gv.f += AV_FR[x[2]]; } } }; }, null, lab || GQ[q].n + '配件（随机）'];
 const ATTPOOL = {
   5: [attPrize(5)],
   4: [attPrize(4)],
@@ -12177,26 +12177,26 @@ const avGive = v => { for (const k in v) matAdd(k, v[k]); };
 function renderAttVault() {
   const box = $('avList'); if (!box) return; box.innerHTML = ''; const A = S.av;
   const el2 = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
-  box.appendChild(el2('div', 'snote', '从「配件补给箱」抽到的配件先放在这里：想要的点「取出」放进你的配件（去武器页面装上），不要的分解成配件碎片，碎片可以换指定的高级、史诗、黄金或神话配件。库里 ' + A.length + ' 件。'));
-  box.appendChild(el2('div', 'gvtop', '<div class="gvfr">' + svgIcon('att_elthun1') + '<b>' + S.avf + '</b><span>配件碎片</span></div><div class="gvn">分解：特级 1 · 高级 2 · 史诗 6 · 黄金 30 · 神话 120</div>'));
+  box.appendChild(el2('div', 'snote', '从「配件补给箱」抽到的配件先放在这里：想要的点「取出」放进你的配件（去武器页面装上），不要的分解成碎片，碎片可以换指定的高级、史诗、黄金或神话配件。碎片和装备库共用一个。库里 ' + A.length + ' 件。'));
+  box.appendChild(el2('div', 'gvtop', '<div class="gvfr">' + svgIcon('att_elthun1') + '<b>' + S.gv.f + '</b><span>碎片 · 和装备库共用</span></div><div class="gvn">分解：特级 1 · 高级 2 · 史诗 6 · 黄金 30 · 神话 120</div>'));
   { const ex = el2('div', 'gvex'); ex.appendChild(el2('h3', '', '碎片兑换（指定配件）'));
     const sl = el2('div', 'gvslots avslots'); for (const k of ['mz', 'gr', 'bl', 'hd', 'el']) for (let d = 0; d < ATT_K[k].length; d++) { const on = avSel[0] === k && avSel[1] === d, b = el2('button', 'gvs' + (on ? ' on' : ''), svgIcon(attIc([0, k, d, 0, 1])) + '<small>' + ATT_K[k][d].n + '</small>'); b.addEventListener('click', () => { avSel = [k, d]; renderAttVault(); }); sl.appendChild(b); }
     ex.appendChild(sl); const qs = el2('div', 'gvqs'); [2, 3, 4, 5].forEach(q => { const b = el2('button', 'gvq' + (avQ === q ? ' on' : ''), '<b style="color:' + GQ[q].c + '">' + GQ[q].n + '</b><small>' + AV_COST[q] + ' 碎片</small>'); b.addEventListener('click', () => { avQ = q; renderAttVault(); }); qs.appendChild(b); }); ex.appendChild(qs);
-    const go = el2('button', 'go', '兑换 ' + GQ[avQ].n + '「' + ATT_K[avSel[0]][avSel[1]].n + '」 · ' + AV_COST[avQ] + ' 碎片'); go.disabled = S.avf < AV_COST[avQ];
-    go.addEventListener('click', () => { if (S.avf < AV_COST[avQ]) return; S.avf -= AV_COST[avQ]; S.av.push([avSel[0], avSel[1], avQ]); banner('兑换成功', GQ[avQ].n + '配件「' + ATT_K[avSel[0]][avSel[1]].n + '」已放进配件库', 3); try { sfx.build(); } catch (e) { } saveGame(); renderAttVault(); });
+    const go = el2('button', 'go', '兑换 ' + GQ[avQ].n + '「' + ATT_K[avSel[0]][avSel[1]].n + '」 · ' + AV_COST[avQ] + ' 碎片'); go.disabled = S.gv.f < AV_COST[avQ];
+    go.addEventListener('click', () => { if (S.gv.f < AV_COST[avQ]) return; S.gv.f -= AV_COST[avQ]; S.av.push([avSel[0], avSel[1], avQ]); banner('兑换成功', GQ[avQ].n + '配件「' + ATT_K[avSel[0]][avSel[1]].n + '」已放进配件库', 3); try { sfx.build(); } catch (e) { } saveGame(); renderAttVault(); });
     ex.appendChild(go); box.appendChild(ex); }
   if (A.length) { const all = el2('div', 'gvall');
     [[2, '分解高级以下'], [3, '分解史诗以下'], [5, '全部分解']].forEach(([mq, t]) => { const L = A.filter(x => x[2] <= mq), b = el2('button', 'sbtn ghostb', t + '（' + L.length + ' · +' + L.reduce((a, x) => a + AV_FR[x[2]], 0) + '）'); b.disabled = !L.length; let armed = 0;
       b.addEventListener('click', () => { if (Date.now() - armed > 3000) { armed = Date.now(); b.textContent = '再点一次确认'; b.classList.add('armed'); return; }
-        const fr = L.reduce((a, x) => a + AV_FR[x[2]], 0); S.avf += fr; S.av = A.filter(x => x[2] > mq);
-        feed('分解了 ' + L.length + ' 件，配件碎片 +' + fr, '#c49aff'); refreshHud(); saveGame(); renderAttVault(); });
+        const fr = L.reduce((a, x) => a + AV_FR[x[2]], 0); S.gv.f += fr; S.av = A.filter(x => x[2] > mq);
+        feed('分解了 ' + L.length + ' 件，碎片 +' + fr, '#c49aff'); refreshHud(); saveGame(); renderAttVault(); });
       all.appendChild(b); }); box.appendChild(all); }
   else box.appendChild(el2('p', 'snote', '配件库是空的。'));
   const list = el2('div', 'gvlist');
   A.slice().sort((a, b) => b[2] - a[2]).forEach(x => { const Q = GQ[x[2]], fake = [0, x[0], x[1], x[2], 1], K = attKind(fake), r = el2('div', 'strow'); r.style.setProperty('--qc', Q.c);
     r.innerHTML = '<span class="stic">' + svgIcon(attIc(fake)) + '</span><span class="stn"><b style="color:' + Q.c + '">' + Q.n + ' · ' + K.n + '</b><small>' + ATT_SN[x[0]] + ' · ' + statTxt(Object.fromEntries(Object.entries(K.st).map(([k, v]) => [k, v * AQM[x[2]]]))) + '</small></span>';
-    const br = el2('button', 'sbtn ghostb', '分解 +' + AV_FR[x[2]]); br.title = '分解成配件碎片';
-    br.addEventListener('click', () => { const i = S.av.indexOf(x); if (i < 0) return; S.av.splice(i, 1); S.avf += AV_FR[x[2]]; feed('配件碎片 +' + AV_FR[x[2]], '#c49aff'); refreshHud(); saveGame(); renderAttVault(); });
+    const br = el2('button', 'sbtn ghostb', '分解 +' + AV_FR[x[2]]); br.title = '分解成碎片';
+    br.addEventListener('click', () => { const i = S.av.indexOf(x); if (i < 0) return; S.av.splice(i, 1); S.gv.f += AV_FR[x[2]]; feed('碎片 +' + AV_FR[x[2]], '#c49aff'); refreshHud(); saveGame(); renderAttVault(); });
     const tk = el2('button', 'sbtn', '取出'); tk.addEventListener('click', () => { const i = S.av.indexOf(x); if (i < 0) return; S.av.splice(i, 1); attMake(x[0], x[2], x[1]); feed('取出配件：' + Q.n + ' · ' + K.n + '（去武器页面装上）', Q.c); saveGame(); renderAttVault(); });
     r.appendChild(br); r.appendChild(tk); list.appendChild(r); });
   box.appendChild(list);
@@ -12226,10 +12226,10 @@ rwIcon = (o => function (d) {
 } catch (e) { } })();
 
 /* ---- save / load ---- */
-shopSave = (o => function () { const r = o(); try { r.bpm = { tl: S.tlv, tf: S.tfail, m: S.bmp | 0, k: S.bpk | 0, e: S.bpe | 0, av: S.av, mp5: S.mp5 | 0, af: S.avf | 0 }; } catch (e) { } return r; })(shopSave);
-shopLoad = (o => function (d) { o(d); S.tlv = {}; S.tfail = {}; S.bpe = 0; S.bmp = 0; S.bpk = 0; S.av = []; S.mp5 = 0; S.avf = 0; _bpScan = 1;
+shopSave = (o => function () { const r = o(); try { r.bpm = { tl: S.tlv, tf: S.tfail, m: S.bmp | 0, k: S.bpk | 0, e: S.bpe | 0, av: S.av, mp5: S.mp5 | 0 }; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.tlv = {}; S.tfail = {}; S.bpe = 0; S.bmp = 0; S.bpk = 0; S.av = []; S.mp5 = 0;   /* shards: one shared pool with the gear vault (S.gv.f, owner 23 Nov: 货币太多) */ _bpScan = 1;
   try { const B = d && d.sh && d.sh.bpm; if (B) { for (const g of TG) { const l = B.tl && B.tl[g.k] | 0; if (l > 1) S.tlv[g.k] = clamp(l, 1, TG_MAX); const f = B.tf && B.tf[g.k] | 0; if (f > 0) S.tfail[g.k] = Math.min(f, 10); }
-    S.bpe = Math.max(0, B.e | 0); S.bmp = clamp(B.m | 0, 0, BP_PITY); S.bpk = clamp(B.k | 0, 0, 4); S.mp5 = clamp(B.mp5 | 0, 0, MPITY); S.avf = Math.max(0, B.af | 0);
+    S.bpe = Math.max(0, B.e | 0); S.bmp = clamp(B.m | 0, 0, BP_PITY); S.bpk = clamp(B.k | 0, 0, 4); S.mp5 = clamp(B.mp5 | 0, 0, MPITY); if (B.af > 0 && S.gv) S.gv.f = (S.gv.f | 0) + (B.af | 0);   /* old saves: attachment shards join the shared pool (vaultLoad ran first in the base shopLoad) */
     if (Array.isArray(B.av)) S.av = B.av.filter(x => Array.isArray(x) && ATT_K[x[0]] && ATT_K[x[0]][x[1]] && x[2] >= 0 && x[2] <= 5).slice(-AV_MAX); } } catch (e) { } })(shopLoad);
 /* ============ every region has its own zombie, every boss its own signature skill ============
    Region zombies (one per region, with their own body and their own trick):
@@ -28432,6 +28432,73 @@ shopLoad = (o => function (d) { o(d); S.tut = null; try { const g = d && d.sh &&
   S.tut = { c: ok(g.c) ? g.c : '', q: Array.isArray(g.q) ? g.q.filter(ok) : [], d: Array.isArray(g.d) ? g.d.filter(ok) : [] }; } } catch (e) { } })(shopLoad);
 try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
   '#tuTrk{margin-top:4px;font-size:12px;line-height:1.45;color:#9fe8ff}#tuTrk:empty{display:none}#tuTrk span{display:block}#tuTrk.tugo{cursor:pointer;pointer-events:auto}#tuTrk b{color:#ffe08a}' })); } catch (e) { }
+/* ============ 钱包 · 货币说明 (owner 23 Nov: 货币太多) ============
+   Six currencies after the shard merge (装备碎片 + 配件碎片 = one 碎片 pool, S.gv.f — see z_bp.js / z_vault.js).
+   The coin pill at the top of the 背包 and the 晶石 count in the 商城 header open `#walletM`: one row per currency with
+   the balance, 怎么得 and 能买什么, and a button where you can go straight there. New saves only see the currencies whose
+   system is open (z_unlock levels); the rest are summed up as 「还有 N 种货币以后会开放」. */
+const WAL_IC = {
+  coin: '<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="#e8a83a" stroke="#ffe08a" stroke-width="2"/><circle cx="16" cy="16" r="8.5" fill="none" stroke="#a8641a" stroke-width="1.6"/><path d="M16 10.5l2.2 5.5-2.2 5.5-2.2-5.5z" fill="#fff2b0"/></svg>',
+  gem: '<svg viewBox="0 0 32 32"><path d="M9 6h14l6 8-13 14L3 14z" fill="#4fb8e8" stroke="#bdf0ff" stroke-width="1.6" stroke-linejoin="round"/><path d="M3 14h26M9 6l4 8 3 14M23 6l-4 8-3 14M13 14l3-8 3 8" fill="none" stroke="#e0f8ff" stroke-width="1" opacity=".8"/></svg>',
+  relic: '<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="#8a5a2a" stroke="#e8b878" stroke-width="2"/><circle cx="16" cy="16" r="9" fill="#a8743a" stroke="#5a3814" stroke-width="1.2"/><circle cx="16" cy="14" r="2.6" fill="#3a2410"/><path d="M14.6 15.5h2.8l.8 5.5h-4.4z" fill="#3a2410"/></svg>',
+  aby: '<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="#1f6f7a" stroke="#7fe8e0" stroke-width="2"/><path d="M7 15c3-3 6-3 9 0s6 3 9 0M7 20c3-3 6-3 9 0s6 3 9 0" fill="none" stroke="#c8fff6" stroke-width="1.8" stroke-linecap="round"/><circle cx="16" cy="10" r="2" fill="#ffd27a"/></svg>',
+  shard: '<svg viewBox="0 0 32 32"><path d="M16 3l7 9-3 16-8-2-6-11z" fill="#8a5ad8" stroke="#e0c8ff" stroke-width="1.6" stroke-linejoin="round"/><path d="M16 3l-2 12 6 13M14 15l-8 0M14 15l9-3" fill="none" stroke="#f0e4ff" stroke-width="1" opacity=".75"/></svg>',
+  bpe: '<svg viewBox="0 0 32 32"><rect x="6" y="5" width="20" height="22" rx="2.5" fill="#2a5a9a" stroke="#9fd0ff" stroke-width="1.6"/><path d="M10 11h12M10 15h12M10 19h7" stroke="#cfe8ff" stroke-width="1.4"/><path d="M23 18l2.2 2.2-2.2 2.2-2.2-2.2z" fill="#7ff0ff"/></svg>'
+};
+const WALLET = [
+  { k: 'coin', n: '余烬币', v: () => S.coin, ul: null,
+    get: '打丧尸、开物资箱、搜柜子、任务和委托奖励，把用不上的东西卖给商人和村民。',
+    use: '武器升级、装备洗练、商人和村民的货、伙伴转职等，最常用的钱。' },
+  { k: 'gem', n: '晶石', v: () => S.gem, ul: null,
+    get: '每日签到、每日宝箱、主线和委托奖励、成就、深渊首通、赛季手册。',
+    use: '「商城」：资源、时装、武器皮肤、补给抽奖、九霄箱。1 晶石的价值 = 20 余烬币。',
+    go: [['去商城', () => { try { qTray(true); } catch (e) { } setTimeout(() => { try { $('bMall').click(); } catch (e) { } }, 60); }, 'mall']] },
+  { k: 'shard', n: '碎片', v: () => (S.gv && S.gv.f) | 0, ul: 'mall',
+    get: '在「装备库」「配件库」把不要的装备、配件分解掉（越稀有给得越多）。装备和配件共用这一种碎片。',
+    use: '在装备库、配件库换指定部位 / 种类的高级、史诗、黄金、神话装备和配件。',
+    go: [['装备库', () => openVault()], ['配件库', () => openAttVault()]] },
+  { k: 'bpe', n: '蓝图精华', v: () => S.bpe | 0, ul: null,
+    get: '岛上的蓝图抽奖机抽到重复的蓝图时自动变成精华（越稀有给得越多）。',
+    use: '抽奖机的「蓝图兑换」，直接换你还没有的蓝图。' },
+  { k: 'relic', n: '遗物币', v: () => S.relic | 0, ul: 'dungeon',
+    get: '副本柜子里的收藏品，多出来的卖给老钱（每周有上限）；资源商店每周限量；副本隐藏剧情。',
+    use: '码头老钱的商船：升级材料和他收藏的武器皮肤。' },
+  { k: 'aby', n: '深渊币', v: () => (S.abyss && S.abyss.ac) | 0, ul: 'abyss',
+    get: '无尽深渊里怪物掉落（每周第一趟才掉）和深渊首通奖励。',
+    use: '深渊号里潜水员阿深的「深渊商店」：升级材料和萌鬼系列皮肤。' }
+];
+const walOpen = c => !c.ul || typeof ulOpen !== 'function' || ulOpen(c.ul);
+function walletOpen(focus) {
+  let m = $('walletM'); if (!m) { m = document.createElement('div'); m.id = 'walletM'; document.body.appendChild(m);
+    ['pointerdown', 'touchstart', 'click'].forEach(ev => m.addEventListener(ev, e => { e.stopPropagation(); if (ev === 'click' && e.target === m) walletClose(); })); }
+  const L = WALLET.filter(walOpen), hid = WALLET.length - L.length;
+  m.innerHTML = '<div class="wlb"><div class="wlh"><b>钱包</b><span>每种货币怎么得、能买什么</span><button class="wlx" aria-label="关闭">✕</button></div><div class="wll">' +
+    L.map(c => '<div class="wlr' + (c.k === focus ? ' on' : '') + '" data-k="' + c.k + '"><i>' + WAL_IC[c.k] + '</i><div class="wlm"><div class="wlt"><b>' + c.n + '</b><em>' + (c.v() | 0).toLocaleString() + '</em></div>' +
+      '<p><u>怎么得</u>' + c.get + '</p><p><u>能买</u>' + c.use + '</p>' +
+      ((c.go || []).filter(g => !g[2] || walOpen({ ul: g[2] })).length ? '<div class="wlg">' + c.go.filter(g => !g[2] || walOpen({ ul: g[2] })).map((g, i) => '<button data-i="' + i + '">' + g[0] + ' ›</button>').join('') + '</div>' : '') + '</div></div>').join('') +
+    (hid ? '<div class="wlmore">还有 ' + hid + ' 种货币，以后玩到对应的玩法就会开放</div>' : '') + '</div></div>';
+  m.querySelector('.wlx').addEventListener('click', walletClose);
+  m.querySelectorAll('.wlr').forEach(r => { const c = WALLET.find(x => x.k === r.dataset.k); const G = (c.go || []).filter(g => !g[2] || walOpen({ ul: g[2] }));
+    r.querySelectorAll('button[data-i]').forEach(b => b.addEventListener('click', () => { walletClose(); try { closePanel('bag'); } catch (e) { } try { closePanel('mall'); } catch (e) { } setTimeout(() => { try { G[+b.dataset.i][1](); } catch (e) { } }, 80); })); });
+  m.classList.add('show'); try { sfx.pick(); } catch (e) { }
+  const f = m.querySelector('.wlr.on'); if (f && f.scrollIntoView) setTimeout(() => { try { f.scrollIntoView({ block: 'nearest' }); } catch (e) { } }, 30); }
+function walletClose() { const m = $('walletM'); if (m) m.classList.remove('show'); }
+// the coin pill in the bag and the gem count in the shop open it
+setTimeout(() => { try { const p = document.querySelector('.bagcoin'); if (p && p.addEventListener) { p.classList.add('wltap'); p.insertAdjacentHTML('beforeend', '<i class="wlch">›</i>'); p.addEventListener('click', e => { e.stopPropagation(); walletOpen('coin'); }); }
+  const g = document.querySelector('#mall .mallhd'); if (g && g.addEventListener) { g.classList.add('wltap'); g.addEventListener('click', e => { e.stopPropagation(); walletOpen('gem'); }); } } catch (e) { } }, 0);
+try { GUIDE.find(x => x[0] === '菜单')[1].splice(3, 0, ['wallet', '钱包', '背包右上角的余烬币：点一下看所有货币，每种怎么得、能买什么']); } catch (e) { }
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+  '.wltap{cursor:pointer;pointer-events:auto}.wlch{font-style:normal;color:#ffd98a;font-size:18px;margin-left:-2px}' +
+  '#walletM{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:calc(env(safe-area-inset-top,0px) + 12px) 12px calc(env(safe-area-inset-bottom,0px) + 12px);box-sizing:border-box}#walletM.show{display:flex}' +
+  '#walletM .wlb{width:min(460px,100%);max-height:100%;display:flex;flex-direction:column;box-sizing:border-box;border-radius:16px;border:1px solid rgba(255,201,74,.45);background:linear-gradient(170deg,rgba(40,26,20,.98),rgba(20,13,13,.98));box-shadow:0 14px 40px rgba(0,0,0,.6);color:#fff2e4;overflow:hidden}' +
+  '#walletM .wlh{display:flex;align-items:baseline;gap:8px;padding:12px 14px 8px;border-bottom:1px solid rgba(255,255,255,.08)}#walletM .wlh b{font-size:18px;color:#ffd27a}#walletM .wlh span{font-size:12px;color:#a8907c}#walletM .wlx{margin-left:auto;background:none;border:0;color:#d8c0a8;font-size:18px;padding:0 4px}' +
+  '#walletM .wll{overflow-y:auto;overflow-x:hidden;padding:4px 12px 12px;-webkit-overflow-scrolling:touch}' +
+  '#walletM .wlr{display:flex;gap:10px;padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.06);border-radius:10px}#walletM .wlr.on{background:rgba(255,201,74,.1)}' +
+  '#walletM .wlr>i{flex:none;width:38px;height:38px}#walletM .wlr>i svg{width:100%;height:100%}#walletM .wlm{flex:1;min-width:0}' +
+  '#walletM .wlt{display:flex;align-items:baseline;gap:8px}#walletM .wlt b{font-size:15px}#walletM .wlt em{margin-left:auto;font-style:normal;font-weight:700;font-size:16px;color:#ffe9a8;font-variant-numeric:tabular-nums}' +
+  '#walletM p{margin:4px 0 0;font-size:12px;line-height:1.5;color:#e0cbb4}#walletM p u{text-decoration:none;display:inline-block;margin-right:6px;padding:0 5px;border-radius:5px;font-size:11px;color:#3a1e08;background:#d8b07a}' +
+  '#walletM .wlg{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}#walletM .wlg button{padding:5px 11px;border-radius:9px;border:1px solid rgba(255,201,74,.5);background:rgba(255,201,74,.12);color:#ffe08a;font-weight:700;font-size:12px}' +
+  '#walletM .wlmore{margin-top:10px;font-size:12px;color:#a8907c;text-align:center}' })); } catch (e) { }
 /* ============ combat feel (owner 23 Nov: 打中要更有感觉；首领出大招前地上先出红圈；翻滚躲过去有完美闪避) ============
    · Hit-stop: `update(dt)` is wrapped — while FEEL.hs runs the whole game moves at 5% speed for a few hundredths of a second.
      Melee hits 50 ms (axe / pick 75 ms), gun crits 30 ms (at most every .45 s: fast guns would stutter), an elite kill 90 ms; a boss kill = 0.8 s slow motion.
@@ -29587,4 +29654,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795421006').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795421727').catch(()=>{});</script></body></html>
