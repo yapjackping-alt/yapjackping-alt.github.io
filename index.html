@@ -28911,6 +28911,15 @@ const celTexP = () => { if (CEL.pt !== undefined) return CEL.pt; let t = null;
     const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.25, 'rgba(255,255,255,.75)'); g.addColorStop(.6, 'rgba(255,255,255,.18)'); g.addColorStop(1, 'rgba(255,255,255,0)');
     x.fillStyle = g; x.fillRect(0, 0, 64, 64); t = new THREE.CanvasTexture(c); } catch (e) { t = null; }
   return (CEL.pt = t); };
+// soft flame tongues for the energy streams (white core, transparent edges; v runs base → tip, repeats so it can scroll)
+const celFlameTex = () => { if (CEL.ft !== undefined) return CEL.ft; let t = null;
+  try { const c = document.createElement('canvas'); c.width = 64; c.height = 256; const x = c.getContext('2d'); if (!x || !x.fillRect) throw 0;
+    x.fillStyle = '#000'; x.fillRect(0, 0, 64, 256); x.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 7; i++) { const cy = i * 40 + 10, cx = 32 + Math.sin(i * 2.1) * 8, g = x.createRadialGradient(cx, cy, 2, cx, cy, 30);
+      g.addColorStop(0, 'rgba(255,255,255,.95)'); g.addColorStop(.35, 'rgba(200,220,255,.45)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.save(); x.translate(cx, cy); x.scale(.55, 1.6); x.translate(-cx, -cy); x.beginPath(); x.arc(cx, cy, 30, 0, 6.3); x.fill(); x.restore(); }
+    const fade = x.createLinearGradient(0, 0, 64, 0); x.globalCompositeOperation = 'multiply'; fade.addColorStop(0, '#000'); fade.addColorStop(.3, '#fff'); fade.addColorStop(.7, '#fff'); fade.addColorStop(1, '#000'); x.fillStyle = fade; x.fillRect(0, 0, 64, 256);
+    t = new THREE.CanvasTexture(c); t.wrapT = THREE.RepeatWrapping; } catch (e) { t = null; }
+  return (CEL.ft = t); };
 function celestGun(g, id) { const M = celM(), k0 = { stock: false, body: M.blue, body2: M.pearl, top: M.pearl, dark: M.blue, gold: M.gold, mag: id === 'rifle' ? M.crys : null };
   if (id === 'pistol') { k0.top = M.pearl; k0.body = M.blue; }
   const P = MG_GUN[id](g, k0), s = P.s, k = Math.max(.75, s), [z0, z1] = P.rz, [y0, y1] = P.rh, L = z1 - z0, H = y1 - y0, xs = P.xs + .004, U = g.userData;
@@ -28925,18 +28934,26 @@ function celestGun(g, id) { const M = celM(), k0 = { stock: false, body: M.blue,
   const oglow = new THREE.Sprite(new THREE.SpriteMaterial({ map: celTexP(), color: 0x9fd8ff, transparent: true, opacity: .8, depthWrite: false, blending: THREE.AdditiveBlending })); oglow.scale.setScalar(orbR * 3.2); orb.add(oglow);
   const oband = new THREE.Mesh(new THREE.TorusGeometry(orbR * 1.15, .008 * k, 6, 32), M.gold); orb.add(oband);
   const oband2 = new THREE.Mesh(new THREE.TorusGeometry(orbR * 1.3, .004 * k, 6, 32), new THREE.MeshBasicMaterial({ color: 0x9fe0ff })); orb.add(oband2);
-  const blades = [], BL = id === 'pistol' ? [[.18, .55], [.22, .1], [.15, -.35]] : [[.3, .62], [.4, .22], [.36, -.16], [.26, -.5]];
+  const blades = [], BL = id === 'pistol' ? [[.2, .6], [.26, .12], [.17, -.38]] : [[.34, .7], [.46, .3], [.42, -.08], [.3, -.45]];
   for (const sd of [-1, 1]) { const wg = new THREE.Group(); wg.position.set(0, oy, oz); wg.rotation.y = sd * .62; g.add(wg);
     BL.forEach(([l0, a], i) => { const bl = l0 * k, bw = .06 * k, d = .011 * k;
       const bg = new THREE.Group(); bg.rotation.x = a; wg.add(bg);
       const hold = new THREE.Group(); bg.add(hold);   /* hold slides along the blade's own direction = floating gap */
-      const pts = [[0, bw * .35], [-bl * .55, bw * .6], [-bl * .86, bw * .28], [-bl, 0], [-bl * .7, -bw * .42], [0, -bw * .35]];
-      let geo; try { geo = new THREE.ExtrudeGeometry(mgShapeOf(pts), { depth: d, bevelEnabled: true, bevelThickness: d * 1.1, bevelSize: Math.min(bw * .22, .013 * k), bevelSegments: 1 }); } catch (e) { geo = new THREE.BoxGeometry(.02, .05, .1); }
-      const me = new THREE.Mesh(geo, M.pearl); me.rotation.y = -Math.PI / 2; me.position.x = d / 2; hold.add(me);
+      /* owner's reference (幻影狩蝎): sharp faceted CRYSTAL SHARDS breaking the outline — a stretched bipyramid (6 sides) with gold edges */
+      let geo; try { geo = new THREE.LatheGeometry([new THREE.Vector2(0, 0), new THREE.Vector2(bw * 1.15, bl * .24), new THREE.Vector2(0, bl)], 6); geo.translate(0, -bl * .5, 0); } catch (e) { geo = new THREE.BoxGeometry(.02, .05, .1); }
+      const cm = CEL.cm || (CEL.cm = [0xbfe8ff, 0xa8c8ff, 0xb8a8ff, 0xd0a0ff].map(c => new THREE.MeshPhongMaterial({ color: c, emissive: 0x30306a, specular: 0xffffff, shininess: 140, flatShading: true, transparent: true, opacity: .9 })));
+      const me = new THREE.Mesh(geo, cm[i % 4]); me.rotation.x = -Math.PI / 2; me.position.z = -bl * .5; me.scale.set(1, 1, .38); hold.add(me);
       try { me.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), mgEdgeM())); } catch (e) { }
-      const q = new THREE.Mesh(new THREE.BoxGeometry(d * 3.4, .009 * k, bl * .62), M.gold); q.position.set(0, 0, -bl * .45); hold.add(q);
       const tip = new THREE.Object3D(); tip.position.set(0, 0, -bl); hold.add(tip); bg.userData.tip = tip;
       blades.push({ bg, hold, a, sd, i, gap: orbR + .06 * k }); }); }
+  // see-through energy flames streaming back off the orb (owner's reference: translucent flame-like energy, in 天穹 colours):
+  // crossed planes with a soft flame-tongue texture that scrolls toward the tip, additive, gently waving
+  const ft = celFlameTex(), flames = [];
+  [[.32, .12, 0x7fd8ff, .62], [-.32, .12, 0x7fd8ff, .62], [.14, -.12, 0xb08aff, .5], [-.14, -.12, 0xb08aff, .5], [0, .3, 0xffffff, .42]].forEach(([yw, pt, c, l], i) => {
+    const fg = new THREE.Group(); fg.position.set(0, oy, oz - orbR * .3); fg.rotation.set(pt, yw, 0); g.add(fg);
+    const fm = new THREE.MeshBasicMaterial({ color: c, map: ft, transparent: true, opacity: .9, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    for (const r of [0, Math.PI / 2]) { const pl = new THREE.Mesh(new THREE.PlaneGeometry(.2 * k, l * 1.35 * k), fm); pl.geometry.translate(0, -l * 1.35 * k / 2, 0); pl.rotation.set(Math.PI / 2, 0, r, 'ZXY'); pl.rotation.order = 'ZXY'; fg.add(pl); }
+    flames.push({ fg, i, pt, yw }); });
   // (2) 天使铠甲枪身: three thick curved plates per side over the blue receiver, gold rims, a gold wing emblem with a crystal
   const PL = [[[.04, .5], ['q', .3, 1.25, .78, .98], ['q', .42, .78, .06, .2]], [[.16, .2], ['q', .5, .9, 1.0, .62], ['q', .62, .36, .2, -.02]], [[.32, .02], ['q', .62, .42, 1.04, .2], ['q', .72, -.08, .36, -.12]]];
   for (const x of [-1, 1]) {
@@ -28947,6 +28964,11 @@ function celestGun(g, id) { const M = celM(), k0 = { stock: false, body: M.blue,
   // handguard: gold bands and a glowing inlay line on both sides
   if (P.hg) { const HY = { rifle: [.02, .15], sniper: [-.005, .14], shotgun: [-.05, .12] }[id]; for (const z of [P.hg[0] + .03, P.hg[1] - .05]) { const b = new THREE.Mesh(new THREE.BoxGeometry(xs * 2 + .012, HY[1], .016), M.gold); b.position.set(0, HY[0], z); g.add(b); }
     for (const x of [-1, 1]) { const ln = new THREE.Mesh(new THREE.BoxGeometry(.008, .012 * k, P.hg[1] - P.hg[0] - .14), new THREE.MeshBasicMaterial({ color: 0x9fe0ff })); ln.position.set(x * (xs + .008), HY[0] + .02, (P.hg[0] + P.hg[1]) / 2 - .01); g.add(ln); } }
+  // crystal fins breaking the outline: two up-back from the receiver top, one down-forward under the handguard (pistol: one on top)
+  const finAt = (z, y, rx, len, w, side) => { let geo; try { geo = new THREE.LatheGeometry([new THREE.Vector2(0, 0), new THREE.Vector2(w, len * .25), new THREE.Vector2(0, len)], 6); } catch (e) { geo = new THREE.BoxGeometry(.02, len, .02); }
+    const f = new THREE.Mesh(geo, (CEL.cm || [M.crys])[side % (CEL.cm ? 4 : 1)]); f.position.set(0, y, z); f.rotation.x = rx; f.scale.z = .35; g.add(f);
+    try { f.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), mgEdgeM())); } catch (e) { } return f; };
+  finAt(z0 + L * .2, P.top - .01, -.7, .24 * k, .05 * k, 0); if (id !== 'pistol') { finAt(z0 + L * .38, P.top - .01, -.45, .17 * k, .04 * k, 2); if (P.hg) finAt(P.hg[1] - .12, P.by - .1 * k, 2.2, .2 * k, .045 * k, 3); }
   // halo sight on top of the receiver
   const hs = new THREE.Group(); hs.position.set(0, P.top + .045 * k, z0 + L * .55); g.add(hs);
   const hr = new THREE.Mesh(new THREE.TorusGeometry(.05 * k, .007 * k, 6, 28), M.gold); hr.rotation.x = Math.PI / 2; hs.add(hr);
@@ -28972,6 +28994,7 @@ function celestGun(g, id) { const M = celM(), k0 = { stock: false, body: M.blue,
     core.rotation.y = T * 2.2; core.rotation.x = T * 1.3; core.position.y = P.by + Math.sin(T * 2) * .006 * k; glow.material.opacity = .55 + p * .3 + fire * .3; glow.scale.setScalar((.15 + p * .04 + fire * .1) * k);
     M.crys.emissive.setRGB(.2 + p * .08 + fire * .25, .2 + p * .08 + fire * .25, .5 + p * .1 + fire * .3); hc.rotation.y = T * 1.4; hs.position.y = P.top + .045 * k + Math.sin(T * 2.3) * .006 * k;
     blades.forEach(b => { const ph = T * 1.7 + b.i * 1.3 + (b.sd > 0 ? 0 : 2.1); b.hold.position.z = -(b.gap + Math.sin(ph) * .012 * k + fire * .06 * k); b.bg.rotation.x = b.a + Math.sin(ph * .7) * .04 + (b.a - .05) * .2 * fire; b.hold.rotation.z = Math.sin(ph * .9) * .06; });
+    if (ft) ft.offset.y = (T * 1.6) % 1; flames.forEach(f => { const w = Math.sin(T * 3 + f.i * 1.7); f.fg.rotation.x = f.pt + w * .06 - fire * .1; f.fg.rotation.y = f.yw * (1 + fire * .5) + Math.sin(T * 2.3 + f.i) * .05; f.fg.scale.set(1 + w * .08, 1, 1 + fire * .6 + w * .1); });
     orb.rotation.y = T * .8; oband.rotation.x = T * 1.1; oband2.rotation.y = T * 1.6; oglow.material.opacity = .6 + p * .25 + fire * .3; ocore.scale.setScalar(.9 + p * .2 + fire * .3);
     celEmit(g, T, fire); }); }
 /* ---- soft see-through particles (a pool of additive sprites in the world) ---- */
@@ -30075,4 +30098,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795431705').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795432121').catch(()=>{});</script></body></html>
