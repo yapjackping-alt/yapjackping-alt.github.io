@@ -15986,8 +15986,13 @@ const UNLOCK = [
   ['daily', 4, T2('每日任务', 'Daily tasks'), ['bQuest'], [], T2('点右上角展开的「任务」，每天有新任务，做完来领奖。', 'Open Tasks at the top right: new tasks every day, come back for the rewards.')],
   ['farm', 6, T2('农田', 'Farming'), ['bFarm'], ['farm'], T2('回岛在「建造」里放「农田」，种下种子，过一会儿回来收获。', 'On the island, place a Farm from Build, plant seeds, and come back later to harvest.')],
   ['fish', 8, T2('钓鱼', 'Fishing'), ['bFish'], ['tank'], T2('站在水边点「钓鱼」；钓到的鱼可以放进自己建的「鱼缸」养着。', 'Stand by the water and tap Fish; you can keep the fish in a Fish Tank you build.')],
+  ['hub', 5, T2('活动', 'Events'), ['bHub'], [], T2('右上角「更多」里出现了「活动」：今日挑战、签到、赛季奖励和图鉴都在这里。', 'Events is now in the More menu (top right): daily challenge, sign-in, season rewards and the collection.')],
+  ['mall', 7, T2('商城', 'Shop'), ['bMall'], [], T2('「更多」里出现了「商城」：用晶石买资源、时装、武器皮肤，还能抽补给。', 'The Shop is now in the More menu: spend gems on resources, outfits, weapon skins and supply draws.')],
+  ['insp', 10, T2('检视武器', 'Inspect'), ['bInspect'], [], T2('「检视」按钮会把手里的武器拿出来展示一圈，换了好看的皮肤就拿出来看看吧。', 'The Inspect button shows off the weapon in your hands. Try it after you get a nice skin.')],
   ['dungeon', 12, T2('副本', 'Dungeons'), [], [], T2('走到码头点「坐船出海」→ 副本，挑战有故事的地下城，掉的东西很多：出发前先把背包和储物箱腾一腾。', 'At the pier, Set sail → Dungeons: story dungeons with lots of loot. Empty your backpack into storage first.')],
-  ['party', 15, T2('联机组队', 'Online party'), ['bPartyT'], [], T2('点左上角的血条 → 联机，和朋友组队一起打。', 'Tap the health bar (top left) → Online to team up with friends.')]
+  ['party', 15, T2('联机组队', 'Online party'), ['bPartyT'], [], T2('点左上角的血条 → 联机，和朋友组队一起打。', 'Tap the health bar (top left) → Online to team up with friends.')],
+  ['pvp', 18, T2('竞技场', 'Arena'), [], [], T2('码头「坐船出海」最上面多了「竞技场 · PvP」：用自己的装备和别的玩家 1 对 1。', 'At the pier, Set sail now lists the Arena: 1v1 against other players with your own gear.')],
+  ['abyss', 20, T2('无尽深渊', 'Endless Abyss'), [], [], T2('码头西边的潜水艇「深渊号」可以下潜了：一层比一层难，每层选一张卡，看你能走多深。', 'The submarine west of the pier can dive now: endless floors, pick a card after each one.')]
 ];
 const UL = { gate: null, seen: 0, toast: 0, queue: [], qT: 0, t: 0 };
 const ulLv = key => { const u = UNLOCK.find(x => x[0] === key); return u ? u[1] : 1; };
@@ -16027,21 +16032,57 @@ zSpecialTick = (o => function (dt) {
   try {
     if (!UNLOCK_ON || !S.started) return;
     if (UL.gate === null) { UL.gate = S.level <= 2 ? 1 : 0; if (UL.gate) UL.seen = Math.max(UL.seen, 1); }       // 第一次进游戏时决定：新档上锁，老档不管
-    UL.qT -= dt; if (UL.qT <= 0 && UL.queue.length && !S.dead) { UL.qT = 4.5; const u = UL.queue.shift(); try { banner(T2('解锁新玩法 · ', 'New feature · ') + u[2], u[5], 5); sfx.build(); } catch (e) { } }
+    UL.qT -= dt; if (UL.qT <= 0 && UL.queue.length && !S.dead && !S.paused && !ulCardUp() && !(typeof TD !== 'undefined' && TD.open)) { UL.qT = 1.2; const u = UL.queue.shift(); try { ulShow(u); } catch (e) { try { banner(T2('解锁新玩法 · ', 'New feature · ') + u[2], u[5], 5); } catch (er) { } } }
     UL.t -= dt; if (UL.t > 0) return; UL.t = .8;
     for (const u of UNLOCK) for (const id of u[3]) { const b = $(id); if (!b || !b.classList) continue; const lock = ulOn() && S.level < u[1];
-      b.classList.toggle('ulock', lock); if (lock) b.setAttribute('data-ul', 'Lv.' + u[1]); else if (b.removeAttribute) b.removeAttribute('data-ul'); }
+      b.classList.toggle('ulhide', lock); }
+    { const m = $('bMore'); if (m && m.classList) m.classList.toggle('ulhide', ulOn() && ['daily', 'hub', 'mall'].every(k => S.level < ulLv(k))); }
     if (ulOn() && S.level > UL.seen) { for (let L = UL.seen + 1; L <= S.level; L++) for (const u of UNLOCK) if (u[1] === L) UL.queue.push(u); UL.seen = S.level; }
   } catch (e) { }
 })(zSpecialTick);
 
 try {
   const st = document.createElement('style');
-  st.textContent = '.ulock{opacity:.4!important;filter:grayscale(1)!important;position:relative}.ulock::after{content:attr(data-ul);position:absolute;left:50%;bottom:-2px;transform:translateX(-50%);font-size:10px;line-height:1;padding:2px 4px;border-radius:6px;background:rgba(0,0,0,.75);color:#ffd060;white-space:nowrap;pointer-events:none}';
+  st.textContent = '.ulhide{display:none!important}' +
+    '#ulCard{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 21vh);transform:translate(-50%,-14px) scale(.96);opacity:0;z-index:70;width:min(330px,86vw);box-sizing:border-box;padding:14px 16px 12px;border-radius:16px;' +
+    'background:linear-gradient(160deg,rgba(58,36,20,.97),rgba(26,16,14,.97));border:1px solid rgba(255,201,74,.6);box-shadow:0 0 0 1px rgba(0,0,0,.4),0 12px 34px rgba(0,0,0,.55),0 0 26px rgba(255,170,60,.25);color:#fff2e4;pointer-events:none;transition:opacity .25s,transform .25s}' +
+    '#ulCard.on{opacity:1;transform:translate(-50%,0) scale(1);pointer-events:auto}' +
+    '#ulCard .ulh{display:flex;align-items:center;gap:10px}#ulCard .ulh svg{flex:none;width:40px;height:40px}' +
+    '#ulCard .ulh small{display:block;font-size:11px;letter-spacing:2px;color:#ffc94a}#ulCard .ulh b{display:block;font-size:19px;color:#fff;margin-top:1px}' +
+    '#ulCard p{margin:9px 0 10px;font-size:13px;line-height:1.55;color:#f0dcc6}#ulCard .ulb{display:flex;gap:8px;justify-content:flex-end}' +
+    '#ulCard button{padding:7px 14px;border-radius:10px;border:1px solid rgba(255,201,74,.45);background:rgba(255,255,255,.06);color:#ffe9c8;font-weight:700;font-size:13px}#ulCard button.go{background:linear-gradient(180deg,#ffc94a,#e8962a);color:#3a1e08;border-color:#ffd98a}' +
+    '.ulnew{animation:ulPulse 1.3s ease-in-out infinite!important}@keyframes ulPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,201,74,.85)}50%{box-shadow:0 0 0 7px rgba(255,201,74,0),0 0 16px 3px rgba(255,201,74,.6)}}' +
+    '.ulock{opacity:.4!important;filter:grayscale(1)!important;position:relative}.ulock::after{content:attr(data-ul);position:absolute;left:50%;bottom:-2px;transform:translateX(-50%);font-size:10px;line-height:1;padding:2px 4px;border-radius:6px;background:rgba(0,0,0,.75);color:#ffd060;white-space:nowrap;pointer-events:none}';
   document.head.appendChild(st);
 } catch (e) { }
 // dungeons: the pier still lists them, but below Lv.12 (new saves) "查看" says when they open
 openDunPage = (o => function () { if (!ulOpen('dungeon')) { feed(T2('Lv.12 解锁：副本', 'Opens at Lv.12: Dungeons'), '#ffd060'); return; } return o.apply(this, arguments); })(openDunPage);
+
+/* ---- the unlock card: what opened, one line on how to use it, 「去看看」 when it has a button; the new button glows until it is tapped ---- */
+const UL_ICO = '<svg viewBox="0 0 40 40" aria-hidden="true"><defs><radialGradient id="ulg" cx="50%" cy="45%" r="55%"><stop offset="0" stop-color="#fff2b0"/><stop offset=".55" stop-color="#ffc94a"/><stop offset="1" stop-color="#c06a1a"/></radialGradient></defs>' +
+  '<circle cx="20" cy="20" r="18" fill="rgba(255,201,74,.14)" stroke="#ffc94a" stroke-width="1.4"/><path d="M20 6l3.6 8.6 9.2.8-7 6 2.1 9-7.9-4.8-7.9 4.8 2.1-9-7-6 9.2-.8z" fill="url(#ulg)" stroke="#fff4c8" stroke-width=".8" stroke-linejoin="round"/></svg>';
+const ULC = { t: 0, el: null };
+// 「去看看」 only where the button opens a window (an action button like 翻滚 would just do the action)
+const UL_LOOK = { talent: 1, daily: 1, hub: 1, mall: 1, party: 1 };
+const ulCardUp = () => !!(ULC.el && ULC.el.classList && ULC.el.classList.contains('on'));
+function ulHide() { if (ULC.el && ULC.el.classList) ULC.el.classList.remove('on'); clearTimeout(ULC.t); }
+function ulGlow(u) { const ids = u[3].slice(); try { if (ids.some(id => { const b = $(id); return b && b.closest && b.closest('#qtray'); })) ids.push('bMore'); } catch (e) { }
+  ids.forEach(id => { const b = $(id); if (!b || !b.classList) return; b.classList.add('ulnew'); const off = () => { b.classList.remove('ulnew'); if (id !== 'bMore' && b.removeEventListener) b.removeEventListener('click', off); };
+    if (id !== 'bMore' && b.addEventListener) b.addEventListener('click', off); setTimeout(off, 45000); }); }
+function ulShow(u) {
+  if (!document.createElement || !document.body || !document.body.appendChild) { banner(T2('解锁新玩法 · ', 'New feature · ') + u[2], u[5], 5); return; }
+  let c = ULC.el; if (!c) { c = ULC.el = document.createElement('div'); c.id = 'ulCard'; document.body.appendChild(c);
+    ['pointerdown', 'touchstart', 'click'].forEach(ev => c.addEventListener(ev, e => e.stopPropagation())); }
+  const btn = UL_LOOK[u[0]] ? u[3].find(id => { const b = $(id); return b && b.getBoundingClientRect; }) : null;
+  c.innerHTML = '<div class="ulh">' + UL_ICO + '<div><small>' + T2('新玩法解锁', 'NEW FEATURE') + '</small><b>' + u[2] + '</b></div></div><p>' + u[5] + '</p><div class="ulb">' +
+    (btn ? '<button class="look">' + T2('去看看', 'Show me') + '</button>' : '') + '<button class="go">' + T2('知道了', 'Got it') + '</button></div>';
+  c.querySelector('.go').addEventListener('click', ulHide);
+  const lk = c.querySelector('.look'); if (lk) lk.addEventListener('click', () => { ulHide(); if (u[0] === 'talent') { try { openTalents(true); } catch (e) { } return; } const b = $(btn); if (!b) return; try { if (b.closest && b.closest('#qtray')) qTray(true); } catch (e) { } setTimeout(() => { try { b.click(); } catch (e) { } }, 60); });
+  void c.offsetWidth; c.classList.add('on'); ulGlow(u); try { sfx.build(); } catch (e) { }
+  clearTimeout(ULC.t); ULC.t = setTimeout(ulHide, 9000);
+}
+// PvP: the pier still lists the arena; before its level it says when it opens
+try { openPvpPage = (o => function () { if (!ulOpen('pvp')) { feed(T2('Lv.18 解锁：竞技场', 'Opens at Lv.18: Arena'), '#ffd060'); return; } return o.apply(this, arguments); })(openPvpPage); } catch (e) { }
 /* ============ the tutorial is the main story (Nov 2026) ============
    New players kept saying "I don't know what to do". So:
    1. The prologue (island) and chapter 1 (suburbs) now teach one thing per step, each with a line from Old Chen.
@@ -28267,6 +28308,197 @@ setInterval(() => { if (PCM.down && !pcmOk()) pcmStop(); }, 200);
 const pcmSpace = e => { if (e.code !== 'Space') return; const t = e.target; if (t && /input|textarea/i.test(t.tagName || '')) return; e.stopImmediatePropagation(); e.preventDefault();
   if (e.type === 'keydown' && !e.repeat && pcmOk()) try { rollGo(); } catch (er) { } };
 window.addEventListener('keydown', pcmSpace, true); window.addEventListener('keyup', pcmSpace, true);
+/* ============ 今日目标 (owner 23 Nov: 每天上线要知道做什么) ============
+   The three daily tasks (h_loop.js) are no longer hidden inside 任务: a line at the bottom of the story tracker shows
+   「今日目标 1/3」 with three dots, tap it → a small card with the three goals, progress bars, 领取 on each finished one and
+   the daily chest. The tasks are not only fighting any more: one fight goal + two others picked from the systems you have
+   opened (cook, fish, harvest, daily challenge, a dungeon, abyss floors, village quests, crates, search, build, events).
+   NOTE QPOOL (h_loop.js) is built AFTER this file in build.sh: the new kinds are pushed the first time questEnsure runs. */
+const TD = { open: false, add: false, af: 0, sig: '' };
+// new kinds; lv / ul = when they may appear (ul = an unlock key in z_unlock.js)
+const TD_POOL = [
+  { k: 'cook', n: [2, 3], d: n => '做 ' + n + ' 份料理' },
+  { k: 'fish', n: [3, 5], d: n => '钓到 ' + n + ' 条鱼', lv: 8, ul: 'fish' },
+  { k: 'harvest', n: [1, 2], d: n => '收获 ' + n + ' 次农田', lv: 6, ul: 'farm' },
+  { k: 'dch', n: [1, 1], d: () => '完成一次今日挑战', lv: 4 },
+  { k: 'dun', n: [1, 1], d: () => '通关一次副本', lv: 12, ul: 'dungeon', x: 1.6 },
+  { k: 'aby', n: [5, 10], d: n => '在无尽深渊打通 ' + n + ' 层', lv: 20, ul: 'abyss', x: 1.6 },
+  { k: 'vq', n: [1, 2], d: n => '完成 ' + n + ' 个村庄委托或悬赏', lv: 4 }
+];
+const TD_FIGHT = ['kill', 'tier', 'boss', 'melee', 'streak'];
+const tdOk = q => (!q.lv || S.level >= q.lv) && (!q.ul || typeof ulOpen !== 'function' || ulOpen(q.ul));
+// one fight goal + two others the player can actually do now
+questEnsure = (o => function () {
+  if (!TD.add) { TD.add = true; TD_POOL.forEach(q => { if (!QPOOL.some(x => x.k === q.k)) QPOOL.push(q); }); }
+  const today = dateKey(); if (S.daily && S.daily.d === today && Array.isArray(S.daily.t) && S.daily.t.length && S.daily.t.every(q => qOk(q, QPOOL))) return;
+  const keep = S.daily && S.daily.d === today && Array.isArray(S.daily.t) ? S.daily.t : [];
+  const R = mulberry32(strSeed(today + '|' + (Acct.cur || S.name || '') + '|td')), t = [];
+  const fight = QPOOL.filter(q => TD_FIGHT.includes(q.k) && (q.k !== 'boss' || S.level >= 6)), other = QPOOL.filter(q => !TD_FIGHT.includes(q.k) && tdOk(q));
+  const take = (pool, n) => { for (let i = 0; i < n && pool.length; i++) { const q = pool.splice(Math.floor(R() * pool.length), 1)[0], nn = Math.round(q.n[0] + R() * (q.n[1] - q.n[0])), m = QMAT[Math.floor(R() * QMAT.length)];
+    t.push({ k: q.k, n: nn, p: 0, c: 0, tier: lvTier(), coin: Math.round(18 * (1 + S.level * .06) * (q.k === 'boss' ? 1.6 : q.x || 1)), mat: m[0], mq: m[1] }); } };
+  take(fight, 1); take(other, 2); if (t.length < 3) take(QPOOL.filter(q => !t.some(x => x.k === q.k) && tdOk(q)), 3 - t.length);
+  for (const q of t) { const x = keep.find(y => y && y.k === q.k); if (x && Number.isFinite(x.p)) { q.p = Math.min(q.n, x.p); q.c = x.c ? 1 : 0; } }
+  S.daily = { d: today, t, bonus: 0 };
+})(questEnsure);
+// counting: fish / harvest / daily challenge already go through stInc; dungeons, village quests and abyss floors are hooked here.
+// questTick is muted while a dungeon kill runs (z_abyiso.js), so the dungeon win is counted a moment later.
+const tdTick = (k, n) => { try { questTick(k, n || 1); } catch (e) { } };
+stInc = (o => function (k) { const r = o.apply(this, arguments); if (k === 'fish' || k === 'harvest' || k === 'dch') setTimeout(() => tdTick(k), 0); return r; })(stInc);
+const tdWin = o => function () { const st = typeof DUN !== 'undefined' && DUN.st, was = !!(st && st.done); const r = o.apply(this, arguments); try { if (!was && DUN.st && DUN.st.done) setTimeout(() => tdTick('dun'), 0); } catch (e) { } return r; };
+dunWin = tdWin(dunWin); d2Win = tdWin(d2Win); dxWin = tdWin(dxWin);
+vqFinish = (o => function (q) { const r = o.apply(this, arguments); setTimeout(() => tdTick('vq'), 0); return r; })(vqFinish);
+
+/* ---- the tracker line and the card ---- */
+const TD_IC = { kill: '杀', tier: '险', boss: '王', melee: '刃', streak: '连', crate: '箱', event: '事', build: '建', search: '搜', cook: '厨', fish: '鱼', harvest: '田', dch: '挑', dun: '本', aby: '渊', vq: '村' };
+const tdOn = () => S.started && S.daily && (typeof ulOpen !== 'function' || ulOpen('daily'));
+const tdText = q => ((QPOOL.find(x => x.k === q.k) || { d: () => '' }).d(q.n));
+function tdLine() { const e = $('tdTrk'); if (!e) return; if (!tdOn()) { e.innerHTML = ''; return; } questEnsure();
+  const L = S.daily.t, done = L.filter(q => q.p >= q.n).length, can = L.some(q => q.p >= q.n && !q.c) || (L.every(q => q.c) && !S.daily.bonus);
+  const sig = L.map(q => q.p + '/' + q.c).join(',') + S.daily.bonus; if (sig === TD.sig && e.innerHTML) return; TD.sig = sig;
+  e.className = can ? 'can' : S.daily.bonus ? 'all' : '';
+  e.innerHTML = '<b>今日目标</b><span class="tdd">' + L.map(q => '<i class="' + (q.c ? 'c' : q.p >= q.n ? 'p' : '') + '"></i>').join('') + '</span>' + (S.daily.bonus ? '<em>已完成</em>' : can ? '<em>可领取</em>' : '<em>' + done + '/' + L.length + '</em>'); }
+function tdCard() { let c = $('tdCard'); if (!c) { c = document.createElement('div'); c.id = 'tdCard'; document.body.appendChild(c); ['pointerdown', 'touchstart', 'click'].forEach(ev => c.addEventListener(ev, e => e.stopPropagation())); } return c; }
+function tdRender() { const c = tdCard(); questEnsure(); const L = S.daily.t, all = L.every(q => q.c);
+  let h = '<div class="tdh"><b>今日目标</b><span>每天零点刷新</span><button class="tdx" aria-label="关闭">✕</button></div>';
+  L.forEach((q, i) => { const ok = q.p >= q.n, pc = Math.round(Math.min(1, q.p / q.n) * 100);
+    h += '<div class="tdr' + (q.c ? ' c' : ok ? ' p' : '') + '"><i>' + (TD_IC[q.k] || '务') + '</i><div class="tdm"><b>' + tdText(q) + '</b><u><s style="width:' + pc + '%"></s></u><small>' + q.p + ' / ' + q.n + ' · 余烬币 ' + q.coin + ' · ' + (MAT[q.mat] || { n: '材料' }).n + ' ×' + q.mq + '</small></div>' +
+      (q.c ? '<em>已领</em>' : ok ? '<button data-i="' + i + '">领取</button>' : '') + '</div>'; });
+  h += '<button class="tdbox' + (all && !S.daily.bonus ? ' can' : '') + '"' + (!all || S.daily.bonus ? ' disabled' : '') + '>' + TD_CHEST + '<span>' + (S.daily.bonus ? '今日宝箱已领取' : all ? '打开每日宝箱' : '三个目标都领取后开每日宝箱') + '<small>余烬币 · 精钢 · 血清 · 晶石 20 · 可能有晶体/核心</small></span></button>';
+  h += '<button class="tdall">查看全部任务 ›</button>';
+  c.innerHTML = h;
+  c.querySelector('.tdx').addEventListener('click', tdClose);
+  c.querySelectorAll('button[data-i]').forEach(b => b.addEventListener('click', () => { questClaim(+b.dataset.i); try { closePanel('quest'); } catch (e) { } tdRender(); tdLine(); }));
+  const bx = c.querySelector('.tdbox'); if (bx) bx.addEventListener('click', () => { questBonus(); try { closePanel('quest'); } catch (e) { } tdRender(); tdLine(); });
+  c.querySelector('.tdall').addEventListener('click', () => { tdClose(); try { openPanel('quest', renderQuest); } catch (e) { } }); }
+function tdOpen() { if (!tdOn() || S.dead) return; TD.open = true; tdRender(); tdCard().classList.add('on'); try { sfx.pick(); } catch (e) { } }
+function tdClose() { TD.open = false; const c = $('tdCard'); if (c) c.classList.remove('on'); }
+const TD_CHEST = '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M6 17h28v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z" fill="#8a4a1e" stroke="#ffc94a" stroke-width="1.4"/><path d="M6 17c0-6 5-10 14-10s14 4 14 10z" fill="#a85a24" stroke="#ffc94a" stroke-width="1.4"/><path d="M6 17h28M13 9v26M27 9v26" stroke="#ffc94a" stroke-width="1.6"/><rect x="17" y="15" width="6" height="7" rx="1.2" fill="#ffe08a" stroke="#6a3a10" stroke-width="1"/></svg>';
+// keep the line in the story tracker (it repaints its own innerHTML)
+stTrk = (o => function () { o(); try { const t = $('storyTrk'); let e = $('tdTrk'); if (t && t.appendChild && (!e || e.parentNode !== t)) { if (!e) { e = document.createElement('div'); e.id = 'tdTrk';
+    e.addEventListener('click', ev => { ev.stopPropagation(); if (TD.open) tdClose(); else tdOpen(); }); } t.appendChild(e); TD.sig = ''; } tdLine(); } catch (e) { } })(stTrk);
+questTick0 = (o => function () { const r = o.apply(this, arguments); try { tdLine(); if (TD.open) tdRender(); } catch (e) { } return r; })(questTick0);
+// abyss floors: counted as they are reached (one per new floor in a run)
+petsTick = (o => function (dt) { o(dt); try { if (typeof ABY !== 'undefined' && ABY.on) { if (ABY.floor < TD.af) TD.af = ABY.floor; if (ABY.floor > TD.af) { if (TD.af > 0) tdTick('aby', ABY.floor - TD.af); TD.af = ABY.floor; } } else TD.af = 0;
+  TD.lt = (TD.lt || 0) - dt; if (TD.lt <= 0) { TD.lt = 1; tdLine(); if (TD.open && (S.dead || S.paused)) tdClose(); } } catch (e) { } })(petsTick);
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+  '#tdTrk{margin-top:6px;margin-right:-26px;padding-top:5px;border-top:1px solid rgba(255,201,74,.22);display:flex;align-items:center;gap:6px;font-size:12px;color:#f4e4d0;cursor:pointer;pointer-events:auto}#tdTrk:empty{display:none}' +
+  '#storyTrk.min>#tdTrk:not(:empty){display:flex!important}' +
+  '#tdTrk b,#tdTrk em{white-space:nowrap}#tdTrk b{color:#ffe08a;font-weight:700}#tdTrk .tdd{display:flex;gap:3px}#tdTrk .tdd i{width:8px;height:8px;border-radius:50%;border:1px solid rgba(255,224,138,.7);box-sizing:border-box}#tdTrk .tdd i.p{background:#ffc94a;border-color:#ffc94a}#tdTrk .tdd i.c{background:#8fd16f;border-color:#8fd16f}' +
+  '#tdTrk em{margin-left:auto;font-style:normal;color:#c9a88a}#tdTrk.can em{color:#3a1e08;background:#ffc94a;border-radius:8px;padding:0 6px;font-weight:700;animation:tdBl 1.2s ease-in-out infinite}#tdTrk.all em{color:#9fe8a0}@keyframes tdBl{50%{opacity:.55}}' +
+  '#tdCard{position:fixed;left:calc(env(safe-area-inset-left,0px) + 10px);top:calc(env(safe-area-inset-top,0px) + 92px);z-index:58;width:min(320px,calc(100vw - 20px));box-sizing:border-box;padding:10px 12px 10px;border-radius:14px;' +
+  'background:linear-gradient(170deg,rgba(40,26,20,.97),rgba(22,14,14,.97));border:1px solid rgba(255,201,74,.5);box-shadow:0 10px 30px rgba(0,0,0,.5);color:#fff2e4;display:none;max-height:calc(100% - 110px);overflow-y:auto}#tdCard.on{display:block}' +
+  '#tdCard .tdh{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}#tdCard .tdh b{font-size:16px;color:#ffd27a}#tdCard .tdh span{font-size:11px;color:#a8907c}#tdCard .tdx{margin-left:auto;background:none;border:0;color:#d8c0a8;font-size:16px;padding:0 4px}' +
+  '#tdCard .tdr{display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid rgba(255,255,255,.07)}#tdCard .tdr>i{flex:none;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-style:normal;font-weight:700;font-size:14px;color:#ffe08a;background:rgba(255,201,74,.12);border:1px solid rgba(255,201,74,.45)}' +
+  '#tdCard .tdr.p>i{background:#ffc94a;color:#3a1e08}#tdCard .tdr.c>i{background:rgba(143,209,111,.2);border-color:#8fd16f;color:#bff0a8}#tdCard .tdm{flex:1;min-width:0}#tdCard .tdm b{display:block;font-size:13px;font-weight:600}#tdCard .tdr.c .tdm b{color:#a8c8a0}' +
+  '#tdCard .tdm u{display:block;height:5px;border-radius:3px;background:rgba(255,255,255,.1);margin:4px 0 3px;overflow:hidden}#tdCard .tdm s{display:block;height:100%;background:linear-gradient(90deg,#e8962a,#ffc94a)}#tdCard .tdr.c .tdm s{background:#8fd16f}' +
+  '#tdCard .tdm small{font-size:11px;color:#b89c84}#tdCard .tdr button{flex:none;padding:6px 10px;border-radius:9px;border:1px solid #ffd98a;background:linear-gradient(180deg,#ffc94a,#e8962a);color:#3a1e08;font-weight:700;font-size:12px}#tdCard .tdr em{flex:none;font-style:normal;font-size:11px;color:#8fd16f}' +
+  '#tdCard .tdbox{display:flex;align-items:center;gap:10px;width:100%;margin-top:8px;padding:8px 10px;border-radius:12px;border:1px solid rgba(255,201,74,.35);background:rgba(255,255,255,.04);color:#e8d4be;text-align:left;font-size:13px;font-weight:700}' +
+  '#tdCard .tdbox svg{flex:none;width:34px;height:34px}#tdCard .tdbox small{display:block;font-size:11px;font-weight:400;color:#a8907c;margin-top:2px}#tdCard .tdbox:disabled svg{filter:grayscale(.7) brightness(.8)}' +
+  '#tdCard .tdbox.can{border-color:#ffc94a;background:rgba(255,201,74,.14);color:#ffe08a;animation:tdGl 1.4s ease-in-out infinite}@keyframes tdGl{50%{box-shadow:0 0 14px rgba(255,201,74,.55)}}' +
+  '#tdCard .tdall{display:block;width:100%;margin-top:6px;padding:6px;background:none;border:0;color:#c9a88a;font-size:12px;text-align:right}' +
+  'body.gvOn #tdCard,body.bOpen #tdCard{display:none!important}' })); } catch (e) { }
+// tapping anywhere else closes the card
+try { document.addEventListener('pointerdown', e => { if (TD.open && !(e.target && e.target.closest && (e.target.closest('#tdCard') || e.target.closest('#tdTrk')))) tdClose(); }, true); } catch (e) { }
+/* ============ combat feel (owner 23 Nov: 打中要更有感觉；首领出大招前地上先出红圈；翻滚躲过去有完美闪避) ============
+   · Hit-stop: `update(dt)` is wrapped — while FEEL.hs runs the whole game moves at 5% speed for a few hundredths of a second.
+     Melee hits 50 ms (axe / pick 75 ms), gun crits 30 ms (at most every .45 s: fast guns would stutter), an elite kill 90 ms; a boss kill = 0.8 s slow motion.
+   · Knockback + flinch: melee ×1.6 (axe / pick ×2), shotgun up close ×1.5, sniper ×1.8 on top of the old push; the zombie
+     leans back for a moment (z.g rotation order YXZ while it lasts). Bosses / tough zombies only flinch a little.
+   · Boss warnings: the shared slam / nova / bolts now show red discs that fill up until the hit (the old thin pulsing ring is
+     hidden), the charge shows a red lane during its wind-up and while it runs. Region signature moves already had their own.
+   · 完美闪避: a hit that a roll's invulnerability swallows (within .45 s of starting the roll, an enemy nearby) →
+     .55 s slow motion, cyan flash, 「完美闪避」, the roll's stamina back and 反击 +40% damage for 3 s.
+   No time effects / dodge reward in a PvP match (pvpIn). Visual + feel only otherwise; damage unchanged except 反击. */
+const FEEL = { hs: 0, slow: 0, slowK: 1, gunHs: 0, rollAt: -9, pdT: 0, buff: 0, tg: new Set() };
+const feelOff = () => { try { return typeof pvpIn === 'function' && pvpIn(); } catch (e) { return false; } };
+function hitStop(d) { if (!feelOff()) FEEL.hs = Math.min(.14, Math.max(FEEL.hs, d)); }
+function slowMo(d, k) { if (feelOff()) return; FEEL.slow = Math.max(FEEL.slow, d); FEEL.slowK = Math.min(FEEL.slow > 0 && FEEL.slowK < 1 ? FEEL.slowK : 1, k); }
+update = (o => function (dt) { let k = 1;
+  if (FEEL.hs > 0) { FEEL.hs -= dt; k = .05; } else if (FEEL.slow > 0) { FEEL.slow -= dt; k = FEEL.slowK; if (FEEL.slow <= 0) FEEL.slowK = 1; }
+  return o(dt * k); })(update);
+
+/* ---- hits you land ---- */
+function feelHit(z, crit, dx, dz) {
+  const mel = isMelee(), heavy = S.wp === 'axe' || S.wp === 'pick', W = curW() || {}, shot = (W.pel || 1) > 1, snip = S.wp === 'sniper', now = performance.now();
+  const d = Math.hypot(z.pos.x - player.pos.x, z.pos.z - player.pos.z), big = z.boss || z.tough;
+  if (!big && !z.dead) { const km = mel ? (heavy ? 2 : 1.6) : shot ? (d < 6 ? 1.5 : 1) : snip ? 1.8 : 1; if (km > 1 && isFinite(z.knx) && isFinite(z.knz)) { z.knx *= km; z.knz *= km; } }
+  if (!z.dead && z.g) { z.flD = z.flT = mel ? .17 : .11; z.flA = (mel ? (heavy ? .42 : .32) : crit ? .24 : snip ? .3 : .13) * (big ? .25 : 1); FEEL.tg.add(z); }
+  if (z.dead) { if (z.boss) { slowMo(.8, .28); hitStop(.12); } else if (z.elite || z.abyE) hitStop(.09); else if (mel) hitStop(.06); else if (now - FEEL.gunHs > 400) { FEEL.gunHs = now; hitStop(.025); } }
+  else if (mel) { hitStop(heavy ? .075 : .05); S.shake = Math.max(S.shake || 0, heavy ? .09 : .05); }
+  else if (crit && now - FEEL.gunHs > 450) { FEEL.gunHs = now; hitStop(.03); }
+}
+hurtZombie = (o => function (z, dmg, dx, dz) {
+  const P = typeof NUM !== 'undefined' ? NUM.pend : null, mine = !!(P && S.t - P.t < .05), was = !!(z && !z.dead);
+  const r = o(z, dmg, dx, dz);
+  try { if (mine && was && !z.mirror && !z.pvp && !feelOff()) feelHit(z, P.crit, dx, dz); } catch (e) { }
+  return r; })(hurtZombie);
+// the flinch: lean back along the zombie's own facing, snapping in and easing out
+zSpecialTick = (o => function (dt) { o(dt); try { for (const z of FEEL.tg) { if (!z || z.removed || !z.g) { FEEL.tg.delete(z); continue; }
+  if (z.dead) { FEEL.tg.delete(z); continue; }
+  z.flT -= dt; const g = z.g; if (z.flT <= 0) { g.rotation.x = 0; g.rotation.order = 'XYZ'; FEEL.tg.delete(z); continue; }
+  const k = z.flT / z.flD; g.rotation.order = 'YXZ'; g.rotation.x = -z.flA * (k > .8 ? (1 - k) / .2 : k / .8); } } catch (e) { } })(zSpecialTick);
+// 反击: your hits do +40% for 3 s after a perfect dodge
+dmgRoll = (o => function (z, base) { const r = o(z, base); try { if (r && performance.now() < FEEL.buff && !feelOff()) r.d *= 1.4; } catch (e) { } return r; })(dmgRoll);
+
+/* ---- boss warnings ---- */
+const FTG = { geo: null, red: 0xff2a1a };
+function ftgGeo() { if (!FTG.geo) FTG.geo = { disc: new THREE.CircleGeometry(1, 48), ring: new THREE.RingGeometry(.93, 1, 48), plane: new THREE.PlaneGeometry(1, 1) }; for (const k in FTG.geo) FTG.geo[k].userData.keep = 1; return FTG.geo; }
+const ftgMat = (o) => new THREE.MeshBasicMaterial({ color: FTG.red, transparent: true, opacity: o, depthWrite: false, side: THREE.DoubleSide });
+// a disc: faint full area + bright edge + a fill that grows to the edge
+function ftgDisc() { const G = ftgGeo(), g = new THREE.Group(), a = new THREE.Mesh(G.disc, ftgMat(.13)), e = new THREE.Mesh(G.ring, ftgMat(.85)), f = new THREE.Mesh(G.disc, ftgMat(.3));
+  [a, e, f].forEach(m => { m.rotation.x = -Math.PI / 2; m.renderOrder = 2; g.add(m); }); f.position.y = .01; e.position.y = .02; g.userData = { a, e, f }; g.visible = false; scene.add(g); return g; }
+function ftgLane() { const G = ftgGeo(), g = new THREE.Group(), a = new THREE.Mesh(G.plane, ftgMat(.14)), f = new THREE.Mesh(G.plane, ftgMat(.32)), l = new THREE.Mesh(G.plane, ftgMat(.85)), r = new THREE.Mesh(G.plane, ftgMat(.85));
+  [a, f, l, r].forEach(m => { m.rotation.x = -Math.PI / 2; m.renderOrder = 2; g.add(m); }); f.position.y = .01; l.position.y = r.position.y = .02; g.userData = { a, f, l, r }; g.visible = false; scene.add(g); return g; }
+function ftgSetDisc(g, x, z, R, k, t) { const u = g.userData; g.visible = true; g.position.set(x, .1, z); u.a.scale.setScalar(R); u.e.scale.setScalar(R); u.f.scale.setScalar(Math.max(.01, R * k));
+  u.e.material.opacity = .55 + .4 * Math.abs(Math.sin(t * (8 + 14 * k))); u.f.material.opacity = .22 + .2 * k; }
+function ftgSetLane(g, x, z, ang, L, W, k, t, fade) { const u = g.userData; g.visible = true; g.position.set(x, .1, z); g.rotation.y = ang;
+  u.a.scale.set(W, L, 1); u.a.position.z = L / 2; u.f.scale.set(W, Math.max(.01, L * k), 1); u.f.position.z = L * k / 2;
+  [u.l, u.r].forEach((m, i) => { m.scale.set(.12, L, 1); m.position.set((i ? 1 : -1) * W / 2, .02, L / 2); m.material.opacity = (.55 + .4 * Math.abs(Math.sin(t * (8 + 14 * k)))) * fade; });
+  u.a.material.opacity = .14 * fade; u.f.material.opacity = (.22 + .2 * k) * fade; }
+function ftgOf(b) { if (!b._ftg) { b._ftg = { slam: ftgDisc(), bolts: [], lane: ftgLane(), lx: 0, lz: 0, la: 0 }; FEEL.tg2 = FEEL.tg2 || new Set(); FEEL.tg2.add(b); } return b._ftg; }
+function ftgHide(T) { T.slam.visible = false; T.lane.visible = false; T.bolts.forEach(g => { g.visible = false; }); }
+function ftgFree(b) { const T = b._ftg; if (!T) return; [T.slam, T.lane, ...T.bolts].forEach(g => scene.remove(g)); [T.slam, T.lane, ...T.bolts].forEach(g => g.children.forEach(m => { try { m.material.dispose(); } catch (e) { } })); b._ftg = null; FEEL.tg2 && FEEL.tg2.delete(b); }
+function ftgBoss(b) {
+  if (b.dead || b.removed || S.isl) { if (b._ftg) ftgFree(b); return; }
+  const st = b.state; if (st !== 'slam' && st !== 'bolt' && st !== 'windC' && st !== 'charge' && !b._ftg) return;
+  const T = ftgOf(b), t = S.t; ftgHide(T); if (b.sig) return;
+  if (st === 'slam' && b.sl) { slamRing.visible = false; ftgSetDisc(T.slam, b.pos.x, b.pos.z, b.sl.R + .5, Math.min(1, b.st / b.sl.t), t); }
+  else if (st === 'bolt' && b.bolts) { boltRings.forEach(m => { m.visible = false; });
+    b.bolts.forEach((p, i) => { const g = T.bolts[i] || (T.bolts[i] = ftgDisc()); ftgSetDisc(g, p.x, p.z, 2.5, Math.min(1, b.st / 1.1), t + i); }); }
+  else if (st === 'windC') { const px = player.pos.x - b.pos.x, pz = player.pos.z - b.pos.z; T.la = Math.atan2(px, pz); T.lx = b.pos.x; T.lz = b.pos.z;
+    ftgSetLane(T.lane, T.lx, T.lz, T.la, 15 * .85 + 3, (3.2 + b.sc * .15) * 2, Math.min(1, b.st / .7), t, 1); }
+  else if (st === 'charge') ftgSetLane(T.lane, T.lx, T.lz, T.la, 15 * .85 + 3, (3.2 + b.sc * .15) * 2, 1, t, Math.max(0, 1 - b.st / .85));
+}
+updateBoss = (o => function (b, dt) { const r = o(b, dt); try { ftgBoss(b); } catch (e) { } return r; })(updateBoss);
+// a boss that left the list (despawned, island, dungeon end) takes its warnings with it
+petsTick = (o => function (dt) { o(dt); try { if (FEEL.tg2) for (const b of FEEL.tg2) if (b.dead || b.removed || !zombies.includes(b) || S.isl) ftgFree(b); } catch (e) { } })(petsTick);
+
+/* ---- 完美闪避 ---- */
+rollGo = (o => function () { const t0 = ROLL.t; const r = o.apply(this, arguments); if (ROLL.t > 0 && t0 <= 0) FEEL.rollAt = performance.now(); return r; })(rollGo);
+const pdEnemyNear = () => zombies.some(z => !z.dead && !z.animal && !z.mirror && Math.hypot(z.pos.x - player.pos.x, z.pos.z - player.pos.z) < (z.boss ? 30 : 9));
+takeDamage = (o => function (n, src) {
+  try { const now = performance.now();
+    if (!S.dead && n > 0 && S.invT > 0 && now - FEEL.rollAt < 450 && now > FEEL.pdT && !feelOff() && !(src && src.buff === 'poison') && pdEnemyNear()) perfectDodge(now); } catch (e) { }
+  return o(n, src); })(takeDamage);
+function perfectDodge(now) {
+  FEEL.pdT = now + 1500; FEEL.buff = now + 3000 + 550; slowMo(.55, .3);
+  try { S.sta = Math.min(S.maxSta, S.sta + ROLL.cost); } catch (e) { }
+  try { burst(player.pos.x, 1, player.pos.z, 0x9ae8ff, 18, 6); if (typeof fxRing === 'function') fxRing(player.pos.x, player.pos.z, .4, 3.2, .45, 0x9ae8ff, .8, .15); } catch (e) { }
+  try { if (AC) { sfxNoise(.22, .1, 2400, { f1: 500 }); sfxTone(880, 1760, .25, .07, 'sine', { delay: .03 }); sfxTone(1320, 2640, .3, .05, 'triangle', { delay: .1 }); } } catch (e) { }
+  pdFx();
+}
+function pdFx() { if (!document.createElement || !document.body || !document.body.appendChild) return; let e = $('pdFx');
+  if (!e) { e = document.createElement('div'); e.id = 'pdFx'; e.innerHTML = '<div class="pdv"></div><div class="pdt"><b>完美闪避</b><span>反击 · 伤害 +40% · 3 秒</span></div>'; document.body.appendChild(e); }
+  e.classList.remove('on'); void e.offsetWidth; e.classList.add('on'); clearTimeout(FEEL.pdTo); FEEL.pdTo = setTimeout(() => e.classList.remove('on'), 1300);
+  const st = $('pdBuff') || (() => { const b = document.createElement('div'); b.id = 'pdBuff'; b.textContent = '反击 +40%'; document.body.appendChild(b); return b; })(); st.classList.add('on'); }
+petsTick = (o => function (dt) { o(dt); try { const b = $('pdBuff'); if (b && b.classList.contains('on') && performance.now() > FEEL.buff) b.classList.remove('on'); } catch (e) { } })(petsTick);
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+  '#pdFx{position:fixed;inset:0;pointer-events:none;z-index:45;display:none}#pdFx.on{display:block}' +
+  '#pdFx .pdv{position:absolute;inset:0;box-shadow:inset 0 0 90px 30px rgba(120,220,255,.55);animation:pdV 1.2s ease-out forwards}' +
+  '#pdFx .pdt{position:absolute;left:50%;top:30%;transform:translate(-50%,-50%);text-align:center;animation:pdT 1.2s ease-out forwards}' +
+  '#pdFx .pdt b{display:block;font-size:30px;letter-spacing:6px;color:#eafcff;text-shadow:0 0 12px #5ad0ff,0 0 26px #2a8cff,0 2px 0 #0a3050}#pdFx .pdt span{display:block;margin-top:4px;font-size:13px;color:#bff0ff;text-shadow:0 1px 3px #000}' +
+  '@keyframes pdV{0%{opacity:0}12%{opacity:1}100%{opacity:0}}@keyframes pdT{0%{opacity:0;transform:translate(-50%,-50%) scale(1.6)}14%{opacity:1;transform:translate(-50%,-50%) scale(1)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-60%) scale(1)}}' +
+  '#pdBuff{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 150px);transform:translateX(-50%);padding:3px 10px;border-radius:10px;background:rgba(20,60,90,.75);border:1px solid #7fd8ff;color:#dff6ff;font-size:12px;font-weight:700;pointer-events:none;display:none;z-index:44}#pdBuff.on{display:block;animation:tdBl .8s ease-in-out infinite}' })); } catch (e) { }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -29322,4 +29554,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795413309').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795416511').catch(()=>{});</script></body></html>
