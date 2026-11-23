@@ -24569,6 +24569,99 @@ try { SKIN_P.myth = [
   { pts: [[-1.25, 2.2, -.5], [1.25, 2.2, -.5], [-1.4, 1.3, -.6], [1.4, 1.3, -.6], [-.7, .9, -.5], [.7, .9, -.5]], rate: 26, life: .8, v: [0, .25, -.5], sp: .3, col: [0x8ff4ff, 0xc8b0ff, 0xffe08a], sz: .05, moving: 1 },
   { pts: [[-1, 1.9, -.45], [1, 1.9, -.45]], rate: 5, life: 1.4, v: [0, .4, -.1], sp: .5, col: [0xc8b0ff, 0x8ff4ff], sz: .035 }]; } catch (e) { }
 try { SKINS.myth.d = '象牙白与金色的天穹神铠：盾形胸甲描着金纹，圆肩甲上立着小水晶羽，白金长发配金色羽冠，头顶旋转的光环；背后一对水晶羽翼——金色翼骨挂着三层带金边的多面水晶羽毛，从青色渐变到紫色，会呼吸；两条天女飘带随风飞舞，脚下光圈流转。'; } catch (e) { }
+/* ============ 神话时装「天穹机神」(owner 23 Nov: 「本来的（旧天穹神裔）可以做成一个新的皮肤，改动一下变成机甲皮肤」) ============
+   Built from the old 天穹神裔 layout (box plate armour, shard-fan wings, rear ring, spinning ring over the head), turned into a mecha:
+   - white + gunmetal armour plates, gold trim, cyan energy lines; a hexagonal arc reactor in the chest that pulses
+   - helmet with a V-fin antenna (gold), V visor, ear sensors, chin guard; a segmented sensor ring turning over the head
+   - a backpack with two downward thrusters (flickering flames) and two mechanical wing arms carrying the crystal blade fans
+     (the old 晶翼 fan, breathing; beats with the other wings while flying over water — fx wingL / wingR)
+   - a turning gear ring behind the back (m2spin), two energy-beam tails (m2chain), shoulder and calf thrusters
+   - mythic stats like the other mythic outfits; sold in 外观直售 (SKIN_DIRECT, mythic price). The description says 晶翼,
+     so like other winged outfits it flies over water and blocks a separate wing accessory (wingBlockName). */
+SKINS.mecha = { n: '天穹机神', r: 5, st: { dmg: .06, crit: .03, hpPct: .08, def: .03 }, stt: '伤害 +6%、暴击率 +3%、生命 +8%、减伤 +3%',
+  d: '白色与枪灰的天穹机甲：胸口六角能量反应炉一明一暗，V 字天线头盔配青色目镜，头顶一圈感应环在转；背包两台推进器喷着蓝焰，两条机械臂撑开会呼吸的水晶刃翼，背后一轮金属齿环转动，两道能量尾流随风飘动。' };
+SKIN_BUILD.mecha = function (k) {
+  const { bx, cone, gem, G, both, torso, sleeves, pants, put } = k;
+  const W = 0xeef0f4, W2 = 0xc8ccd6, M = 0x3a3f4a, M2 = 0x5a606c, GO = 0xe8c060, GO2 = 0xb8902e, CYc = 0x7ff0ff, VIc = 0xc49aff, CY = G(CYc), VI = G(VIc), WH = G(0xffffff);
+  const add = (geo, m, x, y, z, p, fx, ph) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); put(o, p); if (fx) { o.userData.fx = fx; o.userData.ph = ph || 0; o.userData.y0 = y; o.userData.x0 = x; o.userData.z0 = z; } return o; };
+  const glow = (c, op) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const B = c => new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide });
+  // a thruster: gunmetal nozzle + a flickering blue flame (fx 'mkflm'), pointing along the given rotation
+  const thruster = (x, y, z, rx, rz, sc) => { sc = sc || 1;
+    const n = add(new THREE.CylinderGeometry(.07 * sc, .1 * sc, .14 * sc, 8), mat(M), x, y, z, 'b'); n.rotation.set(rx, 0, rz);
+    const f = add(new THREE.ConeGeometry(.075 * sc, .34 * sc, 8), glow(0x6fd8ff, .7), 0, 0, 0, 'b', 'mkflm', x * 7 + y); f.rotation.set(rx + Math.PI, 0, rz);
+    // the flame sits just past the nozzle's mouth, along the nozzle's own -y
+    const L = (.07 + .17) * sc; f.position.set(x + L * Math.sin(rz), y - L * Math.cos(rz) * Math.cos(rx), z - L * Math.cos(rz) * Math.sin(rx)); f.userData.sc = sc; };   /* (0,-L,0) turned by rz then rx, plain maths for the headless stub */
+  /* ---- body: white plate over gunmetal, gold trim, a hexagonal arc reactor ---- */
+  torso(W); bx(.6, .5, .07, W2, 0, 1.52, .23); bx(.62, .05, .08, GO, 0, 1.78, .24); bx(.62, .05, .08, GO, 0, 1.27, .24);
+  { const hx = add(new THREE.CylinderGeometry(.17, .17, .06, 6), mat(M), 0, 1.53, .28, 'b'); hx.rotation.x = Math.PI / 2;
+    const rim = add(new THREE.TorusGeometry(.17, .022, 4, 6), mat(GO), 0, 1.53, .31, 'b'); rim.rotation.z = Math.PI / 6;
+    gem(.09, CY, 0, 1.53, .33); const gl = add(new THREE.CircleGeometry(.14, 6), glow(CYc, .6), 0, 1.53, .315, 'b', 'm2glow'); gl.rotation.z = Math.PI / 6; }
+  both(s => { bx(.03, .3, .02, CY, s * .2, 1.45, .275, 'b', 0, 0, -s * .6); for (let i = 0; i < 3; i++) bx(.12, .025, .02, M, s * .2, 1.68 - i * .045, .275); });
+  for (let i = 0; i < 3; i++) bx(.5 - i * .04, .05, .46, i % 2 ? M : M2, 0, 1.22 - i * .06, 0);   // segmented belly bands
+  bx(.78, .12, .5, GO, 0, 1.03, 0); gem(.07, CY, 0, 1.03, .27);
+  both(s => { bx(.28, .42, .07, W, s * .17, .8, .22, 'b', .16); bx(.03, .38, .02, CY, s * .17, .8, .26, 'b', .16); bx(.28, .44, .07, W2, s * .17, .8, -.22, 'b', -.16);
+    for (let i = 0; i < 2; i++) { bx(.12, .26 - i * .06, .3, i ? W2 : M2, s * (.42 + i * .03), .88 - i * .1, 0, 'b', 0, 0, s * (.12 + i * .08)); } });
+  bx(.6, .7, .05, M, 0, .7, -.25, 'b', -.08); bx(.03, .66, .02, CY, 0, .7, -.28, 'b', -.08);
+  /* ---- helmet: white dome, V-fin antenna, V visor, ear sensors, chin guard ---- */
+  bx(.52, .46, .52, W, 0, 2.08, 0); bx(.54, .06, .54, M, 0, 1.86, 0); bx(.3, .1, .06, M2, 0, 1.9, .25);
+  both(s => { bx(.25, .07, .04, CY, s * .11, 2.1, .265, 'b', 0, 0, -s * .22); bx(.25, .02, .03, WH, s * .11, 2.125, .285, 'b', 0, 0, -s * .22);
+    const e = add(new THREE.CylinderGeometry(.08, .08, .08, 8), mat(M2), s * .28, 2.08, 0, 'b'); e.rotation.z = Math.PI / 2; add(new THREE.CircleGeometry(.05, 8), B(CYc), s * .325, 2.08, 0, 'b').rotation.y = s * Math.PI / 2;
+    bx(.035, .4, .025, GO, s * .14, 2.42, .25, 'b', 0, 0, -s * .75); bx(.025, .22, .02, GO2, s * .07, 2.33, .26, 'b', 0, 0, -s * .45); });
+  bx(.1, .1, .05, GO, 0, 2.27, .265); gem(.035, G(0xff4a5a), 0, 2.27, .29);
+  bx(.08, .14, .4, M2, 0, 2.36, -.02);   // centre crest
+  // segmented sensor ring over the head (four arcs, turning)
+  { const hr = add(new THREE.TorusGeometry(.34, .025, 4, 8, 1.1), B(CYc), 0, 2.66, -.05, 'b', 'halo'); hr.rotation.x = Math.PI / 2 - .25;
+    for (let i = 1; i < 4; i++) { const a = new THREE.Mesh(new THREE.TorusGeometry(.34, .025, 4, 8, 1.1), B(i % 2 ? 0xffe08a : CYc)); a.rotation.z = i * Math.PI / 2; hr.add(a); }
+    const hg = add(new THREE.TorusGeometry(.34, .07, 6, 32), glow(0x6fe8ff, .2), 0, 2.66, -.05, 'b', 'halo'); hg.rotation.x = Math.PI / 2 - .25; }
+  /* ---- shoulders: blocky armour, a thruster on top of each ---- */
+  both(s => { bx(.4, .22, .48, W, s * .48, 1.86, 0); bx(.42, .06, .5, GO, s * .48, 1.74, 0); bx(.3, .14, .4, M2, s * .5, 1.99, 0); bx(.03, .04, .42, CY, s * .67, 1.86, 0);
+    thruster(s * .5, 2.06, -.18, -.9, 0, .8); });
+  /* ---- backpack: two thrusters pointing down, two mechanical wing arms carrying the crystal blade fans ---- */
+  bx(.46, .6, .22, M2, 0, 1.5, -.33); bx(.4, .5, .04, W, 0, 1.52, -.45); bx(.08, .5, .05, GO, 0, 1.52, -.47); gem(.08, CY, 0, 1.62, -.5); add(new THREE.TorusGeometry(.11, .02, 4, 6), mat(GO), 0, 1.62, -.48, 'b');
+  both(s => { thruster(s * .13, 1.14, -.36, 0, 0, 1);
+    bx(.06, .5, .08, M, s * .3, 1.8, -.44, 'b', 0, 0, -s * .9); add(new THREE.CylinderGeometry(.06, .06, .1, 8), mat(GO), s * .2, 1.66, -.44, 'b').rotation.x = Math.PI / 2;
+    add(new THREE.CylinderGeometry(.055, .055, .1, 8), mat(M2), s * .5, 1.94, -.44, 'b').rotation.x = Math.PI / 2;
+    for (let i = 0; i < 6; i++) { const a = .1 + i * .3, len = .62 - Math.abs(i - 2) * .07, R = .55 + len * .5;
+      const w = add(new THREE.OctahedronGeometry(.1), i % 2 ? VI : CY, s * (.18 + Math.cos(a) * R), 1.62 + Math.sin(a) * R * .9, -.46 - i * .015, 'b', s < 0 ? 'wingL' : 'wingR', i * .22);
+      w.scale.set(.6, len * 5.2, .22); w.rotation.z = -s * (Math.PI / 2 - a); w.userData.r0 = w.rotation.z;
+      const g2 = add(new THREE.OctahedronGeometry(.13), glow(i % 2 ? 0xb080ff : 0x6fe8ff, .3), w.position.x, w.position.y, w.position.z - .01, 'b', s < 0 ? 'wingL' : 'wingR', i * .22); g2.scale.set(.85, len * 5.5, .3); g2.rotation.z = w.rotation.z; g2.userData.r0 = w.rotation.z;
+      // a metal clamp at each blade's root
+      const c = add(new THREE.BoxGeometry(.09, .09, .09), mat(M), s * (.18 + Math.cos(a) * (R - len * .5)), 1.62 + Math.sin(a) * (R - len * .5) * .9, -.45, 'b', s < 0 ? 'wingL' : 'wingR', i * .22); c.rotation.z = w.rotation.z; c.userData.r0 = w.rotation.z; } });
+  // gear ring behind the back: a thick gunmetal ring with teeth, a gold inner ring turning the other way
+  { const rg = add(new THREE.TorusGeometry(.92, .045, 4, 48), mat(M2), 0, 1.66, -.72, 'b', 'm2spin'); rg.userData.sp = .3;
+    for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283, t = new THREE.Mesh(new THREE.BoxGeometry(.09, .12, .07), mat(i % 4 ? M : GO)); t.position.set(Math.cos(a) * 1.0, Math.sin(a) * 1.0, 0); t.rotation.z = a - Math.PI / 2; rg.add(t); }
+    for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283 + .2, l = new THREE.Mesh(new THREE.BoxGeometry(.05, .05, .03), B(CYc)); l.position.set(Math.cos(a) * .92, Math.sin(a) * .92, .04); rg.add(l); }
+    const r2 = add(new THREE.TorusGeometry(.7, .02, 4, 6), mat(GO), 0, 1.66, -.7, 'b', 'm2spin'); r2.userData.sp = -.6;
+ }
+  // two energy-beam tails from the backpack (hinged, m2chain animator in z_myth2.js)
+  both(s => { let par = null; const n = 8, sl = .15, C = [B(0x8ff4ff), B(0x6fd8ff), B(0xb8f6ff)];
+    for (let i = 0; i < n; i++) { const g = new THREE.Group(); g.userData = { fx: 'm2chain', i, n, side: s, amp: .28 }; put(g, 'b');
+      if (!i) { g.position.set(s * .2, 1.22, -.42); g.rotation.set(.5, 0, s * .25); g.userData.b = [.5, 0, s * .25]; } else { par.add(g); g.position.set(0, -sl, 0); }
+      const seg = new THREE.Mesh(new THREE.BoxGeometry(.08 * (1 - i / n * .5), sl + .01, .015), C[i % 3]); seg.position.y = -sl / 2; g.add(seg);
+      if (i % 3 === 0) { const r = new THREE.Mesh(new THREE.BoxGeometry(.11 * (1 - i / n * .5), .03, .03), mat(M2)); g.add(r); }
+      par = g; } });
+  /* ---- arms and legs: gunmetal suit, white armour, elbow / knee plates, calf thrusters ---- */
+  sleeves(M, M2); both((s, L, a) => { bx(.29, .32, .29, W, 0, -.56, 0, a); bx(.3, .04, .3, GO, 0, -.42, 0, a); bx(.3, .03, .3, CY, 0, -.7, 0, a); bx(.2, .12, .1, M2, 0, -.38, -.16, a); bx(.06, .26, .06, M2, s * .16, -.56, 0, a); });
+  pants(M, W, .3); both((s, L) => { bx(.32, .44, .34, W, 0, -.7, 0, L); bx(.33, .04, .35, GO, 0, -.48, 0, L); bx(.03, .3, .02, CY, 0, -.7, .18, L); bx(.31, .03, .41, CY, 0, -.99, .05, L);
+    bx(.22, .14, .08, M2, 0, -.44, .19, L); bx(.14, .2, .1, M2, 0, -.72, -.2, L);
+    const n = new THREE.Mesh(new THREE.ConeGeometry(.06, .12, 8), mat(M)); n.position.set(0, -.86, -.22); put(n, L);
+    const f = new THREE.Mesh(new THREE.ConeGeometry(.05, .2, 8), glow(0x6fd8ff, .6)); f.position.set(0, -1.0, -.22); f.rotation.x = Math.PI; f.userData.fx = 'mkflm'; f.userData.ph = s; f.userData.sc = .7; put(f, L); });
+  /* ---- feet: a hexagon of light on the ground, three small drones circling ---- */
+  const ring = add(new THREE.RingGeometry(.62, .7, 6), glow(0x7ff0ff, .5), 0, .05, 0, 'g', 'aura'); ring.rotation.x = -Math.PI / 2;
+  const ring2 = add(new THREE.RingGeometry(.4, .43, 40), glow(0xe8c060, .5), 0, .06, 0, 'g', 'aura2'); ring2.rotation.x = -Math.PI / 2;
+  for (let i = 0; i < 3; i++) { const d = add(new THREE.BoxGeometry(.09, .05, .09), mat(M2), 0, 1.2, 0, 'g', 'orbit', i * 2.094); const l = new THREE.Mesh(new THREE.BoxGeometry(.04, .02, .1), B(i === 1 ? VIc : CYc)); l.position.y = -.03; d.add(l); }
+};
+// flames flicker (and grow while running)
+skinAnimate = (o => function (out, T) { o(out, T); let mv = -1;
+  for (const f of out || []) { const u = f.userData; if (!u || u.fx !== 'mkflm') continue;
+    if (mv < 0) { mv = 0; try { mv = Math.min(1, Math.hypot(input.mx || 0, input.mz || 0)); } catch (e) { } }
+    const k = .75 + mv * .55 + Math.sin(T * 31 + u.ph * 5) * .12; f.scale.set(1, k, 1); f.material.opacity = .5 + Math.sin(T * 23 + u.ph) * .15; } })(skinAnimate);
+try { SKIN_P.mecha = [
+  { pts: 'body', rate: 8, life: 1.2, v: [0, .5, 0], sp: .3, col: [0x8ff4ff, 0xffffff, 0xe8c060], sz: .04 },
+  { pts: [[-.13, 1.0, -.38], [.13, 1.0, -.38]], rate: 30, life: .5, v: [0, -.9, -.3], sp: .25, col: [0x6fd8ff, 0xb8f6ff, 0xffffff], sz: .05, moving: 1 },
+  { pts: [[-.6, 1.6, -.5], [.6, 1.6, -.5]], rate: 6, life: 1, v: [0, .3, -.3], sp: .4, col: [0x8ff4ff, 0xc49aff], sz: .04 }]; } catch (e) { }
+SKIN_DIRECT.push('mecha');
 /* ============ 青冥飞剑（owner 22 Nov：做一柄飞剑，像翅膀那样能飞，不过是御剑飞行）============
    它是「翅膀」一栏里的一件（和粉蝶幻翼一样：单独买、单独装、带属性、穿自带翅膀的外观时不能装）。
    平时：一柄青玉长剑悬在背后，剑尖朝上，慢慢浮动，剑脊流光。
@@ -29778,4 +29871,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795425048').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795425675').catch(()=>{});</script></body></html>
