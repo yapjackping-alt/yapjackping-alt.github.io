@@ -8671,6 +8671,8 @@ const GUIDE = [
   ['战斗', [
     ['stick', '移动', '左下角按住拖动就能走，拖得越远走得越快'],
     ['bFire', '射击 / 挥砍', '按住会自动瞄准最近的敌人。拿近战武器时变成「挥砍」'],
+    ['bRoll', '翻滚', '往移动方向翻一下，翻的时候不会受伤（电脑：空格或 F）。攻击快打到你的一瞬间才翻 = 完美闪避：时间变慢，3 秒内伤害 +40%'],
+    ['bSkill', '武器技能', '每把武器有自己的技能，冷却好了就能放。首领出大招前地上会出现红色的圈或路线，红色填满就是打下来的时候'],
     ['bReload', '换弹', '点一下换弹。快速连点两下，切换手上的武器和备用武器'],
     ['bMed', '医疗包', '马上回复生命，右下角小数字是还剩几个'],
     ['stickidle', '奔跑', '把摇杆拉到外面的虚线圈外就会跑，任何方向都行（摇杆变绿），拉回圈内就是走路。会消耗体力，用完会自己慢慢恢复'],
@@ -8684,7 +8686,9 @@ const GUIDE = [
     ['status', '角色', '点左上角的血条：看属性、加天赋、打开设置、联机'],
     ['mapwrap', '雷达 / 地图', '黄点是箱子，红点是首领，金色 $ 是商人。点一下打开大地图，可以放标记'],
     ['bBag', '背包', '物品、装备、武器、外观都在这里，点物品看详情'],
-    ['bQuest', '任务', '每天的任务，完成后来这里领奖'],
+    ['tdTrk', '今日目标', '任务栏最下面那一行：每天三个小目标，点开就能领奖，三个都领了开每日宝箱'],
+    ['bQuest', '任务', '每日、每周任务和成就，连续登录奖励也在这里'],
+    ['bInspect', '检视', '站着不动点一下，把手里的武器拿出来展示一圈（电脑：U）'],
     ['bHub', '活动', '今日挑战、签到、周王、赛季、图鉴'],
     ['bMall', '商城', '补给抽奖、赛季手册、晶石']]]
 ];
@@ -8698,14 +8702,16 @@ function renderGuide() {
       if (id === 'stick') { const s = document.createElement('div'); s.className = 'stick'; ic.appendChild(s); }
       else if (id === 'look') { ic.innerHTML = '<span style="font-size:34px;color:#ffe08a">' + EI('tap', '1em') + '</span>'; }
       else if (id === 'status') ic.innerHTML = '<span class="gfake">Lv.1<i></i></span>';
+      else if (id === 'tdTrk') ic.innerHTML = '<span class="gfake" style="font-size:11px">今日目标<br>● ○ ○</span>';
       else if (id === 'mapwrap') ic.innerHTML = '<span class="gfake gmap">雷达</span>';
       else { const src = $(id); const round = src && src.classList && src.classList.contains('btn');
         if (src && src.cloneNode) { const c = src.cloneNode(true); const sw = c.querySelector && c.querySelector('#swapIc'); if (sw) sw.remove();
-          c.removeAttribute('id'); c.querySelectorAll && c.querySelectorAll('[id]').forEach(e => e.removeAttribute('id')); c.style.cssText = ''; c.classList.remove('dim');
+          c.removeAttribute('id'); c.querySelectorAll && c.querySelectorAll('[id]').forEach(e => e.removeAttribute('id')); c.style.cssText = ''; c.classList.remove('dim', 'ulhide', 'ulnew', 'ulock');
           if (id === 'bClimb') c.textContent = '爬上去'; if (id === 'bGather' && !c.textContent.trim()) c.textContent = '采集';
           if (round) { const w = document.createElement('span'); w.className = 'gbtnc' + (id === 'bFire' ? ' gfire' : ''); w.innerHTML = c.innerHTML; ic.appendChild(w); } else ic.appendChild(c); }
         else ic.innerHTML = '<span class="btn2">' + n + '</span>'; }
-      const t = document.createElement('div'); t.className = 'gt'; t.innerHTML = '<b>' + n + '</b><span>' + d + '</span>';
+      const lk = typeof UNLOCK !== 'undefined' && typeof ulOn === 'function' && ulOn() ? UNLOCK.find(u => u[3].includes(id === 'tdTrk' ? 'bQuest' : id) && S.level < u[1]) : null;
+      const t = document.createElement('div'); t.className = 'gt'; t.innerHTML = '<b>' + n + (lk ? ' <em style="font-style:normal;color:#ffd060;font-size:.85em">Lv.' + lk[1] + ' 解锁</em>' : '') + '</b><span>' + d + '</span>';
       it.appendChild(ic); it.appendChild(t); L.appendChild(it);
     }
   }
@@ -16106,14 +16112,14 @@ function stPct(st) { return !st ? .08 : st.k === 'boss' ? .25 : st.k === 'dun' ?
     { k: 'wlv', n: 2, d: T2('把一把武器升到 2 级', 'Upgrade a weapon to Lv.2'), say: T2('武器要靠升级变强。在「背包 → 武器」选手枪，点「升级」。这次的材料也给你备好了，以后要自己去打、去采。', 'Weapons get stronger by upgrading. In Backpack → Weapons pick the pistol and tap Upgrade. I prepared the materials this time; after this you gather them yourself.'), gift: 'wup' },
     { k: 'mine', n: 3, d: T2('回大陆，用镐子敲 3 下石头堆或废车', 'Back on the mainland, hit stone piles or wrecks 3 times with the pickaxe'), say: T2('坐船回郊区，切换到镐子，走到灰色的石头堆或废车旁边按住采集键。石头堆出石头，废车出铁片。', 'Sail back to the suburbs, switch to the pickaxe, and hold the gather button by a grey stone pile or a wrecked car. Stone piles give stone, wrecks give iron.') },
     { k: 'lv', n: 3, d: T2('升到 Lv.3', 'Reach Lv.3'), say: T2('继续变强。到 Lv.3 我教你翻滚。', 'Keep getting stronger. At Lv.3 I\'ll teach you to roll.') },
-    { k: 'roll', n: 2, d: T2('点「翻滚」翻 2 次', 'Roll twice'), say: T2('点圆形箭头的「翻滚」，往移动方向翻一下，翻的时候不会受伤。被围住就翻出去。', 'Tap the round-arrow Roll button to roll the way you are moving. You take no damage while rolling. Roll out when you are surrounded.') },
+    { k: 'roll', n: 2, d: T2('点「翻滚」翻 2 次', 'Roll twice'), say: T2('点圆形箭头的「翻滚」，往移动方向翻一下，翻的时候不会受伤。被围住就翻出去。看准时机：攻击快打到你的一瞬间才翻，就是「完美闪避」，时间会慢下来，接下来 3 秒伤害更高。', 'Tap the round-arrow Roll button to roll the way you are moving. You take no damage while rolling. Roll out when you are surrounded. Time it: roll just as a hit is about to land for a Perfect Dodge — time slows and your damage goes up for 3 s.') },
     { k: 'craft', n: 1, d: T2('回岛在工作台制作 1 次', 'Make something at the workbench on the island'), say: T2('岛上的工作台能用木头、铁片、火药做子弹和医疗包。子弹很贵，自己做划算一些。', 'The workbench on the island turns wood, iron and gunpowder into ammo and medkits. Ammo is expensive; making it yourself saves coins.') },
     { k: 'lv', n: 4, d: T2('升到 Lv.4', 'Reach Lv.4') },
     { k: 'quest', n: 1, d: T2('点开任务栏最下面的「今日目标」', 'Open Today\'s Goals at the bottom of the tracker'), say: T2('从今天起，每天都有三个小目标，就在任务栏最下面那一行「今日目标」。点开看看：做完一个领一个，三个都领了还能开每日宝箱。', 'From today you get three small goals a day: the Today\'s Goals line at the bottom of the tracker. Tap it: claim each one as you finish it, and all three open the daily chest.') },
     { k: 'lv', n: 5, d: T2('升到 Lv.5', 'Reach Lv.5'), say: T2('背包只有 20 格，东西会越攒越多。到 Lv.5 我教你建储物箱。', 'The backpack has only 20 slots and things pile up. At Lv.5 I\'ll show you how to build a storage box.') },
     { k: 'btype', t: 'chest', n: 1, d: T2('回岛建一个「储物箱」', 'Build a Storage Box on the island'), say: T2('回岛在「建造」里放一个「储物箱」（6 木头 + 2 铁片，不够的我补上了）。以后副本掉的东西很多，一定要有地方放。', 'On the island place a Storage Box from Build (6 wood + 2 iron; I topped you up). Dungeons drop a lot later, so you need somewhere to keep it.'), gift: 'chest' },
     { k: 'stash', n: 1, d: T2('打开储物箱，存 1 样东西进去', 'Open the storage box and store something'), say: T2('站到储物箱旁边点「打开储物柜」，把暂时用不上的材料存进去。储物箱里的材料，升级、建造时会自动拿来用。', 'Stand by the box and tap Open Storage, then store what you don\'t need right now. Upgrades and building use what is in storage automatically.') },
-    { k: 'boss', n: 1, tier: 1, d: T2('击败「荒废郊区」的首领', 'Defeat the Ruined Suburbs boss'), say: T2('最后一课：郊区有个大家伙，地图上的骷髅标记就是它。打倒它，首领会掉好东西，有时还会掉武器突破用的印记。', 'Last lesson: there is a big one in the suburbs, the skull on the map. Bring it down. Bosses drop good loot, sometimes the seal you need for a weapon breakthrough.') }];
+    { k: 'boss', n: 1, tier: 1, d: T2('击败「荒废郊区」的首领', 'Defeat the Ruined Suburbs boss'), say: T2('最后一课：郊区有个大家伙，地图上的骷髅标记就是它。它出大招前，地上会先出现红色的圈或路线，红色填满就是打下来的时候——跑出去，或者在填满那一下翻滚，打出完美闪避。打倒它，首领会掉好东西，有时还会掉武器突破用的印记。', 'Last lesson: there is a big one in the suburbs, the skull on the map. Before its big moves the ground shows a red circle or lane; when the red fills up, the hit lands — get out, or roll right then for a Perfect Dodge. Bosses drop good loot, sometimes the seal you need for a weapon breakthrough.') }];
   C1.rw = { coin: 400, estone: 5, gem: 40, gear: 2 };
   // every step has its own reward, and every one gives XP (more for the harder ones)
   const PR = [{ xp: 20, coin: 20 }, { xp: 20, wood: 5 }, { xp: 25, vine: 3 }, { xp: 25, coin: 30 }, { xp: 30, med: 1 }, { xp: 35, wood: 15 }, { xp: 40, ammo: 30 }];
@@ -28299,7 +28305,7 @@ const TD_POOL = [
   { k: 'cook', n: [2, 3], d: n => '做 ' + n + ' 份料理' },
   { k: 'fish', n: [3, 5], d: n => '钓到 ' + n + ' 条鱼', lv: 8, ul: 'fish' },
   { k: 'harvest', n: [1, 2], d: n => '收获 ' + n + ' 次农田', lv: 6, ul: 'farm' },
-  { k: 'dch', n: [1, 1], d: () => '完成一次今日挑战', lv: 4 },
+  { k: 'dch', n: [1, 1], d: () => '完成一次今日挑战', lv: 5, ul: 'hub' },
   { k: 'dun', n: [1, 1], d: () => '通关一次副本', lv: 12, ul: 'dungeon', x: 1.6 },
   { k: 'aby', n: [5, 10], d: n => '在无尽深渊打通 ' + n + ' 层', lv: 20, ul: 'abyss', x: 1.6 },
   { k: 'vq', n: [1, 2], d: n => '完成 ' + n + ' 个村庄委托或悬赏', lv: 4 }
@@ -29581,4 +29587,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795417900').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795421006').catch(()=>{});</script></body></html>
