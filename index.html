@@ -15976,23 +15976,25 @@ zSpecialTick = (o => function (dt) { o(dt); if (FX2.on) try { fx2Tick(fx2Now());
 /* ============ unlock by level (friend's z_unlock.js, adjusted to the real game) ============
    New saves only (level <= 2 the first time the game runs with this file); old saves are never locked.
    Open from Lv.1: move, fire, build, boat, recall, backpack, merchant, workbench, storage boxes.
-   Lv.2 talents · Lv.3 roll · Lv.4 daily tasks · Lv.6 farm · Lv.8 fishing + fish tank · Lv.12 dungeons · Lv.15 online party.
-   A locked button stays visible but grey with "Lv.X" on it; tapping it says when it opens. At the level a banner explains it in one line. */
+   Lv.2 talents · Lv.3 roll · Lv.4 daily tasks · Lv.5 events · Lv.6 farm · Lv.7 shop · Lv.8 fishing + fish tank · Lv.10 inspect ·
+   Lv.12 dungeons · Lv.15 online party · Lv.18 arena · Lv.20 abyss.
+   A locked HUD button is hidden (build-menu cards stay grey with "Lv.X"); tapping a locked thing says when it opens.
+   At the level the button glows and 老陈 teaches it (chapter 1 / commissions, or a teaching task in z_tut.js). */
 const UNLOCK_ON = true;
-// [系统 key, 解锁等级, 名字, 按钮 id 列表, 建造菜单里要锁的建筑类型, 解锁时弹出的一句话教学]
+// [系统 key, 解锁等级, 名字, 按钮 id 列表, 建造菜单里要锁的建筑类型]
 const UNLOCK = [
-  ['talent', 2, T2('天赋', 'Talents'), ['bTalTree'], [], T2('每升一级得到 1 个天赋点：点左上角的血条 → 天赋，加点变强。', 'Every level gives a talent point: tap the health bar (top left) → Talents to spend it.')],
-  ['roll', 3, T2('翻滚', 'Roll'), ['bRoll'], [], T2('点圆形箭头的「翻滚」，往移动方向翻一下，翻的时候不会受伤，要花一点体力。', 'Tap the round-arrow Roll button to roll the way you are moving: no damage while rolling, costs a little stamina.')],
-  ['daily', 4, T2('每日任务', 'Daily tasks'), ['bQuest'], [], T2('点右上角展开的「任务」，每天有新任务，做完来领奖。', 'Open Tasks at the top right: new tasks every day, come back for the rewards.')],
-  ['farm', 6, T2('农田', 'Farming'), ['bFarm'], ['farm'], T2('回岛在「建造」里放「农田」，种下种子，过一会儿回来收获。', 'On the island, place a Farm from Build, plant seeds, and come back later to harvest.')],
-  ['fish', 8, T2('钓鱼', 'Fishing'), ['bFish'], ['tank'], T2('站在水边点「钓鱼」；钓到的鱼可以放进自己建的「鱼缸」养着。', 'Stand by the water and tap Fish; you can keep the fish in a Fish Tank you build.')],
-  ['hub', 5, T2('活动', 'Events'), ['bHub'], [], T2('右上角「更多」里出现了「活动」：今日挑战、签到、赛季奖励和图鉴都在这里。', 'Events is now in the More menu (top right): daily challenge, sign-in, season rewards and the collection.')],
-  ['mall', 7, T2('商城', 'Shop'), ['bMall'], [], T2('「更多」里出现了「商城」：用晶石买资源、时装、武器皮肤，还能抽补给。', 'The Shop is now in the More menu: spend gems on resources, outfits, weapon skins and supply draws.')],
-  ['insp', 10, T2('检视武器', 'Inspect'), ['bInspect'], [], T2('「检视」按钮会把手里的武器拿出来展示一圈，换了好看的皮肤就拿出来看看吧。', 'The Inspect button shows off the weapon in your hands. Try it after you get a nice skin.')],
-  ['dungeon', 12, T2('副本', 'Dungeons'), [], [], T2('走到码头点「坐船出海」→ 副本，挑战有故事的地下城，掉的东西很多：出发前先把背包和储物箱腾一腾。', 'At the pier, Set sail → Dungeons: story dungeons with lots of loot. Empty your backpack into storage first.')],
-  ['party', 15, T2('联机组队', 'Online party'), ['bPartyT'], [], T2('点左上角的血条 → 联机，和朋友组队一起打。', 'Tap the health bar (top left) → Online to team up with friends.')],
-  ['pvp', 18, T2('竞技场', 'Arena'), [], [], T2('码头「坐船出海」最上面多了「竞技场 · PvP」：用自己的装备和别的玩家 1 对 1。', 'At the pier, Set sail now lists the Arena: 1v1 against other players with your own gear.')],
-  ['abyss', 20, T2('无尽深渊', 'Endless Abyss'), [], [], T2('码头西边的潜水艇「深渊号」可以下潜了：一层比一层难，每层选一张卡，看你能走多深。', 'The submarine west of the pier can dive now: endless floors, pick a card after each one.')]
+  ['talent', 2, T2('天赋', 'Talents'), ['bTalTree'], []],
+  ['roll', 3, T2('翻滚', 'Roll'), ['bRoll'], []],
+  ['daily', 4, T2('每日任务', 'Daily tasks'), ['bQuest'], []],
+  ['farm', 6, T2('农田', 'Farming'), ['bFarm'], ['farm']],
+  ['fish', 8, T2('钓鱼', 'Fishing'), ['bFish'], ['tank']],
+  ['hub', 5, T2('活动', 'Events'), ['bHub'], []],
+  ['mall', 7, T2('商城', 'Shop'), ['bMall'], []],
+  ['insp', 10, T2('检视武器', 'Inspect'), ['bInspect'], []],
+  ['dungeon', 12, T2('副本', 'Dungeons'), [], []],
+  ['party', 15, T2('联机组队', 'Online party'), ['bPartyT'], []],
+  ['pvp', 18, T2('竞技场', 'Arena'), [], []],
+  ['abyss', 20, T2('无尽深渊', 'Endless Abyss'), [], []]
 ];
 const UL = { gate: null, seen: 0, toast: 0, queue: [], qT: 0, t: 0 };
 const ulLv = key => { const u = UNLOCK.find(x => x[0] === key); return u ? u[1] : 1; };
@@ -16032,7 +16034,7 @@ zSpecialTick = (o => function (dt) {
   try {
     if (!UNLOCK_ON || !S.started) return;
     if (UL.gate === null) { UL.gate = S.level <= 2 ? 1 : 0; if (UL.gate) UL.seen = Math.max(UL.seen, 1); }       // 第一次进游戏时决定：新档上锁，老档不管
-    UL.qT -= dt; if (UL.qT <= 0 && UL.queue.length && !S.dead && !S.paused && !ulCardUp() && !(typeof TD !== 'undefined' && TD.open)) { UL.qT = 1.2; const u = UL.queue.shift(); try { ulShow(u); } catch (e) { try { banner(T2('解锁新玩法 · ', 'New feature · ') + u[2], u[5], 5); } catch (er) { } } }
+    UL.qT -= dt; if (UL.qT <= 0 && UL.queue.length && !S.dead) { UL.qT = .5; const u = UL.queue.shift(); try { ulShow(u); } catch (e) { } }
     UL.t -= dt; if (UL.t > 0) return; UL.t = .8;
     for (const u of UNLOCK) for (const id of u[3]) { const b = $(id); if (!b || !b.classList) continue; const lock = ulOn() && S.level < u[1];
       b.classList.toggle('ulhide', lock); }
@@ -16044,13 +16046,6 @@ zSpecialTick = (o => function (dt) {
 try {
   const st = document.createElement('style');
   st.textContent = '.ulhide{display:none!important}' +
-    '#ulCard{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 21vh);transform:translate(-50%,-14px) scale(.96);opacity:0;z-index:70;width:min(330px,86vw);box-sizing:border-box;padding:14px 16px 12px;border-radius:16px;' +
-    'background:linear-gradient(160deg,rgba(58,36,20,.97),rgba(26,16,14,.97));border:1px solid rgba(255,201,74,.6);box-shadow:0 0 0 1px rgba(0,0,0,.4),0 12px 34px rgba(0,0,0,.55),0 0 26px rgba(255,170,60,.25);color:#fff2e4;pointer-events:none;transition:opacity .25s,transform .25s}' +
-    '#ulCard.on{opacity:1;transform:translate(-50%,0) scale(1);pointer-events:auto}' +
-    '#ulCard .ulh{display:flex;align-items:center;gap:10px}#ulCard .ulh svg{flex:none;width:40px;height:40px}' +
-    '#ulCard .ulh small{display:block;font-size:11px;letter-spacing:2px;color:#ffc94a}#ulCard .ulh b{display:block;font-size:19px;color:#fff;margin-top:1px}' +
-    '#ulCard p{margin:9px 0 10px;font-size:13px;line-height:1.55;color:#f0dcc6}#ulCard .ulb{display:flex;gap:8px;justify-content:flex-end}' +
-    '#ulCard button{padding:7px 14px;border-radius:10px;border:1px solid rgba(255,201,74,.45);background:rgba(255,255,255,.06);color:#ffe9c8;font-weight:700;font-size:13px}#ulCard button.go{background:linear-gradient(180deg,#ffc94a,#e8962a);color:#3a1e08;border-color:#ffd98a}' +
     '.ulnew{animation:ulPulse 1.3s ease-in-out infinite!important}@keyframes ulPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,201,74,.85)}50%{box-shadow:0 0 0 7px rgba(255,201,74,0),0 0 16px 3px rgba(255,201,74,.6)}}' +
     '.ulock{opacity:.4!important;filter:grayscale(1)!important;position:relative}.ulock::after{content:attr(data-ul);position:absolute;left:50%;bottom:-2px;transform:translateX(-50%);font-size:10px;line-height:1;padding:2px 4px;border-radius:6px;background:rgba(0,0,0,.75);color:#ffd060;white-space:nowrap;pointer-events:none}';
   document.head.appendChild(st);
@@ -16058,29 +16053,13 @@ try {
 // dungeons: the pier still lists them, but below Lv.12 (new saves) "查看" says when they open
 openDunPage = (o => function () { if (!ulOpen('dungeon')) { feed(T2('Lv.12 解锁：副本', 'Opens at Lv.12: Dungeons'), '#ffd060'); return; } return o.apply(this, arguments); })(openDunPage);
 
-/* ---- the unlock card: what opened, one line on how to use it, 「去看看」 when it has a button; the new button glows until it is tapped ---- */
-const UL_ICO = '<svg viewBox="0 0 40 40" aria-hidden="true"><defs><radialGradient id="ulg" cx="50%" cy="45%" r="55%"><stop offset="0" stop-color="#fff2b0"/><stop offset=".55" stop-color="#ffc94a"/><stop offset="1" stop-color="#c06a1a"/></radialGradient></defs>' +
-  '<circle cx="20" cy="20" r="18" fill="rgba(255,201,74,.14)" stroke="#ffc94a" stroke-width="1.4"/><path d="M20 6l3.6 8.6 9.2.8-7 6 2.1 9-7.9-4.8-7.9 4.8 2.1-9-7-6 9.2-.8z" fill="url(#ulg)" stroke="#fff4c8" stroke-width=".8" stroke-linejoin="round"/></svg>';
-const ULC = { t: 0, el: null };
-// 「去看看」 only where the button opens a window (an action button like 翻滚 would just do the action)
-const UL_LOOK = { talent: 1, daily: 1, hub: 1, mall: 1, party: 1 };
-const ulCardUp = () => !!(ULC.el && ULC.el.classList && ULC.el.classList.contains('on'));
-function ulHide() { if (ULC.el && ULC.el.classList) ULC.el.classList.remove('on'); clearTimeout(ULC.t); }
+/* ---- when something opens: the new button glows until it is tapped; 老陈 explains it in the story voice —
+   talent / roll / daily / farm / fish / dungeon / party are taught by chapter 1 and the commissions (z_story2.js),
+   hub / mall / insp / pvp / abyss by his short teaching tasks (`tutAdd`, z_tut.js) ---- */
 function ulGlow(u) { const ids = u[3].slice(); try { if (ids.some(id => { const b = $(id); return b && b.closest && b.closest('#qtray'); })) ids.push('bMore'); } catch (e) { }
   ids.forEach(id => { const b = $(id); if (!b || !b.classList) return; b.classList.add('ulnew'); const off = () => { b.classList.remove('ulnew'); if (id !== 'bMore' && b.removeEventListener) b.removeEventListener('click', off); };
     if (id !== 'bMore' && b.addEventListener) b.addEventListener('click', off); setTimeout(off, 45000); }); }
-function ulShow(u) {
-  if (!document.createElement || !document.body || !document.body.appendChild) { banner(T2('解锁新玩法 · ', 'New feature · ') + u[2], u[5], 5); return; }
-  let c = ULC.el; if (!c) { c = ULC.el = document.createElement('div'); c.id = 'ulCard'; document.body.appendChild(c);
-    ['pointerdown', 'touchstart', 'click'].forEach(ev => c.addEventListener(ev, e => e.stopPropagation())); }
-  const btn = UL_LOOK[u[0]] ? u[3].find(id => { const b = $(id); return b && b.getBoundingClientRect; }) : null;
-  c.innerHTML = '<div class="ulh">' + UL_ICO + '<div><small>' + T2('新玩法解锁', 'NEW FEATURE') + '</small><b>' + u[2] + '</b></div></div><p>' + u[5] + '</p><div class="ulb">' +
-    (btn ? '<button class="look">' + T2('去看看', 'Show me') + '</button>' : '') + '<button class="go">' + T2('知道了', 'Got it') + '</button></div>';
-  c.querySelector('.go').addEventListener('click', ulHide);
-  const lk = c.querySelector('.look'); if (lk) lk.addEventListener('click', () => { ulHide(); if (u[0] === 'talent') { try { openTalents(true); } catch (e) { } return; } const b = $(btn); if (!b) return; try { if (b.closest && b.closest('#qtray')) qTray(true); } catch (e) { } setTimeout(() => { try { b.click(); } catch (e) { } }, 60); });
-  void c.offsetWidth; c.classList.add('on'); ulGlow(u); try { sfx.build(); } catch (e) { }
-  clearTimeout(ULC.t); ULC.t = setTimeout(ulHide, 9000);
-}
+function ulShow(u) { ulGlow(u); if (typeof tutAdd === 'function') tutAdd(u[0]); }
 // PvP: the pier still lists the arena; before its level it says when it opens
 try { openPvpPage = (o => function () { if (!ulOpen('pvp')) { feed(T2('Lv.18 解锁：竞技场', 'Opens at Lv.18: Arena'), '#ffd060'); return; } return o.apply(this, arguments); })(openPvpPage); } catch (e) { }
 /* ============ the tutorial is the main story (Nov 2026) ============
@@ -16130,7 +16109,7 @@ function stPct(st) { return !st ? .08 : st.k === 'boss' ? .25 : st.k === 'dun' ?
     { k: 'roll', n: 2, d: T2('点「翻滚」翻 2 次', 'Roll twice'), say: T2('点圆形箭头的「翻滚」，往移动方向翻一下，翻的时候不会受伤。被围住就翻出去。', 'Tap the round-arrow Roll button to roll the way you are moving. You take no damage while rolling. Roll out when you are surrounded.') },
     { k: 'craft', n: 1, d: T2('回岛在工作台制作 1 次', 'Make something at the workbench on the island'), say: T2('岛上的工作台能用木头、铁片、火药做子弹和医疗包。子弹很贵，自己做划算一些。', 'The workbench on the island turns wood, iron and gunpowder into ammo and medkits. Ammo is expensive; making it yourself saves coins.') },
     { k: 'lv', n: 4, d: T2('升到 Lv.4', 'Reach Lv.4') },
-    { k: 'quest', n: 1, d: T2('打开「任务」看看今天的每日任务', 'Open Tasks and look at today\'s daily tasks'), say: T2('右上角的箭头展开后有「任务」，每天都有新的每日任务，做完能领奖励。', 'Open the arrow at the top right to find Tasks. New daily tasks every day, with rewards.') },
+    { k: 'quest', n: 1, d: T2('点开任务栏最下面的「今日目标」', 'Open Today\'s Goals at the bottom of the tracker'), say: T2('从今天起，每天都有三个小目标，就在任务栏最下面那一行「今日目标」。点开看看：做完一个领一个，三个都领了还能开每日宝箱。', 'From today you get three small goals a day: the Today\'s Goals line at the bottom of the tracker. Tap it: claim each one as you finish it, and all three open the daily chest.') },
     { k: 'lv', n: 5, d: T2('升到 Lv.5', 'Reach Lv.5'), say: T2('背包只有 20 格，东西会越攒越多。到 Lv.5 我教你建储物箱。', 'The backpack has only 20 slots and things pile up. At Lv.5 I\'ll show you how to build a storage box.') },
     { k: 'btype', t: 'chest', n: 1, d: T2('回岛建一个「储物箱」', 'Build a Storage Box on the island'), say: T2('回岛在「建造」里放一个「储物箱」（6 木头 + 2 铁片，不够的我补上了）。以后副本掉的东西很多，一定要有地方放。', 'On the island place a Storage Box from Build (6 wood + 2 iron; I topped you up). Dungeons drop a lot later, so you need somewhere to keep it.'), gift: 'chest' },
     { k: 'stash', n: 1, d: T2('打开储物箱，存 1 样东西进去', 'Open the storage box and store something'), say: T2('站到储物箱旁边点「打开储物柜」，把暂时用不上的材料存进去。储物箱里的材料，升级、建造时会自动拿来用。', 'Stand by the box and tap Open Storage, then store what you don\'t need right now. Upgrades and building use what is in storage automatically.') },
@@ -28370,7 +28349,7 @@ function tdRender() { const c = tdCard(); questEnsure(); const L = S.daily.t, al
   c.querySelectorAll('button[data-i]').forEach(b => b.addEventListener('click', () => { questClaim(+b.dataset.i); try { closePanel('quest'); } catch (e) { } tdRender(); tdLine(); }));
   const bx = c.querySelector('.tdbox'); if (bx) bx.addEventListener('click', () => { questBonus(); try { closePanel('quest'); } catch (e) { } tdRender(); tdLine(); });
   c.querySelector('.tdall').addEventListener('click', () => { tdClose(); try { openPanel('quest', renderQuest); } catch (e) { } }); }
-function tdOpen() { if (!tdOn() || S.dead) return; TD.open = true; tdRender(); tdCard().classList.add('on'); try { sfx.pick(); } catch (e) { } }
+function tdOpen() { if (!tdOn() || S.dead) return; TD.open = true; try { st2Ev('quest'); } catch (e) { } tdRender(); tdCard().classList.add('on'); try { sfx.pick(); } catch (e) { } }
 function tdClose() { TD.open = false; const c = $('tdCard'); if (c) c.classList.remove('on'); }
 const TD_CHEST = '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M6 17h28v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z" fill="#8a4a1e" stroke="#ffc94a" stroke-width="1.4"/><path d="M6 17c0-6 5-10 14-10s14 4 14 10z" fill="#a85a24" stroke="#ffc94a" stroke-width="1.4"/><path d="M6 17h28M13 9v26M27 9v26" stroke="#ffc94a" stroke-width="1.6"/><rect x="17" y="15" width="6" height="7" rx="1.2" fill="#ffe08a" stroke="#6a3a10" stroke-width="1"/></svg>';
 // keep the line in the story tracker (it repaints its own innerHTML)
@@ -28399,6 +28378,54 @@ try { document.head.appendChild(Object.assign(document.createElement('style'), {
   'body.gvOn #tdCard,body.bOpen #tdCard{display:none!important}' })); } catch (e) { }
 // tapping anywhere else closes the card
 try { document.addEventListener('pointerdown', e => { if (TD.open && !(e.target && e.target.closest && (e.target.closest('#tdCard') || e.target.closest('#tdTrk')))) tdClose(); }, true); } catch (e) { }
+/* ============ 老陈的提示 (owner 23 Nov: 新手逐步解锁要改进章节和教程里) ============
+   Chapter 1 and the commissions (z_story2.js) already teach 天赋 Lv.2 / 翻滚 Lv.3 / 今日目标 Lv.4 / 储物箱 Lv.5 /
+   农田 Lv.6 / 钓鱼 Lv.8 / 副本 Lv.12 / 联机 Lv.15. The rest had nobody to explain them; when one of these opens for a new
+   save (z_unlock.js → ulShow → tutAdd), 老陈 says a few lines over the radio (the story box) and a one-step teaching task
+   shows at the bottom of the tracker 「✦ 老陈：打开「活动」看看」 — tap it to do it (where that can be done from anywhere).
+   Done → small reward (coins + XP share like a teaching step). One at a time; the others wait in S.tut.q. Saved r.tut. */
+const TUT = {
+  hub: { lv: 5, d: T2('打开「活动」看看', 'Open Events'), go: () => { qTray(true); setTimeout(() => { try { $('bHub').click(); } catch (e) { } }, 60); },
+    say: [T2('电台里还有个「活动」频道：今日挑战、签到、赛季奖励，都在里面。', 'The radio has an Events channel too: the daily challenge, sign-in and season rewards.'),
+      T2('右上角的箭头展开，点「活动」看看。今日挑战每天换一个地方，打赢了奖励很好。', 'Open the arrow at the top right and tap Events. The daily challenge moves every day and pays well.')] },
+  mall: { lv: 7, d: T2('打开「商城」看看', 'Open the Shop'), go: () => { qTray(true); setTimeout(() => { try { $('bMall').click(); } catch (e) { } }, 60); },
+    say: [T2('你攒下的晶石别乱花。「商城」里能换材料、时装和武器皮肤，也能抽补给。', 'Don\'t waste the gems you save. The Shop trades them for materials, outfits and weapon skins, and has supply draws.'),
+      T2('先进去看看有什么，不买也没关系。', 'Have a look first. You don\'t have to buy anything.')] },
+  insp: { lv: 10, d: T2('点「检视」看看手里的武器', 'Tap Inspect to look at your weapon'), go: () => { try { insStart(); } catch (e) { } },
+    say: [T2('跟了你这么久的家伙，也该好好看看了。', 'You\'ve carried that weapon a long way. Take a proper look at it.'),
+      T2('右下多了个「检视」，站着不动点一下，会把武器拿出来转一圈。以后换了好看的皮肤，就拿出来显摆显摆。', 'There is an Inspect button at the bottom right now. Stand still and tap it to show the weapon off — try it again when you get a nice skin.')] },
+  pvp: { lv: 18, d: T2('在码头的出海菜单打开「竞技场」', 'Open the Arena in the pier\'s sailing menu'),
+    say: [T2('码头最近来了些不服气的幸存者，想跟人比划比划。', 'Some cocky survivors have been hanging around the pier, looking for a fight.'),
+      T2('码头「坐船出海」最上面有「竞技场」：用你自己的装备和别人 1 对 1，三局两胜。输了不掉东西，没人应战就跟人机练。', 'At the pier, Set sail lists the Arena at the top: 1v1 with your own gear, best of three. Losing costs nothing, and with nobody around you fight a bot.')] },
+  abyss: { lv: 20, d: T2('走上「深渊号」下潜一次', 'Board the Abyss sub and dive once'),
+    say: [T2('码头西边那艘潜水艇「深渊号」……开船的阿深说，下面没有底。', 'That submarine west of the pier — the Abyss. Ah Shen, who drives it, says there is no bottom down there.'),
+      T2('只能带一把武器下去，每打完一层挑一张卡，五层一个首领。看你能走多深。', 'You take one weapon. After each floor you pick a card, and every fifth floor has a boss. See how deep you can go.')] }
+};
+const tutS = () => { if (!S.tut) S.tut = { c: '', q: [], d: [] }; return S.tut; };
+function tutAdd(k) { if (!TUT[k]) return; const s = tutS(); if (s.c === k || s.q.includes(k) || s.d.includes(k)) return; s.q.push(k); tutNext(); }
+function tutNext() { const s = tutS(); if (s.c || !s.q.length) return; s.c = s.q.shift(); const T = TUT[s.c];
+  try { storyTalk(T.say.map(l => ['老陈', l])); } catch (e) { } try { feed(T2('老陈的提示：', 'Old Chen: ') + T.d, '#9fe8ff'); } catch (e) { } try { stTrk(); } catch (e) { } }
+function tutDone(k) { const s = tutS(); if (s.c !== k) return; s.c = ''; s.d.push(k);
+  const x = typeof stXp === 'function' ? stXp(S.level, .10) : 30, c = 50 + 10 * S.level;
+  try { addXp(x); gain('coin', c); } catch (e) { } try { banner(T2('老陈的提示 · 完成', 'Old Chen\'s tip · done'), T2('余烬币 +', 'Coins +') + c + T2(' · 经验 +', ' · XP +') + x, 2.6); sfx.build(); } catch (e) { }
+  try { saveGame(); } catch (e) { } tutNext(); try { stTrk(); } catch (e) { } }
+// what counts as done
+openPanel = (o => function (id) { const r = o.apply(this, arguments); try { if (id === 'hub') tutDone('hub'); else if (id === 'mall') tutDone('mall'); } catch (e) { } return r; })(openPanel);
+insStart = (o => function () { const r = o.apply(this, arguments); try { if (WINSP.on) tutDone('insp'); } catch (e) { } return r; })(insStart);
+openPvpPage = (o => function () { const r = o.apply(this, arguments); try { if ($('pvpM')) tutDone('pvp'); } catch (e) { } return r; })(openPvpPage);
+petsTick = (o => function (dt) { o(dt); try { const s = S.tut; if (s && s.c === 'abyss' && typeof ABY !== 'undefined' && ABY.on && ABY.floor >= 1) tutDone('abyss'); } catch (e) { } })(petsTick);
+// the tracker line (kept after the story tracker repaints itself)
+function tutLine() { const e = $('tuTrk'); if (!e) return; const s = S.tut, T = s && s.c && TUT[s.c]; e.className = T && T.go ? 'tugo' : '';
+  e.innerHTML = T ? '<span>✦ ' + T2('老陈：', 'Old Chen: ') + T.d + (T.go ? ' <b>›</b>' : '') + '</span>' : ''; }
+stTrk = (o => function () { o(); try { const t = $('storyTrk'); let e = $('tuTrk'); if (t && t.appendChild && (!e || e.parentNode !== t)) { if (!e) { e = document.createElement('div'); e.id = 'tuTrk';
+    e.addEventListener('click', ev => { ev.stopPropagation(); const s = S.tut, T = s && s.c && TUT[s.c]; if (T && T.go && S.started && !S.dead && !S.paused) T.go(); }); }
+    const td = $('tdTrk'); if (td && td.parentNode === t) t.insertBefore(e, td); else t.appendChild(e); } tutLine(); } catch (e) { } })(stTrk);
+/* ---- save ---- */
+shopSave = (o => function () { const r = o(); try { if (S.tut) r.tut = { c: S.tut.c || '', q: S.tut.q.slice(0, 8), d: S.tut.d.slice(0, 16) }; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o(d); S.tut = null; try { const g = d && d.sh && d.sh.tut; if (g && typeof g === 'object') { const ok = k => typeof k === 'string' && !!TUT[k];
+  S.tut = { c: ok(g.c) ? g.c : '', q: Array.isArray(g.q) ? g.q.filter(ok) : [], d: Array.isArray(g.d) ? g.d.filter(ok) : [] }; } } catch (e) { } })(shopLoad);
+try { document.head.appendChild(Object.assign(document.createElement('style'), { textContent:
+  '#tuTrk{margin-top:4px;font-size:12px;line-height:1.45;color:#9fe8ff}#tuTrk:empty{display:none}#tuTrk span{display:block}#tuTrk.tugo{cursor:pointer;pointer-events:auto}#tuTrk b{color:#ffe08a}' })); } catch (e) { }
 /* ============ combat feel (owner 23 Nov: 打中要更有感觉；首领出大招前地上先出红圈；翻滚躲过去有完美闪避) ============
    · Hit-stop: `update(dt)` is wrapped — while FEEL.hs runs the whole game moves at 5% speed for a few hundredths of a second.
      Melee hits 50 ms (axe / pick 75 ms), gun crits 30 ms (at most every .45 s: fast guns would stutter), an elite kill 90 ms; a boss kill = 0.8 s slow motion.
@@ -29554,4 +29581,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795416511').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795417900').catch(()=>{});</script></body></html>
