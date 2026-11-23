@@ -28914,19 +28914,29 @@ const celTexP = () => { if (CEL.pt !== undefined) return CEL.pt; let t = null;
 function celestGun(g, id) { const M = celM(), k0 = { stock: false, body: M.blue, body2: M.pearl, top: M.pearl, dark: M.blue, gold: M.gold, mag: id === 'rifle' ? M.crys : null };
   if (id === 'pistol') { k0.top = M.pearl; k0.body = M.blue; }
   const P = MG_GUN[id](g, k0), s = P.s, k = Math.max(.75, s), [z0, z1] = P.rz, [y0, y1] = P.rh, L = z1 - z0, H = y1 - y0, xs = P.xs + .004, U = g.userData;
-  // (1) 羽刃枪托 (owner: 有棱有角, and it must open to BOTH sides): two wings, one leaning out to each side (wg yaw), each a fan of
-  //     angular kite-shaped blades with a faceted ridge (big bevel, flat shading) and crisp gold edge lines
-  const blades = [], wings = [], BL = id === 'pistol' ? [[.2, .45], [.26, .05]] : [[.42, .55], [.58, .25], [.62, -.05], [.48, -.33]];
-  for (const sd of [-1, 1]) { const wg = new THREE.Group(); wg.position.set(sd * .02 * k, P.sy, P.sz + .01); wg.rotation.y = sd * .5; g.add(wg); wings.push([wg, sd]);
-    BL.forEach(([l0, a], i) => { const bl = l0 * k, bw = .07 * k, d = .012 * k;
-      const bg = new THREE.Group(); bg.rotation.x = a; wg.add(bg); blades.push([bg, a]);
-      const pts = [[0, bw * .4], [-bl * .55, bw * .62], [-bl * .86, bw * .3], [-bl, 0], [-bl * .7, -bw * .42], [0, -bw * .4]];
-      let geo; try { geo = new THREE.ExtrudeGeometry(mgShapeOf(pts), { depth: d, bevelEnabled: true, bevelThickness: d * 1.1, bevelSize: Math.min(bw * .22, .014 * k), bevelSegments: 1 }); } catch (e) { geo = new THREE.BoxGeometry(.02, .05, .1); }
-      const me = new THREE.Mesh(geo, M.pearl); me.rotation.y = -Math.PI / 2; me.position.x = d / 2; bg.add(me);
+  // (1) owner 23 Nov: 「后面加一个圆球，翅膀做成隔空的、悬浮的，贴着这个圆球飘着」 — a glowing orb behind the receiver (gold
+  //     neck, crystal shell, white-blue core, turning gold band) and, on each side, angular blades that float free beside it
+  //     (gaps between them and the orb), each bobbing on its own; they drift further out on every shot
+  const orbR = .1 * k, oz = P.sz - orbR - .035 * k, oy = P.sy;
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(.03 * k, .045 * k, .06 * k, 8), M.gold); neck.rotation.x = Math.PI / 2; neck.position.set(0, oy, P.sz - .02 * k); g.add(neck);
+  const orb = new THREE.Group(); orb.position.set(0, oy, oz); g.add(orb);
+  orb.add(new THREE.Mesh(new THREE.SphereGeometry(orbR, 20, 14), new THREE.MeshPhongMaterial({ color: 0xbcd4ff, emissive: 0x2a3a90, specular: 0xffffff, shininess: 140, transparent: true, opacity: .55, depthWrite: false })));
+  const ocore = new THREE.Mesh(new THREE.SphereGeometry(orbR * .45, 12, 10), M.core); orb.add(ocore);
+  const oglow = new THREE.Sprite(new THREE.SpriteMaterial({ map: celTexP(), color: 0x9fd8ff, transparent: true, opacity: .8, depthWrite: false, blending: THREE.AdditiveBlending })); oglow.scale.setScalar(orbR * 3.2); orb.add(oglow);
+  const oband = new THREE.Mesh(new THREE.TorusGeometry(orbR * 1.15, .008 * k, 6, 32), M.gold); orb.add(oband);
+  const oband2 = new THREE.Mesh(new THREE.TorusGeometry(orbR * 1.3, .004 * k, 6, 32), new THREE.MeshBasicMaterial({ color: 0x9fe0ff })); orb.add(oband2);
+  const blades = [], BL = id === 'pistol' ? [[.18, .55], [.22, .1], [.15, -.35]] : [[.3, .62], [.4, .22], [.36, -.16], [.26, -.5]];
+  for (const sd of [-1, 1]) { const wg = new THREE.Group(); wg.position.set(0, oy, oz); wg.rotation.y = sd * .62; g.add(wg);
+    BL.forEach(([l0, a], i) => { const bl = l0 * k, bw = .06 * k, d = .011 * k;
+      const bg = new THREE.Group(); bg.rotation.x = a; wg.add(bg);
+      const hold = new THREE.Group(); bg.add(hold);   /* hold slides along the blade's own direction = floating gap */
+      const pts = [[0, bw * .35], [-bl * .55, bw * .6], [-bl * .86, bw * .28], [-bl, 0], [-bl * .7, -bw * .42], [0, -bw * .35]];
+      let geo; try { geo = new THREE.ExtrudeGeometry(mgShapeOf(pts), { depth: d, bevelEnabled: true, bevelThickness: d * 1.1, bevelSize: Math.min(bw * .22, .013 * k), bevelSegments: 1 }); } catch (e) { geo = new THREE.BoxGeometry(.02, .05, .1); }
+      const me = new THREE.Mesh(geo, M.pearl); me.rotation.y = -Math.PI / 2; me.position.x = d / 2; hold.add(me);
       try { me.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), mgEdgeM())); } catch (e) { }
-      const q = new THREE.Mesh(new THREE.BoxGeometry(d * 3.4, .01 * k, bl * .7), M.gold); q.position.set(0, 0, -bl * .42); bg.add(q);
-      const tip = new THREE.Object3D(); tip.position.set(0, 0, -bl); bg.add(tip); bg.userData.tip = tip; }); }
-  const root = new THREE.Mesh(new THREE.CylinderGeometry(.05 * k, .06 * k, .06 * k, 8), M.gold); root.rotation.x = Math.PI / 2; root.position.set(0, P.sy, P.sz - .005); g.add(root);
+      const q = new THREE.Mesh(new THREE.BoxGeometry(d * 3.4, .009 * k, bl * .62), M.gold); q.position.set(0, 0, -bl * .45); hold.add(q);
+      const tip = new THREE.Object3D(); tip.position.set(0, 0, -bl); hold.add(tip); bg.userData.tip = tip;
+      blades.push({ bg, hold, a, sd, i, gap: orbR + .06 * k }); }); }
   // (2) 天使铠甲枪身: three thick curved plates per side over the blue receiver, gold rims, a gold wing emblem with a crystal
   const PL = [[[.04, .5], ['q', .3, 1.25, .78, .98], ['q', .42, .78, .06, .2]], [[.16, .2], ['q', .5, .9, 1.0, .62], ['q', .62, .36, .2, -.02]], [[.32, .02], ['q', .62, .42, 1.04, .2], ['q', .72, -.08, .36, -.12]]];
   for (const x of [-1, 1]) {
@@ -28957,11 +28967,12 @@ function celestGun(g, id) { const M = celM(), k0 = { stock: false, body: M.blue,
   const pt = celTexP(), glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: pt, color: 0x9fd8ff, transparent: true, opacity: .8, depthWrite: false, blending: THREE.AdditiveBlending }));
   glow.scale.setScalar(.16 * k); core.add(glow); glow.position.set(0, 0, 0); glow.scale.divideScalar(1);
   // emitters for the particles (world positions read each frame)
-  U.celE = { core, keel: [kz0, kz1, kt - kh * .5], blades, k }; U.celG = g;
+  U.celE = { core, orb: ocore, keel: [kz0, kz1, kt - kh * .5], blades, k }; U.celG = g;
   mgHost(g, T => { const fire = Math.max(0, 1 - (performance.now() - (CEL.shot || -1e9)) / 500), p = .5 + .5 * Math.sin(T * 3.2);
     core.rotation.y = T * 2.2; core.rotation.x = T * 1.3; core.position.y = P.by + Math.sin(T * 2) * .006 * k; glow.material.opacity = .55 + p * .3 + fire * .3; glow.scale.setScalar((.15 + p * .04 + fire * .1) * k);
     M.crys.emissive.setRGB(.2 + p * .08 + fire * .25, .2 + p * .08 + fire * .25, .5 + p * .1 + fire * .3); hc.rotation.y = T * 1.4; hs.position.y = P.top + .045 * k + Math.sin(T * 2.3) * .006 * k;
-    blades.forEach(([bg, a], i) => { bg.rotation.x = a + (a - .1) * .3 * fire + Math.sin(T * 1.6 + i) * .015; }); wings.forEach(([wg, sd]) => { wg.rotation.y = sd * (.5 + fire * .3 + Math.sin(T * 1.2) * .03); });
+    blades.forEach(b => { const ph = T * 1.7 + b.i * 1.3 + (b.sd > 0 ? 0 : 2.1); b.hold.position.z = -(b.gap + Math.sin(ph) * .012 * k + fire * .06 * k); b.bg.rotation.x = b.a + Math.sin(ph * .7) * .04 + (b.a - .05) * .2 * fire; b.hold.rotation.z = Math.sin(ph * .9) * .06; });
+    orb.rotation.y = T * .8; oband.rotation.x = T * 1.1; oband2.rotation.y = T * 1.6; oglow.material.opacity = .6 + p * .25 + fire * .3; ocore.scale.setScalar(.9 + p * .2 + fire * .3);
     celEmit(g, T, fire); }); }
 /* ---- soft see-through particles (a pool of additive sprites in the world) ---- */
 const CELP = { pool: [], live: [], v: null };
@@ -28983,9 +28994,12 @@ function celEmit(g, T, fire) { const E = g.userData.celE; if (!E) return; let p 
   // light dust trailing from the crystal blade
   E.b = (E.b || 0) + dt * 9;
   while (E.b > 1) { E.b--; v.set(0, E.keel[2], E.keel[0] + Math.random() * (E.keel[1] - E.keel[0])); g.localToWorld(v); celSpawn(v.x, v.y, v.z, (Math.random() - .5) * .1, -.08 - Math.random() * .12, (Math.random() - .5) * .1, .9 + Math.random() * .5, .045 * k, .01, 0xcfe8ff, 0xd0a0ff, .15); }
-  // sparkles at the feather-blade tips
+  // soft light seeping out of the orb
+  E.d = (E.d || 0) + dt * (7 + fire * 20);
+  while (E.d > 1) { E.d--; E.orb.getWorldPosition(v); const ang = Math.random() * 6.283; celSpawn(v.x + Math.cos(ang) * .05 * k, v.y + Math.sin(ang) * .05 * k, v.z, Math.cos(ang) * .12, Math.sin(ang) * .12 + .1, (Math.random() - .5) * .1, .7 + Math.random() * .4, .06 * k, .01, 0xffffff, 0x7fc8ff, .2); }
+  // sparkles at the floating blade tips
   E.c = (E.c || 0) + dt * (5 + fire * 30);
-  while (E.c > 1) { E.c--; const bg = E.blades[(Math.random() * E.blades.length) | 0][0]; bg.userData.tip.getWorldPosition(v); celSpawn(v.x, v.y, v.z, (Math.random() - .5) * .15, .1 + Math.random() * .2, (Math.random() - .5) * .15, .6 + Math.random() * .3, .05 * k, .005, 0xffffff, 0xffd080, .2); } }
+  while (E.c > 1) { E.c--; const bg = E.blades[(Math.random() * E.blades.length) | 0].bg; bg.userData.tip.getWorldPosition(v); celSpawn(v.x, v.y, v.z, (Math.random() - .5) * .15, .1 + Math.random() * .2, (Math.random() - .5) * .15, .6 + Math.random() * .3, .05 * k, .005, 0xffffff, 0xffd080, .2); } }
 // 天使之翼 kill effect: two fans of coloured light feathers over the fallen monster, a light pillar, gold feathers falling
 function celKill(x, y, z) { if (typeof fxPiece !== 'function') return; const F = fxGeo(), fw = CEL.fw || (CEL.fw = (() => { try { return new THREE.ShapeGeometry(mgShapeOf(mgFeather(1, .22)), 4); } catch (e) { return F.box; } })());
   for (const sd of [-1, 1]) for (let i = 0; i < 6; i++) { const a = .25 + i * .22, c = [0xffffff, 0xcfe8ff, 0x9fd0ff, 0xc8a8ff, 0xffb8d0, 0xffd880][i];
@@ -30061,4 +30075,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795431343').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795431705').catch(()=>{});</script></body></html>
