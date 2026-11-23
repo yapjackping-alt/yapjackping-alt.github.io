@@ -25022,11 +25022,15 @@ SKT.jian9s = { snd() { [1318, 1568, 2093].forEach((f, i) => x9Snd(f, f, .8, .03,
       skL(dl + 320, () => { skStar(tx, gy + 1, tz, 0xffffff, 2.2, .5); skRing(tx, gy + .06, tz, .3, 2.6, .5, x9C(0xffe8a8), .9); skPillar(tx, gy, tz, .45, 6, .5, x9C(0xbfe8ff), .8); try { burst(tx, gy + .5, tz, x9C(0xfff2c0), 8, 4); } catch (e) { }
         x9Snd(1568, 784, .3, .04, 'sine'); x9Noise(.2, .08, 1500, { f1: 300 }); }); }
     } };
-// 散弹 · 剑雨: eighteen swords fall from the sky over the cone and stay stuck in the ground (your next reload calls them back)
+// 散弹 · 剑雨: eighteen swords fall from the sky over the cone and stand stuck in the ground for a moment (effects only)
 SKT.jian9g = { snd() { x9Snd(1760, 2640, .4, .03, 'sine'); x9Noise(.6, .06, 4000, { type: 'bandpass', q: 1 }); },
   full(C) { const gy = C.gy, an = Math.atan2(C.dz, C.dx), B = x9Dmg('shotgun') * .8; let n = 0;
     for (let row = 1; row <= 3; row++) for (let j = 0; j < row * 2 + 2 && n < 18; j++, n++) { const r = row * 2.8, a = an + (j / (row * 2 + 1) - .5) * .9, x = C.px + Math.cos(a) * r + rand(-.4, .4), z = C.pz + Math.sin(a) * r + rand(-.4, .4), i = n % 9, dl = 150 + n * 45;
-      skL(dl, () => { const sw = j9Sword(i, 1.3); x9Run(sw, .22, k => { sw.position.set(x, gy + 9 * (1 - k) + .3, z); j9Orient(sw, 0, -1, 0, C.dx, 0, C.dz); });
+      /* owner 23 Nov (飞剑没了): the swords fall a little slower and then STAND stuck in the ground for a moment before they fade (visual only) */
+      skL(dl, () => { const sw = j9Sword(i, 1.3); x9Run(sw, .3, k => { sw.position.set(x, gy + 9 * (1 - k * k) + .3, z); j9Orient(sw, 0, -1, 0, C.dx, 0, C.dz); });
+        skL(300, () => { const st = j9Sword(i, 1.3), tl = rand(-.18, .18); st.traverse(o => { if (o.material) o.material = o.material.clone(); });   /* own materials: the fade must not touch the shared sword materials */ x9Run(st, 1.7, k => { st.position.set(x, gy + .3 - k * .15, z); j9Orient(st, Math.sin(tl), -1, Math.cos(tl) * .1, C.dx, 0, C.dz);
+          if (k > .7) { const f = 1 - (k - .7) / .3; st.traverse(o => { if (o.material) { o.material.transparent = true; o.material.opacity = f * (o.userData.o0 || (o.userData.o0 = o.material.opacity || 1)); } }); } }); }); });
+      skL(dl, () => {
         skP(skGeo().box, x9EC(i), x, gy + 5, z, .25, (k, m) => { m.scale.set(.06, 9 * (1 - k), .06); m.material.opacity = .7 * (1 - k); }); });
       skL(dl + 220, () => { if (x9J()) g9Lotus(x, gy, z, 1.1, 8, i); skRing(x, gy + .05, z, .2, 1.5, .4, x9EC(i), .9); try { burst(x, gy + .3, z, x9EC(i), 4, 2.5); } catch (e) { }
         if (n % 3 === 0) x9Snd(2200 + i * 90, 2000, .12, .02, 'sine'); }); }
@@ -27893,7 +27897,7 @@ const GBX_W = { 0: 10, 2: 7, 3: 4, 4: 2, 5: .5 };
 try { for (let i = WSK_DIRECT.length - 1; i >= 0; i--) if (/^jian9/.test(WSK_DIRECT[i][0])) WSK_DIRECT.splice(i, 1); const j = SKIN_DIRECT.indexOf('jxian'); if (j >= 0) SKIN_DIRECT.splice(j, 1); WINGS.jsword.box = 1; } catch (e) { }
 const GBX_G = { 0: ['普通', '#b9b2aa'], 2: ['稀有', '#5aa9ff'], 3: ['史诗', '#c28bff'], 4: ['传说', '#ffc94a'], 5: ['神话', '#ff4d8d'] };
 const X9_SKINS = [['jian9', 'rifle'], ['jian9b', 'blade'], ['jian9p', 'pistol'], ['jian9s', 'sniper'], ['jian9g', 'shotgun'], ['jian9a', 'axe'], ['jian9k', 'pick']];
-const gbxIt = (r, k, n) => ({ r, n: ((typeof ITEMS !== 'undefined' && ITEMS[k] && ITEMS[k].n) || k) + ' ×' + n, ic: 'item:' + k, f: () => gain(k, n) });
+const gbxIt = (r, k, n) => ({ r, n: ((typeof ITEMS !== 'undefined' && ITEMS[k] && ITEMS[k].n) || { coin: '余烬币' }[k] || k) + ' ×' + n, ic: 'item:' + k, f: () => gain(k, n) });
 const GBX = {
   xian: { n: '九霄 · 修仙时装箱', sub: '神话时装「九霄剑仙」 · 传说飞剑「青冥飞剑」', big: 'skin:jxian', th: 'xian',
     slots: () => [
@@ -28079,7 +28083,8 @@ drawModal = (o => function (out, n) { const a = arguments; gStar(out.map(x => ({
   '.gbxgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:6px 0}.gbxc{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 3px;border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(0,0,0,.25));border:2px solid var(--gc);text-align:center;min-width:0}' +
   '.gbxc.r5{background:radial-gradient(circle at 50% 30%,rgba(255,77,141,.35),rgba(20,10,20,.6));box-shadow:0 0 12px rgba(255,77,141,.45)}.gbxc.r4{background:radial-gradient(circle at 50% 30%,rgba(255,201,74,.3),rgba(20,14,6,.6))}' +
   '.gbxci{width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center}.gbxci img,.gbxci svg,.gbxci .gbxw{width:86%;height:86%;object-fit:contain}.gbxc b{font-size:10.5px;line-height:1.2;color:#fff;word-break:break-all}.gbxc small{font-size:10px;font-weight:800}' +
-  '.gbxc.got{filter:grayscale(.75) brightness(.55)}.gbxtick{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}.gbxtick svg{width:54%;height:54%;padding:6px;border-radius:50%;background:rgba(40,170,110,.9);box-shadow:0 0 10px rgba(0,0,0,.6)}' +
+  /* drawn: the cell greys out and a round green badge with a tick sits in its top-right corner (owner: the big stretched tick looked odd) */
+  '.gbxc.got>:not(.gbxtick){filter:grayscale(.85) brightness(.5)}.gbxc.got{border-color:rgba(255,255,255,.18)}.gbxtick{position:absolute;top:-6px;right:-6px;width:26px;height:26px;border-radius:50%;background:#2fb36e;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:1}.gbxtick svg{width:16px;height:16px}' +
   '@media (orientation:landscape){.gbxhero{grid-template-columns:30% 1fr}.gbxgrid{grid-template-columns:repeat(10,1fr)}.gbxfig{min-height:120px}.gbxfig .big,.gbxfig img{max-height:150px}}' +
   /* old outfit pools: showcase hero */
   '.ghero.gfx{grid-template-columns:42% 1fr;border:2px solid #ffd27a;background:radial-gradient(120% 100% at 18% 40%,#6a4a1a 0,#2a1a2e 55%,#0e0a16 100%);box-shadow:0 0 24px rgba(255,210,122,.25) inset}' +
@@ -29317,4 +29322,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795406969').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795413309').catch(()=>{});</script></body></html>
