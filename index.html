@@ -7906,7 +7906,7 @@ const SKINS = {
   scout:  { n: '暗紫斥候', r: 3, pass: 1, d: '炭黑战术服配紫色发光面罩，短披风随风摆动，一架小侦察无人机绕着你飞，走动时留下紫色光尘。' },
   warden: { n: '余烬守卫', r: 3, pass: 1, d: '钢灰重甲的缝隙里透出余烬的橙光，背着一面塔盾，肩甲不停迸出火星。' },
   pion:   { n: '赛季先锋', r: 4, pass: 2, d: '黑金战术装甲，金色面罩头盔，背后的推进器一直喷着金色火焰，身边飘着金色火花。' },
-  myth:   { n: '天穹神裔', r: 5, st: { dmg: .06, crit: .03, hpPct: .08, def: .03 }, stt: '伤害 +6%、暴击率 +3%、生命 +8%、减伤 +3%', d: '象牙白与金色的神铠，头顶旋转的光环，背后展开会呼吸的晶翼，脚下光圈流转，星光环绕全身。' },
+  myth:   { n: '天穹神裔', r: 5, st: { dmg: .06, crit: .03, hpPct: .08, def: .03, spd: .2 }, stt: '伤害 +6%、暴击率 +3%、生命 +8%、减伤 +3%、移动速度 +20%', d: '象牙白与金色的神铠，头顶旋转的光环，背后展开会呼吸的晶翼，脚下光圈流转，星光环绕全身。' },
   lord:   { n: '余烬领主', r: 4, pass: 2, d: '熔岩裂纹的王者铠甲，头戴燃烧的王冠，长长的余烬披风不停飘出火星，王冠上燃着火焰。' }
 };
 // every outfit is hand-built: S = side (-1 left / 1 right). Body coordinates: hip 1.0, chest 1.42, shoulders 1.76, head centre 2.05 (front z +.22)
@@ -8315,7 +8315,7 @@ const EGPOOL = {
 function bagExpand() { if ((S.bagX | 0) >= 10) { gain('estone', 10); feed('背包已经扩容到最大，换成 强化石 ×10', '#7de0ff'); return; } S.bagX = (S.bagX | 0) + 1; banner('背包扩容 +5 格', '背包现在有 ' + bagCap() + ' 格', 3); saveGame(); }
 const poolOf = k => k === 'att' ? ATTPOOL : k === 'wpn' ? WGPOOL : k === 'gear' ? EGPOOL : k === 'fash' ? FGPOOL : GPOOL;
 const MKEY = { main: 'mp', wpn: 'mp2', gear: 'mp3', fash: 'mp4', att: 'mp5' };
-const BOXES = { main: { n: '余烬补给箱', ic: 'box:4', big: 'box:4', d: '神话「天穹神裔」· 烈焰战神 · 冰霜行者 · 暗夜刺客 限定外观和狗狗' },
+const BOXES = { main: { n: '余烬补给箱', ic: 'box:4', big: 'box:4', d: '神话「天穹神裔」（移速 +20%）· 烈焰战神 · 冰霜行者 · 暗夜刺客 限定外观和狗狗' },
   wpn: { n: '武器补给箱', ic: 'wsk:dragon:rifle', big: 'wsk:celest:sniper', d: '神话「天穹」· 龙鳞 · 霓虹 · 熔岩 发光武器外观，还有大量武器升级材料' },
   gear: { n: '装备补给箱', ic: 'gear:5', big: 'gear:5', d: '神话、黄金、史诗装备，头盔、护甲、手套、长裤、战靴、背包每个部位都有' } };
 let gPool = 'main';
@@ -24578,7 +24578,7 @@ try { SKINS.myth.d = '象牙白与金色的天穹神铠：盾形胸甲描着金�
    - a turning gear ring behind the back (m2spin), two energy-beam tails (m2chain), shoulder and calf thrusters
    - mythic stats like the other mythic outfits; sold in 外观直售 (SKIN_DIRECT, mythic price). The description says 晶翼,
      so like other winged outfits it flies over water and blocks a separate wing accessory (wingBlockName). */
-SKINS.mecha = { n: '天穹机神', r: 5, st: { dmg: .06, crit: .03, hpPct: .08, def: .03 }, stt: '伤害 +6%、暴击率 +3%、生命 +8%、减伤 +3%',
+SKINS.mecha = { n: '天穹机神', r: 5, st: { dmg: .06, crit: .03, hpPct: .08, def: .03, spd: .2 }, stt: '伤害 +6%、暴击率 +3%、生命 +8%、减伤 +3%、移动速度 +20%',
   d: '白色与枪灰的天穹机甲：胸口六角能量反应炉一明一暗，V 字天线头盔配青色目镜，头顶一圈感应环在转；背包两台推进器喷着蓝焰，两条机械臂撑开会呼吸的水晶刃翼，背后一轮金属齿环转动，两道能量尾流随风飘动。' };
 SKIN_BUILD.mecha = function (k) {
   const { bx, cone, gem, G, both, torso, sleeves, pants, put } = k;
@@ -29871,4 +29871,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795425675').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795425969').catch(()=>{});</script></body></html>
