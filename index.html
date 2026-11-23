@@ -7990,38 +7990,7 @@ const SKIN_BUILD = {
     bx(.44, .52, .22, GR, 0, 1.5, -.33); both(s => { cyl(.08, .08, .46, GO, s * .14, 1.46, -.46, 'b'); cone(.07, .22, GG, s * .14, 1.1, -.46, 'b', Math.PI); }); bx(.3, .06, .02, GG, 0, 1.64, -.445);
     sleeves(K, GR); both((s, L, a) => { bx(.28, .14, .28, GO, 0, -.38, 0, a); bx(.27, .2, .27, GR, 0, -.62, 0, a); });
     pants(K, 0x121216, .26); both((s, L) => { bx(.25, .2, .1, GO, 0, -.34, .15, L); bx(.31, .04, .41, GO, 0, -.77, .05, L); }); },
-  myth(k) { const { bx, cone, gem, G, both, torso, sleeves, pants, put } = k, W = 0xf4efe2, W2 = 0xd8d2c4, GO = 0xe8c060, GO2 = 0xb8902e, DK = 0x2a2440, CY = G(0x7ff0ff), VI = G(0xc49aff), WH = G(0xffffff);
-    const add = (geo, m, x, y, z, p, fx, ph) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); put(o, p); if (fx) { o.userData.fx = fx; o.userData.ph = ph || 0; o.userData.y0 = y; o.userData.x0 = x; o.userData.z0 = z; } return o; };
-    const glow = (c, op) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
-    // body: ivory plate, gold trim, violet under-suit, glowing energy lines
-    torso(W); bx(.6, .5, .07, W2, 0, 1.52, .23); bx(.62, .05, .08, GO, 0, 1.78, .24); bx(.62, .05, .08, GO, 0, 1.27, .24);
-    gem(.12, CY, 0, 1.53, .3); add(new THREE.TorusGeometry(.17, .025, 6, 18), mat(GO), 0, 1.53, .28, 'b');
-    bx(.03, .3, .02, CY, -.16, 1.45, .275, 'b', 0, 0, .6); bx(.03, .3, .02, CY, .16, 1.45, .275, 'b', 0, 0, -.6); bx(.03, .22, .02, VI, 0, 1.2, .275);
-    bx(.78, .12, .5, GO, 0, 1.03, 0); gem(.07, VI, 0, 1.03, .27); both(s => { bx(.28, .42, .07, W, s * .17, .8, .22, 'b', .16); bx(.03, .38, .02, CY, s * .17, .8, .26, 'b', .16); bx(.28, .44, .07, W2, s * .17, .8, -.22, 'b', -.16); });
-    bx(.66, .9, .04, DK, 0, .62, -.25, 'b', -.08); bx(.03, .85, .02, VI, 0, .62, -.28, 'b', -.08);
-    // helmet: ivory dome, gold crest, glowing visor, little crest wings
-    bx(.52, .46, .52, W, 0, 2.08, 0); bx(.54, .06, .54, GO, 0, 1.86, 0); bx(.44, .1, .04, CY, 0, 2.08, .265); bx(.44, .03, .03, WH, 0, 2.08, .285);
-    bx(.08, .2, .5, GO, 0, 2.38, 0); cone(.06, .3, GO, 0, 2.5, .2, 'b', 1.1); both(s => { cone(.05, .36, GO, s * .3, 2.24, -.02, 'b', 0, 0, -s * 1.1); cone(.035, .26, W, s * .32, 2.32, -.12, 'b', -.3, 0, -s * 1.25); });
-    // halo: slowly spinning gold ring with a soft glow
-    const halo = add(new THREE.TorusGeometry(.34, .03, 8, 32), new THREE.MeshBasicMaterial({ color: 0xffe08a }), 0, 2.66, -.05, 'b', 'halo'); halo.rotation.x = Math.PI / 2 - .25;
-    const hg = add(new THREE.TorusGeometry(.34, .09, 8, 32), glow(0xffd060, .28), 0, 2.66, -.05, 'b', 'halo'); hg.rotation.x = Math.PI / 2 - .25;
-    // shoulders: layered gold and ivory, a crystal floating above each
-    both((s, L, a) => { bx(.4, .22, .48, W, s * .48, 1.86, 0); bx(.42, .06, .5, GO, s * .48, 1.74, 0); bx(.3, .14, .4, GO2, s * .5, 1.99, 0); cone(.06, .3, GO, s * .6, 2.1, 0, 'b', 0, 0, -s * .5);
-      add(new THREE.OctahedronGeometry(.08), CY, s * .5, 2.28, 0, 'b', 'bob', s > 0 ? 0 : 1.6).scale.y = 1.6; });
-    // crystal wings: two fans of shards that breathe in and out
-    bx(.4, .6, .06, W2, 0, 1.5, -.25); bx(.08, .62, .07, GO, 0, 1.5, -.27); gem(.1, CY, 0, 1.62, -.32); add(new THREE.TorusGeometry(.14, .022, 6, 16), mat(GO), 0, 1.62, -.3, 'b');
-    both(s => { for (let i = 0; i < 6; i++) { const a = .1 + i * .3, len = .62 - Math.abs(i - 2) * .07, R = .55 + len * .5;
-        const w = add(new THREE.OctahedronGeometry(.1), i % 2 ? VI : CY, s * (.18 + Math.cos(a) * R), 1.62 + Math.sin(a) * R * .9, -.42 - i * .015, 'b', s < 0 ? 'wingL' : 'wingR', i * .22);
-        w.scale.set(.75, len * 5.2, .3); w.rotation.z = -s * (Math.PI / 2 - a); w.userData.r0 = w.rotation.z;
-        const g2 = add(new THREE.OctahedronGeometry(.13), glow(i % 2 ? 0xb080ff : 0x6fe8ff, .3), w.position.x, w.position.y, w.position.z - .01, 'b', s < 0 ? 'wingL' : 'wingR', i * .22); g2.scale.set(.95, len * 5.5, .35); g2.rotation.z = w.rotation.z; g2.userData.r0 = w.rotation.z; }
-      bx(.06, .06, .06, GO, s * .2, 1.66, -.4); });
-    // arms and legs
-    sleeves(DK, GO); both((s, L, a) => { bx(.29, .32, .29, W, 0, -.56, 0, a); bx(.3, .04, .3, GO, 0, -.42, 0, a); bx(.3, .03, .3, CY, 0, -.7, 0, a); });
-    pants(DK, W, .3); both((s, L) => { bx(.32, .44, .34, W, 0, -.7, 0, L); bx(.33, .04, .35, GO, 0, -.48, 0, L); bx(.03, .3, .02, CY, 0, -.7, .18, L); bx(.31, .03, .41, CY, 0, -.99, .05, L); });
-    // feet: a slowly turning ring of light on the ground, and three motes circling the body
-    const ring = add(new THREE.RingGeometry(.62, .72, 40), glow(0x7ff0ff, .5), 0, .05, 0, 'g', 'aura'); ring.rotation.x = -Math.PI / 2;
-    const ring2 = add(new THREE.RingGeometry(.4, .44, 6), glow(0xc49aff, .55), 0, .06, 0, 'g', 'aura2'); ring2.rotation.x = -Math.PI / 2;
-    for (let i = 0; i < 3; i++) add(new THREE.OctahedronGeometry(.05), i === 1 ? VI : WH, 0, 1.2, 0, 'g', 'orbit', i * 2.094); },
+  // myth (天穹神裔) is built in z_myth5.js
   scout(k) { const { bx, gem, G, both, torso, sleeves, pants, put } = k, C = 0x22202a, C2 = 0x34303e, M = 0x5a5468, V = G(0xb070ff), V2 = G(0xe8d0ff);
     torso(C); bx(.56, .42, .07, C2, 0, 1.55, .23); bx(.03, .36, .02, V, -.14, 1.55, .27, 'b', 0, 0, .5); bx(.03, .36, .02, V, .14, 1.55, .27, 'b', 0, 0, -.5); gem(.06, V, 0, 1.64, .28);
     bx(.76, .1, .46, M, 0, 1.03, 0); both(s => bx(.14, .14, .1, C2, s * .24, 1.0, .25)); bx(.12, .1, .05, V, 0, 1.03, .24);
@@ -22781,56 +22750,9 @@ function wsGhostSwarm(G, px, pz) { if (typeof scene === 'undefined') return; con
   setTimeout(() => { list.forEach(gg => { try { scene.remove(gg); gg.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } catch (e) { } }); }, 700); }
 // pistol / rifle skill: the bullet trail takes the skin colour too
 if (typeof tracer === 'function') tracer = (o => function (ox, oy, oz, ex, ey, ez, color) { try { const B = S.wsB, K = B && B.id === S.wp && S.t < B.t && (B.id === 'pistol' || B.id === 'rifle') ? wsSkinK(B.id) : null; if (K) color = wsSkinCol(K); } catch (e) { } return o.apply(this, [ox, oy, oz, ex, ey, ez, color].concat([].slice.call(arguments, 7))); })(tracer);
-/* ============ 天穹神裔 2.0 — the sample of the "二次元华丽" outfit look (owner 18 Nov chose: one sample first, anime-gorgeous) ============
-   Added on top of the existing 天穹神裔 (r_shop.js SKIN_BUILD.myth), nothing removed:
-   - 天女飘带: two long celestial ribbons from the back of the shoulders, cyan → violet with gold edges, floating and waving
-     behind (hinged chains, more wave when you run)
-   - 神环: a big gold mandorla ring behind the back with 8 rune gems on it, an inner ring turning the other way, soft glow
-   - 腰帘 + 裙甲: a long ivory front sash with gold hem and a glowing line that sways, layered gold-edged hip plates
-   - 金色纹路: gold filigree lines over the chest plate, a gold collar
-   - 冠: a gold crown of five spikes with gems on the helmet
-   - sparkles: gold + cyan motes drift up from the body, ribbon tips shed light when you move (SKIN_P.myth)
-   Switch: MYTH2_ON. If the owner likes it, the other outfits get the same treatment. */
+/* ============ m2 animator (was 天穹神裔 2.0; the outfit itself is now z_myth5.js) ============
+   Moves the m2chain / m2spin / m2glow parts that z_fash2.js (and the 天穹神裔 ribbons in z_myth5.js) build. */
 const MYTH2_ON = true;
-if (MYTH2_ON && typeof SKIN_BUILD !== 'undefined' && SKIN_BUILD.myth) SKIN_BUILD.myth = (o => function (k) { o(k);
-  const { bx, cone, gem, G, both, put } = k, W = 0xf4efe2, W2 = 0xe2dccd, GO = 0xe8c060, GO2 = 0xc79a38, CYc = 0x7ff0ff, VIc = 0xc49aff;
-  const glow = (c, op) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
-  const add = (geo, m, x, y, z, p, fx, ph) => { const ob = new THREE.Mesh(geo, m); ob.position.set(x, y, z); put(ob, p); if (fx) { ob.userData.fx = fx; ob.userData.ph = ph || 0; } return ob; };
-  const B = c => new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }), L = c => new THREE.MeshLambertMaterial({ color: c, side: THREE.DoubleSide });
-  /* hinged chain: n segments of length sl, each a child of the previous; fx 'm2chain' waves it */
-  const chain = (n, sl, w, cols, x, y, z, base, opt) => { let par = null, first = null;
-    for (let i = 0; i < n; i++) { const g = new THREE.Group(); g.userData.fx = 'm2chain'; g.userData.i = i; g.userData.n = n; Object.assign(g.userData, opt);
-      put(g, 'b');   // put() also lists it for skinAnimate; children are then hung on the previous segment
-      if (!i) { g.position.set(x, y, z); g.rotation.set(base[0], base[1], base[2]); g.userData.b = base.slice(); first = g; } else { par.add(g); g.position.set(0, -sl, 0); }
-      const f = 1 - i / n * (opt.taper || 0), seg = new THREE.Mesh(new THREE.BoxGeometry(w * f, sl + .012, opt.th || .018), cols[i % cols.length]); seg.position.y = -sl / 2; g.add(seg);
-      if (opt.edge) for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.BoxGeometry(.016, sl + .012, (opt.th || .018) + .008), opt.edge); e.position.set(s * w * f / 2, -sl / 2, 0); g.add(e); }
-      if (i === n - 1 && opt.tip) { const t = new THREE.Mesh(new THREE.OctahedronGeometry(w * .45), opt.tip); t.position.y = -sl; t.scale.y = 1.6; g.add(t); }
-      par = g; }
-    return first; };
-  // 天女飘带 — cyan and violet glowing strips with gold edges, a gem at each tip
-  const RC = [B(0x8ff4ff), B(0xa8e8ff), B(0xc8b0ff), B(0xb894ff)], gold = L(GO);
-  both(s => chain(14, .17, .12, RC, s * .4, 1.86, -.24, [.5, 0, s * .32], { side: s, amp: .3, taper: .35, edge: gold, tip: G(0xffe08a) }));
-  // a second, thinner pair lower down (from the belt), crossing behind the legs
-  both(s => chain(10, .15, .07, [B(0xffffff), B(0xd8c8ff)], s * .3, 1.04, -.26, [.35, 0, -s * .18], { side: -s, amp: .24, taper: .2, edge: gold }));
-  // 神环 — the mandorla behind the back
-  const ring = add(new THREE.TorusGeometry(.92, .032, 6, 48), B(0xffe08a), 0, 1.66, -.68, 'b', 'm2spin', 1); ring.userData.sp = .35;
-  add(new THREE.TorusGeometry(.92, .1, 6, 48), glow(0xffd060, .22), 0, 1.66, -.69, 'b', 'm2glow');
-  const ring2 = add(new THREE.TorusGeometry(.7, .016, 6, 6), B(CYc), 0, 1.66, -.66, 'b', 'm2spin', 2); ring2.userData.sp = -.6;
-  for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283, gm = new THREE.Mesh(new THREE.OctahedronGeometry(.065), i % 2 ? G(VIc) : G(CYc)); gm.position.set(Math.cos(a) * .92, Math.sin(a) * .92, .02); gm.scale.y = 1.7; gm.rotation.z = a - Math.PI / 2; ring.add(gm);
-    const tick = new THREE.Mesh(new THREE.BoxGeometry(.03, .16, .02), L(GO2)); tick.position.set(Math.cos(a + .39) * .92, Math.sin(a + .39) * .92, 0); tick.rotation.z = a + .39 - Math.PI / 2; ring.add(tick); }
-  for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283, sp = new THREE.Mesh(new THREE.ConeGeometry(.035, .22, 4), L(GO)); sp.position.set(Math.cos(a) * 1.04, Math.sin(a) * 1.04, 0); sp.rotation.z = a - Math.PI / 2; ring.add(sp); }
-  // 腰帘 — a front sash that sways, gold hem, glowing centre line; layered hip plates
-  chain(6, .13, .3, [L(W)], 0, 1.0, .27, [-.08, 0, 0], { side: 0, amp: .16, front: 1, edge: gold, tip: G(CYc) });
-  add(new THREE.BoxGeometry(.04, .74, .02), B(CYc), 0, .66, .3, 'b', 'm2glow');
-  both(s => { for (let i = 0; i < 3; i++) { const p = add(new THREE.BoxGeometry(.2 - i * .02, .2, .05), L(i % 2 ? W2 : W), s * (.36 + i * .03), .9 - i * .15, .02, 'b'); p.rotation.set(0, 0, s * (.18 + i * .06));
-      const e = add(new THREE.BoxGeometry(.21 - i * .02, .03, .06), L(GO), s * (.36 + i * .03), .8 - i * .15, .02, 'b'); e.rotation.set(0, 0, s * (.18 + i * .06)); } });
-  // 金色纹路 on the chest plate + a gold collar
-  [[-.18, 1.66, .5], [.18, 1.66, -.5], [-.22, 1.36, -.7], [.22, 1.36, .7], [-.1, 1.22, .3], [.1, 1.22, -.3]].forEach(([x, y, r]) => bx(.02, .2, .015, GO, x, y, .275, 'b', 0, 0, r));
-  bx(.5, .06, .3, GO, 0, 1.8, .1); both(s => bx(.12, .1, .2, GO2, s * .2, 1.84, .14, 'b', 0, 0, -s * .3));
-  // 冠 — five gold spikes with gems around the helmet top
-  for (let i = 0; i < 5; i++) { const a = (i - 2) * .32, h = i === 2 ? .3 : .2 - Math.abs(i - 2) * .02; cone(.04, h, GO, Math.sin(a) * .25, 2.34 + h / 2, Math.cos(a) * .2 - .02, 'b', .15 * Math.cos(a), 0, -Math.sin(a) * .5);
-    gem(.03, i % 2 ? G(VIc) : G(CYc), Math.sin(a) * .25, 2.36, Math.cos(a) * .2 + .02); }
-})(SKIN_BUILD.myth);
 // the new moving parts
 skinAnimate = (o => function (out, T) { o(out, T); if (!MYTH2_ON) return; let mv = 0; try { mv = Math.min(1, Math.hypot(input.mx || 0, input.mz || 0)); } catch (e) { }
   for (const ob of out || []) { if (!ob || !ob.userData) continue; const u = ob.userData;
@@ -22839,12 +22761,6 @@ skinAnimate = (o => function (out, T) { o(out, T); if (!MYTH2_ON) return; let mv
       else { ob.rotation.x = (u.front ? -1 : 1) * (.05 + w * a * .45 + mv * .06); ob.rotation.z = Math.sin(T * 1.7 - i * .6) * a * .35 * (u.side || 1); } }
     else if (u.fx === 'm2spin') ob.rotation.z = T * (u.sp || .4);
     else if (u.fx === 'm2glow') ob.material.opacity = (ob.geometry.type === 'TorusGeometry' ? .16 : .6) + Math.sin(T * 2.6) * .1; } })(skinAnimate);
-// sparkles: gold and cyan motes rising from the body; light shed from behind the shoulders when you move
-try { if (MYTH2_ON && typeof SKIN_P !== 'undefined') SKIN_P.myth = [
-  { pts: 'body', rate: 14, life: 1.5, v: [0, .7, 0], sp: .35, col: [0xffe08a, 0x8ff4ff, 0xffffff], sz: .045 },
-  { pts: [[-.6, 1.4, -.5], [.6, 1.4, -.5], [-.8, 1.0, -.7], [.8, 1.0, -.7]], rate: 30, life: .8, v: [0, .3, -.6], sp: .3, col: [0x8ff4ff, 0xc8b0ff, 0xffe08a], sz: .05, moving: 1 },
-  { pts: [[0, 1.66, -.7]], rate: 6, life: 1.2, v: [0, .5, -.2], sp: .9, col: [0xffe08a], sz: .04 }]; } catch (e) { }
-try { if (MYTH2_ON) SKINS.myth.d = '象牙白与金色的神铠，头戴金冠与旋转光环；背后一轮镶着符文宝石的金色神环，两条青紫色的天女飘带随风飞舞，腰间垂着金边腰帘；晶翼会呼吸，脚下光圈流转，星光环绕全身。'; } catch (e) { }
 /* ============ outfits 2.0: the other hand-built outfits get the 天穹神裔 2.0 treatment (owner 18 Nov: "做的高级点，和别的游戏比玩家会觉得很值得，改吧") ============
    Every outfit keeps its old pieces; this file ADDS a premium layer per outfit, each in its own theme:
      烈焰战神 fire    flame mandorla ring with fire spikes, two flame plumes off the back, burning crown, magma lines, embers
@@ -24495,6 +24411,164 @@ SKT.jian9b.line = (o => function (C, ax, az) { o(C, ax, az); if (!jxOn()) return
 /* the two weapon skins say so in their descriptions */
 for (const [k, w] of [['jian9', '步枪'], ['jian9b', '武士刀']]) { try { const W = WSKINS[k], D = Object.getOwnPropertyDescriptor(W, 'd'), base = D && D.get ? D.get : (() => { const v = W.d; return () => v; })();
     Object.defineProperty(W, 'd', { configurable: true, enumerable: true, get() { return base.call(this) + '\n【联动 · 九霄剑仙】穿上神话时装「九霄剑仙」时，这把' + w + '的普攻和技能特效会升级' + (k === 'jian9' ? '（剑阵阵图、剑光残影、技能「万剑归宗」）' : '（灵气球里的小剑、剑气、技能「剑开天门」）') + '。'; } }); } catch (e) { } }
+/* ============ 天穹神裔 3.0 (owner 23 Nov: 「天穹神裔也应该改一改」 — redo the whole outfit, wings = 水晶羽翼) ============
+   Reference written first (modelling process):
+   - silhouette: a slim ivory-and-gold sky knight with an OPEN FACE (platinum hair, gold winged circlet, halo above),
+     two big crystal wings from the shoulder blades that read as WINGS (bone + feathers), an open coat-tail skirt behind the legs
+   - proportions: wings ≈ 1.4 m out each side, top ≈ 2.7 m, primaries reach down to the knees; armour stays close to the body
+   - 3 features: (1) 水晶羽翼 = gold wing bone + three layers of pointed, faceted crystal feathers with gold edge lines,
+     cyan at the root → violet at the tips; (2) sculpted ivory plate (shield breastplate with gold rim and filigree curves,
+     domed pauldrons with lames, tassets, knee cops); (3) the halo + winged circlet over a real face
+   - materials: ivory plate (slight emissive so the back never goes dark), brushed gold, deep periwinkle under-suit,
+     glassy crystal (Phong, emissive, see-through), additive glow only for the halo and the ground ring
+   Built from Shape+Extrude / Lathe / Tube parts, each with a box fallback for the headless tests.
+   Replaces r_shop.js SKIN_BUILD.myth and the old z_myth2.js layer (that file now only animates the m2 parts z_fash2 uses). */
+const M5 = { cr: {}, edge: null };
+// glassy crystal material per colour (cached), gold edge line material (shared)
+function m5Crys(c) { if (M5.cr[c]) return M5.cr[c]; let m;
+  try { const col = new THREE.Color(c); m = new THREE.MeshPhongMaterial({ color: c, emissive: col.clone().multiplyScalar(.42), specular: 0xffffff, shininess: 90, flatShading: true, transparent: true, opacity: .88, side: THREE.DoubleSide }); }
+  catch (e) { m = mat(c); }
+  return (M5.cr[c] = m); }
+const m5Edge = () => M5.edge || (M5.edge = new THREE.LineBasicMaterial({ color: 0xffd877, transparent: true, opacity: .9 }));
+// colour between two hex colours (plain numbers: the headless Color stub has no lerp)
+const m5Mix = (a, b, t) => { const r = (a >> 16 & 255) + ((b >> 16 & 255) - (a >> 16 & 255)) * t, g = (a >> 8 & 255) + ((b >> 8 & 255) - (a >> 8 & 255)) * t, bl = (a & 255) + ((b & 255) - (a & 255)) * t; return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(bl); };
+SKIN_BUILD.myth = function (k) {
+  const { bx, cone, gem, cyl, G, both, torso, pants, put } = k;
+  const W = 0xf6f1e6, W2 = 0xe4dccb, GO = 0xe8c060, GO2 = 0xb88a2e, U = 0x3d3f7a, H = 0xf6f4ff, H2 = 0xe2dcf6, CYc = 0x8ff0ff, VIc = 0xb890ff;
+  const WB = mat(W, { emissive: 0x403c34 }), WD = mat(W, { emissive: 0x403c34, side: THREE.DoubleSide }), GB = mat(GO, { emissive: 0x3a2a08 }), GD = mat(GO, { side: THREE.DoubleSide, emissive: 0x3a2a08 });
+  const glow = (c, op) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const add = (geo, m, x, y, z, p, fx, ph) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); put(o, p); if (fx) { o.userData.fx = fx; o.userData.ph = ph || 0; o.userData.y0 = y; } return o; };
+  const lathe = (pts, seg, p0, pl) => { try { if (pts[0][1] > pts[pts.length - 1][1]) pts = pts.slice().reverse();   /* points must run upward or the faces point inward and get culled */
+    return new THREE.LatheGeometry(pts.map(q => new THREE.Vector2(q[0], q[1])), seg, p0 || 0, pl || 6.2832); } catch (e) { return new THREE.BoxGeometry(.3, .1, .3); } };
+  const ext = (draw, depth, bev, cs) => { try { const sh = new THREE.Shape(); draw(sh); return new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: !!bev, bevelThickness: bev || 0, bevelSize: bev || 0, bevelSegments: 1, curveSegments: cs || 6 }); } catch (e) { return new THREE.BoxGeometry(.2, .3, depth || .05); } };
+  const tube = (pts, r, seg) => { try { return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(p[0], p[1], p[2]))), seg || 20, r, 5, false); } catch (e) { return new THREE.BoxGeometry(r * 2, r * 2, r * 2); } };
+  const grp = (p, x, y, z) => { const g = new THREE.Group(); g.position.set(x || 0, y || 0, z || 0); put(g, p); return g; };
+  const mesh = (geo, m, par, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x || 0, y || 0, z || 0); par.add(o); return o; };
+  const edges = (o, ang) => { try { const e = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, ang || 30), m5Edge()); o.add(e); } catch (e) { } return o; };
+  // a hinged strip that sways (cape hinges): long hair
+  const strip = (x, y, z, w, len, n, c, o) => { o = o || {}; const sh = len / n; let par = null;
+    for (let i = 0; i < n; i++) { const g = new THREE.Group(); put(g, 'b'); g.userData.fx = 'cape'; g.userData.ph = i + (o.ph || 0); g.userData.base = i ? 0 : (o.tilt || .05);
+      if (!i) g.position.set(x, y, z); else { par.add(g); g.position.set(0, -sh, 0); }
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w * (1 + i * (o.flare || 0)), sh + .01, o.th || .05), mat(c, { emissive: 0x302c3c })); m.position.y = -sh / 2; g.add(m); par = g; } };
+  /* ---------- body plate ---------- */
+  torso(WB);
+  // shield breastplate: wide at the chest with a neckline dip, narrowing to a point over the belly; gold rim = a larger copy behind
+  const shield = (sh, w, t, b) => { sh.moveTo(-w, t); sh.quadraticCurveTo(-w * .45, t + .02, 0, t - .07); sh.quadraticCurveTo(w * .45, t + .02, w, t); sh.quadraticCurveTo(w * 1.02, 0, w * .78, -t * .7);
+    sh.quadraticCurveTo(w * .4, -b * .9, 0, -b); sh.quadraticCurveTo(-w * .4, -b * .9, -w * .78, -t * .7); sh.quadraticCurveTo(-w * 1.02, 0, -w, t); };
+  add(ext(sh => shield(sh, .33, .3, .4), .05, .025), WB, 0, 1.5, .2, 'b');
+  add(ext(sh => shield(sh, .36, .33, .44), .04, .012), GB, 0, 1.5, .19, 'b');
+  // centre gem in a gold setting, gold filigree curves sweeping out from it
+  gem(.085, G(CYc), 0, 1.56, .3, 'b', 1.5); add(new THREE.TorusGeometry(.11, .02, 6, 20), GB, 0, 1.56, .285, 'b');
+  both(s => { add(tube([[s * .1, 1.6, .284], [s * .2, 1.7, .282], [s * .29, 1.72, .27]], .012, 12), GB, 0, 0, 0, 'b');
+    add(tube([[s * .09, 1.5, .286], [s * .19, 1.42, .283], [s * .21, 1.3, .275], [s * .13, 1.22, .27]], .012, 16), GB, 0, 0, 0, 'b');
+    add(tube([[s * .03, 1.42, .29], [s * .06, 1.3, .287], [s * .02, 1.18, .275]], .01, 10), mat(CYc, { emissive: 0x2a8a90 }), 0, 0, 0, 'b'); });
+  // backplate (the wings sit on it) with a gold rim and a wing-root gem
+  { const b = add(ext(sh => shield(sh, .31, .3, .34), .045, .02), WB, 0, 1.52, -.2, 'b'); b.rotation.y = Math.PI;
+    const r = add(ext(sh => shield(sh, .34, .33, .38), .035, .01), GB, 0, 1.52, -.19, 'b'); r.rotation.y = Math.PI;
+    gem(.07, G(CYc), 0, 1.62, -.29, 'b'); add(new THREE.TorusGeometry(.09, .018, 6, 18), GB, 0, 1.62, -.275, 'b'); }
+  // gorget (round gold collar) and the belt with a winged buckle
+  { const c = add(lathe([[.27, 0], [.29, .05], [.25, .1], [.24, .1]], 16), GD, 0, 1.82, 0, 'b'); c.scale.z = .78; }
+  { const b = add(lathe([[.375, -.06], [.385, 0], [.375, .06]], 18), GB, 0, 1.03, 0, 'b'); b.scale.z = .66; }
+  gem(.06, G(VIc), 0, 1.03, .27, 'b');
+  both(s => { const wgl = add(ext(sh => { sh.moveTo(0, 0); sh.quadraticCurveTo(.08, .07, .17, .05); sh.lineTo(.12, .02); sh.lineTo(.16, -.01); sh.lineTo(.1, -.02); sh.lineTo(.12, -.05); sh.quadraticCurveTo(.05, -.04, 0, 0); }, .02, .006), GB, s * .04, 1.03, .26, 'b'); wgl.scale.x = s; });
+  /* ---------- shoulders + arms ---------- */
+  const feather = (sh, L, w) => { sh.moveTo(0, 0); sh.quadraticCurveTo(w * .62, -L * .22, w * .5, -L * .55); sh.lineTo(0, -L); sh.lineTo(-w * .5, -L * .55); sh.quadraticCurveTo(-w * .62, -L * .22, 0, 0); };
+  both((s, L, a) => { const g = grp(a, s * .03, .02, 0);
+    const PS = [.95, .82, 1];
+    mesh(lathe([[.001, .13], [.13, .11], [.2, .05], [.225, -.04], [.22, -.1]], 8, Math.PI / 8), WB, g).scale.set(...PS);
+    mesh(lathe([[.226, -.09], [.236, -.14]], 8, Math.PI / 8), GB, g).scale.set(...PS);
+    mesh(lathe([[.212, -.14], [.226, -.22]], 8, Math.PI / 8), WB, g).scale.set(...PS);
+    mesh(lathe([[.227, -.215], [.233, -.25]], 8, Math.PI / 8), GB, g).scale.set(...PS);
+    // a little crystal feather standing on each shoulder, pointing up and out
+    const f = mesh(ext(sh => feather(sh, .34, .09), .012, .014, 3), m5Crys(CYc), g, s * .12, .08, 0); f.rotation.set(0, 0, Math.PI + s * .55); edges(f);
+    // under-suit sleeve (covers the arm box), ivory vambrace with gold rims, gauntlet
+    bx(.27, .5, .27, U, 0, -.28, 0, a);
+    mesh(lathe([[.196, -.46], [.2, -.6], [.21, -.74], [.228, -.8]], 8, Math.PI / 8), WB, g);
+    mesh(lathe([[.2, -.44], [.208, -.48]], 8, Math.PI / 8), GB, g); mesh(lathe([[.23, -.79], [.236, -.825]], 8, Math.PI / 8), GB, g);
+    mesh(new THREE.OctahedronGeometry(.04), G(CYc), g, 0, -.62, .205).scale.y = 1.6;
+    bx(.21, .14, .21, W2, 0, -.9, 0, a); });
+  /* ---------- skirt: open coat-tails behind (swing with the legs), plate tassets in front on the legs ---------- */
+  const legP = ['L', 'R'].map(p => { const o = new THREE.Object3D(); put(o, p); return o; });   // markers: their parents are the legs (z_jxian.js 'jxskb' animator)
+  { const g = grp('b', 0, 1.0, 0); g.scale.z = .74; g.userData.fx = 'jxskb'; g.userData.lp = legP; const p0 = Math.PI * .58, pl = Math.PI * .84;
+    const SK = [[.39, .03], [.42, -.15], [.48, -.42], [.55, -.68], [.6, -.86]];
+    mesh(lathe(SK, 12, p0, pl), WD, g);
+    const ln = mesh(lathe(SK.map(q => [q[0] - .025, q[1]]), 12, p0, pl), mat(U, { side: THREE.DoubleSide }), g); ln.scale.set(.99, .99, .99);
+    mesh(lathe([[.598, -.84], [.612, -.9]], 12, p0, pl), GD, g);
+    mesh(lathe([[.57, -.74], [.585, -.765]], 12, p0, pl), mat(CYc, { emissive: 0x2a8a90, side: THREE.DoubleSide }), g); }
+  const tasset = (sh, w, l) => { sh.moveTo(-w / 2, 0); sh.lineTo(w / 2, 0); sh.lineTo(w / 2 - .01, -l * .78); sh.quadraticCurveTo(w * .25, -l * .9, 0, -l); sh.quadraticCurveTo(-w * .25, -l * .9, -w / 2 + .01, -l * .78); sh.lineTo(-w / 2, 0); };
+  pants(U, null);
+  both((s, L) => { const g = grp(L, 0, 0, 0);
+    // front tasset (gold rim behind) and a side one, both tilted out a little so they clear the thigh
+    const t1 = mesh(ext(sh => tasset(sh, .3, .44), .03, .012), WB, g, 0, .02, .19); t1.rotation.x = -.12;
+    const r1 = mesh(ext(sh => tasset(sh, .33, .48), .02, .006), GB, g, 0, .03, .18); r1.rotation.x = -.12;
+    const t2 = mesh(ext(sh => tasset(sh, .26, .36), .03, .012), WB, g, s * .17, 0, .02); t2.rotation.set(0, s * Math.PI / 2, s * .12);
+    const r2 = mesh(ext(sh => tasset(sh, .29, .4), .02, .006), GB, g, s * .165, .01, .02); r2.rotation.set(0, s * Math.PI / 2, s * .12);
+    // greave + pointed knee cop + sabaton with a gold toe
+    mesh(lathe([[.2, -.5], [.205, -.68], [.198, -.84], [.22, -.95]], 8, Math.PI / 8), WB, g);
+    mesh(ext(sh => { sh.moveTo(0, .1); sh.lineTo(.1, .02); sh.lineTo(.07, -.08); sh.lineTo(0, -.13); sh.lineTo(-.07, -.08); sh.lineTo(-.1, .02); sh.lineTo(0, .1); }, .035, .015), GB, g, 0, -.5, .18);
+    gem(.03, G(CYc), 0, -.5, .25, L);
+    bx(.3, .08, .42, W2, 0, -.97, .05, L); cone(.07, .16, GO, 0, -.97, .3, L, Math.PI / 2, 0, 0, 4); });
+  /* ---------- head: open face, platinum hair, gold winged circlet ---------- */
+  const HM = mat(H, { emissive: 0x302c3c }); bx(.48, .1, .48, HM, 0, 2.3, 0); bx(.48, .42, .1, HM, 0, 2.1, -.24); both(s => bx(.07, .4, .14, HM, s * .255, 2.03, .08));
+  for (let i = 0; i < 5; i++) { const x = (i - 2) * .085; cone(.05, .13 + (i % 2) * .04, i % 2 ? H2 : H, x, 2.2, .225, 'b', Math.PI, 0, (i - 2) * .12, 4); }
+  strip(0, 2.18, -.27, .44, 1.0, 5, H, { flare: -.09, th: .07, tilt: .06 });
+  both(s => strip(s * .2, 2.06, -.22, .12, .62, 3, H2, { flare: -.25, th: .05, tilt: .1, ph: s > 0 ? 1 : 2.3 }));
+  // face: calm brows, cyan glowing eyes with a light glint, small mouth, a gold star mark on the forehead
+  both(s => { bx(.11, .022, .012, 0xb8aed8, s * .1, 2.13, .226, 'b', 0, 0, s * .12);
+    bx(.1, .05, .01, 0xf8f6f0, s * .1, 2.075, .224); bx(.05, .055, .012, 0x2a9fb8, s * .095, 2.073, .228); bx(.022, .03, .01, 0x8ff8ff, s * .095, 2.068, .233); bx(.016, .016, .01, 0xffffff, s * .095 + .012, 2.09, .235);
+    bx(.11, .014, .012, 0x3a2c44, s * .1, 2.103, .229, 'b', 0, 0, s * .08); });
+  bx(.028, .045, .02, 0xd8a684, 0, 2.02, .228); bx(.07, .014, .01, 0xc0706c, 0, 1.955, .225);
+  gem(.022, G(0xffe08a), 0, 2.185, .232, 'b', 1.6);
+  // circlet: a square-cut gold band round the head, two swept gold wings at the temples, a crest spike with a gem
+  add(lathe([[.333, -.03], [.342, .03]], 4, Math.PI / 4), GB, 0, 2.21, 0, 'b');
+  both(s => { const w = add(ext(sh => { sh.moveTo(0, 0); sh.quadraticCurveTo(.1, .1, .26, .17); sh.lineTo(.17, .09); sh.lineTo(.24, .08); sh.lineTo(.14, .03); sh.lineTo(.19, .0); sh.quadraticCurveTo(.08, -.02, 0, 0); }, .02, .008), GB, s * .25, 2.2, .02, 'b');
+    w.rotation.set(0, Math.PI / 2 - s * .35, 0); });
+  cone(.035, .16, GO, 0, 2.31, .23, 'b', -.15, 0, 0, 4); gem(.035, G(CYc), 0, 2.24, .245, 'b');
+  // halo: a thin gold ring with eight gold nodes, a soft glow ring
+  const halo = add(new THREE.TorusGeometry(.3, .02, 6, 40), new THREE.MeshBasicMaterial({ color: 0xffe08a }), 0, 2.66, -.08, 'b', 'halo'); halo.rotation.x = Math.PI / 2 - .3;
+  for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283, d = new THREE.Mesh(new THREE.OctahedronGeometry(i % 2 ? .025 : .04), new THREE.MeshBasicMaterial({ color: i % 2 ? CYc : 0xfff0b0 })); d.position.set(Math.cos(a) * .3, Math.sin(a) * .3, 0); d.scale.set(1, 1, .5); halo.add(d); }
+  const hg = add(new THREE.TorusGeometry(.3, .07, 6, 40), glow(0xffd060, .25), 0, 2.66, -.08, 'b', 'halo'); hg.rotation.x = Math.PI / 2 - .3;
+  /* ---------- 水晶羽翼 ---------- */
+  // per side: a gold bone curving up-out from the shoulder blade, then three layers of crystal feathers hung along it
+  both(s => { const w = grp('b', s * .14, 1.66, -.3); w.userData.fx = 'm5wing'; w.userData.side = s;
+    const P = [[0, 0, 0], [s * .3, .36, -.06], [s * .64, .74, -.12], [s * .98, .98, -.16]];
+    mesh(tube(P, .034, 24), GB, w); mesh(new THREE.SphereGeometry(.05, 8, 6), GB, w, P[2][0], P[2][1], P[2][2]); mesh(new THREE.OctahedronGeometry(.05), G(CYc), w, P[2][0], P[2][1], P[2][2] + .05).scale.y = 1.6;
+    mesh(new THREE.ConeGeometry(.03, .22, 4), GB, w, s * 1.04, 1.07, -.17).rotation.z = -s * .6;
+    let crv = null; try { crv = new THREE.CatmullRomCurve3(P.map(p => new THREE.Vector3(p[0], p[1], p[2]))); } catch (e) { }
+    const at = t => { if (crv) { const v = crv.getPoint(t); return [v.x, v.y, v.z]; } return [s * .98 * t, .98 * t, -.16 * t]; };
+    // layer: count, t from-to, length from-to, angle from-to (0 = hanging down, + = fanned out), width, z offset, colour tint
+    const layer = (n, t0, t1, l0, l1, a0, a1, wd, dz, light) => { for (let i = 0; i < n; i++) { const u = n > 1 ? i / (n - 1) : 0, t = t0 + (t1 - t0) * u, L = l0 + (l1 - l0) * u, A = a0 + (a1 - a0) * u, p = at(t);
+        const c = m5Mix(m5Mix(CYc, VIc, u * .9), 0xffffff, light), f = new THREE.Mesh(ext(sh => feather(sh, L, wd), .012, .016, 3), m5Crys(c));
+        f.position.set(p[0], p[1] + .02, p[2] + dz); f.rotation.set(0, 0, s * A); w.add(edges(f, 25)); } };
+    layer(8, .45, 1, .95, 1.3, .1, .78, .18, .0, 0);        // primaries: long, fanning out at the tip
+    layer(7, .05, .5, .62, .9, -.04, .08, .17, -.025, .15);   // secondaries: hang straight down along the inner bone
+    layer(9, .04, .96, .28, .4, .05, .55, .13, -.05, .35);    // coverts: short, pale, over the roots
+  });
+  /* ---------- 天女飘带 + ground ring + motes ---------- */
+  // two long see-through ribbons from the back of the belt, flowing behind (m2chain animator in z_myth2.js)
+  const RB = [glow(0x8ff4ff, .55), glow(0xa8d8ff, .5), glow(0xc8b0ff, .5), glow(0xb894ff, .55)];
+  both(s => { let par = null; const n = 12, sl = .15;
+    for (let i = 0; i < n; i++) { const g = new THREE.Group(); g.userData = { fx: 'm2chain', i, n, side: -s, amp: .26 }; put(g, 'b');
+      if (!i) { g.position.set(s * .3, 1.0, -.28); g.rotation.set(.45, 0, s * .2); g.userData.b = [.45, 0, s * .2]; } else { par.add(g); g.position.set(0, -sl, 0); }
+      const pl = new THREE.Mesh(new THREE.PlaneGeometry(.1 * (1 - i / n * .4), sl + .01), RB[i % 4]); pl.position.y = -sl / 2; g.add(pl);
+      if (i === n - 1) { const t = new THREE.Mesh(new THREE.OctahedronGeometry(.04), G(0xffe08a)); t.position.y = -sl; t.scale.y = 1.6; g.add(t); }
+      par = g; } });
+  const ring = add(new THREE.RingGeometry(.62, .7, 40), glow(0x7ff0ff, .45), 0, .05, 0, 'g', 'aura'); ring.rotation.x = -Math.PI / 2;
+  const ring2 = add(new THREE.RingGeometry(.4, .43, 8), glow(0xe8c060, .5), 0, .06, 0, 'g', 'aura2'); ring2.rotation.x = -Math.PI / 2;
+  for (let i = 0; i < 2; i++) add(new THREE.OctahedronGeometry(.045), G(i ? VIc : 0xffffff), 0, 1.2, 0, 'g', 'orbit', i * 3.14);
+};
+// the wings breathe at rest, sweep back when you run, beat big while flying over water (WFLY, same clock as every other wing)
+skinAnimate = (o => function (out, T) { o(out, T); let mv = -1;
+  for (const w of out || []) { const u = w.userData; if (!u || u.fx !== 'm5wing') continue;
+    if (mv < 0) { mv = 0; try { mv = Math.min(1, Math.hypot(input.mx || 0, input.mz || 0)); } catch (e) { } }
+    const fl = typeof WFLY !== 'undefined' && WFLY.on, s = u.side;
+    if (fl) { const f = Math.sin(performance.now() / 1000 * WFLAP_SP); w.rotation.set(0, s * (.25 - f * .2), s * f * .45); }
+    else { const b = Math.sin(T * 1.6); w.rotation.set(0, s * (.18 + mv * .35 + b * .06), s * (b * .05 - mv * .08)); } } })(skinAnimate);
+try { SKIN_P.myth = [
+  { pts: 'body', rate: 10, life: 1.5, v: [0, .6, 0], sp: .3, col: [0xffe08a, 0x8ff4ff, 0xffffff], sz: .04 },
+  { pts: [[-1.25, 2.2, -.5], [1.25, 2.2, -.5], [-1.4, 1.3, -.6], [1.4, 1.3, -.6], [-.7, .9, -.5], [.7, .9, -.5]], rate: 26, life: .8, v: [0, .25, -.5], sp: .3, col: [0x8ff4ff, 0xc8b0ff, 0xffe08a], sz: .05, moving: 1 },
+  { pts: [[-1, 1.9, -.45], [1, 1.9, -.45]], rate: 5, life: 1.4, v: [0, .4, -.1], sp: .5, col: [0xc8b0ff, 0x8ff4ff], sz: .035 }]; } catch (e) { }
+try { SKINS.myth.d = '象牙白与金色的天穹神铠：盾形胸甲描着金纹，圆肩甲上立着小水晶羽，白金长发配金色羽冠，头顶旋转的光环；背后一对水晶羽翼——金色翼骨挂着三层带金边的多面水晶羽毛，从青色渐变到紫色，会呼吸；两条天女飘带随风飞舞，脚下光圈流转。'; } catch (e) { }
 /* ============ 青冥飞剑（owner 22 Nov：做一柄飞剑，像翅膀那样能飞，不过是御剑飞行）============
    它是「翅膀」一栏里的一件（和粉蝶幻翼一样：单独买、单独装、带属性、穿自带翅膀的外观时不能装）。
    平时：一柄青玉长剑悬在背后，剑尖朝上，慢慢浮动，剑脊流光。
@@ -29704,4 +29778,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795423590').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795425048').catch(()=>{});</script></body></html>
