@@ -14534,8 +14534,12 @@ function d4Tick(dt) {
   // the two platforms: hold by the device
   if ((st.stage === 2 || st.stage === 5) && st.holdOn) { const dev = st.stage === 2 ? [20, -18] : [158, -18], T = st.stage === 2 ? 30 : 35;
     if (AU) { if (dxNear(dev[0], dev[1], 6)) st.hold = Math.min(1, st.hold + dt / T); st.waveT += dt;
-      if (st.waveT > 8 * (st.wv + 1) - 7) { st.wv++; for (let i = 0; i < 4 + st.wv; i++) { const a = rand(0, 6.28); dz(pick(['magma', 'runner', 'walker', 'roll', 'brute']), dev[0] + Math.cos(a) * 14, dev[1] + Math.sin(a) * 12, rint(D4_LV[0], D4_LV[0] + 3), 1); } }
-      if (st.hold >= 1) { st.holdOn = 0; st.hold = 0; if (st.stage === 2) { st.stage = 3; say2('p1ok'); } else { st.stage = 6; doorOpen('pods'); say2('p2ok'); } } }
+      /* owner 23 Nov (「等秒的时候非常多僵尸」): waves every 9 s of 3/3/4/4/5, and a wave only comes while fewer than 7 of the
+         hold's monsters are still standing (it used to be 5,6,7,8… every 8 s with no limit = 26+ while you stood in the circle) */
+      st.hz = (st.hz || []).filter(q => !q.dead);
+      if (st.waveT > 9 * st.wv + 1 && st.hz.length < 7) { st.wv++; const n = Math.min(5, 3 + Math.floor((st.wv - 1) / 2));
+        for (let i = 0; i < n; i++) { const a = rand(0, 6.28), q = dz(pick(['magma', 'runner', 'walker', 'roll', 'brute']), dev[0] + Math.cos(a) * 14, dev[1] + Math.sin(a) * 12, rint(D4_LV[0], D4_LV[0] + 3), 1); if (q) st.hz.push(q); } }
+      if (st.hold >= 1) { st.holdOn = 0; st.hold = 0; st.hz = []; if (st.stage === 2) { st.stage = 3; say2('p1ok'); } else { st.stage = 6; doorOpen('pods'); say2('p2ok'); } } }
     const c = st.stage === 2 ? DUN.d4dev1 : DUN.d4dev2; if (c) c.material.color.setHSL(.55, 1, .5 + Math.sin(S.t * 6) * .15); }
   // the chase after the pod log
   if (st.stage === 7 && AU && st.waveT < 20) { st.waveT += dt; if (st.waveT > 6 * st.wv + 1 && st.wv < 3) { st.wv++; for (let i = 0; i < 5; i++) dz(pick(['shade', 'runner', 'magma']), 150 + rand(0, 20), -30 + rand(-3, 3), rint(D4_LV[0] + 1, D4_LV[0] + 4), 1); banner('追杀 · 第 ' + st.wv + ' 波', '往南跑，去回声厅', 2); } }
@@ -30157,4 +30161,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795438106').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795442232').catch(()=>{});</script></body></html>
