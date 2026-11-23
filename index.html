@@ -8092,7 +8092,7 @@ function skinAnimate(out, T) {
       o.rotation.x = lift; o.rotation.z = .035 * Math.sin(T * 1.9 - i * .7); }
     else if (u.fx === 'halo') o.rotation.z = T * .8;
     else if (u.fx === 'bob') o.position.y = u.y0 + Math.sin(T * 2.2 + u.ph) * .05, o.rotation.y = T * 1.5;
-    else if (u.fx === 'wingL' || u.fx === 'wingR') { const fl = typeof WFLY !== 'undefined' && WFLY.on, f = fl ? Math.sin(performance.now() / 1000 * WFLAP_SP) * .32 : Math.sin(T * 2 + u.ph) * .09; /* flying: all parts beat together */ o.rotation.z = (u.r0 || 0) + (u.fx === 'wingL' ? -f : f); o.position.z = u.z0 - Math.abs(f) * .3; }
+    else if (u.fx === 'wingL' || u.fx === 'wingR') { const fl = (typeof wFlap === 'function' ? wFlap() : typeof WFLY !== 'undefined' && WFLY.on), f = fl ? Math.sin(performance.now() / 1000 * WFLAP_SP) * .32 : Math.sin(T * 2 + u.ph) * .09; /* flying: all parts beat together */ o.rotation.z = (u.r0 || 0) + (u.fx === 'wingL' ? -f : f); o.position.z = u.z0 - Math.abs(f) * .3; }
     else if (u.fx === 'aura') { o.rotation.z = T * .6; const k = 1 + Math.sin(T * 2.4) * .06; o.scale.set(k, k, 1); o.material.opacity = .38 + Math.sin(T * 2.4) * .14; }
     else if (u.fx === 'aura2') o.rotation.z = -T * 1.1;
     else if (u.fx === 'orbit') { const a = T * 1.6 + u.ph; o.position.set(Math.cos(a) * .62, 1.05 + Math.sin(T * 1.3 + u.ph) * .45, Math.sin(a) * .62); o.rotation.y = T * 3; } }
@@ -9608,7 +9608,7 @@ SKIN_BUILD.seraph = function (k) {
     for (let i = 0; i < 11; i++) { const u = .03 + i / 10 * .9, L = .24 + u * .1; feather(u, L, .17, i % 2 ? MG : MW, .045 + i * .002, -.05 + u * .5, false); }
     const bone0 = piv.children[0];
     bone0.onBeforeRender = () => { const T = performance.now() / 1000, mv = (typeof _capeMv === 'function' ? _capeMv() : 0);
-      const fl = typeof WFLY !== 'undefined' && WFLY.on, sp = fl ? WFLAP_SP : 1.4 + mv * 3.6, amp = fl ? .55 : .07 + mv * .22;   // flying over water: big beats, moving or not
+      const fl = (typeof wFlap === 'function' ? wFlap() : typeof WFLY !== 'undefined' && WFLY.on), sp = fl ? WFLAP_SP : 1.4 + mv * 3.6, amp = fl ? .55 : .07 + mv * .22;   // flying over water: big beats, moving or not
       piv.rotation.y = s * (fl ? .1 : .28 + .14 * mv); piv.rotation.z = s * (amp * Math.sin(T * sp) + (fl ? .12 : .04 * mv)); piv.rotation.x = -.08; };   // half spread and swept a little back; beats harder when you move
   });
   // arms and legs
@@ -15521,7 +15521,7 @@ function wingOn(h) {
   wingBuild(h);
 }
 function wingAnim(list, T) {
-  const mv = typeof _capeMv === 'function' ? _capeMv() : 0, fl = typeof WFLY !== 'undefined' && WFLY.on, sp = fl ? WFLAP_SP : 1.8 + mv * 4.2, amp = fl ? .5 : .12 + mv * .2;   // flying over water: big beats
+  const mv = typeof _capeMv === 'function' ? _capeMv() : 0, fl = (typeof wFlap === 'function' ? wFlap() : typeof WFLY !== 'undefined' && WFLY.on), sp = fl ? WFLAP_SP : 1.8 + mv * 4.2, amp = fl ? .5 : .12 + mv * .2;   // flying over water: big beats
   if (WG.upM) WG.upM.opacity = .56 + .08 * Math.sin(T * 1.6);
   list.forEach(p => { const u = p.userData; if (!u.wing) return; p.rotation.y = u.s * (u.base + mv * .15 + amp * Math.sin(T * sp + (fl ? 0 : u.ph))); p.rotation.z = u.s * .07 * Math.sin(T * sp * .5 + u.ph);
     p.children[0].children.forEach(t => { if (t.userData.tw != null) t.scale.setScalar(.4 + .9 * Math.max(0, Math.sin(T * 2.4 + t.userData.tw))); }); });
@@ -24561,7 +24561,7 @@ SKIN_BUILD.myth = function (k) {
 skinAnimate = (o => function (out, T) { o(out, T); let mv = -1;
   for (const w of out || []) { const u = w.userData; if (!u || u.fx !== 'm5wing') continue;
     if (mv < 0) { mv = 0; try { mv = Math.min(1, Math.hypot(input.mx || 0, input.mz || 0)); } catch (e) { } }
-    const fl = typeof WFLY !== 'undefined' && WFLY.on, s = u.side;
+    const fl = (typeof wFlap === 'function' ? wFlap() : typeof WFLY !== 'undefined' && WFLY.on), s = u.side;
     if (fl) { const f = Math.sin(performance.now() / 1000 * WFLAP_SP); w.rotation.set(0, s * (.25 - f * .2), s * f * .45); }
     else { const b = Math.sin(T * 1.6); w.rotation.set(0, s * (.18 + mv * .35 + b * .06), s * (b * .05 - mv * .08)); } } })(skinAnimate);
 try { SKIN_P.myth = [
@@ -25310,6 +25310,49 @@ x9Desc('jian9s', 'sniper', '星图上的每颗星变成一柄小剑；天罡一�
 x9Desc('jian9g', 'shotgun', '飞剑打中时绽开一朵剑气莲花，剑归手时在身边开一朵大剑莲；技能落剑处也开剑莲', n => '【玩法 · 飞剑】每一枪的弹丸里有一柄飞剑，属性随机（水 火 雷 毒 冰 木 土 金 合）：打中就是一次这种属性的伤害，100%' + n(1) + '（一颗弹丸的伤害为 100%，金 / 合 160%），带上它的效果；打空就插在地上（最多 9 柄，15 秒后消失），换弹时飞回你手里，沿路每碰到一只怪造成 100%' + n(1) + '。其余弹丸是普通弹丸。\n【技能 · 剑雨】十八柄剑从天而降（只是特效，技能本身不变）。');
 x9Desc('jian9a', 'axe', '雷桩、雷网和天雷全部变成金雷，雷网成形时落下金色「雷」字印，技能也是', n => '【玩法 · 雷桩】平时就是普通劈砍。每砍一下在落点立一根雷桩（20 秒后消失），不用攒能量；九根立满连成雷网 6 秒，网里的怪每 0.5 秒受 20%' + n(.2) + ' 并减速，结束时每根雷桩炸开 30%' + n(.3) + '。雷网存在的期间砍下去不会立雷桩，等雷网消失才能再立。\n【技能 · 九天雷降】三圈旋斩各引三道天雷（只是特效，技能本身不变）。');
 x9Desc('jian9k', 'pick', '剑山变成一柄柄巨大的石剑从地下破土刺出，技能也是', n => '【玩法 · 地脉】打中怪物、或敲到能采的岩石 / 废铁，积一点地脉；攒满九点，下一镐冲出一排七座剑山，每座 220%' + n(2.2) + '，并把怪掀开，然后从 0 重新积。没攒满时是普通挥镐。\n【技能 · 地脉翻涌】身边冲出一圈九座剑峰（只是特效，技能本身不变）。');
+/* ============ 奔跑起飞 (owner 23 Nov: 「所有能飞的皮肤：走路时脚在地上，只要跑就用翅膀，脚离开地面；走路不享受 20% 速度加成」) ============
+   Every winged look — the winged outfits (炽天之翼 / 天穹神裔 / 天穹机神 and any outfit wingBlockName names) and the accessory wings
+   (粉蝶幻翼 …; 青冥飞剑 already rides its sword when you run, z_jsword.js) — now:
+   - WALKING: feet on the ground, wings resting, and NO wing / winged-outfit move-speed bonus
+   - RUNNING (sprint button / Shift while moving): you lift off `WRUN_LIFT` m and glide low, body leaning forward, legs trailing,
+     the wings beat like over water (every wing animator reads wFlap()), a soft whoosh per beat, a dust ring kicked up below;
+     only then the speed bonus counts (skSt wrapper below)
+   - over water the old hover (WFLY, z_fash2.js) is unchanged and also counts as flying for the bonus. */
+const WRUN = { on: false, k: 0, bt: 0, posed: false };
+const WRUN_LIFT = .6;
+// the move-speed share that comes from wings (winged outfit's own spd + an accessory wing's spd)
+function wrunWingSpd() { let v = 0; try { const K = S.skin && SKINS[S.skin]; if (K && K.st && K.st.spd && wingBlockName()) v += K.st.spd; } catch (e) { }
+  try { if (typeof wingActive === 'function' && wingActive() && WINGS[S.wing] && WINGS[S.wing].st) v += WINGS[S.wing].st.spd || 0; } catch (e) { } return v; }
+const wFlying = () => WRUN.on || (typeof WFLY !== 'undefined' && WFLY.on) || (typeof JSW !== 'undefined' && JSW.on);   /* riding 青冥飞剑 counts too */
+// every wing animator beats while this is true
+function wFlap() { return wFlying(); }
+skSt = (o => function (k) { const v = o(k); if (k !== 'spd') return v; return wFlying() ? v : v - wrunWingSpd(); })(skSt);
+function wrunCan() { if (!(typeof hasWings === 'function' && hasWings())) return false; if (typeof jswOn === 'function' && jswOn()) return false;   /* the sword has its own ride */
+  if (S.dead || S.boat || S.up || S.fall || S.climbA || (S.fl | 0) || (typeof GV !== 'undefined' && GV.on) || (typeof SW !== 'undefined' && SW.b)) return false;
+  if (typeof WFLY !== 'undefined' && WFLY.on) return false;
+  return !!S.sprint && (typeof jswMv === 'function' ? jswMv() : Math.hypot(input.mx || 0, input.mz || 0)) > .2; }
+// island: the lift is added to the ground height (terOff); elsewhere pm.g is lifted after the frame
+terOff = (o => function () { const v = o(); return WRUN.k > .001 && !(typeof WFLY !== 'undefined' && WFLY.on) ? v + WRUN_LIFT * WRUN.k : v; })(terOff);
+skinFxTick = (o => function (dt) { o(dt); try { const want = wrunCan(), T = S.t || 0;
+    if (want && !WRUN.on) { try { burst(player.pos.x, ((typeof playerY === 'function' && playerY()) || 0) + .1, player.pos.z, 0xfff4d8, 10, 3); sfx.pick && sfx.pick(); } catch (e) { } }
+    WRUN.on = want; WRUN.k += ((want ? 1 : 0) - WRUN.k) * Math.min(1, dt * 6); if (WRUN.k < .002) WRUN.k = 0;
+    const k = WRUN.k;
+    if (k > 0) { if (!S.isl && pm && pm.g) pm.g.position.y = ((typeof playerY === 'function' && playerY()) || 0) + WRUN_LIFT * k + Math.sin(T * 2.4) * .05 * k;
+      // gliding pose: legs trailing back together, a little knee bend, body leaning into the flight
+      if (pm.legL && pm.legR) { pm.legL.rotation.x = pm.legL.rotation.x * (1 - k) + (.42 + Math.sin(T * 3) * .05) * k; pm.legR.rotation.x = pm.legR.rotation.x * (1 - k) + (.55 + Math.sin(T * 3 + 1) * .05) * k; }
+      if (pm.body) pm.body.rotation.x = .22 * k; WRUN.posed = true;
+      // a whoosh on each down-beat and a dust ring blown off the ground under you
+      WRUN.bt -= dt; if (WRUN.on && WRUN.bt <= 0) { WRUN.bt = (2 * Math.PI) / (typeof WFLAP_SP !== 'undefined' ? WFLAP_SP : 7.5);
+        try { if (typeof sfxNoise === 'function') sfxNoise(.18, .05, 700, { type: 'bandpass', q: .7 }); } catch (e) { }
+        try { const gy = (S.isl && typeof terOff === 'function') ? terOff() - WRUN_LIFT * k : ((typeof playerY === 'function' && playerY()) || 0); fxRing(player.pos.x, player.pos.z, .3, 1.5, .5, 0xe8e0cc, .35, gy + .05); } catch (e) { } } }
+    else if (WRUN.posed) { WRUN.posed = false; if (pm.body) pm.body.rotation.x = 0; }
+  } catch (e) { } })(skinFxTick);
+// no footsteps while gliding
+playerStep = (o => function () { if (WRUN.k > .3) return; return o.apply(this, arguments); })(playerStep);
+// the shop / wardrobe texts say when the speed counts
+try { for (const K of [SKINS.seraph, SKINS.myth, SKINS.mecha]) if (K && K.stt) K.stt = K.stt.replace('移动速度 +20%', '奔跑飞行时移动速度 +20%'); } catch (e) { }
+try { for (const k in WINGS) { const W = WINGS[k]; if (W && W.stt && k !== 'jsword') W.stt = W.stt.replace(/移动速度 \+(\d+)%/, '奔跑飞行时移动速度 +$1%'); } } catch (e) { }
+try { if (WINGS.jsword && WINGS.jsword.stt) WINGS.jsword.stt = WINGS.jsword.stt.replace(/移动速度 \+(\d+)%/, '御剑时移动速度 +$1%'); } catch (e) { }
 /* ============ 深渊商店: spend 深渊币 with the diver of the 深渊号 (owner 18 Nov: "add a trade system to the abyss") ============
    Opened from the abyss page (button 深渊商店 next to 下潜). The trader is the brass-helmet diver who stands on the sub.
    Tabs: 升级材料 (now) · 皮肤 (empty: the owner will hand over skin code later, then they go in ABYSHOP_SKINS).
@@ -30099,4 +30142,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795432590').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795433006').catch(()=>{});</script></body></html>
