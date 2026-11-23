@@ -27930,7 +27930,7 @@ function gbxDraw(k) { const B = GBX[k], st = GBXS()[k];
   let name = s.n; try { if (dupNow && s.dup) { gain(s.dup[0], s.dup[1]); name = gbxTxt(s); } else s.f(); } catch (e) { console.warn(e); }
   const done = st.g.length >= 10; if (done) { st.g = []; st.c++; }
   S.st.draws = (S.st.draws || 0) + 1; refreshHud(); saveGame(); renderMall();
-  gStar([{ r: s.r, n: name, ic: s.ic, s }], () => { if (done) banner('箱子抽空了', '新的一箱已经放好，价格从 20 晶石重新开始', 2.6); if (k === 'x9' && GBXS().x9.pend) gbxChoose(); });
+  gStar([{ r: s.r, n: name, ic: s.ic, s }], () => { if (done) banner('箱子抽空了', '新的一箱已经放好，价格从 20 晶石重新开始', 2.6); if (k === 'x9' && GBXS().x9.pend) gbxChoose(); }, { th: 'seal' });
 }
 /* ---- 九霄武器箱 mythic: pick one skin ---- */
 function gbxChoose() { const st = GBXS().x9; if (!st.pend) return; const old = $('gbxCh'); if (old) old.remove();
@@ -27988,21 +27988,63 @@ function gfxHero(box, k) { const h = box.querySelector('.ghero'), H = GFX_HERO[k
   const c = h.querySelector('.gcrate'); if (c) { c.innerHTML = '<div class="gfxray"></div>' + icHtml('skin:' + H.sk, 'big'); c.addEventListener('click', () => { try { skinPreview(H.sk); } catch (e) { } }); }
   const b = h.querySelector('.gtx>b'); if (b) b.insertAdjacentHTML('afterend', '<em class="gfxm">' + H.t + '</em>'); }
 
-/* ============ the draw show: shooting star → flash → cards ============ */
+/* ============ the draw show (owner 23 Nov: our OWN style, not a copy of 原神's shooting star) ============
+   Three scenes, each pool its own (GSCN[th] → {html, hit = ms of the flash, rev = ms of the reveal}):
+   'drop' 空投补给 — every normal supply box: a ruined city at night, you light a signal flare whose SMOKE colour tells the grade,
+          a plane drones over, a crate drifts down under a parachute, lands in dust and its lid is blown off by light.
+   'fire' 余烬火种 — the outfit pools: a cold brazier, one ember falls in, the flame roars up in the grade colour (taller = better;
+          神话: a phoenix of fire rises out of it).
+   'seal' 剑破封印 — the two 九霄 boxes: a glowing talisman seal over a turning gold array, a flying sword cuts it in two, the
+          sword light is the grade colour (神话: nine swords fall in a ring).
+   Grade colours GBX_G (蓝 稀有 / 紫 史诗 / 金 传说 / 粉 神话). */
 const GSTAR = { on: false, mute: false };
-function gstSnd(r) { if (typeof AC === 'undefined' || !AC) return; try { sfxTone(1800, 300, 1, .07, 'sine'); sfxTone(3000, 900, .8, .03, 'triangle', { delay: .1 });
-  if (r >= 3) sfxTone(523, 1046, .5, .1, 'triangle', { delay: .95 }); if (r >= 4) { sfxTone(659, 1318, .7, .1, 'triangle', { delay: 1.05 }); sfxTone(784, 1568, .9, .09, 'sine', { delay: 1.15 }); }
-  if (r >= 5) { sfxTone(1046, 2093, 1.4, .12, 'sine', { delay: 1.3 }); sfxTone(1318, 2637, 1.6, .08, 'triangle', { delay: 1.45 }); } } catch (e) { } }
+function gsChime(r, d) { if (r >= 3) sfxTone(523, 1046, .5, .1, 'triangle', { delay: d }); if (r >= 4) { sfxTone(659, 1318, .7, .1, 'triangle', { delay: d + .1 }); sfxTone(784, 1568, .9, .09, 'sine', { delay: d + .2 }); }
+  if (r >= 5) { sfxTone(1046, 2093, 1.4, .12, 'sine', { delay: d + .35 }); sfxTone(1318, 2637, 1.6, .08, 'triangle', { delay: d + .5 }); } }
+function gsSnd(th, r) { if (typeof AC === 'undefined' || !AC) return; try {
+  if (th === 'drop') { sfxNoise(1.2, .05, 2600, { f1: 900, type: 'bandpass' }); sfxTone(85, 110, 1.8, .07, 'sawtooth', { delay: .2 }); sfxTone(170, 210, 1.6, .025, 'square', { delay: .3 });
+    sfxNoise(.9, .04, 800, { delay: 1, f1: 300 }); sfxTone(90, 40, .45, .22, 'sine', { delay: 1.95 }); sfxNoise(.35, .12, 1200, { delay: 1.95, f1: 200 }); sfxNoise(.12, .08, 3000, { delay: 2.05 }); gsChime(r, 2.1); }
+  else if (th === 'fire') { sfxTone(2600, 1300, .9, .03, 'sine'); sfxTone(3400, 2000, .7, .015, 'triangle', { delay: .2 }); sfxTone(110, 45, .7, .2, 'sine', { delay: .95 }); sfxNoise(1.1, .1, 700, { delay: .95, f1: 2500 });
+    for (let i = 0; i < 5; i++) sfxNoise(.04, .05, 4000, { delay: 1.1 + i * .13, type: 'highpass' }); if (r >= 5) { sfxTone(900, 1900, .5, .07, 'triangle', { delay: 1.35 }); sfxTone(1500, 2600, .7, .06, 'sine', { delay: 1.55 }); } gsChime(r, 1.6); }
+  else { sfxNoise(.5, .07, 900, { delay: .6, f1: 4000, type: 'bandpass' }); sfxTone(3200, 2400, .9, .07, 'triangle', { delay: .92 }); sfxTone(4800, 3600, .7, .04, 'sine', { delay: .94 }); sfxNoise(.25, .1, 5000, { delay: .95, type: 'highpass' });
+    if (r >= 5) for (let i = 0; i < 9; i++) sfxTone(2400 + i * 90, 1800, .25, .035, 'triangle', { delay: 1.05 + i * .06 }); gsChime(r, 1.15); } } catch (e) { } }
+// a few hand-drawn SVG pieces
+const GS_SVG = {
+  city: '<svg class="gscity" viewBox="0 0 400 120" preserveAspectRatio="none"><path d="M0 120V70h22V48h18v30h14V38l8-6 8 6v40h16V58h26V30h6v-8h4v8h6v48h18V64h12V44h22v34h10V20l12-10 12 10v58h14V52h20v26h12V60l10-12 10 12v18h16V36h24v42h14V56h18v64z" fill="#06070c"/>' +
+    '<g fill="#f6c46a" opacity=".55"><rect x="124" y="40" width="3" height="4"/><rect x="132" y="52" width="3" height="4"/><rect x="246" y="30" width="3" height="4"/><rect x="252" y="46" width="3" height="4"/><rect x="342" y="48" width="3" height="4"/><rect x="62" y="50" width="3" height="4"/></g></svg>',
+  plane: '<svg class="gsplane" viewBox="0 0 120 40"><path d="M4 20l30-3 18-15h8l-8 15 40-2 10-8h6l-4 12 4 12h-6l-10-8-40-2 8 15h-8L34 23 4 20z" fill="#0b0d14"/><circle cx="104" cy="20" r="2" fill="#ff5050" class="gsblink"/></svg>',
+  crate: '<svg class="gscrate" viewBox="0 0 100 150"><path d="M10 40C10 10 90 10 90 40z" fill="#c9cdd2"/><path d="M10 40C20 30 30 30 50 40C70 30 80 30 90 40" fill="none" stroke="#9aa0a8" stroke-width="2"/><g stroke="#8a8f96" stroke-width="1"><path d="M12 40L30 96M38 38L42 96M62 38L58 96M88 40L70 96"/></g>' +
+    '<g class="gslid"><rect x="26" y="92" width="48" height="8" fill="#6b4a2a"/><rect x="24" y="90" width="52" height="4" fill="#8a643a"/></g><rect x="26" y="100" width="48" height="40" fill="#7a5530"/><path d="M26 112h48M26 126h48" stroke="#5a3d22" stroke-width="2"/><path d="M28 102l44 36M72 102l-44 36" stroke="#5a3d22" stroke-width="3"/><rect x="26" y="100" width="48" height="40" fill="none" stroke="#3e4248" stroke-width="3"/><circle cx="50" cy="120" r="5" fill="var(--gc)"/></svg>',
+  brazier: '<svg class="gsbraz" viewBox="0 0 160 120"><path d="M40 60l-18 58M120 60l18 58M80 64v54" stroke="#3a2a1e" stroke-width="7" stroke-linecap="round"/><path d="M14 40h132c-6 30-34 44-66 44S20 70 14 40z" fill="#6b4524"/><path d="M14 40h132" stroke="#c08a3e" stroke-width="6" stroke-linecap="round"/><path d="M30 54c16 10 84 10 100 0" stroke="#3f2614" stroke-width="3" fill="none"/><g fill="#c08a3e"><circle cx="40" cy="56" r="3"/><circle cx="80" cy="64" r="3"/><circle cx="120" cy="56" r="3"/></g><path d="M34 40c10-6 82-6 92 0" fill="#1a0f08"/></svg>',
+  phoenix: '<svg class="gsphx" viewBox="0 0 200 160"><defs><linearGradient id="gsphg" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ff4d8d"/><stop offset=".6" stop-color="#ffb050"/><stop offset="1" stop-color="#fff4c0"/></linearGradient></defs>' +
+    '<path fill="url(#gsphg)" d="M100 40c6-10 16-12 22-8-6 2-10 8-10 14 22-18 58-30 84-24-24 8-44 22-56 40 20-6 40-4 52 4-22 2-42 10-56 22 8 8 10 22 4 36-6-10-14-16-24-18l-6 28-6-28c-10 2-18 8-24 18-6-14-4-28 4-36-14-12-34-20-56-22 12-8 32-10 52-4-12-18-32-32-56-40 26-6 62 6 84 24 0-6-4-12-10-14 6-4 16-2 22 8z"/></svg>',
+  sword: '<svg class="gsswd" viewBox="0 0 260 30"><path d="M60 15L240 10l18 5-18 5z" fill="#eaf6ff"/><path d="M60 15h196" stroke="var(--gc)" stroke-width="1.6"/><rect x="48" y="2" width="10" height="26" rx="3" fill="#e8c060"/><rect x="14" y="11" width="34" height="8" rx="3" fill="#2a3a3a"/><circle cx="10" cy="15" r="6" fill="#e8c060"/></svg>',
+  array: '<svg class="gsarr" viewBox="0 0 200 200"><g fill="none" stroke="#e8c060"><circle cx="100" cy="100" r="92" stroke-width="2"/><circle cx="100" cy="100" r="78" stroke-width="1" stroke-dasharray="4 6"/><circle cx="100" cy="100" r="60" stroke-width="2"/><path d="M100 8l80 138H20z M100 192L20 54h160z" stroke-width="1.2" opacity=".7"/></g></svg>'
+};
+const GS_RANK = { 0: .75, 2: 1, 3: 1.25, 4: 1.55, 5: 1.9 };
+const GSCN = {
+  drop: (best, n) => { let smk = ''; for (let i = 0; i < 9; i++) smk += '<i style="--d:' + (i * .12).toFixed(2) + 's;--x:' + ((i % 3 - 1) * 10 + (Math.random() * 8 - 4)).toFixed(0) + 'px"></i>';
+    return { hit: 2050, rev: 2350, html: '<div class="gsc gsdrop"><div class="gsmoon"></div>' + GS_SVG.plane + '<div class="gsfall">' + GS_SVG.crate + '</div>' + GS_SVG.city +
+      '<div class="gsflare"><b></b><div class="gssmk">' + smk + '</div></div><div class="gsdust"></div><div class="gsbeam"></div>' + (best >= 5 ? '<div class="gsring"></div><div class="gsring r2"></div>' : '') + '</div>' }; },
+  fire: (best) => { let emb = ''; for (let i = 0; i < 22; i++) emb += '<i style="left:' + (Math.random() * 100).toFixed(0) + '%;--d:' + (Math.random() * 3).toFixed(2) + 's;--t:' + (2.5 + Math.random() * 2.5).toFixed(2) + 's"></i>';
+    let sp = ''; for (let i = 0; i < 14; i++) sp += '<i style="--a:' + (-60 + Math.random() * 120).toFixed(0) + 'deg;--h:' + (20 + Math.random() * 25).toFixed(0) + 'vh;--d:' + (Math.random() * .3).toFixed(2) + 's"></i>';
+    return { hit: 1700, rev: best >= 5 ? 2300 : 1950, html: '<div class="gsc gsfire" style="--fh:' + GS_RANK[best] + '"><div class="gsemb">' + emb + '</div><div class="gsspark"></div><div class="gsflame"><u></u><u></u><u></u></div>' +
+      '<div class="gssparks">' + sp + '</div>' + GS_SVG.brazier + (best >= 5 ? GS_SVG.phoenix : '') + '</div>' }; },
+  seal: (best) => { let sw = ''; if (best >= 5) for (let i = 0; i < 9; i++) sw += '<i style="--a:' + (i * 40) + 'deg;--d:' + (1.05 + i * .06).toFixed(2) + 's">' + GS_SVG.sword + '</i>';
+    const tal = '<b>敕</b><b>令</b><b>封</b>';
+    return { hit: 1150, rev: best >= 5 ? 1750 : 1500, html: '<div class="gsc gsseal"><div class="gscloud"></div>' + GS_SVG.array + '<div class="gstal"><div class="gsh a">' + tal + '</div><div class="gsh b">' + tal + '</div></div>' +
+      '<div class="gscut"></div><div class="gsfly">' + GS_SVG.sword + '</div>' + (best >= 5 ? '<div class="gs9">' + sw + '</div>' : '') + '</div>' }; }
+};
 // items: [{r, n, ic?, s?}]; done() when the player closes it
 function gStar(items, done, opt) { opt = opt || {};
   /* no real page (headless tests) → straight to the result */
   if (!items || !items.length || typeof document.createElement('div').remove !== 'function' || typeof document.body.appendChild !== 'function') { if (done) done(); return; }
   const best = Math.max(...items.map(o => o.r)), G = GBX_G[best] || GBX_G[0], old = $('gstar'); if (old) old.remove(); GSTAR.on = true;
   const m = document.createElement('div'); m.id = 'gstar'; m.className = 'gstar r' + best; m.style.setProperty('--gc', G[1]);
-  let stars = ''; for (let i = 0; i < 46; i++) stars += '<i style="left:' + (Math.random() * 100).toFixed(1) + '%;top:' + (Math.random() * 100).toFixed(1) + '%;animation-delay:' + (Math.random() * 2).toFixed(2) + 's;--s:' + (1 + Math.random() * 2).toFixed(1) + 'px"></i>';
-  let mets = ''; const extra = Math.min(6, items.length - 1); for (let i = 0; i < extra; i++) { const r = items.slice().sort((a, b) => b.r - a.r)[i + 1].r, c = (GBX_G[r] || GBX_G[0])[1]; mets += '<u class="gsm" style="--mc:' + c + ';--dx:' + (-30 + Math.random() * 60).toFixed(0) + 'vw;--d:' + (.15 + i * .09).toFixed(2) + 's"></u>'; }
-  m.innerHTML = '<div class="gsky">' + stars + '</div><div class="gmet" style="--ta:' + (-Math.atan2(innerHeight * .7, innerWidth * .3) * 180 / Math.PI).toFixed(1) + 'deg"><u class="gsm big" style="--mc:' + G[1] + ';--dx:0vw;--d:0s"></u>' + mets + '</div><div class="gland"></div><div class="gflash"></div><div class="gshow"></div><button class="gskip">跳过</button>';
-  document.body.appendChild(m); gstSnd(best);
+  const th = GSCN[opt.th] ? opt.th : 'drop', SC = GSCN[th](best, items.length); m.classList.add('th_' + th); m.style.setProperty('--ft', (SC.hit / 1000) + 's');
+  m.innerHTML = SC.html + '<div class="gflash"></div><div class="gshow"></div><button class="gskip">跳过</button>';
+  document.body.appendChild(m); gsSnd(th, best);
+  /* the scene's beats: the crate lands / the ember lights the fire / the sword cuts the seal */
+  const PH = { drop: [1950, 'landed shake'], fire: [980, 'lit'], seal: [860, 'cut'] }[th]; setTimeout(() => { if (m.parentNode) m.classList.add(...PH[1].split(' ')); }, GSTAR.hold ? PH[0] * (GSTAR.hold || 1) : PH[0]);
   let stage = 0, tS = Date.now(); const show = m.querySelector('.gshow'), setS = v => { stage = v; tS = Date.now(); };
   const reveal = () => { if (stage >= .5) return; setS(1); m.classList.add('rev');
     const mythOne = items.find(o => o.r >= 5);
@@ -28013,14 +28055,14 @@ function gStar(items, done, opt) { opt = opt || {};
       c.innerHTML = '<div class="gsci">' + gbxIc(o.s || { ic: o.ic || (typeof rwIcon === 'function' ? rwIcon(o.n) : 'item:bag') }) + '</div><b>' + o.n + '</b><small>' + GG[0] + '</small>'; g.appendChild(c); });
     show.innerHTML = ''; show.appendChild(g); show.insertAdjacentHTML('beforeend', '<small class="gstap">点任意处继续</small>'); };
   const close = () => { if (!m.parentNode) return; m.remove(); GSTAR.on = false; if (done) try { done(); } catch (e) { console.warn(e); } };
-  const T = GSTAR.hold ? 0 : setTimeout(reveal, 1250);   /* GSTAR.hold: only for screenshots of the falling star */
+  const T = GSTAR.hold ? 0 : setTimeout(reveal, SC.rev);   /* GSTAR.hold: only for screenshots of a scene */
   m.addEventListener('click', e => { if (Date.now() - tS < 350) return;
     if (e.target.classList.contains('gskip')) { clearTimeout(T); if (stage < 1 && !opt.flash) cards(); else close(); return; }
     if (stage === 0) { clearTimeout(T); reveal(); } else if (stage === .5) { if (opt.flash) close(); else cards(); } else close(); }); }
-// the old pools: show the star first, then their own result window; no early 「神话！！」 banner spoiling it
+// the old pools: their scene first (outfit pools = 余烬火种, the rest = 空投补给), then their own result window; no early 「神话！！」 banner spoiling it
 gacha = (o => function () { GSTAR.mute = true; try { return o.apply(this, arguments); } finally { GSTAR.mute = false; } })(gacha);
 banner = (o => function () { if (GSTAR.mute) return; return o.apply(this, arguments); })(banner);
-drawModal = (o => function (out, n) { const a = arguments; gStar(out.map(x => ({ r: x.G.r, n: x.n })), () => o.apply(this, a), { flash: 1 }); })(drawModal);
+drawModal = (o => function (out, n) { const a = arguments; gStar(out.map(x => ({ r: x.G.r, n: x.n })), () => o.apply(this, a), { flash: 1, th: gPool === 'main' || gPool === 'fash' ? 'fire' : 'drop' }); })(drawModal);
 
 (() => { try { const st = document.createElement('style'); st.textContent =
   /* pool buttons */
@@ -28052,13 +28094,44 @@ drawModal = (o => function (out, n) { const a = arguments; gStar(out.map(x => ({
   '.gbxchc.on{border-color:#ffc94a;box-shadow:0 0 12px #ffc94a;background:rgba(255,201,74,.12)}.gbxchc.own{opacity:.4}.gbxchi{width:78px;height:78px;display:flex;align-items:center;justify-content:center}.gbxchi img{max-width:100%;max-height:100%}.gbxchc b{font-size:13px}.gbxchc small{font-size:11px;color:#b8b0d8}.gbxchr{display:flex;gap:8px}.gbxchr .gbtn{flex:1}' +
   /* the star show */
   '.gstar{position:fixed;inset:0;z-index:450;overflow:hidden;background:radial-gradient(140% 100% at 50% 110%,#1a2a4a 0,#0a1024 45%,#03050c 100%);color:#fff;touch-action:manipulation;user-select:none;-webkit-user-select:none}' +
-  '.gsky i{position:absolute;width:var(--s);height:var(--s);border-radius:50%;background:#fff;animation:gstw 2.2s infinite}@keyframes gstw{0%,100%{opacity:.25}50%{opacity:1}}@keyframes gbxpulse{0%,100%{transform:scale(.92);opacity:.7}50%{transform:scale(1.05);opacity:1}}' +
-  '.gmet{position:absolute;inset:0}.gsm{position:absolute;left:calc(78% + var(--dx));top:-12%;width:6px;height:6px;border-radius:50%;background:#fff;box-shadow:0 0 12px 4px var(--mc),0 0 30px 10px var(--mc);animation:gsfall 1.05s cubic-bezier(.5,.05,.85,.6) var(--d) forwards;opacity:0}' +
-  '.gsm::after{content:"";position:absolute;left:50%;top:50%;width:46vmax;height:4px;margin-top:-2px;transform-origin:left center;transform:rotate(var(--ta));background:linear-gradient(270deg,rgba(255,255,255,0),var(--mc) 70%,#fff);border-radius:4px;filter:blur(.5px)}.gsm.big{width:12px;height:12px;box-shadow:0 0 18px 8px var(--mc),0 0 60px 22px var(--mc)}.gsm.big::after{height:8px;margin-top:-4px;width:60vmax}' +
-  '@keyframes gsfall{0%{opacity:0;transform:translate(0,0)}8%{opacity:1}100%{opacity:1;transform:translate(-30vw,70vh)}}' +
-  '.gland{position:absolute;left:48%;top:58%;width:10px;height:10px;margin:-5px;border-radius:50%;opacity:0;background:var(--gc);box-shadow:0 0 40px 20px var(--gc);animation:gsland .9s ease-out 1.02s forwards}@keyframes gsland{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(40)}}' +
-  '.gflash{position:absolute;inset:0;background:radial-gradient(circle at 48% 58%,#fff,var(--gc) 40%,rgba(0,0,0,0) 75%);opacity:0;animation:gsfl .7s ease-out 1.05s forwards;pointer-events:none}@keyframes gsfl{0%{opacity:0}20%{opacity:.95}100%{opacity:0}}' +
-  '.gstar.rev .gmet,.gstar.rev .gland{display:none}.gshow{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px;gap:10px}' +
+  '@keyframes gstw{0%,100%{opacity:.25}50%{opacity:1}}@keyframes gbxpulse{0%,100%{transform:scale(.92);opacity:.7}50%{transform:scale(1.05);opacity:1}}' +
+  '.gflash{position:absolute;inset:0;background:radial-gradient(circle at 50% 62%,#fff,var(--gc) 40%,rgba(0,0,0,0) 75%);opacity:0;animation:gsfl .7s ease-out var(--ft) forwards;pointer-events:none}@keyframes gsfl{0%{opacity:0}20%{opacity:.95}100%{opacity:0}}' +
+  '.gstar.rev .gsc{opacity:.28;filter:blur(2px);transition:opacity .4s,filter .4s}.gsc{position:absolute;inset:0;overflow:hidden}.gsc svg{position:absolute}' +
+  /* 空投补给 */
+  '.gstar.th_drop{background:linear-gradient(180deg,#0a0e1c 0,#17182a 60%,#231a22 100%)}.gsmoon{position:absolute;left:12%;top:10%;width:9vmin;height:9vmin;border-radius:50%;background:#e8e2cc;box-shadow:0 0 40px rgba(232,226,204,.35);opacity:.8}' +
+  '.gscity{left:0;bottom:0;width:100%;height:24vh}.gsplane{top:15%;left:-25%;width:22vmin;animation:gspl 2s linear .15s forwards}@keyframes gspl{to{left:115%}}.gsblink{animation:gstw .5s infinite}' +
+  '.gsflare{position:absolute;left:30%;bottom:9vh;width:4px;height:22px;background:#a33}.gsflare b{position:absolute;left:-6px;top:-8px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 0 16px 6px var(--gc),0 0 50px 16px var(--gc);animation:gstw .18s infinite}' +
+  '.gssmk i{position:absolute;left:-14px;bottom:10px;width:30px;height:30px;border-radius:50%;background:var(--gc);opacity:0;filter:blur(8px);animation:gssm 2.4s ease-out var(--d) infinite}@keyframes gssm{0%{opacity:.7;transform:translate(0,0) scale(.6)}100%{opacity:0;transform:translate(var(--x),-46vh) scale(4)}}' +
+  '.gsfall{position:absolute;left:50%;top:-50vh;width:30vmin;margin-left:-15vmin;animation:gsfd 1.9s cubic-bezier(.35,.1,.7,1) .1s forwards}.gsfall svg{position:relative;width:100%;animation:gssw 1s ease-in-out infinite alternate;transform-origin:50% 0}' +
+  '@keyframes gsfd{to{top:calc(100% - 9vh - 45vmin)}}@keyframes gssw{from{transform:rotate(-7deg)}to{transform:rotate(7deg)}}' +
+  '.gstar.landed .gsfall svg{animation:none}.gstar.landed .gscrate>path,.gstar.landed .gscrate>g:not(.gslid){opacity:0;transition:opacity .25s}.gstar.landed .gslid{transform:translate(-30px,-70px) rotate(-40deg);transition:transform .35s ease-out;transform-box:fill-box}' +
+  '.gsdust{position:absolute;left:50%;bottom:8vh;width:50vmin;height:12vmin;margin-left:-25vmin;border-radius:50%;background:radial-gradient(ellipse,rgba(180,160,130,.7),rgba(180,160,130,0) 70%);opacity:0;transform:scale(.3)}.gstar.landed .gsdust{animation:gsdu .9s ease-out forwards}@keyframes gsdu{0%{opacity:.9;transform:scale(.3)}100%{opacity:0;transform:scale(1.8)}}' +
+  '.gsbeam{position:absolute;left:50%;bottom:12vh;width:14vmin;margin-left:-7vmin;height:0;background:linear-gradient(0deg,#fff,var(--gc) 30%,rgba(0,0,0,0));opacity:.9;filter:blur(2px)}.gstar.landed .gsbeam{animation:gsbm .6s ease-out .1s forwards}@keyframes gsbm{to{height:100vh}}' +
+  '.gsring{position:absolute;left:50%;bottom:10vh;width:10vmin;height:4vmin;margin-left:-5vmin;border-radius:50%;border:3px solid var(--gc);opacity:0}.gstar.landed .gsring{animation:gsrg 1s ease-out forwards}.gsring.r2{animation-delay:.2s!important}@keyframes gsrg{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(14)}}' +
+  '.gstar.shake{animation:gsshk .4s linear}@keyframes gsshk{0%,100%{transform:none}20%{transform:translate(4px,-3px)}40%{transform:translate(-4px,3px)}60%{transform:translate(3px,2px)}80%{transform:translate(-2px,-2px)}}' +
+  /* 余烬火种 */
+  '.gstar.th_fire{background:radial-gradient(120% 90% at 50% 100%,#2a1208 0,#120806 50%,#050303 100%)}.gsemb i{position:absolute;bottom:-2%;width:3px;height:3px;border-radius:50%;background:#ff9a40;box-shadow:0 0 6px #ff7a20;animation:gsem var(--t) linear var(--d) infinite;opacity:0}@keyframes gsem{0%{opacity:0;transform:translate(0,0)}10%{opacity:.9}100%{opacity:0;transform:translate(30px,-100vh)}}' +
+  '.gsbraz{left:50%;bottom:6vh;width:40vmin;margin-left:-20vmin}.gsspark{position:absolute;left:50%;top:-6%;width:8px;height:8px;margin-left:-4px;border-radius:50%;background:#fff;box-shadow:0 0 12px 4px #ffb050;animation:gssp .95s cubic-bezier(.5,0,.9,.6) .05s forwards}' +
+  '.gsspark::after{content:"";position:absolute;left:2px;bottom:6px;width:4px;height:22vh;background:linear-gradient(0deg,#ffd080,rgba(255,150,60,0));border-radius:3px}@keyframes gssp{0%{top:-6%}100%{top:calc(100% - 6vh - 22vmin);opacity:1}}.gstar.lit .gsspark{display:none}' +
+  '.gsflame{position:absolute;left:50%;bottom:calc(6vh + 21vmin);width:30vmin;height:calc(34vmin * var(--fh));margin-left:-15vmin;transform-origin:50% 100%;transform:scaleY(0);opacity:0}.gstar.lit .gsflame{animation:gsfu .45s cubic-bezier(.2,1.5,.4,1) forwards}@keyframes gsfu{to{transform:scaleY(1);opacity:1}}' +
+  '.gsflame u{position:absolute;left:50%;bottom:0;border-radius:50% 50% 45% 45% / 70% 70% 30% 30%;transform-origin:50% 100%;animation:gsfk .18s ease-in-out infinite alternate}' +
+  '.gsflame u:nth-child(1){width:100%;height:100%;margin-left:-50%;background:radial-gradient(ellipse at 50% 85%,var(--gc),rgba(0,0,0,0) 70%);filter:blur(4px)}.gsflame u:nth-child(2){width:64%;height:80%;margin-left:-32%;background:radial-gradient(ellipse at 50% 85%,#fff3c0,var(--gc) 55%,rgba(0,0,0,0) 72%);animation-duration:.14s}' +
+  '.gsflame u:nth-child(3){width:30%;height:52%;margin-left:-15%;background:radial-gradient(ellipse at 50% 80%,#fff,#fff6d0 50%,rgba(0,0,0,0) 72%);animation-duration:.11s}@keyframes gsfk{from{transform:scaleY(.94) skewX(-3deg)}to{transform:scaleY(1.06) skewX(3deg)}}' +
+  '.gssparks i{position:absolute;left:50%;bottom:calc(6vh + 22vmin);width:4px;height:4px;border-radius:50%;background:#fff;box-shadow:0 0 6px var(--gc);opacity:0}.gstar.lit .gssparks i{animation:gsps 1.1s ease-out var(--d) forwards}@keyframes gsps{0%{opacity:1;transform:rotate(var(--a)) translateY(0)}100%{opacity:0;transform:rotate(var(--a)) translateY(calc(-1 * var(--h)))}}' +
+  '.gsphx{left:50%;bottom:calc(6vh + 26vmin);width:60vmin;margin-left:-30vmin;opacity:0;filter:drop-shadow(0 0 18px #ff4d8d)}.gstar.lit .gsphx{animation:gsph 1s ease-out .3s forwards}@keyframes gsph{0%{opacity:0;transform:translateY(10vh) scale(.4)}60%{opacity:1}100%{opacity:1;transform:translateY(-14vh) scale(1.1)}}' +
+  /* 剑破封印 */
+  '.gstar.th_seal{background:radial-gradient(110% 90% at 50% 50%,#1c1e46 0,#0d0f24 55%,#05060f 100%)}.gscloud{position:absolute;inset:0;background:radial-gradient(40% 20% at 20% 30%,rgba(120,130,200,.15),rgba(0,0,0,0)),radial-gradient(40% 20% at 80% 70%,rgba(120,130,200,.12),rgba(0,0,0,0))}' +
+  '.gsarr{left:50%;top:50%;width:70vmin;height:70vmin;margin:-35vmin;opacity:.45;animation:gsrot 18s linear infinite}' +
+  '.gstal{position:absolute;left:50%;top:50%;width:22vmin;height:52vmin;margin:-26vmin -11vmin;animation:gstf 2s ease-in-out infinite alternate}@keyframes gstf{from{transform:translateY(-1vmin)}to{transform:translateY(1vmin)}}' +
+  '.gsh{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:space-around;padding:3vmin 0;background:linear-gradient(180deg,#f2d88a,#e2bc5e);border:3px solid #b22;outline:2px solid #e2bc5e;box-shadow:0 0 24px rgba(255,220,140,.55)}' +
+  '.gsh b{font-size:8vmin;line-height:1;color:#b81c1c;font-family:serif;text-shadow:0 0 6px rgba(255,80,60,.5)}.gsh.a{clip-path:polygon(0 0,100% 0,100% 10%,0 90%)}.gsh.b{clip-path:polygon(100% 10%,100% 100%,0 100%,0 90%)}' +
+  '.gstar.cut .gsh.a{transform:translate(-8vmin,-10vmin) rotate(-14deg);opacity:0;transition:transform .7s ease-out,opacity .7s ease-in}.gstar.cut .gsh.b{transform:translate(8vmin,10vmin) rotate(12deg);opacity:0;transition:transform .7s ease-out,opacity .7s ease-in}' +
+  '.gsfly{position:absolute;left:50%;top:50%;width:60vmin;height:8vmin;margin:-4vmin -30vmin;transform:rotate(120deg) translateX(-75vmax);animation:gsfy .5s cubic-bezier(.45,.05,.55,.95) .45s forwards}.gsfly svg{position:relative;width:100%;height:100%;filter:drop-shadow(0 0 10px var(--gc))}@keyframes gsfy{to{transform:rotate(120deg) translateX(75vmax)}}' +
+  '.gscut{position:absolute;left:50%;top:50%;width:140vmax;height:4px;margin:-2px -70vmax;background:linear-gradient(90deg,rgba(0,0,0,0),#fff 45%,var(--gc) 55%,rgba(0,0,0,0));box-shadow:0 0 18px var(--gc);transform:rotate(120deg) scaleX(0);opacity:0}' +
+  '.gstar.cut .gscut{animation:gsct .6s ease-out forwards}@keyframes gsct{0%{opacity:1;transform:rotate(120deg) scaleX(.1)}30%{opacity:1;transform:rotate(120deg) scaleX(1)}100%{opacity:0;transform:rotate(120deg) scaleX(1) scaleY(4)}}' +
+  '.gs9 i{position:absolute;left:50%;top:50%;width:18vmin;height:2.4vmin;margin:-1.2vmin -9vmin;opacity:0;transform:rotate(var(--a)) translateX(28vmin) rotate(90deg) translateX(-40vmin);animation:gs9f .3s ease-in var(--d) forwards}.gs9 svg{position:relative;width:100%;height:100%;filter:drop-shadow(0 0 6px #ff4d8d)}' +
+  '@keyframes gs9f{0%{opacity:0}30%{opacity:1}100%{opacity:1;transform:rotate(var(--a)) translateX(28vmin) rotate(90deg) translateX(0)}}' +
+  '.gstar.rev .gshow{background:transparent}.gshow{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px;gap:10px}' +
   '.gskip{position:absolute;top:calc(10px + env(safe-area-inset-top));right:12px;padding:6px 14px;border-radius:20px;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.35);color:#fff;font-size:13px;z-index:2}' +
   '.gscards{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;width:min(720px,100%)}.gscards>.gscard{width:calc(20% - 7px)}.gscards.n1>.gscard{width:min(220px,60vw)}' +
   '.gscard{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:14px;border:2px solid var(--gc);background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(0,0,0,.45));box-shadow:0 0 14px var(--gc);text-align:center;opacity:0;animation:gscin .5s cubic-bezier(.2,1.4,.4,1) forwards}' +
@@ -29244,4 +29317,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795401242').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795406969').catch(()=>{});</script></body></html>
