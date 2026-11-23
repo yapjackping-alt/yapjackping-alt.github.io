@@ -26350,11 +26350,12 @@ function mushPatchMat() { if (MUSHP.m) return MUSHP.m; let map = null;
     map = new THREE.CanvasTexture(c); } } catch (e) { }
   MUSHP.m = new THREE.MeshLambertMaterial(map ? { map, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 } : { color: 0x3a2e24, transparent: true, opacity: .5, depthWrite: false });
   return MUSHP.m; }
-plantMesh = (o => function (kind) { const g = o.apply(this, arguments); if (kind !== 'mush') return g;
-  try { const old = g.children.find(c => c.isMesh && c.geometry && c.geometry.parameters && Math.abs((c.geometry.parameters.width || 0) - 1.2) < .01 && (c.geometry.parameters.height || 1) < .05);
+function mushPatchOn(g) { try { if (g.userData.mushP) return; const old = g.children.find(c => c.isMesh && c.geometry && c.geometry.parameters && Math.abs((c.geometry.parameters.width || 0) - 1.2) < .01 && (c.geometry.parameters.height || 1) < .05);
     if (old) g.remove(old);
-    const p = new THREE.Mesh(new THREE.CircleGeometry(1.15, 20), mushPatchMat()); p.rotation.x = -Math.PI / 2; p.position.y = .025; p.renderOrder = -1; g.add(p); } catch (e) { }
-  return g; })(plantMesh);
+    const p = new THREE.Mesh(new THREE.CircleGeometry(1.15, 20), mushPatchMat()); p.rotation.x = -Math.PI / 2; p.position.y = .025; p.renderOrder = -1; g.add(p); g.userData.mushP = p; } catch (e) { } }
+plantMesh = (o => function (kind) { const g = o.apply(this, arguments); if (kind === 'mush') mushPatchOn(g); return g; })(plantMesh);
+/* owner 23 Nov: the island's own mushrooms were made in n_food.js BEFORE this wrapper existed and kept the square soil box */
+try { for (const p of PLANTS) if (p.kind === 'mush' && p.g) mushPatchOn(p.g); } catch (e) { }
 
 /* ---- 4. mined-out stone piles crumble to dust, finished wrecks fall apart ---- */
 const GTB = [];
@@ -28269,7 +28270,7 @@ const GBX = {
 const GBX_K = ['xian', 'x9'];
 function GBXS() { if (!S.gbox || typeof S.gbox !== 'object') S.gbox = {}; for (const k of GBX_K) { const q = S.gbox[k]; if (!q || !Array.isArray(q.g)) S.gbox[k] = { g: [], c: 0, pend: 0 }; } return S.gbox; }
 shopSave = (o => function () { const r = o(); try { r.gbx = GBXS(); } catch (e) { } return r; })(shopSave);
-shopLoad = (o => function (d) { o(d); try { const v = d && d.sh && d.sh.gbx; S.gbox = {}; GBXS(); if (v && typeof v === 'object') for (const k of GBX_K) { const q = v[k]; if (q && Array.isArray(q.g)) S.gbox[k] = { g: q.g.filter(i => Number.isInteger(i) && i >= 0 && i < 10).filter((i, j, a) => a.indexOf(i) === j), c: q.c | 0, pend: q.pend ? 1 : 0 }; } } catch (e) { } })(shopLoad);
+shopLoad = (o => function (d) { o(d); try { const v = d && d.sh && d.sh.gbx; S.gbox = {}; GBXS(); if (v && typeof v === 'object') for (const k of GBX_K) { const q = v[k]; if (q && Array.isArray(q.g)) S.gbox[k] = { g: q.g.filter(i => Number.isInteger(i) && i >= 0 && i < 10).filter((i, j, a) => a.indexOf(i) === j), c: q.c | 0, pend: q.pend ? 1 : 0, end: q.end ? 1 : 0 }; } } catch (e) { } })(shopLoad);
 function gbxWing(k) { if (!S.wingOwn.includes(k)) { S.wingOwn.push(k); const blk = wingBlockName(); if (!blk) S.wing = k; try { redressPlayer(); } catch (e) { } } }
 // a prize's picture (html)
 function gbxIc(s, cls) { if (/^wing:/.test(s.ic)) return '<span class="gbxw ' + (cls || '') + '">' + wingSvg(s.ic.split(':')[1]) + '</span>'; try { return icHtml(s.ic, cls); } catch (e) { return ''; } }
@@ -28277,16 +28278,24 @@ function gbxIc(s, cls) { if (/^wing:/.test(s.ic)) return '<span class="gbxw ' + 
 function gbxTxt(s) { return s.own && s.own() && s.dup ? s.n + ' → 已拥有，换成 ' + ITEMS[s.dup[0]].n + ' ×' + s.dup[1] : s.n; }
 
 /* ---- drawing one prize out of a box ---- */
+/* owner 23 Nov: 修仙时装箱 = ONE box only (all ten drawn → closed for good); 武器箱 = as soon as the 神话 comes out the box
+   starts over (price back to 20), and once you own all seven 九霄 skins it is closed */
+function gbxClosed(k) { const st = GBXS()[k];
+  if (k === 'xian') return (st.end || st.c > 0 || st.g.length >= 10) ? '修仙时装箱已经全部抽完' : '';
+  if (k === 'x9') return (!st.pend && X9_SKINS.every(([a, id]) => S.wskOwn.includes(a + ':' + id))) ? '七把九霄武器皮肤你都有了' : '';
+  return ''; }
 function gbxDraw(k) { const B = GBX[k], st = GBXS()[k];
   if (st.pend) { gbxChoose(); return; }
+  const cl = gbxClosed(k); if (cl) { feed(cl, '#c1a597'); renderMall(); return; }
   const left = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(i => !st.g.includes(i)); if (!left.length) { st.g = []; st.c++; renderMall(); return; }
   const cost = GBX_PRICE[st.g.length]; if (FREE_TEST && S.gem < cost) addGem(100000 - S.gem, '测试版补满'); if (!payGem(cost)) return;
   const SL = B.slots(), ws = left.map(i => GBX_W[SL[i].r] || 1), sum = ws.reduce((a, b) => a + b, 0); let x = Math.random() * sum, j = 0; while (j < ws.length - 1 && x >= ws[j]) { x -= ws[j]; j++; }
   const i = left[j], s = SL[i], dupNow = !!(s.own && s.own()); st.g.push(i);
   let name = s.n; try { if (dupNow && s.dup) { gain(s.dup[0], s.dup[1]); name = gbxTxt(s); } else s.f(); } catch (e) { console.warn(e); }
-  const done = st.g.length >= 10; if (done) { st.g = []; st.c++; }
+  const myth = k === 'x9' && s.r >= 5, done = st.g.length >= 10 || myth;
+  if (done) { if (k === 'xian') st.end = 1; else { st.g = []; st.c++; } }
   S.st.draws = (S.st.draws || 0) + 1; refreshHud(); saveGame(); renderMall();
-  gStar([{ r: s.r, n: name, ic: s.ic, s }], () => { if (done) banner('箱子抽空了', '新的一箱已经放好，价格从 20 晶石重新开始', 2.6); if (k === 'x9' && GBXS().x9.pend) gbxChoose(); }, { th: 'seal' });
+  gStar([{ r: s.r, n: name, ic: s.ic, s }], () => { if (done) { if (k === 'xian') banner('修仙时装箱抽完了', '这一箱只有一次', 2.6); else if (!gbxClosed('x9') || GBXS().x9.pend) banner(myth ? '神话出货！' : '箱子抽空了', '武器箱重新装满，价格从 20 晶石开始', 2.6); } if (k === 'x9' && GBXS().x9.pend) gbxChoose(); }, { th: 'seal' });
 }
 /* ---- 九霄武器箱 mythic: pick one skin ---- */
 function gbxChoose() { const st = GBXS().x9; if (!st.pend) return; const old = $('gbxCh'); if (old) old.remove();
@@ -28309,32 +28318,35 @@ function gbxChoose() { const st = GBXS().x9; if (!st.pend) return; const old = $
 function gbxPage(box, k) { const B = GBX[k], st = GBXS()[k], SL = B.slots(), n = st.g.length, el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
   const hero = el('div', 'gbxhero ' + B.th);
   hero.innerHTML = '<div class="gbxsky"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="gbxfig">' + gbxIc({ ic: B.big }, 'big') + '</div>' +
-    '<div class="gbxtx"><em>第 ' + (st.c + 1) + ' 箱</em><b>' + B.n + '</b><span>' + B.sub + '</span>' +
+    '<div class="gbxtx"><em>' + (k === 'xian' ? '限定一箱' : '第 ' + (st.c + 1) + ' 箱') + '</em><b>' + B.n + '</b><span>' + B.sub + '</span>' +
     '<div class="gbxpips">' + GBX_PRICE.map((p, i) => '<i class="' + (i < n ? 'done' : i === n ? 'cur' : '') + '">' + p + '</i>').join('') + '</div><small>已抽 ' + n + ' / 10 · 抽过的打勾，不会再抽到</small></div>';
   const r = el('div', 'gbtns');
   if (st.pend) { const b = el('button', 'gbtn ten gbxgo', '<b>选择你的九霄皮肤</b><small>神话奖励还没选</small>'); b.addEventListener('click', gbxChoose); r.appendChild(b); }
+  else if (gbxClosed(k)) { const b = el('button', 'gbtn ten gbxgo', '<b>已抽完</b><small>' + gbxClosed(k) + '</small>'); b.disabled = true; r.appendChild(b); }
   else { const b = el('button', 'gbtn ten gbxgo', '<b>抽 1 次</b><small>' + icHtml('gem:1') + GBX_PRICE[n] + ' 晶石</small>'); b.addEventListener('click', () => gbxDraw(k)); r.appendChild(b); }
   hero.appendChild(r); box.appendChild(hero);
   const grid = el('div', 'gbxgrid');
-  SL.map((s, i) => [s, i]).sort((a, b) => b[0].r - a[0].r || a[1] - b[1]).forEach(([s, i]) => { const got = st.g.includes(i), G = GBX_G[s.r], dup = s.own && s.own();
+  SL.map((s, i) => [s, i]).sort((a, b) => b[0].r - a[0].r || a[1] - b[1]).forEach(([s, i]) => { const got = st.g.includes(i) || (k === 'xian' && !!gbxClosed('xian')), G = GBX_G[s.r], dup = s.own && s.own();
     const c = el('div', 'gbxc r' + s.r + (got ? ' got' : ''), '<div class="gbxci">' + gbxIc(s) + '</div><b>' + s.n + '</b><small style="color:' + G[1] + '">' + G[0] + (dup && !got ? ' · 已拥有' : '') + '</small>' + (got ? '<span class="gbxtick"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : ''));
     c.style.setProperty('--gc', G[1]); if (s.pv) c.addEventListener('click', s.pv); else if (s.pick) c.addEventListener('click', () => gbxSkinList()); grid.appendChild(c); });
   box.appendChild(grid);
-  box.appendChild(el('div', 'snote', '每抽一次从箱子里拿出一样，抽过的打勾不会再出；越往后越贵（20 → 400 晶石，整箱 1680）。十样都抽完，箱子重新装满，价格从 20 晶石开始。' + (k === 'x9' ? '抽到神话可以在七把九霄武器皮肤里任选一把（已有的不能选）；想要另一把就抽下一箱。九霄皮肤只能从这里抽到。' : '九霄剑仙和青冥飞剑只能从这里抽到；已经拥有的会换成强化石。')));
+  box.appendChild(el('div', 'snote', '每抽一次从箱子里拿出一样，抽过的打勾不会再出；越往后越贵（20 → 400 晶石，整箱 1680）。' + (k === 'x9' ? '抽到神话就能在七把九霄武器皮肤里任选一把（已有的不能选），然后箱子马上重新装满，价格从 20 晶石开始；七把都有了就不能再抽。九霄皮肤只能从这里抽到。' : '这个箱子只有一箱，十样抽完就关闭。九霄剑仙和青冥飞剑只能从这里抽到；已经拥有的会换成强化石。')));
 }
 function gbxSkinList() { const old = $('gbxCh'); if (old) old.remove(); const m = document.createElement('div'); m.id = 'gbxCh'; m.className = 'gbxov';
   m.innerHTML = '<div class="gbxchb"><b class="gbxcht">神话 · 七把九霄武器皮肤（任选一把）</b><div class="gbxchg"></div><div class="gbxchr"><button class="gbtn"><b>关闭</b></button></div></div>';
   const g = m.querySelector('.gbxchg'); X9_SKINS.forEach(([k, id]) => { const own = S.wskOwn.includes(k + ':' + id), c = document.createElement('button'); c.className = 'gbxchc' + (own ? ' own' : '');
     c.innerHTML = '<div class="gbxchi">' + icHtml('wsk:' + k + ':' + id) + '</div><b>' + WSKINS[k].n + '</b><small>' + WEAP[id].n + (own ? ' · 已拥有' : '') + '</small>'; c.addEventListener('click', () => { try { wskPreview(k, id); } catch (e) { } }); g.appendChild(c); });
   m.querySelector('.gbxchr button').addEventListener('click', () => m.remove()); m.addEventListener('click', e => { if (e.target === m) m.remove(); }); document.body.appendChild(m); }
+function gskipChip(pt) { const t = document.createElement('label'); t.className = 'gskipt'; t.innerHTML = '<input type="checkbox"' + (GSKIP.on ? ' checked' : '') + '><span>跳过抽奖动画（直接看结果）</span>';
+  t.querySelector('input').addEventListener('change', e => gskipSet(e.target.checked)); pt.parentNode.insertBefore(t, pt.nextSibling); }
 renderMall = (o => function () { o.apply(this, arguments);
   try { if (mallTab !== 'gacha') return; const box = $('mallList'), pt = box && box.querySelector('.gpools'); if (!pt) return;
     GBX_K.slice().reverse().forEach(k => { const b = document.createElement('button'); b.className = 'gpb gbxpb ' + GBX[k].th + (gPool === k ? ' on' : ''); b.innerHTML = gbxIc({ ic: GBX[k].big }) + '<b>' + GBX[k].n.replace('九霄 · ', '九霄') + '</b>' + (GBXS()[k].pend ? '<i class="gbxdot"></i>' : '');
       b.addEventListener('click', () => { gPool = k; renderMall(); }); pt.insertBefore(b, pt.firstChild); });
     if (GFX_HERO[gPool]) gfxHero(box, gPool);
-    if (!GBX[gPool]) return;
+    if (!GBX[gPool]) { gskipChip(pt); return; }
     let n = pt.nextSibling; while (n) { const nx = n.nextSibling; n.remove(); n = nx; }
-    gbxPage(box, gPool); } catch (e) { console.warn('gbox', e); } })(renderMall);
+    gskipChip(pt); gbxPage(box, gPool); } catch (e) { console.warn('gbox', e); } })(renderMall);
 
 /* ---- the two old outfit pools get a showcase hero (owner 23 Nov: 弄漂亮一点): the mythic outfit itself, big, with turning
    light rays and a starry sky in the pool's own colours, instead of a wooden crate ---- */
@@ -28391,14 +28403,19 @@ const GSCN = {
       '<div class="gscut"></div><div class="gsfly">' + GS_SVG.sword + '</div>' + (best >= 5 ? '<div class="gs9">' + sw + '</div>' : '') + '</div>' }; }
 };
 // items: [{r, n, ic?, s?}]; done() when the player closes it
+/* 跳过动画 (owner 23 Nov): remembered per device; on = no scene, straight to the result */
+const GSKIP = { on: (() => { try { return localStorage.getItem('ember_gskip') === '1'; } catch (e) { return false; } })() };
+function gskipSet(v) { GSKIP.on = !!v; try { localStorage.setItem('ember_gskip', v ? '1' : '0'); } catch (e) { } }
 function gStar(items, done, opt) { opt = opt || {};
+  if (GSKIP.on && opt.flash) { if (done) done(); return; }
   /* no real page (headless tests) → straight to the result */
   if (!items || !items.length || typeof document.createElement('div').remove !== 'function' || typeof document.body.appendChild !== 'function') { if (done) done(); return; }
   const best = Math.max(...items.map(o => o.r)), G = GBX_G[best] || GBX_G[0], old = $('gstar'); if (old) old.remove(); GSTAR.on = true;
   const m = document.createElement('div'); m.id = 'gstar'; m.className = 'gstar r' + best; m.style.setProperty('--gc', G[1]);
   const th = GSCN[opt.th] ? opt.th : 'drop', SC = GSCN[th](best, items.length); m.classList.add('th_' + th); m.style.setProperty('--ft', (SC.hit / 1000) + 's');
-  m.innerHTML = SC.html + '<div class="gflash"></div><div class="gshow"></div><button class="gskip">跳过</button>';
-  document.body.appendChild(m); gsSnd(th, best);
+  if (GSKIP.on) m.classList.add('noanim');
+  m.innerHTML = (GSKIP.on ? '' : SC.html) + '<div class="gflash"></div><div class="gshow"></div><button class="gskip">跳过</button>';
+  document.body.appendChild(m); if (!GSKIP.on) gsSnd(th, best);
   /* the scene's beats: the crate lands / the ember lights the fire / the sword cuts the seal */
   const PH = { drop: [1950, 'landed shake'], fire: [980, 'lit'], seal: [860, 'cut'] }[th]; setTimeout(() => { if (m.parentNode) m.classList.add(...PH[1].split(' ')); }, GSTAR.hold ? PH[0] * (GSTAR.hold || 1) : PH[0]);
   let stage = 0, tS = Date.now(); const show = m.querySelector('.gshow'), setS = v => { stage = v; tS = Date.now(); };
@@ -28411,7 +28428,8 @@ function gStar(items, done, opt) { opt = opt || {};
       c.innerHTML = '<div class="gsci">' + gbxIc(o.s || { ic: o.ic || (typeof rwIcon === 'function' ? rwIcon(o.n) : 'item:bag') }) + '</div><b>' + o.n + '</b><small>' + GG[0] + '</small>'; g.appendChild(c); });
     show.innerHTML = ''; show.appendChild(g); show.insertAdjacentHTML('beforeend', '<small class="gstap">点任意处继续</small>'); };
   const close = () => { if (!m.parentNode) return; m.remove(); GSTAR.on = false; if (done) try { done(); } catch (e) { console.warn(e); } };
-  const T = GSTAR.hold ? 0 : setTimeout(reveal, SC.rev);   /* GSTAR.hold: only for screenshots of a scene */
+  if (GSKIP.on) { cards(); try { gsChime(best, 0); } catch (e) { } }
+  const T = (GSTAR.hold || GSKIP.on) ? 0 : setTimeout(reveal, SC.rev);   /* GSTAR.hold: only for screenshots of a scene */
   m.addEventListener('click', e => { if (Date.now() - tS < 350) return;
     if (e.target.classList.contains('gskip')) { clearTimeout(T); if (stage < 1 && !opt.flash) cards(); else close(); return; }
     if (stage === 0) { clearTimeout(T); reveal(); } else if (stage === .5) { if (opt.flash) close(); else cards(); } else close(); }); }
@@ -28489,6 +28507,8 @@ drawModal = (o => function (out, n) { const a = arguments; gStar(out.map(x => ({
   '.gs9 i{position:absolute;left:50%;top:50%;width:18vmin;height:2.4vmin;margin:-1.2vmin -9vmin;opacity:0;transform:rotate(var(--a)) translateX(28vmin) rotate(90deg) translateX(-40vmin);animation:gs9f .3s ease-in var(--d) forwards}.gs9 svg{position:relative;width:100%;height:100%;filter:drop-shadow(0 0 6px #ff4d8d)}' +
   '@keyframes gs9f{0%{opacity:0}30%{opacity:1}100%{opacity:1;transform:rotate(var(--a)) translateX(28vmin) rotate(90deg) translateX(0)}}' +
   '.gstar.rev .gshow{background:transparent}.gshow{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px;gap:10px}' +
+  '.gskipt{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin:2px 4px 6px;font-size:12px;color:#d8cbb4;cursor:pointer}.gskipt input{width:16px;height:16px;accent-color:#ffb35a;margin:0}' +
+  '.gstar.noanim{background:rgba(6,4,10,.9)}' +
   '.gskip{position:absolute;top:calc(10px + env(safe-area-inset-top));right:12px;padding:6px 14px;border-radius:20px;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.35);color:#fff;font-size:13px;z-index:2}' +
   '.gscards{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;width:min(720px,100%)}.gscards>.gscard{width:calc(20% - 7px)}.gscards.n1>.gscard{width:min(220px,60vw)}' +
   '.gscard{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:14px;border:2px solid var(--gc);background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(0,0,0,.45));box-shadow:0 0 14px var(--gc);text-align:center;opacity:0;animation:gscin .5s cubic-bezier(.2,1.4,.4,1) forwards}' +
@@ -30208,4 +30228,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795446386').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795448005').catch(()=>{});</script></body></html>
