@@ -22296,6 +22296,53 @@ switchChar = async function () { window._swc = 1; try { banner('正在保存…�
   try { await Promise.race([flushSave(), new Promise(r => setTimeout(r, 2500))]); } catch (e) { } try { localStorage.removeItem('ember_live'); } catch (e) { }
   glFreeAll(); await new Promise(r => setTimeout(r, 250));
   try { location.reload(); } catch (e) { } setTimeout(() => { try { banner('没能自动重开', '请把游戏完全关掉，再重新打开', 6); } catch (e) { } }, 3000); };
+/* ============ 切换角色 2 (owner 23 Nov: 「按切换角色还是反应很慢 甚至没有反应」 + 「按了如果不能还要提醒，也要在设置里看得到」) ============
+   Why it felt dead: 切换角色 reloads the whole game. The PWA's service worker always went to the network first, so every
+   switch downloaded the 3.9 MB game + three.js again; meanwhile the old page just sat there (on PC the 3D view went white,
+   the buttons stayed) with no sign that anything was happening. Also the 切换角色 button was still wired to the OLD
+   switchChar (d_main.js bound the function object before z_reloadfix.js replaced it), so the graphics hand-back never ran.
+   Now:
+   - tapping it shows a full-screen cover at once (「正在切换角色…」 + steps); after 10 s it adds 「重新载入」 and a hint
+   - in the PWA the reload goes to index.html?fast=1 and the service worker answers that from its cache (no download);
+     the address is cleaned again on start-up
+   - after the reload the character list opens by itself (no extra 「进入废土」 tap)
+   - Settings has a 当前角色 row with its own 切换角色 button. */
+const SWF = { busy: false, t: 0 };
+(function () { try { const st = document.createElement('style'); st.textContent =
+  '#swCover{position:fixed;inset:0;z-index:2147483000;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(8,5,10,.94);color:#f2e6d0;font-size:16px;text-align:center;padding:24px;box-sizing:border-box}' +
+  '#swCover.show{display:flex}#swCover .sws{width:46px;height:46px;border-radius:50%;border:4px solid rgba(255,190,110,.25);border-top-color:#ffb35a;animation:swspin .8s linear infinite}' +
+  '@keyframes swspin{to{transform:rotate(360deg)}}#swCover b{font-size:20px;color:#ffd08a}#swCover small{opacity:.75;max-width:320px;line-height:1.5}' +
+  '#swCover .swr{display:none;margin-top:6px}#swCover.late .swr{display:inline-block}' +
+  '.swrow{display:flex;align-items:center;justify-content:space-between;gap:10px}.swrow span{opacity:.85}';
+  document.head.appendChild(st); } catch (e) { } })();
+function swCover(msg, sub) { let c = document.getElementById('swCover');
+  if (!c) { c = document.createElement('div'); c.id = 'swCover'; c.innerHTML = '<div class="sws"></div><b></b><small></small><button class="go swr">' + T2('重新载入', 'Reload') + '</button>'; document.body.appendChild(c);
+    c.querySelector('.swr').addEventListener('click', () => { try { location.reload(); } catch (e) { } }); }
+  c.querySelector('b').textContent = msg; c.querySelector('small').textContent = sub || ''; c.classList.add('show'); return c; }
+function swFastUrl() { try { if (!(navigator.serviceWorker && navigator.serviceWorker.controller)) return null; return location.pathname + '?fast=1'; } catch (e) { return null; } }
+switchChar = async function () {
+  if (SWF.busy) return; SWF.busy = true; window._swc = 1;
+  const c = swCover(T2('正在切换角色…', 'Switching character…'), T2('正在保存这个角色', 'Saving this character'));
+  // let the cover reach the screen before the save work starts
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  try { await Promise.race([flushSave(), new Promise(r => setTimeout(r, 2500))]); } catch (e) { } try { localStorage.removeItem('ember_live'); } catch (e) { }
+  try { sessionStorage.setItem('ember_swc', '1'); } catch (e) { }
+  c.querySelector('small').textContent = T2('已保存，正在重新载入游戏…', 'Saved, reloading the game…');
+  try { glFreeAll(); } catch (e) { } await new Promise(r => setTimeout(r, 200));
+  const u = swFastUrl(); try { if (u) location.replace(u); else location.reload(); } catch (e) { try { location.reload(); } catch (e2) { } }
+  setTimeout(() => { c.classList.add('late'); c.querySelector('small').textContent = T2('还在载入。如果一直卡住，点「重新载入」，或把游戏完全关掉再打开（存档已经保存好了）', 'Still loading. If it stays stuck, tap Reload or close and reopen the game (your save is safe)'); }, 10000);
+};
+// the button was bound to the old function object: re-wire it to the current switchChar
+try { const b = $('talSwitch'); if (b) { const nb = b.cloneNode(true); b.parentNode.replaceChild(nb, b); nb.addEventListener('click', () => switchChar()); } } catch (e) { }
+// start-up after a switch: clean the address and open the character list straight away
+try { if (/[?&]fast=1/.test(location.search)) history.replaceState(null, '', location.pathname); } catch (e) { }
+try { if (sessionStorage.getItem('ember_swc')) { sessionStorage.removeItem('ember_swc'); let n = 0;
+  const iv = setInterval(() => { n++; const g = $('goStart'), s = $('start'); if (g && s && s.classList.contains('show') && g.offsetParent) { clearInterval(iv); g.click(); } else if (n > 80) clearInterval(iv); }, 150); } } catch (e) { }
+// Settings: 当前角色 + 切换角色
+renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!box || !S.started) return; const r = document.createElement('div'); r.className = 'setrow swrow';
+  const sp = document.createElement('span'); sp.textContent = T2('当前角色：', 'Character: ') + (cleanName(S.name) || '幸存者') + ' · Lv.' + (S.level | 0);
+  const b = document.createElement('button'); b.className = 'sbtn'; b.textContent = T2('切换角色', 'Switch character'); b.addEventListener('click', () => switchChar());
+  r.appendChild(sp); r.appendChild(b); box.insertBefore(r, box.firstChild); } catch (e) { } })(renderSettings);
 /* ============ fish in your own pond (owner 18 Nov) ============
    Walk up to water you painted on the island → button 「池塘」: put fish from the bag into that pond or take them out again.
    They swim around under the surface. A pond that is joined to the sea: now and then a fish swims off along the water to the
@@ -30161,4 +30208,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795442232').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795446386').catch(()=>{});</script></body></html>
