@@ -15583,7 +15583,8 @@ skinShopRender = (o => function (box, el2) { o(box, el2); try { if (typeof skSub
 function wingShop(box, el2) {
   box.appendChild(el2('div', 'snote', '翅膀 / 飞剑：单独买，单独装，带属性加成，能飞过水面。自带翅膀的外观不能更换。'));
   const g = el2('div', 'skgrid');
-  Object.keys(WINGS).forEach(k => { const W = WINGS[k], own = S.wingOwn.includes(k), R = SK_RN[5], t = el2('button', 'sktile' + (own ? ' own' : '')); t.style.setProperty('--qc', R[1]);
+  /* W.box = only from a gacha box (青冥飞剑), not sold here */
+  Object.keys(WINGS).filter(k => !WINGS[k].box).forEach(k => { const W = WINGS[k], own = S.wingOwn.includes(k), R = SK_RN[5], t = el2('button', 'sktile' + (own ? ' own' : '')); t.style.setProperty('--qc', R[1]);
     t.innerHTML = '<em class="sktag">' + (own ? '已拥有' : '限定') + '</em><div class="skpic">' + wingSvg(k) + '</div><b>' + W.n + '</b><small>' + (own ? '已拥有' : skPrice(W.price || WING_PRICE)) + '</small>';
     t.addEventListener('click', () => wingDetail(k)); g.appendChild(t); });
   box.appendChild(g);
@@ -27876,16 +27877,20 @@ storyLoad = (o => function (a) { o(a); try { if (Array.isArray(a) && (a[4] | 0) 
 /* ============ 九霄 boxes + the star-fall draw animation (owner 23 Nov) ============
    Two new pools in 商城 · 补给抽奖, each a BOX of 10 prizes: 3 普通, 3 稀有, 2 史诗, 1 传说, 1 神话.
    Every draw takes one prize out of the box (it gets a tick and can't come again); the price climbs with each draw
-   (GBX_PRICE, 10 → 200 晶石, 830 for the whole box). When the box is empty it refills for the next round.
+   (GBX_PRICE, 20 → 400 晶石, 1680 for the whole box = the old direct-sale price of one mythic). When the box is empty it refills for the next round.
    - 修仙时装箱 (xian): 神话 = outfit 九霄剑仙, 传说 = 青冥飞剑.
    - 九霄武器箱 (x9): 神话 = pick ONE 九霄 weapon skin you don't own yet (the chooser opens after the reveal; if you
      close it the choice waits on the box page). Every 九霄 weapon skin stays in direct sale too (owner).
    Prizes you already own (the outfit / the sword / every 九霄 skin) turn into 强化石 (`dup`).
-   Prizes are drawn with weights by grade (GBX_W) so the 神话 usually comes late (≈ 635 晶石 on average, 830 at most).
+   Prizes are drawn with weights by grade (GBX_W) so the 神话 usually comes late.
+   Owner 23 Nov (2nd): HARDER — prices doubled and the 神话 weight .5: it comes 9th/10th ≈ 85% of the time, ≈ 1460 晶石 on
+   average, 1680 at most. And the box prizes are NOT sold directly any more (7 九霄 weapon skins, 九霄剑仙, 青冥飞剑): only from these boxes.
    gStar(items, done): the full-screen draw show used by these boxes AND the old pools (drawModal wrapper):
    night sky, a shooting star whose colour tells the best grade, a flash, then the prize card(s); 神话 gets a full splash. */
-const GBX_PRICE = [10, 20, 30, 40, 60, 80, 100, 130, 160, 200];
-const GBX_W = { 0: 10, 2: 7, 3: 4, 4: 2, 5: 1 };
+const GBX_PRICE = [20, 40, 60, 90, 120, 160, 200, 260, 330, 400];
+const GBX_W = { 0: 10, 2: 7, 3: 4, 4: 2, 5: .5 };
+/* the box prizes leave direct sale (owner 23 Nov: 不可以放直售) */
+try { for (let i = WSK_DIRECT.length - 1; i >= 0; i--) if (/^jian9/.test(WSK_DIRECT[i][0])) WSK_DIRECT.splice(i, 1); const j = SKIN_DIRECT.indexOf('jxian'); if (j >= 0) SKIN_DIRECT.splice(j, 1); WINGS.jsword.box = 1; } catch (e) { }
 const GBX_G = { 0: ['普通', '#b9b2aa'], 2: ['稀有', '#5aa9ff'], 3: ['史诗', '#c28bff'], 4: ['传说', '#ffc94a'], 5: ['神话', '#ff4d8d'] };
 const X9_SKINS = [['jian9', 'rifle'], ['jian9b', 'blade'], ['jian9p', 'pistol'], ['jian9s', 'sniper'], ['jian9g', 'shotgun'], ['jian9a', 'axe'], ['jian9k', 'pick']];
 const gbxIt = (r, k, n) => ({ r, n: ((typeof ITEMS !== 'undefined' && ITEMS[k] && ITEMS[k].n) || k) + ' ×' + n, ic: 'item:' + k, f: () => gain(k, n) });
@@ -27925,7 +27930,7 @@ function gbxDraw(k) { const B = GBX[k], st = GBXS()[k];
   let name = s.n; try { if (dupNow && s.dup) { gain(s.dup[0], s.dup[1]); name = gbxTxt(s); } else s.f(); } catch (e) { console.warn(e); }
   const done = st.g.length >= 10; if (done) { st.g = []; st.c++; }
   S.st.draws = (S.st.draws || 0) + 1; refreshHud(); saveGame(); renderMall();
-  gStar([{ r: s.r, n: name, ic: s.ic, s }], () => { if (done) banner('箱子抽空了', '新的一箱已经放好，价格从 10 晶石重新开始', 2.6); if (k === 'x9' && GBXS().x9.pend) gbxChoose(); });
+  gStar([{ r: s.r, n: name, ic: s.ic, s }], () => { if (done) banner('箱子抽空了', '新的一箱已经放好，价格从 20 晶石重新开始', 2.6); if (k === 'x9' && GBXS().x9.pend) gbxChoose(); });
 }
 /* ---- 九霄武器箱 mythic: pick one skin ---- */
 function gbxChoose() { const st = GBXS().x9; if (!st.pend) return; const old = $('gbxCh'); if (old) old.remove();
@@ -27959,7 +27964,7 @@ function gbxPage(box, k) { const B = GBX[k], st = GBXS()[k], SL = B.slots(), n =
     const c = el('div', 'gbxc r' + s.r + (got ? ' got' : ''), '<div class="gbxci">' + gbxIc(s) + '</div><b>' + s.n + '</b><small style="color:' + G[1] + '">' + G[0] + (dup && !got ? ' · 已拥有' : '') + '</small>' + (got ? '<span class="gbxtick"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : ''));
     c.style.setProperty('--gc', G[1]); if (s.pv) c.addEventListener('click', s.pv); else if (s.pick) c.addEventListener('click', () => gbxSkinList()); grid.appendChild(c); });
   box.appendChild(grid);
-  box.appendChild(el('div', 'snote', '每抽一次从箱子里拿出一样，抽过的打勾不会再出；越往后越贵（10 → 200 晶石，整箱 830）。十样都抽完，箱子重新装满，价格从 10 晶石开始。' + (k === 'x9' ? '抽到神话可以在七把九霄武器皮肤里任选一把（已有的不能选）；想要另一把就抽下一箱。九霄皮肤在「外观直售」也能直接买。' : '已经拥有的时装 / 飞剑会换成强化石。')));
+  box.appendChild(el('div', 'snote', '每抽一次从箱子里拿出一样，抽过的打勾不会再出；越往后越贵（20 → 400 晶石，整箱 1680）。十样都抽完，箱子重新装满，价格从 20 晶石开始。' + (k === 'x9' ? '抽到神话可以在七把九霄武器皮肤里任选一把（已有的不能选）；想要另一把就抽下一箱。九霄皮肤只能从这里抽到。' : '九霄剑仙和青冥飞剑只能从这里抽到；已经拥有的会换成强化石。')));
 }
 function gbxSkinList() { const old = $('gbxCh'); if (old) old.remove(); const m = document.createElement('div'); m.id = 'gbxCh'; m.className = 'gbxov';
   m.innerHTML = '<div class="gbxchb"><b class="gbxcht">神话 · 七把九霄武器皮肤（任选一把）</b><div class="gbxchg"></div><div class="gbxchr"><button class="gbtn"><b>关闭</b></button></div></div>';
@@ -28150,11 +28155,11 @@ try { const R1 = renderer.render.bind(renderer), _q = new THREE.Quaternion(), _p
 const INS_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.6-6 9.5-6 9.5 6 9.5 6-3.6 6-9.5 6-9.5-6-9.5-6z" fill="none" stroke="#fff" stroke-width="1.8"/><circle cx="12" cy="12" r="3.1" fill="none" stroke="#ffe08a" stroke-width="1.8"/><path d="M19 2.5l.7 1.6 1.6.7-1.6.7-.7 1.6-.7-1.6-1.6-.7 1.6-.7z" fill="#ffe08a"/></svg>';
 function insBtn() { if (WINSP.el) return WINSP.el; const b = document.createElement('button'); b.id = 'bInspect'; b.className = 'insb'; b.innerHTML = INS_SVG + '<small>检视</small>';
   b.addEventListener('click', e => { e.stopPropagation(); WINSP.on ? insStop() : insStart(); }); document.body.appendChild(b); return (WINSP.el = b); }
-let _insPT = 0;
-petsTick = (o => function (dt) { const r = o(dt); try { _insPT -= dt; if (_insPT <= 0) { _insPT = .4; insPlace(); } } catch (e) { } return r; })(petsTick);
+/* a timer, not petsTick: petsTick stops while a window pauses the game, and the button stayed on top of the shop */
+setInterval(() => { try { insPlace(); } catch (e) { } }, 400);
 function insPlace() { const b = insBtn(), vis = el => el && el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden' && el.getBoundingClientRect().width > 0;
   const hb = document.getElementById('bBuild'), mb = document.getElementById('bMed'), an = vis(hb) ? hb : vis(mb) ? mb : null;
-  if (!an || !S.started || S.dead) { b.style.display = 'none'; return; } const r = an.getBoundingClientRect(), W = 44;
+  if (!an || !S.started || S.dead || S.paused || document.querySelector('.overlay.show')) { b.style.display = 'none'; return; }   /* never over a window (it showed on top of the shop) */ const r = an.getBoundingClientRect(), W = 44;
   b.style.display = ''; b.style.left = Math.round(r.left - W - 8) + 'px'; b.style.top = Math.round(an === hb ? r.top + (r.height - W) / 2 : r.top - W - 6) + 'px'; }
 window.addEventListener('keydown', e => { if (e.code !== 'KeyU' || e.repeat) return; const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return; WINSP.on ? insStop() : insStart(); });
 (() => { try { const st = document.createElement('style'); st.textContent =
@@ -29219,4 +29224,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795369166').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795400710').catch(()=>{});</script></body></html>
