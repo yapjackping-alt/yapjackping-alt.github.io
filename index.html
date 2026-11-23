@@ -11476,7 +11476,7 @@ function chatTick(dt) {
 petsTick = (o => function (dt) { o(dt); try { chatTick(dt); } catch (e) { } })(petsTick);
 
 /* ---- playing on a computer ---- */
-const PC_KEYS = [['W A S D / 方向键', '移动'], ['空格（按住）', '射击 / 挥砍，自动瞄准最近的敌人'], ['Shift', '奔跑（再按一次停下）'], ['R', '换弹'], ['Q', '切换手上的武器和备用武器'], ['H', '用医疗包'],
+const PC_KEYS = [['W A S D / 方向键', '移动'], ['鼠标左键（按住）', '射击 / 挥砍，自动瞄准最近的敌人'], ['空格 / F', '翻滚'], ['Shift', '奔跑（再按一次停下）'], ['R', '换弹'], ['Q', '切换手上的武器和备用武器'], ['H', '用医疗包'],
   ['B', '打开 / 关闭建造'], ['E', '放下建筑 · 在商人旁边打开商店'], ['C 或 T', '角色页面（属性、天赋、设置、联机）'], ['U', '武器页面'], ['M', '大地图'], ['Enter', '聊天'], ['鼠标', '所有按钮都可以用鼠标点']];
 if (IS_PC) {
   GUIDE.unshift(['电脑键盘操作', PC_KEYS.map(([k, d]) => ['key:' + k, k, d])]);
@@ -11487,12 +11487,12 @@ if (IS_PC) {
     st.steps[1].say = T2('很好。被追的时候要会跑：按一下 Shift 键开始奔跑，会消耗体力。', 'Good. When chased, run: press Shift to start running. It uses stamina.');
     st.steps[2].say = T2('材料要自己采。走到树旁边，屏幕右下会出现「砍树」按钮，用鼠标按住就会一直砍。木头和藤条都从树上来。', 'You gather your own materials. Walk up to a tree: a Chop button appears at the bottom right — hold it with the mouse. Wood and vines come from trees.');
     st.steps[3].say = T2('有了木头就能建东西。按 B 键打开建造，选一样，再按 E 键放下来。墙和炮塔能保护你的家。', 'With wood you can build. Press B to open Build, pick something and press E to place it. Walls and turrets protect your home.');
-    st.steps[5].say = T2('看到丧尸了吗？按住空格键射击，会自动瞄准最近的丧尸。', 'See the zombies? Hold Space to fire: it aims at the nearest zombie by itself.');
+    st.steps[5].say = T2('看到丧尸了吗？按住鼠标左键射击，会自动瞄准最近的丧尸。', 'See the zombies? Hold the left mouse button to fire: it aims at the nearest zombie by itself.');
   } catch (e) { }
   // a small strip of keys at the bottom (closable)
   { let off = false; try { off = localStorage.getItem('ember_keyhint') === '0'; } catch (e) { }
     if (!off && document.createElement && document.body) { const k = document.createElement('div'); k.id = 'keyHint';
-      k.innerHTML = '<span><b>WASD</b>移动</span><span><b>空格</b>射击</span><span><b>Shift</b>跑</span><span><b>R</b>换弹</span><span><b>Q</b>换枪</span><span><b>H</b>医疗包</span><span><b>B</b>建造</span><span><b>C</b>角色</span><span><b>M</b>地图</span><span><b>Enter</b>聊天</span><button aria-label="关闭">✕</button>';
+      k.innerHTML = '<span><b>WASD</b>移动</span><span><b>左键</b>攻击</span><span><b>空格</b>翻滚</span><span><b>Shift</b>跑</span><span><b>R</b>换弹</span><span><b>Q</b>换枪</span><span><b>H</b>医疗包</span><span><b>B</b>建造</span><span><b>C</b>角色</span><span><b>M</b>地图</span><span><b>Enter</b>聊天</span><button aria-label="关闭">✕</button>';
       k.querySelector('button').addEventListener('click', () => { k.remove(); try { localStorage.setItem('ember_keyhint', '0'); } catch (e) { } }); document.body.appendChild(k);
       setInterval(() => { k.style.display = S.started && !S.paused ? 'flex' : 'none'; }, 500); } }
 }
@@ -21876,8 +21876,8 @@ const KEYB = [   // [key code, cap shown, button id (or a list: the first one sh
   ['KeyE', 'E', KE_LIST, T2('互动：走到东西旁边才有（码头、储物柜、工作台、锅炉、商人、副本机关……），屏幕下方会提示 E 现在做什么', 'Interact: only next to something (pier, storage, workbench, stove, trader, dungeon switch …); the hint at the bottom says what E does now')]
 ];
 const KEY_CAP = { bFire: '␣', bReload: 'R', bMed: 'H', bBuild: 'B', bBag: 'I', bRoll: 'F', bChat: '↵' };
-const KEYS_OLD = [['W A S D', T2('移动', 'Move')], [T2('空格（按住）', 'Space (hold)'), T2('射击 / 挥砍，自动瞄准最近的敌人', 'Fire / swing, aims at the nearest enemy')], ['Shift', T2('奔跑（再按一次停下）', 'Run (press again to stop)')],
-  ['R', T2('换弹', 'Reload')], ['Q', T2('切换手上的武器和备用武器', 'Swap weapons')], ['H', T2('用医疗包', 'Use a medkit')], ['F', T2('翻滚（翻滚时不会受伤）', 'Roll (no damage while rolling)')], ['B', T2('打开 / 关闭建造', 'Open / close Build')],
+const KEYS_OLD = [['W A S D', T2('移动', 'Move')], [T2('鼠标左键（按住）', 'Left mouse (hold)'), T2('射击 / 挥砍，自动瞄准最近的敌人', 'Fire / swing, aims at the nearest enemy')], ['Shift', T2('奔跑（再按一次停下）', 'Run (press again to stop)')],
+  ['R', T2('换弹', 'Reload')], ['Q', T2('切换手上的武器和备用武器', 'Swap weapons')], ['H', T2('用医疗包', 'Use a medkit')], [T2('空格 / F', 'Space / F'), T2('翻滚（翻滚时不会受伤）', 'Roll (no damage while rolling)')], ['B', T2('打开 / 关闭建造', 'Open / close Build')],
   ['C', T2('角色页面（属性、天赋、设置、联机）', 'Character (stats, talents, settings, online)')], ['U', T2('武器页面', 'Weapons')], ['I', T2('背包', 'Backpack')], ['M', T2('大地图', 'Big map')], ['Enter', T2('聊天', 'Chat')], ['Esc', T2('关闭窗口', 'Close a window')]];
 let KCAP_ON = true; try { KCAP_ON = localStorage.getItem('ember_kcap') !== '0'; } catch (e) { }
 const keyBtn = ids => { for (const id of [].concat(ids)) { const b = $(id); if (b && b.offsetParent && getComputedStyle(b).display !== 'none' && !b.disabled) return b; } return null; };
@@ -21913,7 +21913,7 @@ if (IS_PC) {
   try { if (typeof PC_KEYS !== 'undefined') { PC_KEYS.length = 0; KEYS_OLD.concat(KEYB.map(k => [k[1], k[3]])).forEach(x => PC_KEYS.push(x)); const g = GUIDE.find(x => x[0] === '电脑键盘操作'); if (g) g[1] = PC_KEYS.map(([k, d]) => ['key:' + k, k, d]); } } catch (e) { console.warn('keys guide', e); }
   // the strip at the bottom: the main ones, with a hint that the rest are in the guide
   setTimeout(() => { try { const k = $('keyHint'); if (k && k.querySelector('button')) { const x = k.querySelector('button');
-    k.innerHTML = '<span><b>WASD</b>' + T2('移动', 'Move') + '</span><span><b>' + T2('空格', 'Space') + '</b>' + T2('射击', 'Fire') + '</span><span><b>Shift</b>' + T2('跑', 'Run') + '</span><span><b>F</b>' + T2('翻滚', 'Roll') + '</span><span><b>G</b>' + T2('技能', 'Skill') + '</span><span><b>E</b>' + T2('互动', 'Interact') + '</span><span><b>Z</b>' + T2('采集', 'Gather') + '</span><span><b>X</b>' + T2('回岛', 'Home') + '</span><span><b>I</b>' + T2('背包', 'Bag') + '</span><span><b>M</b>' + T2('地图', 'Map') + '</span><span class="khAll">' + T2('全部按键看「指南」', 'All keys: see Guide') + '</span>';
+    k.innerHTML = '<span><b>WASD</b>' + T2('移动', 'Move') + '</span><span><b>' + T2('左键', 'L-click') + '</b>' + T2('攻击', 'Attack') + '</span><span><b>Shift</b>' + T2('跑', 'Run') + '</span><span><b>' + T2('空格', 'Space') + '</b>' + T2('翻滚', 'Roll') + '</span><span><b>G</b>' + T2('技能', 'Skill') + '</span><span><b>E</b>' + T2('互动', 'Interact') + '</span><span><b>Z</b>' + T2('采集', 'Gather') + '</span><span><b>X</b>' + T2('回岛', 'Home') + '</span><span><b>I</b>' + T2('背包', 'Bag') + '</span><span><b>M</b>' + T2('地图', 'Map') + '</span><span class="khAll">' + T2('全部按键看「指南」', 'All keys: see Guide') + '</span>';
     k.appendChild(x); } } catch (e) { } }, 0);
 
   // settings: show the letters or not
@@ -28169,6 +28169,26 @@ window.addEventListener('keydown', e => { if (e.code !== 'KeyU' || e.repeat) ret
   '@media (orientation:portrait){#insLab{bottom:auto;top:calc(env(safe-area-inset-top) + 190px)}}' +
   '#insLab.on{opacity:1;transform:translate(-50%,0)}#insLab b{font-size:17px;letter-spacing:1px;text-shadow:0 0 10px currentColor}#insLab i{font-style:normal;font-size:11px;font-weight:900;padding:1px 8px;border:1px solid;border-radius:9px}';
   document.head.appendChild(st); } catch (e) { } })();
+/* ============ PC mouse attack (owner 23 Nov: 电脑攻击应该是鼠标键，空格一般是跳跃) ============
+   LEFT mouse button held on the game view = attack (fire / swing, still auto-aims at the nearest enemy, same as the fire button).
+   SPACE no longer fires: the game has no jump, so Space = 翻滚 (the dodge roll, same as F).
+   The mouse hold is kept in keys.Space (the old "fire key held" flag every fire path already reads: d_main shoot loop, x_fp,
+   z_dunend's stuck-fire guard), so nothing else had to change. A mouse press on the joystick area no longer starts the
+   on-screen joystick (PC moves with WASD). Not in build / god view, a window, first-person look drags still work. */
+const PCM = { down: false };
+function pcmOk() { try { return S.started && !S.dead && !S.paused && !(typeof buildOpen !== 'undefined' && buildOpen) && !(typeof GV !== 'undefined' && GV.on); } catch (e) { return false; } }
+function pcmStop() { if (!PCM.down) return; PCM.down = false; keys.Space = false; input.fire = false; }
+window.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse' || e.button !== 0) return;
+  const zn = document.getElementById('stickzone'), t = e.target, onView = t === canvas || (zn && (t === zn || zn.contains(t)));
+  if (!onView || !pcmOk()) return; if (zn && (t === zn || zn.contains(t))) e.stopPropagation();
+  try { audioInit(); } catch (er) { } PCM.down = true; keys.Space = true; }, true);
+window.addEventListener('pointerup', e => { if (e.pointerType === 'mouse' && e.button === 0) pcmStop(); }, true);
+window.addEventListener('blur', pcmStop);
+setInterval(() => { if (PCM.down && !pcmOk()) pcmStop(); }, 200);
+// Space = roll; stop the old Space-fire listener (d_main) from seeing it
+const pcmSpace = e => { if (e.code !== 'Space') return; const t = e.target; if (t && /input|textarea/i.test(t.tagName || '')) return; e.stopImmediatePropagation(); e.preventDefault();
+  if (e.type === 'keydown' && !e.repeat && pcmOk()) try { rollGo(); } catch (er) { } };
+window.addEventListener('keydown', pcmSpace, true); window.addEventListener('keyup', pcmSpace, true);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -29224,4 +29244,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795400710').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795401242').catch(()=>{});</script></body></html>
