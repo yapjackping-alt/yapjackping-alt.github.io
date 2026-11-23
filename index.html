@@ -28914,15 +28914,18 @@ const celTexP = () => { if (CEL.pt !== undefined) return CEL.pt; let t = null;
 function celestGun(g, id) { const M = celM(), k0 = { stock: false, body: M.blue, body2: M.pearl, top: M.pearl, dark: M.blue, gold: M.gold, mag: id === 'rifle' ? M.crys : null };
   if (id === 'pistol') { k0.top = M.pearl; k0.body = M.blue; }
   const P = MG_GUN[id](g, k0), s = P.s, k = Math.max(.75, s), [z0, z1] = P.rz, [y0, y1] = P.rh, L = z1 - z0, H = y1 - y0, xs = P.xs + .004, U = g.userData;
-  // (1) 羽刃枪托: thick metal feather-blades fanning back from the rear of the receiver, each in its own group (they flare when firing)
-  const blades = [], nb = id === 'pistol' ? 3 : 5;
-  for (let i = 0; i < nb; i++) { const a = (id === 'pistol' ? .55 - i * .32 : .5 - i * .22), bl = (id === 'pistol' ? .22 + (i === 1 ? .05 : 0) : [.5, .62, .66, .58, .44][i]) * k, bw = .06 * k;
-    const bg = new THREE.Group(); bg.position.set(0, P.sy, P.sz + .01); bg.rotation.x = a; g.add(bg); blades.push([bg, a]);
-    const pts = [[0, bw * .45], ['q', -bl * .5, bw * .75, -bl, bw * .15], [-bl - .02 * k, 0], ['q', -bl * .55, -bw * .55, 0, -bw * .45]];
-    const xo = (i % 2 ? 1 : -1) * .008 * k, d = .022 * k;
-    celPlate(bg, pts, d, M.pearl, xo - d / 2, .008);
-    const q = new THREE.Mesh(new THREE.BoxGeometry(d + .024, .012 * k, bl * .78), M.gold); q.position.set(xo, 0, -bl * .45); bg.add(q);
-    const tip = new THREE.Object3D(); tip.position.set(0, 0, -bl); bg.add(tip); bg.userData.tip = tip; }
+  // (1) 羽刃枪托 (owner: 有棱有角, and it must open to BOTH sides): two wings, one leaning out to each side (wg yaw), each a fan of
+  //     angular kite-shaped blades with a faceted ridge (big bevel, flat shading) and crisp gold edge lines
+  const blades = [], wings = [], BL = id === 'pistol' ? [[.2, .45], [.26, .05]] : [[.42, .55], [.58, .25], [.62, -.05], [.48, -.33]];
+  for (const sd of [-1, 1]) { const wg = new THREE.Group(); wg.position.set(sd * .02 * k, P.sy, P.sz + .01); wg.rotation.y = sd * .5; g.add(wg); wings.push([wg, sd]);
+    BL.forEach(([l0, a], i) => { const bl = l0 * k, bw = .07 * k, d = .012 * k;
+      const bg = new THREE.Group(); bg.rotation.x = a; wg.add(bg); blades.push([bg, a]);
+      const pts = [[0, bw * .4], [-bl * .55, bw * .62], [-bl * .86, bw * .3], [-bl, 0], [-bl * .7, -bw * .42], [0, -bw * .4]];
+      let geo; try { geo = new THREE.ExtrudeGeometry(mgShapeOf(pts), { depth: d, bevelEnabled: true, bevelThickness: d * 1.1, bevelSize: Math.min(bw * .22, .014 * k), bevelSegments: 1 }); } catch (e) { geo = new THREE.BoxGeometry(.02, .05, .1); }
+      const me = new THREE.Mesh(geo, M.pearl); me.rotation.y = -Math.PI / 2; me.position.x = d / 2; bg.add(me);
+      try { me.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), mgEdgeM())); } catch (e) { }
+      const q = new THREE.Mesh(new THREE.BoxGeometry(d * 3.4, .01 * k, bl * .7), M.gold); q.position.set(0, 0, -bl * .42); bg.add(q);
+      const tip = new THREE.Object3D(); tip.position.set(0, 0, -bl); bg.add(tip); bg.userData.tip = tip; }); }
   const root = new THREE.Mesh(new THREE.CylinderGeometry(.05 * k, .06 * k, .06 * k, 8), M.gold); root.rotation.x = Math.PI / 2; root.position.set(0, P.sy, P.sz - .005); g.add(root);
   // (2) 天使铠甲枪身: three thick curved plates per side over the blue receiver, gold rims, a gold wing emblem with a crystal
   const PL = [[[.04, .5], ['q', .3, 1.25, .78, .98], ['q', .42, .78, .06, .2]], [[.16, .2], ['q', .5, .9, 1.0, .62], ['q', .62, .36, .2, -.02]], [[.32, .02], ['q', .62, .42, 1.04, .2], ['q', .72, -.08, .36, -.12]]];
@@ -28958,7 +28961,7 @@ function celestGun(g, id) { const M = celM(), k0 = { stock: false, body: M.blue,
   mgHost(g, T => { const fire = Math.max(0, 1 - (performance.now() - (CEL.shot || -1e9)) / 500), p = .5 + .5 * Math.sin(T * 3.2);
     core.rotation.y = T * 2.2; core.rotation.x = T * 1.3; core.position.y = P.by + Math.sin(T * 2) * .006 * k; glow.material.opacity = .55 + p * .3 + fire * .3; glow.scale.setScalar((.15 + p * .04 + fire * .1) * k);
     M.crys.emissive.setRGB(.2 + p * .08 + fire * .25, .2 + p * .08 + fire * .25, .5 + p * .1 + fire * .3); hc.rotation.y = T * 1.4; hs.position.y = P.top + .045 * k + Math.sin(T * 2.3) * .006 * k;
-    blades.forEach(([bg, a], i) => { bg.rotation.x = a + (a - .1) * .25 * fire + Math.sin(T * 1.6 + i) * .015; });
+    blades.forEach(([bg, a], i) => { bg.rotation.x = a + (a - .1) * .3 * fire + Math.sin(T * 1.6 + i) * .015; }); wings.forEach(([wg, sd]) => { wg.rotation.y = sd * (.5 + fire * .3 + Math.sin(T * 1.2) * .03); });
     celEmit(g, T, fire); }); }
 /* ---- soft see-through particles (a pool of additive sprites in the world) ---- */
 const CELP = { pool: [], live: [], v: null };
@@ -30058,4 +30061,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795431027').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795431343').catch(()=>{});</script></body></html>
