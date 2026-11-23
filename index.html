@@ -21363,6 +21363,21 @@ eatFood = (o => function (k) { const r = o.apply(this, arguments); try { if (r &
 // (Reused shared geometry is simply uploaded again the next time it is drawn, so this is safe.)
 dunCleanup = (o => function () { const G = DUN.on ? DUN.G : null; const r = o.apply(this, arguments);
   if (G) try { G.traverse(m => { if (m.geometry && m.geometry.dispose) m.geometry.dispose(); }); } catch (e) { } return r; })(dunCleanup);
+/* ============ 深渊首领召唤上限 (owner 23 Nov: 「副本五有问题吧怪太多了」) ============
+   The abyss boss on floor 5 / 20 / 25 … is a 召唤 boss type (BOSS_TYPES[1] / [4]): it called runners every 15 s up to 28 alive,
+   plus 3 at half life and 3 at 22% — measured 27 extra monsters on floor 5 with a slow (pistol Lv.1) player.
+   Inside the abyss a boss now has a summon BUDGET for the whole fight (`abySumMax`: floor 5 → 4 … floor 60+ → 10),
+   at most 2 per call and never more than 4 of its summons alive at once. Outside the abyss nothing changes. */
+const ABYSUM = { left: 0, b: null };
+const abySumMax = () => Math.min(10, 4 + Math.floor((ABY.floor || 0) / 10));
+spawnAround = (o => function (x, z, n) {
+  if (!(typeof abyOn === 'function' && abyOn())) return o(x, z, n);
+  const b = ABY.boss; if (b !== ABYSUM.b) { ABYSUM.b = b; ABYSUM.left = abySumMax(); }
+  const alive = zombies.filter(q => q.abySum && !q.dead).length;
+  const k = Math.max(0, Math.min(n, 2, ABYSUM.left, 4 - alive)); if (!k) return;
+  const before = new Set(zombies); o(x, z, k); ABYSUM.left -= k;
+  for (const q of zombies) if (!before.has(q)) q.abySum = 1;
+})(spawnAround);
 /* ============ 走上船：老钱的商船 → 收藏馆，深渊号 → 潜艇舱内 ============
    - Both gangplanks are walkable now. Walk up to the deck end and you are taken inside (a 3D room, built with the dungeon engine
      as DUNS[10] / DUNS[11] at the far-away dungeon spot, so nothing outside can wander in). Walk to the door to come back out
@@ -30142,4 +30157,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795433006').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795438106').catch(()=>{});</script></body></html>
