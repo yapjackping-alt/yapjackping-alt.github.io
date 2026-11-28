@@ -24798,7 +24798,7 @@ skinFxTick = (o => function (dt) { o(dt); try { const sw = pm && pm._wing && pm.
 // apart on the blade, the WHOLE figure tilts together with the sword instead of bending at the hips)
 function jswPoseOn(k, T, mv) { JSW.posed = true; const fl = Math.sin(T * 2.4) * .02;
   pm.legL.position.z = .17 * k; pm.legR.position.z = -.17 * k; pm.legL.rotation.set(fl * k, .3 * k, 0); pm.legR.rotation.set(-fl * k, .3 * k, 0);
-  pm.g.rotation.order = 'YXZ'; pm.g.rotation.x = (.04 + mv * .12) * k; pm.g.rotation.z = (JSW.lean + Math.sin(T * 1.7) * .02) * k; }
+  pm.body.position.y *= 1 - k; pm.g.rotation.order = 'YXZ'; pm.g.rotation.x = (.04 + mv * .12) * k; pm.g.rotation.z = (JSW.lean + Math.sin(T * 1.7) * .02) * k; }
 function jswPoseOff() { JSW.posed = false; try { pm.legL.position.z = 0; pm.legR.position.z = 0; pm.legL.rotation.y = 0; pm.legR.rotation.y = 0; pm.g.rotation.x = 0; pm.g.rotation.z = 0; if (!(typeof SW !== 'undefined' && SW.b)) pm.g.rotation.order = 'XYZ'; } catch (e) { } }
 // a melee weapon on the sword (owner 22 Nov): held in ONE hand, point down along the right leg; the left hand in 剑指 before the chest
 function jswMeleeHold() { try { const H = pm.hip, G = [.42, H + .04, .14], r = eulerFrom([.06, -1, .22], [0, 0, 1]);
@@ -25377,7 +25377,7 @@ x9Desc('jian9k', 'pick', '剑山变成一柄柄巨大的石剑从地下破土刺
      only then the speed bonus counts (skSt wrapper below)
    - over water the old hover (WFLY, z_fash2.js) is unchanged and also counts as flying for the bonus. */
 const WRUN = { on: false, k: 0, bt: 0, posed: false };
-const WRUN_LIFT = .6;
+const WRUN_LIFT = 1.2;   /* owner 28 Nov: about 1.2 m */
 // the move-speed share that comes from wings (winged outfit's own spd + an accessory wing's spd)
 function wrunWingSpd() { let v = 0; try { const K = S.skin && SKINS[S.skin]; if (K && K.st && K.st.spd && wingBlockName()) v += K.st.spd; } catch (e) { }
   try { if (typeof wingActive === 'function' && wingActive() && WINGS[S.wing] && WINGS[S.wing].st) v += WINGS[S.wing].st.spd || 0; } catch (e) { } return v; }
@@ -25396,9 +25396,10 @@ skinFxTick = (o => function (dt) { o(dt); try { const want = wrunCan(), T = S.t 
     WRUN.on = want; WRUN.k += ((want ? 1 : 0) - WRUN.k) * Math.min(1, dt * 6); if (WRUN.k < .002) WRUN.k = 0;
     const k = WRUN.k;
     if (k > 0) { if (!S.isl && pm && pm.g) pm.g.position.y = ((typeof playerY === 'function' && playerY()) || 0) + WRUN_LIFT * k + Math.sin(T * 2.4) * .05 * k;
-      // gliding pose: legs trailing back together, a little knee bend, body leaning into the flight
-      if (pm.legL && pm.legR) { pm.legL.rotation.x = pm.legL.rotation.x * (1 - k) + (.42 + Math.sin(T * 3) * .05) * k; pm.legR.rotation.x = pm.legR.rotation.x * (1 - k) + (.55 + Math.sin(T * 3 + 1) * .05) * k; }
-      if (pm.body) pm.body.rotation.x = .22 * k; WRUN.posed = true;
+      // gliding pose (owner 28 Nov: lean forward, legs TOGETHER trailing back — no running stride, no running bounce)
+      if (pm.legL && pm.legR) { const lg = .55 + Math.sin(T * 2) * .05;
+        for (const L of [pm.legL, pm.legR]) { L.rotation.x = L.rotation.x * (1 - k) + lg * k; L.rotation.z *= 1 - k; L.position.z *= 1 - k; } }
+      if (pm.body) { pm.body.rotation.x = .34 * k; pm.body.position.y *= 1 - k; } WRUN.posed = true;
       // a whoosh on each down-beat and a dust ring blown off the ground under you
       WRUN.bt -= dt; if (WRUN.on && WRUN.bt <= 0) { WRUN.bt = (2 * Math.PI) / (typeof WFLAP_SP !== 'undefined' ? WFLAP_SP : 7.5);
         try { if (typeof sfxNoise === 'function') sfxNoise(.18, .05, 700, { type: 'bandpass', q: .7 }); } catch (e) { }
@@ -30546,7 +30547,7 @@ function update(dt) {
   pm.g.position.x = player.pos.x; pm.g.position.z = player.pos.z; pm.g.rotation.y = player.face;
   if (!S.dead) { const wd = S.isl || S.up || _wingW() || roadDist(player.pos.x, player.pos.z) < .8 ? -1 : waterAt(player.pos.x, player.pos.z), py = playerY(); if (py != null && (S.climbA || Math.abs(pm.g.position.y - py) < .6)) pm.g.position.y = py; else pm.g.position.y += ((py != null ? py : wd > 0 ? -Math.min(wd, 1.3) * .55 : 0) - pm.g.position.y) * Math.min(1, dt * 8); }      // wading: you sink into rivers
   const sw = Math.sin(player.walk) * .75 * Math.min(1, ml);
-  if (S.skin === 'seraph') { const b = Math.sin(S.t * 2.2) * .04; pm.legL.rotation.x = .1 + b; pm.legR.rotation.x = .32 - b; pm.body.position.y = .5 + Math.sin(S.t * 2.2) * .08; }   // floating: legs hang still, no walking   // the winged outfit floats, legs hanging
+  if (S.skin === 'seraph' && typeof WFLY !== 'undefined' && WFLY.on) { const b = Math.sin(S.t * 2.2) * .04; pm.legL.rotation.x = .1 + b; pm.legR.rotation.x = .32 - b; pm.body.position.y = .5 + Math.sin(S.t * 2.2) * .08; }   // floating: legs hang still, no walking   // the winged outfit floats, legs hanging
   else { pm.legL.rotation.x = sw; pm.legR.rotation.x = -sw; pm.body.position.y = Math.abs(Math.sin(player.walk)) * .07 * Math.min(1, ml); }
   SF(updateWorld, player.pos.x, player.pos.z);
   SF(updateEnemies, dt); SF(zSpecialTick, dt); SF(skinFxTick, dt); SF(fpvTick, dt); SF(merchTick, dt); SF(updateLoot, dt); SF(updateCrates, dt); SF(updateBuilds, dt); SF(updateGhost); SF(updateFx, dt);
@@ -30599,4 +30600,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795857449').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795857901').catch(()=>{});</script></body></html>
