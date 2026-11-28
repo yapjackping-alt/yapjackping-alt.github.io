@@ -16827,11 +16827,11 @@ drawMap = (o => function (ctx, W, range, big, k) { o(ctx, W, range, big, k);
   try { const T = QM.tg; if (!T) return; k = k || 2; const c = ctx, sc = W / range, FR = big && typeof MAPV !== 'undefined' && MAPV.on, x = W / 2 + (T.x - (FR ? MAPV.cx : player.pos.x)) * sc, z = W / 2 + (T.z - (FR ? MAPV.cz : player.pos.z)) * sc,   /* the full map can be dragged away from you */ pul = 1 + Math.sin(performance.now() / 260) * .15;
     const lim = big ? W / 2 - 16 * k : W / 2 - 9 * k, dx = x - W / 2, dz = z - W / 2, inside = big ? Math.max(Math.abs(dx), Math.abs(dz)) < lim : Math.hypot(dx, dz) < lim;
     c.save();
-    if (inside) { c.translate(x, z); c.scale(pul, pul); const R = (big ? 7 : 5) * k;
+    if (inside) { c.translate(x, z); c.scale(pul, pul); const R = (big ? 7 * ((typeof MP2 !== 'undefined' && FR && MP2.mkZ) || 1) : 5) * k;
       c.fillStyle = 'rgba(0,0,0,.55)'; c.beginPath(); c.moveTo(0, -R - 2 * k); c.lineTo(R + 2 * k, 0); c.lineTo(0, R + 2 * k); c.lineTo(-R - 2 * k, 0); c.closePath(); c.fill();
       c.fillStyle = '#ffc94a'; c.beginPath(); c.moveTo(0, -R); c.lineTo(R, 0); c.lineTo(0, R); c.lineTo(-R, 0); c.closePath(); c.fill();
       c.fillStyle = '#2a1004'; c.font = '900 ' + Math.round(R * 1.3) + 'px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('!', 0, k * .5);
-      if (big) { c.scale(1 / pul, 1 / pul); c.font = '700 ' + Math.round(11 * k) + 'px sans-serif'; c.lineWidth = 3 * k; c.strokeStyle = 'rgba(0,0,0,.75)'; c.strokeText(T.n, 0, -R - 9 * k); c.fillStyle = '#ffe2a0'; c.fillText(T.n, 0, -R - 9 * k); } }
+      if (big) { c.scale(1 / pul, 1 / pul); c.font = '700 ' + Math.round(11 * k) + 'px sans-serif'; c.lineWidth = 3 * k; c.strokeStyle = 'rgba(0,0,0,.75)'; const tn = T.n + (typeof garwDist === 'function' ? ' · ' + garwDist(Math.hypot(T.x - player.pos.x, T.z - player.pos.z)) : ''); c.strokeText(tn, 0, -R - 9 * k); c.fillStyle = '#ffe2a0'; c.fillText(tn, 0, -R - 9 * k); } }
     else { const a = Math.atan2(dz, dx), rr = big ? Math.min(lim / Math.abs(Math.cos(a) || 1e-6), lim / Math.abs(Math.sin(a) || 1e-6)) : lim;
       c.translate(W / 2 + Math.cos(a) * rr, W / 2 + Math.sin(a) * rr); c.rotate(a); c.scale(pul, pul);
       c.fillStyle = 'rgba(0,0,0,.6)'; c.beginPath(); c.moveTo(9 * k, 0); c.lineTo(-6 * k, 7 * k); c.lineTo(-6 * k, -7 * k); c.closePath(); c.fill();
@@ -26655,7 +26655,7 @@ function mp2Up(e) { const p = MP2.ptr.get(e.pointerId); MP2.ptr.delete(e.pointer
   if (MP2.ptr.size === 1) { const q = [...MP2.ptr.values()][0]; MP2.drag = { x: q.x, y: q.y }; } else MP2.drag = null;
   try { localStorage.setItem('ember_mapR', String(Math.round(MP2.r))); } catch (er) { } }
 // tap: a mark (same rules as before: up to 6, tap one to remove it). Not inside dungeons.
-function mp2Mark(sx, sy) { if (S.dun) return; const w = mp2World(sx, sy), hit = mp2Mpp() * 20;
+function mp2Mark(sx, sy) { if (S.dun) return; const w = mp2World(sx, sy), hit = mp2Mpp() * 20 * Math.max(.8, MP2.mkZ || 1);
   const i = S.marks.findIndex(m => Math.hypot(m.x - w.x, m.z - (w.z + hit * .55)) < hit);
   if (i >= 0) { S.marks.splice(i, 1); feed('已删除标记', '#c1a597'); }
   else { if (S.marks.length >= 6) { feed('最多 6 个标记', '#ff9b8a'); return; } S.marks.push({ x: Math.round(w.x), z: Math.round(w.z), c: MARK_C[S.marks.length % MARK_C.length] }); feed('已添加标记 ' + S.marks.length, S.marks[S.marks.length - 1].c); }
@@ -28415,20 +28415,46 @@ try { const fix = s => typeof s === 'string' ? s.replace(/上船，选「荒废�
   const walk = o => { if (!o || typeof o !== 'object') return; for (const k in o) { const v = o[k]; if (typeof v === 'string') o[k] = fix(v); else if (v && typeof v === 'object') walk(v); } };
   if (typeof STORY !== 'undefined') walk(STORY); if (typeof C1 !== 'undefined') walk(C1); } catch (e) { }
 
-/* ---- ground ring + arrow at your feet pointing at the current target (owner 28 Nov: 「脚下一个圈带着箭头」, item 4 will add
-   map marks and a switch in Settings) ---- */
-const GARW = { g: null, a: null };
+/* ---- ground ring + arrows at your feet (owner 28 Nov item 4): a gold arrow points at the current task target, one small
+   arrow in the mark's own colour per map mark (with its distance); Settings 脚下指引 turns the whole thing off ---- */
+const GARW = { g: null, a: null, m: [], t: 0 };
+function garwOn() { try { return localStorage.getItem('ember_garw') !== '0'; } catch (e) { return true; } }
+function garwArrowGeo() { const sh = new THREE.Shape(); sh.moveTo(0, .55); sh.lineTo(.36, 0); sh.lineTo(.13, .06); sh.lineTo(0, -.1); sh.lineTo(-.13, .06); sh.lineTo(-.36, 0); sh.closePath();
+  try { return new THREE.ShapeGeometry(sh); } catch (e) { return new THREE.PlaneGeometry(.6, .6); } }
+function garwArrow(col, sc, r) { const arr = new THREE.Mesh(garwArrowGeo(), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: .95, depthWrite: false, side: THREE.DoubleSide }));
+  arr.rotation.x = -Math.PI / 2; arr.position.z = -r; arr.scale.set(sc, sc, sc); const piv = new THREE.Group(); piv.add(arr); return piv; }
 function garwMake() { if (GARW.g) return GARW.g; const g = new THREE.Group();
-  const ring = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.17, 40), new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: .45, depthWrite: false, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; g.add(ring);
-  const sh = new THREE.Shape(); sh.moveTo(0, .55); sh.lineTo(.36, 0); sh.lineTo(.13, .06); sh.lineTo(0, -.1); sh.lineTo(-.13, .06); sh.lineTo(-.36, 0); sh.closePath();
-  let ag; try { ag = new THREE.ShapeGeometry(sh); } catch (e) { ag = new THREE.PlaneGeometry(.6, .6); }
-  const arr = new THREE.Mesh(ag, new THREE.MeshBasicMaterial({ color: 0xffc94a, transparent: true, opacity: .95, depthWrite: false, side: THREE.DoubleSide })); arr.rotation.x = -Math.PI / 2; arr.position.z = -1.55;
-  const piv = new THREE.Group(); piv.add(arr); g.add(piv); GARW.a = piv; g.renderOrder = 3; g.visible = false; scene.add(g); GARW.g = g; return g; }
+  const ring = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.17, 40), new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: .45, depthWrite: false, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; g.add(ring); GARW.ring = ring;
+  const piv = garwArrow(0xffc94a, 1, 1.55); g.add(piv); GARW.a = piv; g.renderOrder = 3; g.visible = false; scene.add(g); GARW.g = g; return g; }
+// one small arrow per mark (colour follows the mark; owner 28 Nov: no distance on the arrows, the map shows it)
+function garwMk(i, c) { let q = GARW.m[i]; if (q && q.c === c) return q;
+  if (q) { GARW.g.remove(q.p); try { q.p.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); } catch (e) { } }
+  const p = garwArrow(new THREE.Color(c), .62, 1.42); GARW.g.add(p); q = GARW.m[i] = { p, c }; return q; }
+// a mark counts only in the world you are in (island marks on the island, mainland marks on the mainland)
+function garwHere(m) { const isl = Math.hypot(m.x - HOME.x, m.z - HOME.z) < 600; return S.isl ? isl : !isl; }
 zSpecialTick = (o => function (dt) { o(dt); try { const g = garwMake(), T = (typeof QM !== 'undefined') ? QM.tg : null;
-    const off = !T || !S.started || S.dead || S.dun || S.boat || (typeof GV !== 'undefined' && GV.on) || (typeof lsGet === 'function' && lsGet('ember_garw') === '0');
-    const d = T ? Math.hypot(T.x - player.pos.x, T.z - player.pos.z) : 0; g.visible = !off && d > 6; if (!g.visible) return;
-    const y = (pm && pm.g ? pm.g.position.y : 0) + .06; g.position.set(player.pos.x, y, player.pos.z);
-    GARW.a.rotation.y = Math.atan2(-(T.x - player.pos.x), -(T.z - player.pos.z)); const p = 1 + Math.sin(performance.now() / 260) * .06; GARW.a.scale.set(p, p, p); } catch (e) { } })(zSpecialTick);
+    const off = !S.started || S.dead || S.dun || S.boat || (typeof GV !== 'undefined' && GV.on) || !garwOn();
+    const px = player.pos.x, pz = player.pos.z, now = performance.now();
+    const d = T ? Math.hypot(T.x - px, T.z - pz) : 0, qOn = !!T && d > 6;
+    const mk = (!off && S.marks) ? S.marks.map((m, i) => ({ m, i, d: Math.hypot(m.x - px, m.z - pz) })).filter(o => o.d > 8 && garwHere(o.m)) : [];
+    g.visible = !off && (qOn || mk.length > 0);
+    for (let i = 0; i < GARW.m.length; i++) if (GARW.m[i]) GARW.m[i].p.visible = false;
+    if (!g.visible) return;
+    const y = (pm && pm.g ? pm.g.position.y : 0) + .06; g.position.set(px, y, pz); const p = 1 + Math.sin(now / 260) * .06;
+    GARW.a.visible = qOn; if (qOn) { GARW.a.rotation.y = Math.atan2(-(T.x - px), -(T.z - pz)); GARW.a.scale.set(p, p, p); }
+    mk.forEach(o => { const q = garwMk(o.i, o.m.c); q.p.visible = true; q.p.rotation.y = Math.atan2(-(o.m.x - px), -(o.m.z - pz)); }); } catch (e) { } })(zSpecialTick);
+// Settings: 脚下指引 显示 / 关闭
+renderSettings = (o => function () { o(); try { const box = $('setBox'); if (!box) return; const r = document.createElement('div'); r.className = 'setrow'; const s = document.createElement('span'); s.textContent = '脚下指引箭头（任务 + 标记）'; r.appendChild(s);
+  const op = document.createElement('div'); op.className = 'opts'; [[true, '显示'], [false, '关闭']].forEach(([k, n]) => { const b = document.createElement('button'); b.className = 'sbtn' + (garwOn() === k ? ' on' : ''); b.textContent = n;
+    b.addEventListener('click', () => { try { localStorage.setItem('ember_garw', k ? '1' : '0'); } catch (e) { } renderSettings(); }); op.appendChild(b); });
+  r.appendChild(op); const lg = box.lastChild; box.insertBefore(r, lg); } catch (e) { } })(renderSettings);
+// map marks grow / shrink with the map zoom (owner 28 Nov item 4); the minimap keeps its size
+markDraw = (o => function (tx, tz, em, k) { let z = 1; try { if (MAPV && MAPV.on && MAPV.vr > 0) z = Math.max(.6, Math.min(2.2, Math.sqrt(400 / MAPV.vr))); } catch (e) { } MP2.mkZ = z; const r = o(tx, tz, em, k * z);
+  // big map: distance under every mark of the world you are in
+  try { if (MAPV && MAPV.on && mctx) { const c = mctx, kk = k * z; c.font = '800 ' + Math.round(8.5 * kk) + 'px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'top'; c.lineWidth = 3 * kk; c.strokeStyle = 'rgba(0,0,0,.8)';
+    S.marks.forEach(m => { if (!garwHere(m)) return; const t = garwDist(Math.hypot(m.x - player.pos.x, m.z - player.pos.z)), x = tx(m.x), y = tz(m.z) + 2 * kk; c.strokeText(t, x, y); c.fillStyle = m.c; c.fillText(t, x, y); });
+    c.textBaseline = 'alphabetic'; } } catch (e) { } return r; })(markDraw);
+function garwDist(d) { d = Math.round(d); return d >= 1000 ? (d / 1000).toFixed(1) + 'km' : d + 'm'; }
 /* ============ 地图迷雾 + 码头石碑 + 地图传送 (owner 28 Nov, item 3) ============
    Answers: every land is fogged on the map whatever your level; the fog clears where you walk (about 150 m round you); once
    every waystone of a land is lit, that whole land clears; the pier boat opens the big map (the region list is gone) and a
@@ -30573,4 +30599,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795856372').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795857449').catch(()=>{});</script></body></html>
