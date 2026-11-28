@@ -29729,6 +29729,112 @@ try { const R0 = renderer.render.bind(renderer);
 // the first frame of a new cutscene starts the camera at the right spot
 const _cineStart0 = cineStart; cineStart = function (k) { _cpos = null; return _cineStart0(k); };
 try { const st = document.createElement('style'); st.textContent = 'body.cineOn #hud,body.cineOn #storyTrk,body.cineOn #feed,body.cineOn #staRing,body.cineOn #banner{visibility:hidden}'; document.head.appendChild(st); } catch (e) { }
+/* ============ 合成 at the island workbench (owner 28 Nov item 8) ============
+   Owner's answers: at the workbench as a new 「合成」 page; slightly costly (inputs worth about 1.2× the output by the 晶石
+   PRICE RULE, so crafting is never a way to make 晶石 / coins); it TAKES TIME (real time, keeps running while you are away).
+   Which recipes was left to Claude:
+   - 基础：石头 → 石块 / 铁片, 木头 → 藤条, 火药 → 电子元件
+   - 升级材料（装备强化 / 洗练、武器升级）：铁片 → 精钢锭 → 强化石；精钢锭 → 腐化晶体 → 首领之心；电子元件 → 变异血清 → 终焉核心
+   - 区域材料（武器升级每 5 级要的那一种）：3 个低一区的 → 1 个高一区的 + 余烬币, so leftovers from earlier lands help later
+   NOT craftable on purpose: 图纸残页 / 蓝图 (the owner wants the blueprint draw hard), 首领印记 (boss only), 幸运符 / 抵消石 (hard to get by his rule),
+   遗物币 / 深渊币 / 晶石.
+   Two crafting slots; each recipe has a time per piece; finished pieces wait in the slot until 领取 at the workbench.
+   Saved as r.craft [{r, n, t0, d}]. */
+const CRF_SLOTS = 2, CRF_MAX = 20;
+const CRF = [
+  // id, output, out n, inputs {k:n}, coins, player level, seconds per piece, group
+  { id: 'rock', o: 'rock', on: 1, i: { stone: 5 }, c: 0, lv: 1, s: 20, g: 0 },
+  { id: 'vine', o: 'vine', on: 1, i: { wood: 4 }, c: 0, lv: 1, s: 20, g: 0 },
+  { id: 'metal', o: 'metal', on: 1, i: { stone: 4 }, c: 0, lv: 1, s: 15, g: 0 },
+  { id: 'circuit', o: 'circuit', on: 1, i: { powder: 3 }, c: 0, lv: 5, s: 45, g: 0 },
+  { id: 'steel', o: 'steel', on: 1, i: { metal: 30 }, c: 20, lv: 8, s: 90, g: 1 },
+  { id: 'estone', o: 'estone', on: 1, i: { steel: 1 }, c: 0, lv: 10, s: 60, g: 1 },
+  { id: 'serum', o: 'serum', on: 1, i: { circuit: 6 }, c: 0, lv: 12, s: 120, g: 1 },
+  { id: 'crystal', o: 'crystal', on: 1, i: { steel: 9 }, c: 0, lv: 18, s: 300, g: 1 },
+  { id: 'core', o: 'core', on: 1, i: { serum: 12 }, c: 120, lv: 22, s: 360, g: 1 },
+  { id: 'heart', o: 'heart', on: 1, i: { crystal: 2 }, c: 0, lv: 25, s: 300, g: 1 }
+];
+// region materials zs1 → zs2 … zs9 → zs10 (each land's zombie material; weapon upgrades need one per 5 levels)
+for (let i = 1; i < 10; i++) CRF.push({ id: 'zs' + (i + 1), o: 'zs' + (i + 1), on: 1, i: { ['zs' + i]: 3 }, c: 20 * (i + 1), lv: i * 5, s: 60 + 30 * i, g: 2 });
+const CRF_G = ['基础材料', '升级材料', '区域材料（武器升级）'];
+S.craft = S.craft || [];
+const crfR = id => CRF.find(r => r.id === id);
+const crfNow = () => Date.now();
+function crfLeft(q) { return Math.max(0, q.t0 + q.d * 1000 - crfNow()); }
+function crfDoneN(q) { const R = crfR(q.r); if (!R) return 0; return Math.min(q.n, Math.floor((crfNow() - q.t0) / (R.s * 1000))); }
+function crfTime(s) { s = Math.ceil(s); if (s < 60) return s + ' 秒'; const m = Math.floor(s / 60), r = s % 60; if (m < 60) return m + ' 分' + (r ? ' ' + r + ' 秒' : ''); return Math.floor(m / 60) + ' 小时 ' + (m % 60) + ' 分'; }
+function crfCan(R, n) { if (S.level < R.lv) return false; for (const k in R.i) if (matHave(k) < R.i[k] * n) return false; return S.coin >= R.c * n; }
+function crfMaxN(R) { let n = CRF_MAX; for (const k in R.i) n = Math.min(n, Math.floor(matHave(k) / R.i[k])); if (R.c) n = Math.min(n, Math.floor(S.coin / R.c)); return Math.max(0, n); }
+function crfStart(id, n) { const R = crfR(id); if (!R || n < 1) return; if (S.craft.length >= CRF_SLOTS) { feed('两个合成位都在用，等一个完成再放', '#ff9b8a'); return; }
+  if (!crfCan(R, n)) { feed('材料不够', '#ff9b8a'); return; }
+  for (const k in R.i) matAdd(k, -R.i[k] * n); S.coin -= R.c * n;
+  S.craft.push({ r: id, n, t0: crfNow(), d: R.s * n }); try { sfx.build(); } catch (e) { } feed('开始合成：' + mkName(R.o) + ' ×' + R.on * n + '（' + crfTime(R.s * n) + '）', '#ffd27a'); refreshHud(); saveGame(); }
+// take the finished pieces of a slot (all of it when done, or the part that is done)
+function crfTake(i) { const q = S.craft[i]; if (!q) return; const R = crfR(q.r); if (!R) { S.craft.splice(i, 1); return; } const k = crfDoneN(q); if (k < 1) return;
+  const amt = k * R.on, room = typeof bagRoom === 'function' ? bagRoom(R.o) : 1e9; if (room < amt) { feed('背包放不下（还能放 ' + room + ' 个），先清一清', '#ff9b8a'); return; }
+  matAdd(R.o, amt); q.n -= k; q.t0 += k * R.s * 1000; q.d = q.n * R.s; if (q.n <= 0) S.craft.splice(i, 1);
+  try { sfx.pick(); } catch (e) { } feed('领取：' + mkName(R.o) + ' ×' + amt, '#7de0ff'); refreshHud(); saveGame(); }
+// cancel: the pieces not made yet give their materials back
+function crfCancel(i) { const q = S.craft[i]; if (!q) return; const R = crfR(q.r); const k = crfDoneN(q), back = q.n - k;
+  if (R) { if (k > 0) matAdd(R.o, k * R.on); for (const m in R.i) matAdd(m, R.i[m] * back); S.coin += R.c * back; }
+  S.craft.splice(i, 1); feed('已取消，没做的材料退回了', '#c1a597'); refreshHud(); saveGame(); }
+shopSave = (o => function () { const r = o.apply(this, arguments); try { r.craft = S.craft; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o.apply(this, arguments); try { const v = d && d.sh && d.sh.craft; S.craft = Array.isArray(v) ? v.filter(q => q && crfR(q.r) && q.n > 0).slice(0, CRF_SLOTS) : []; } catch (e) { S.craft = []; } })(shopLoad);
+// a line in the feed when something finishes (once per slot)
+setInterval(() => { try { if (!S.started) return; for (const q of S.craft) { const R = crfR(q.r); if (R && !q.told && crfDoneN(q) >= q.n) { q.told = 1; feed('合成好了：' + mkName(R.o) + ' ×' + q.n * R.on + ' · 回工作台领取', '#ffd27a'); } }
+    if ($('bench') && $('bench').classList.contains('show') && benchTab === 'mix') crfPaintSlots(); } catch (e) { } }, 1000);
+/* ---- the page ---- */
+const crfIc = k => { try { return svgIcon(k); } catch (e) { return ''; } };
+function crfPaintSlots() { const box = $('crfSlots'); if (!box) return; box.innerHTML = '';
+  for (let i = 0; i < CRF_SLOTS; i++) { const q = S.craft[i], d = document.createElement('div'); d.className = 'crfslot' + (q ? '' : ' empty');
+    if (!q) { d.innerHTML = '<span class="crfe">空闲的合成位</span>'; box.appendChild(d); continue; }
+    const R = crfR(q.r), k = crfDoneN(q), left = crfLeft(q), p = Math.min(1, 1 - left / (q.d * 1000 || 1));
+    d.innerHTML = '<span class="crfi">' + crfIc(R.o) + '</span><div class="crfm"><b>' + mkName(R.o) + ' ×' + q.n * R.on + '</b><i class="crfbar"><u style="width:' + (p * 100).toFixed(1) + '%"></u></i><small>' + (left > 0 ? '还要 ' + crfTime(left / 1000) + ' · 已做好 ' + k : '全部做好了') + '</small></div>';
+    const b = document.createElement('button'); b.className = 'sbtn'; b.textContent = '领取' + (k ? ' ' + k * R.on : ''); b.disabled = k < 1; b.addEventListener('click', () => { crfTake(i); renderBench(); }); d.appendChild(b);
+    if (left > 0) { const c = document.createElement('button'); c.className = 'sbtn ghostb'; c.textContent = '取消'; c.addEventListener('click', () => { crfCancel(i); renderBench(); }); d.appendChild(c); }
+    box.appendChild(d); } }
+const CRF_PICK = {};
+function crfPage(box) {
+  const t = document.createElement('div'); t.className = 'snote'; t.textContent = '把用不完的低级材料合成高级材料。要等时间（离开游戏也会继续），做好后回这里领取。'; box.appendChild(t);
+  const sl = document.createElement('div'); sl.id = 'crfSlots'; box.appendChild(sl); crfPaintSlots();
+  CRF_G.forEach((gn, g) => { const h = document.createElement('div'); h.className = 'crfgh'; h.textContent = gn; box.appendChild(h);
+    CRF.filter(R => R.g === g).forEach(R => { const lock = S.level < R.lv, mx = crfMaxN(R); let n = Math.max(1, Math.min(CRF_PICK[R.id] || 1, Math.max(1, mx)));
+      const row = document.createElement('div'); row.className = 'crfrow' + (lock ? ' lock' : '');
+      const need = Object.keys(R.i).map(k => '<span class="' + (matHave(k) >= R.i[k] * n ? '' : 'no') + '">' + crfIc(k) + mkName(k) + ' ' + matHave(k) + '/' + R.i[k] * n + '</span>').join('') + (R.c ? '<span class="' + (S.coin >= R.c * n ? '' : 'no') + '">' + R.c * n + ' 币</span>' : '');
+      row.innerHTML = '<span class="crfi">' + crfIc(R.o) + '</span><div class="crfm"><b>' + mkName(R.o) + ' ×' + R.on * n + '</b><div class="crfneed">' + need + '</div><small>' + (lock ? 'Lv.' + R.lv + ' 解锁' : '每个 ' + crfTime(R.s) + ' · 共 ' + crfTime(R.s * n)) + '</small></div>';
+      if (!lock) { const st = document.createElement('div'); st.className = 'crfst';
+        const mk = (txt, f) => { const b = document.createElement('button'); b.className = 'sbtn ghostb'; b.textContent = txt; b.addEventListener('click', () => { CRF_PICK[R.id] = f(n); renderBench(); }); st.appendChild(b); };
+        mk('−', v => Math.max(1, v - 1)); const nv = document.createElement('b'); nv.textContent = n; st.appendChild(nv); mk('+', v => Math.min(Math.max(1, mx), v + 1)); mk('最多', () => Math.max(1, mx));
+        const go = document.createElement('button'); go.className = 'sbtn'; go.textContent = S.craft.length >= CRF_SLOTS ? '位满' : '合成'; go.disabled = !crfCan(R, n) || S.craft.length >= CRF_SLOTS; go.addEventListener('click', () => { crfStart(R.id, n); CRF_PICK[R.id] = 1; renderBench(); }); st.appendChild(go);
+        row.appendChild(st); }
+      box.appendChild(row); }); }); }
+renderBench = (o => function () { o(); try { const box = $('benchList'), tabs = box && box.querySelector('.tabs'); if (!tabs) return;
+    const done = S.craft.some(q => crfDoneN(q) > 0);
+    const b = document.createElement('button'); b.className = 'sbtn' + (benchTab === 'mix' ? ' on' : ''); b.textContent = '合成' + (S.craft.length ? ' · ' + (done ? '可领取' : '进行中') : ''); b.addEventListener('click', () => { benchTab = 'mix'; renderBench(); }); tabs.insertBefore(b, tabs.children[1] || null);
+    if (benchTab !== 'mix') return; tabs.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    while (tabs.nextSibling) tabs.nextSibling.remove(); crfPage(box); } catch (e) { console.warn('craft', e); } })(renderBench);
+try { const st = document.createElement('style'); st.textContent =
+  '#crfSlots{display:grid;grid-template-columns:1fr;gap:6px;margin:6px 0 4px}@media (min-width:640px){#crfSlots{grid-template-columns:1fr 1fr}}' +
+  '.crfslot,.crfrow{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:12px;background:rgba(40,26,20,.85);border:1px solid rgba(255,200,120,.25);text-align:left}' +
+  '.crfslot.empty{justify-content:center;opacity:.55;border-style:dashed}.crfe{font-size:12px}.crfi{flex:0 0 36px;height:36px;display:flex;align-items:center;justify-content:center}.crfi svg,.crfi img,.crfi .ic{width:32px;height:32px}' +
+  '.crfm{flex:1;min-width:0}.crfm b{font-size:13.5px;color:#fff0dc}.crfm small{display:block;font-size:11px;opacity:.7;margin-top:2px}' +
+  '.crfbar{display:block;height:6px;border-radius:3px;background:rgba(0,0,0,.45);margin-top:4px;overflow:hidden}.crfbar u{display:block;height:100%;background:linear-gradient(90deg,#ffb84a,#ffe08a)}' +
+  '.crfgh{margin:12px 2px 4px;font-weight:800;font-size:13px;color:#ffd27a;text-align:left;letter-spacing:.08em}.crfrow{margin-bottom:6px;flex-wrap:wrap}.crfrow.lock{opacity:.5}' +
+  '.crfneed{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11.5px;margin-top:3px}.crfneed span{display:inline-flex;align-items:center;gap:3px}.crfneed span svg,.crfneed span img{width:16px;height:16px}.crfneed .no{color:#ff8a7a}' +
+  '.crfst{display:flex;align-items:center;gap:5px;margin-left:auto}.crfst .sbtn{padding:5px 9px;font-size:12px;min-width:0}.crfst b{min-width:22px;text-align:center}' +
+  '@media (max-width:520px){.crfst{width:100%;justify-content:flex-end}}';
+  document.head.appendChild(st); } catch (e) { }
+/* ---- knock-on: item notes say they can be crafted, 老陈 mentions it once, the price rule is checked ---- */
+try { for (const R of CRF) { const I = ITEMS[R.o]; if (I && typeof I.src === 'string' && I.src.indexOf('工作台合成') < 0) I.src += ' · 海岛工作台合成（Lv.' + R.lv + '）'; } } catch (e) { }
+petsTick = (o => function (dt) { const r = o(dt); try { if (S.started && S.isl && S.level >= 5 && !S.crfTold && !S.paused && !S.dead) { S.crfTold = 1;
+      storyTalk([['老陈', '工作台我加了个「合成」：用不完的石头、铁片、低级区域材料，可以慢慢合成精钢锭、强化石这些好东西。放进去就行，过一阵回来领。']]); } } catch (e) { } return r; })(petsTick);
+shopSave = (o => function () { const r = o.apply(this, arguments); try { r.crfT = S.crfTold | 0; } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o.apply(this, arguments); try { S.crfTold = (d && d.sh && d.sh.crfT) | 0; } catch (e) { } })(shopLoad);
+// PRICE RULE: inputs (by 晶石 value, coins ÷ 20) must be worth at least 1.15 × the output, so crafting never makes value
+try { const G = econGem(); for (const R of CRF) { if (G[R.o] == null) continue; let v = R.c / ECON.GEM_COIN, ok = true; for (const k in R.i) { if (G[k] == null) { ok = false; break; } v += G[k] * R.i[k]; }
+    if (ok && v < G[R.o] * R.on * 1.15) ECON.bad.push('合成 ' + R.id + ' 原料 ' + v.toFixed(1) + ' 晶石 < 1.15 × 成品 ' + (G[R.o] * R.on).toFixed(1)); }
+  for (const R of CRF) { if (SELL_PRICE[R.o] == null) continue; let s = 0; for (const k in R.i) s += (SELL_PRICE[k] || 0) * R.i[k]; if (SELL_PRICE[R.o] * R.on > s * 1.6 + R.c && econGem()[R.o] == null) ECON.bad.push('合成 ' + R.id + ' 卖成品比卖原料多太多'); }
+  if (ECON.bad.length) console.warn('ECON craft', ECON.bad.join('\n')); } catch (e) { }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -30807,4 +30913,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795860507').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795861642').catch(()=>{});</script></body></html>
