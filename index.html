@@ -7,6 +7,8 @@
 <style>@media (display-mode: standalone){html{min-height:min(100lvh,calc(100% + env(safe-area-inset-top)))}}html,body{margin:0;height:100%;background:#0a0608;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}</style>
 </head><body>
 <title>余烬末日</title>
+<script>try{if(sessionStorage.getItem('ember_swto')){document.documentElement.classList.add('swing');setTimeout(function(){document.documentElement.classList.remove('swing')},25000)}}catch(e){}</script>
+<style>html.swing body::after{content:'正在进入角色…';position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 46%,rgba(255,150,60,.10),rgba(0,0,0,0) 40%),#0b070d;color:#f2e6d0;font:700 16px sans-serif;letter-spacing:.1em}</style>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29835,6 +29837,73 @@ try { const G = econGem(); for (const R of CRF) { if (G[R.o] == null) continue; 
     if (ok && v < G[R.o] * R.on * 1.15) ECON.bad.push('合成 ' + R.id + ' 原料 ' + v.toFixed(1) + ' 晶石 < 1.15 × 成品 ' + (G[R.o] * R.on).toFixed(1)); }
   for (const R of CRF) { if (SELL_PRICE[R.o] == null) continue; let s = 0; for (const k in R.i) s += (SELL_PRICE[k] || 0) * R.i[k]; if (SELL_PRICE[R.o] * R.on > s * 1.6 + R.c && econGem()[R.o] == null) ECON.bad.push('合成 ' + R.id + ' 卖成品比卖原料多太多'); }
   if (ECON.bad.length) console.warn('ECON craft', ECON.bad.join('\n')); } catch (e) { }
+/* ============ 切换角色 3 (owner 28 Nov item 9: still slow, a red screen on the iPhone, why reload at all?) ============
+   Why the page still reloads: the whole world in memory (island builds, terrain, bag, quests, zombies, dungeon, network room…)
+   belongs to the character that is playing; swapping it in place risks one character's things leaking into another.
+   A reload is the clean way — but now it no longer passes the title screen (the 3D dusk scene = the "red screen") or the
+   character list:
+   - 切换角色 opens a small in-game list of your characters first; tapping one saves, reloads and goes STRAIGHT into it
+     (sessionStorage ember_swto). 「管理角色」 = the old way (character list, to make or delete one).
+   - from the first moment of the new page a dark cover with a spinner hides everything (html.swing, set by an inline
+     script in the <head>) until the character stands in the world.
+   - where you appear (owner): left less than 5 minutes ago → where you were; longer → on the island (SW_KEEP_MS). */
+const SW_KEEP_MS = 5 * 60000;
+const SW3 = { age: 0 };
+// where the character appears
+startChar = (o => function (c) { SW3.age = c && c.savedAt ? Date.now() - c.savedAt : 0; return o.apply(this, arguments); })(startChar);
+enterWorld = (o => function () { try { if (SW3.age > SW_KEEP_MS) S._resume = null; } catch (e) { } return o.apply(this, arguments); })(enterWorld);
+// the in-game picker
+async function swPick() {
+  if (typeof SWF !== 'undefined' && SWF.busy) return;
+  try { await Promise.race([flushSave(), new Promise(r => setTimeout(r, 1500))]); } catch (e) { }
+  try { await Promise.race([listChars(), new Promise(r => setTimeout(r, 2500))]); } catch (e) { }
+  let m = $('swPickM'); if (m) m.remove(); m = document.createElement('div'); m.id = 'swPickM';
+  const list = (Acct.chars || []).slice();
+  m.innerHTML = '<div class="swpb"><div class="swph"><b>切换角色</b><button class="swpx">✕</button></div><div class="swpl"></div><div class="swpf"><button class="sbtn ghostb swpm">管理角色（新建 / 删除）</button></div><div class="swpn">离开不到 5 分钟的角色会回到原来的位置，更久的回到海岛。</div></div>';
+  document.body.appendChild(m);
+  const L = m.querySelector('.swpl');
+  list.forEach(c => { const me = c.id === Acct.cur, r = document.createElement('button'); r.className = 'swpr' + (me ? ' me' : '');
+    const nm = document.createElement('b'); nm.textContent = cleanName(c.name) || '幸存者';
+    const sp = document.createElement('span'); sp.textContent = 'Lv.' + (c.level | 0) + ' · 战力 ' + (c.cp | 0) + (me ? ' · 正在玩' : ' · ' + timeAgo(c.savedAt));
+    r.appendChild(nm); r.appendChild(sp); if (me) r.disabled = true; else r.addEventListener('click', () => { m.remove(); swGo(c.id); }); L.appendChild(r); });
+  if (list.length < 2) { const t = document.createElement('div'); t.className = 'swpn'; t.textContent = '只有这一个角色。点「管理角色」可以新建。'; L.appendChild(t); }
+  const close = () => { m.remove(); if (S._swpPause) { S._swpPause = false; S.paused = false; } };
+  m.querySelector('.swpx').addEventListener('click', close); m.addEventListener('click', e => { if (e.target === m) close(); });
+  m.querySelector('.swpm').addEventListener('click', () => { m.remove(); swGo(null); });
+  if (!S.paused) { S.paused = true; S._swpPause = true; }
+}
+// save, reload, and go straight into the chosen character (null = the character list)
+async function swGo(id) {
+  if (SWF.busy) return; SWF.busy = true; window._swc = 1;
+  const c = swCover(T2('正在切换角色…', 'Switching character…'), T2('正在保存这个角色', 'Saving this character'));
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  try { await Promise.race([flushSave(), new Promise(r => setTimeout(r, 2500))]); } catch (e) { } try { localStorage.removeItem('ember_live'); } catch (e) { }
+  try { if (id) sessionStorage.setItem('ember_swto', id); else sessionStorage.setItem('ember_swc', '1'); } catch (e) { }
+  c.querySelector('small').textContent = T2('已保存，正在进入…', 'Saved, loading…');
+  try { glFreeAll(); } catch (e) { } await new Promise(r => setTimeout(r, 150));
+  const u = swFastUrl(); try { if (u) location.replace(u); else location.reload(); } catch (e) { try { location.reload(); } catch (e2) { } }
+  setTimeout(() => { c.classList.add('late'); c.querySelector('small').textContent = T2('还在载入。如果一直卡住，点「重新载入」，或把游戏完全关掉再打开（存档已经保存好了）', 'Still loading. If it stays stuck, tap Reload (the save is safe)'); }, 10000);
+}
+switchChar = function () { return swPick(); };
+// new page: go straight into the chosen character once the account list is ready
+try { const to = sessionStorage.getItem('ember_swto'); if (to) { sessionStorage.removeItem('ember_swto'); let n = 0;
+    const iv = setInterval(() => { n++;
+      try { if (worldEntered) { clearInterval(iv); swUncover(); return; }
+        if (Acct.ready) { const c = (Acct.chars || []).find(x => x.id === to); clearInterval(iv);
+          if (c) { $('start').classList.remove('show'); $('chars').classList.remove('show'); const l = $('login'); if (l) l.classList.remove('show'); startChar(c); setTimeout(swUncover, 700); }
+          else { swUncover(); $('start').classList.remove('show'); $('chars').classList.add('show'); renderChars(); } } } catch (e) { }
+      if (n > 200) { clearInterval(iv); swUncover(); } }, 100); }
+  else swUncover(); } catch (e) { swUncover(); }
+function swUncover() { try { document.documentElement.classList.remove('swing'); } catch (e) { } }
+try { const st = document.createElement('style'); st.textContent =
+  '#swPickM{position:fixed;inset:0;z-index:60;background:rgba(6,4,8,.6);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}' +
+  '#swPickM .swpb{width:min(420px,100%);max-height:86%;display:flex;flex-direction:column;gap:8px;padding:14px;border-radius:16px;background:rgba(28,18,22,.97);border:1px solid rgba(255,190,120,.35);box-sizing:border-box}' +
+  '#swPickM .swph{display:flex;align-items:center;justify-content:space-between}#swPickM .swph b{font-size:17px;color:#ffd8a8;letter-spacing:.1em}#swPickM .swpx{width:34px;height:34px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.35);color:#fff;font-size:16px}' +
+  '#swPickM .swpl{display:flex;flex-direction:column;gap:6px;overflow-y:auto;overflow-x:hidden}' +
+  '#swPickM .swpr{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,200,130,.3);background:rgba(60,36,24,.8);color:#fff0dc;text-align:left}' +
+  '#swPickM .swpr b{font-size:15px}#swPickM .swpr span{font-size:12px;opacity:.75}#swPickM .swpr.me{opacity:.55;border-style:dashed}' +
+  '#swPickM .swpn{font-size:11.5px;opacity:.65;text-align:center}#swPickM .swpf{display:flex;justify-content:center}';
+  document.head.appendChild(st); } catch (e) { }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -30913,4 +30982,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795861642').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795862351').catch(()=>{});</script></body></html>
