@@ -26673,6 +26673,7 @@ renderBigMap = function () { try { mp2Build(); } catch (e) { } if (!MP2.c) retur
   if (MP2.open) { MP2.open = false; let r = 240; try { r = +localStorage.getItem('ember_mapR') || 240; } catch (e) { } MP2.r = mp2Clamp(r);
     if (MP2.pending) { const p = MP2.pending; MP2.pending = null; MP2.follow = false; MAPV.cx = p.x; MAPV.cz = p.z; const d = Math.hypot(p.x - player.pos.x, p.z - player.pos.z); MP2.r = mp2Clamp(Math.max(MP2.r, d * 2.4)); }
     else MP2.follow = true;
+    if (MP2.wr) { MP2.follow = false; MAPV.cx = MP2.wc[0]; MAPV.cz = MP2.wc[1]; MP2.r = mp2Clamp(Math.max(MP2.r, MP2.wr)); MP2.wr = 0; }   /* the world map from the island pier (z_fog.js) */
     mp2Pop(null); }
   mp2Dirty(); clearTimeout(MP2.tm); MP2.tm = setTimeout(mp2Loop, 250); };
 openMap = (o => function () { MP2.open = true; return o.apply(this, arguments); })(openMap);
@@ -26994,7 +26995,7 @@ drawExtraRadar = (o => function (tx, tz, edgeMark) { o(tx, tz, edgeMark);
     const vr = W / sc * (typeof MAPV !== 'undefined' && MAPV.vr ? MAPV.vr / (W / sc) : 1);
     c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineWidth = 3.5 * k; c.strokeStyle = 'rgba(10,6,12,.85)';
     const txt = (s, x, y, size, col, w) => { c.font = (w || 800) + ' ' + size * k + 'px sans-serif'; c.strokeText(s, x, y); c.fillStyle = col; c.fillText(s, x, y); };
-    if (vr > 1800) { for (let t = 1; t <= TIERS_N; t++) { const C = REGC[t], x = tx(C[0]), y = tz(C[1]), b = tierBand(t); if (x < -60 * k || y < -40 * k || x > W + 60 * k || y > W + 40 * k) continue;
+    if (vr > 1800) { for (let t = 1; t <= TIERS_N; t++) { const C = REGC[t], x = tx(C[0]), y = tz(C[1]) - 24 * k, b = tierBand(t); if (typeof fogSeen === 'function' && !fogSeen(C[0], C[1])) continue; /* the fog writes its own name; raised so it never sits on the waystone name */ if (x < -60 * k || y < -40 * k || x > W + 60 * k || y > W + 40 * k) continue;
         txt(biomeOf(t).n, x, y - 7 * k, vr > 8000 ? 15 : 18, '#fff2e4', 900); txt('Lv.' + b[0] + '-' + b[1], x, y + 11 * k, 10.5, 'hsl(' + (120 - (t - 1) * 13) + ',85%,72%)', 700); } }
     else for (const P of plAll()) { if (typeof fogSeen === 'function' && !fogSeen(P.x, P.z)) continue; const x = tx(P.x), y = tz(P.z); if (x < -60 * k || y < -30 * k || x > W + 60 * k || y > W + 30 * k) continue;
       txt(P.n, x, y, P.cap ? 15 : 12.5, P.cap ? '#fff2e4' : '#e8d8c8', P.cap ? 900 : 700); if (P.cap) txt(biomeOf(P.t).n + ' · Lv.' + tierBand(P.t)[0] + '-' + tierBand(P.t)[1], x, y + 15 * k, 10, 'hsl(' + (120 - (P.t - 1) * 13) + ',85%,72%)', 700); }
@@ -28476,12 +28477,15 @@ function garwDist(d) { d = Math.round(d); return d >= 1000 ? (d / 1000).toFixed(
      skipped while it draws), with a 「活动 · 副本」 button for the old pier menu (dungeons, PvP, events). */
 const FOG = { N: 500, C: 40, O: 10000, b: null, cv: null, g: null, t: 0, land: {} };
 function fogInit() { if (FOG.b) return; FOG.b = new Uint8Array(FOG.N * FOG.N);
-  try { const c = document.createElement('canvas'); c.width = c.height = FOG.N; const g = c.getContext('2d'); if (g && g.fillRect) { g.fillStyle = 'rgb(22,20,28)'; g.fillRect(0, 0, FOG.N, FOG.N); FOG.cv = c; FOG.g = g; } } catch (e) { }
+  try { const c = document.createElement('canvas'); c.width = c.height = FOG.N; const g = c.getContext('2d'); if (g && g.fillRect) { g.fillStyle = '#fff'; g.fillRect(0, 0, FOG.N, FOG.N); FOG.cv = c; FOG.g = g; } } catch (e) { }
   /* the open sea round the continent is never fogged */
-  for (let j = 0; j < FOG.N; j++) for (let i = 0; i < FOG.N; i++) { const x = (i + .5) * FOG.C - FOG.O, z = (j + .5) * FOG.C - FOG.O; if (x * x + z * z > 9750 * 9750) fogCell(i, j); } }
+  for (let j = 0; j < FOG.N; j++) for (let i = 0; i < FOG.N; i++) { const x = (i + .5) * FOG.C - FOG.O, z = (j + .5) * FOG.C - FOG.O; const d2 = x * x + z * z; if (d2 > 9750 * 9750 || (d2 > 6800 * 6800 && Math.sqrt(d2) > coastR(x, z) + 300)) fogCell(i, j); } }
 const fogI = v => Math.floor((v + FOG.O) / FOG.C);
 function fogSeen(x, z) { if (S.isl || S.dun) return true; if (!FOG.b) return false; const i = fogI(x), j = fogI(z); if (i < 0 || j < 0 || i >= FOG.N || j >= FOG.N) return true; return FOG.b[j * FOG.N + i] === 1; }
-function fogCell(i, j) { if (i < 0 || j < 0 || i >= FOG.N || j >= FOG.N) return false; const k = j * FOG.N + i; if (FOG.b[k]) return false; FOG.b[k] = 1; if (FOG.g) FOG.g.clearRect(i, j, 1, 1); return true; }
+function fogCell(i, j) { if (i < 0 || j < 0 || i >= FOG.N || j >= FOG.N) return false; const k = j * FOG.N + i; if (FOG.b[k]) return false; FOG.b[k] = 1; fogPaint(i, j); return true; }
+/* the mask: unexplored = solid, explored = a thin mist (owner 28 Nov: 周围也要是雾，但是比较透), the open sea = clear */
+function fogPaint(i, j) { const g = FOG.g; if (!g) return; g.clearRect(i, j, 1, 1); const x = (i + .5) * FOG.C - FOG.O, z = (j + .5) * FOG.C - FOG.O; const d2 = x * x + z * z; if (d2 > 9750 * 9750 || (d2 > 6800 * 6800 && Math.sqrt(d2) > coastR(x, z) + 300)) return; g.fillStyle = 'rgba(255,255,255,' + FOG_MIST + ')'; g.fillRect(i, j, 1, 1); }
+const FOG_MIST = .2;
 function fogReveal(x, z, r) { fogInit(); const i0 = fogI(x - r), i1 = fogI(x + r), j0 = fogI(z - r), j1 = fogI(z + r); let n = 0;
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const cx = (i + .5) * FOG.C - FOG.O, cz = (j + .5) * FOG.C - FOG.O; if ((cx - x) ** 2 + (cz - z) ** 2 <= r * r && fogCell(i, j)) n++; }
   return n; }
@@ -28497,22 +28501,37 @@ petsTick = (o => function (dt) { o(dt); try { FOG.t -= dt; if (FOG.t > 0 || !S.s
     if (fogReveal(player.pos.x, player.pos.z, 150) && $('bigmap').classList.contains('show')) mp2Dirty(); } catch (e) { } })(petsTick);
 teleUnlock = (o => function () { const r = o.apply(this, arguments); fogLandCheck(); return r; })(teleUnlock);
 /* drawn over the ground, roads and lairs, under the pins */
+/* cloud texture, painted once: soft overlapping puffs in greys, wrapped so it tiles */
+function fogCloudTex() { if (FOG.ct !== undefined) return FOG.ct; FOG.ct = null; try { const N = 256, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'); if (!g || !g.createRadialGradient) return null;
+    g.fillStyle = 'rgb(196,200,208)'; g.fillRect(0, 0, N, N); let sd = 7; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    for (let n = 0; n < 140; n++) { const x = rnd() * N, y = rnd() * N, r = 14 + rnd() * 46, v = 170 + rnd() * 75 | 0, a = .12 + rnd() * .22;
+      for (const ox of [-N, 0, N]) for (const oy of [-N, 0, N]) { const gr = g.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, r); gr.addColorStop(0, 'rgba(' + v + ',' + v + ',' + (v + 8) + ',' + a + ')'); gr.addColorStop(1, 'rgba(' + v + ',' + v + ',' + (v + 8) + ',0)'); g.fillStyle = gr; g.fillRect(x + ox - r, y + oy - r, r * 2, r * 2); } }
+    FOG.ct = c; } catch (e) { FOG.ct = null; } return FOG.ct; }
 function fogDraw(c, tx, tz, sc, W, k) { fogInit(); if (!FOG.cv) return; const x0 = (0 - tx(0)) / sc, z0 = (0 - tz(0)) / sc, span = W / sc;
-  const sx = (x0 + FOG.O) / FOG.C, sy = (z0 + FOG.O) / FOG.C, sw = span / FOG.C; c.save(); c.imageSmoothingEnabled = true; c.globalAlpha = .93;
-  c.drawImage(FOG.cv, sx, sy, sw, sw, 0, 0, W, W); c.restore();
-  // land names on the fog
-  c.save(); c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineWidth = 3 * k; c.strokeStyle = 'rgba(0,0,0,.7)'; const big = W > 300 * k;
-  for (let t = 1; t <= TIERS_N; t++) { const C = REGC[t]; if (fogSeen(C[0], C[1])) continue; const x = tx(C[0]), y = tz(C[1]); if (x < -80 * k || y < -40 * k || x > W + 80 * k || y > W + 40 * k) continue;
-    c.font = '900 ' + (big ? 17 : 10) * k + 'px sans-serif'; c.strokeText(biomeOf(t).n, x, y); c.fillStyle = 'rgba(232,220,206,.85)'; c.fillText(biomeOf(t).n, x, y);
-    if (big) { c.font = '700 ' + 10 * k + 'px sans-serif'; c.fillStyle = 'rgba(200,190,180,.7)'; c.fillText(T2('未探索', 'Unexplored'), x, y + 15 * k); } }
-  // the view's middle is in the fog and no land name is on screen: say which land it is
-  if (big) { const mx = x0 + span / 2, mz = z0 + span / 2; if (!fogSeen(mx, mz)) { const t = tierAt(mx, mz), C = REGC[t], cx = tx(C[0]), cy = tz(C[1]);
-      if (cx < 0 || cy < 0 || cx > W || cy > W) { c.font = '900 ' + 15 * k + 'px sans-serif'; c.strokeText(biomeOf(t).n + ' · ' + T2('未探索', 'Unexplored'), W / 2, W / 2 - 40 * k); c.fillStyle = 'rgba(232,220,206,.8)'; c.fillText(biomeOf(t).n + ' · ' + T2('未探索', 'Unexplored'), W / 2, W / 2 - 40 * k); } } }
+  const sx = (x0 + FOG.O) / FOG.C, sy = (z0 + FOG.O) / FOG.C, sw = span / FOG.C;
+  // one off-screen layer: the cloud texture (anchored to the world, so it does not slide while dragging), cut by the explored mask
+  try { if (!FOG.L || FOG.L.width !== W) { FOG.L = document.createElement('canvas'); FOG.L.width = FOG.L.height = W; FOG.LG = FOG.L.getContext('2d'); } } catch (e) { FOG.L = null; }
+  const L = FOG.L, g = FOG.LG, ct = fogCloudTex();
+  if (L && g && ct && g.createPattern) { g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, W, W);
+    const pat = g.createPattern(ct, 'repeat'), tile = 1500 * sc / 256;   /* one texture tile = 1.5 km of land */
+    try { if (pat.setTransform && typeof DOMMatrix !== 'undefined') pat.setTransform(new DOMMatrix().translateSelf(tx(0), tz(0)).scaleSelf(tile, tile)); } catch (e) { }
+    g.fillStyle = pat; g.fillRect(0, 0, W, W);
+    g.globalCompositeOperation = 'destination-in'; g.imageSmoothingEnabled = true; g.drawImage(FOG.cv, sx, sy, sw, sw, 0, 0, W, W); g.globalCompositeOperation = 'source-over';
+    c.save(); c.globalAlpha = .92; c.drawImage(L, 0, 0); c.restore(); }
+  else { c.save(); c.globalAlpha = .85; c.imageSmoothingEnabled = true; c.drawImage(FOG.cv, sx, sy, sw, sw, 0, 0, W, W); c.restore(); }
+  // land names on the fog, only when zoomed out (closer in they sat on top of the waystone names)
+  c.save(); c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineWidth = 3 * k; c.strokeStyle = 'rgba(255,255,255,.75)'; const big = W > 300 * k, far = span > 3200;
+  if (far) for (let t = 1; t <= TIERS_N; t++) { const C = REGC[t]; if (fogSeen(C[0], C[1])) continue; const x = tx(C[0]), y = tz(C[1]) - 24 * k; if (x < -80 * k || y < -40 * k || x > W + 80 * k || y > W + 40 * k) continue;
+    c.font = '900 ' + (big ? 15 : 9) * k + 'px sans-serif'; c.strokeText(biomeOf(t).n, x, y); c.fillStyle = 'rgba(60,56,70,.9)'; c.fillText(biomeOf(t).n, x, y);
+    if (big) { c.font = '700 ' + 9 * k + 'px sans-serif'; c.fillStyle = 'rgba(80,76,90,.8)'; c.fillText(T2('未探索', 'Unexplored'), x, y + 14 * k); } }
+  // zoomed in, in the fog: one line saying which land this is
+  if (big && !far) { const mx = x0 + span / 2, mz = z0 + span / 2; if (!fogSeen(mx, mz)) { const t = tierAt(mx, mz), s2 = biomeOf(t).n + ' · ' + T2('未探索', 'Unexplored');
+      c.font = '900 ' + 14 * k + 'px sans-serif'; c.strokeText(s2, W / 2, W / 2 - 60 * k); c.fillStyle = 'rgba(60,56,70,.9)'; c.fillText(s2, W / 2, W / 2 - 60 * k); } }
   c.restore(); }
 /* save: run lengths of 0 / 1 bytes, base 36 */
 function fogPack() { if (!FOG.b) return ''; const out = []; let cur = 0, n = 0; for (let k = 0; k < FOG.b.length; k++) { if (FOG.b[k] === cur) n++; else { out.push(n.toString(36)); cur = FOG.b[k]; n = 1; } } out.push(n.toString(36)); return out.join(','); }
 function fogUnpack(s) { fogInit(); if (typeof s !== 'string' || !s) return false; const a = s.split(','); let k = 0, cur = 0;
-  for (const r of a) { const n = parseInt(r, 36) || 0; if (cur) for (let q = 0; q < n && k + q < FOG.b.length; q++) { const kk = k + q; FOG.b[kk] = 1; if (FOG.g) FOG.g.clearRect(kk % FOG.N, Math.floor(kk / FOG.N), 1, 1); } k += n; cur = 1 - cur; }
+  for (const r of a) { const n = parseInt(r, 36) || 0; if (cur) for (let q = 0; q < n && k + q < FOG.b.length; q++) { const kk = k + q; FOG.b[kk] = 1; fogPaint(kk % FOG.N, Math.floor(kk / FOG.N)); } k += n; cur = 1 - cur; }
   return true; }
 shopSave = (o => function () { const r = o.apply(this, arguments); try { r.fog = fogPack(); } catch (e) { } return r; })(shopSave);
 shopLoad = (o => function (d) { o.apply(this, arguments);
@@ -28529,7 +28548,7 @@ teleAll = (o => function () { const A = o.apply(this, arguments); if (!A.some(T 
 
 /* ---- the world map (from the pier boat, or the 传送 pill): the mainland, even from the island ---- */
 function openWorldMap() { if (!S.started || S.dead) return; try { if (S.paused) { document.querySelectorAll('.overlay.show').forEach(e => { if (e.id !== 'bigmap') e.classList.remove('show'); }); S.paused = false; } } catch (e) { }
-  MP2.world = true; if (S.isl) { MP2.follow = false; const T = teleAll().find(q => q.id === 'tp_1'); MAPV.cx = T.x; MAPV.cz = T.z; MP2.r = Math.max(MP2.r, 1600); }
+  MP2.world = true; if (S.isl) { MP2.follow = false; const T = teleAll().find(q => q.id === 'tp_1'); MAPV.cx = T.x; MAPV.cz = T.z; MP2.wr = 2600; MP2.wc = [T.x, T.z]; }
   openMap(); setTimeout(() => { try { mp2Dirty(); wmBtn(); } catch (e) { } }, 30); }
 mp2Draw = (o => function () { const fake = MP2.world && S.isl; if (fake) { S.isl = false; MP2.follow = false; }
   try { return o.apply(this, arguments); } finally { if (fake) { S.isl = true; const rg = $('m2reg'); if (rg) rg.innerHTML = T2('海岛 · 码头', 'Island · Pier') + '<small style="color:#9fd88a">' + T2('点亮着的传送石碑出发', 'tap a lit waystone') + '</small>'; } } })(mp2Draw);
@@ -30231,6 +30250,7 @@ function drawMap(ctx, W, range, big, k) {
     if (big) { c.font = '700 ' + 12 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#ffd8b0'; c.fillText('码头', tx(PAD.x), tz(PAD.z) - 4 * sc - 7 * k); if (!FREE) { c.fillStyle = 'rgba(255,230,210,.6)'; c.fillText('海岛 · 没有感染', W / 2, 22 * k); } }
   } else {
     // regions in their biome colours
+    c.fillStyle = MAPW.c; c.fillRect(0, 0, W, W);   /* tiles not worked out yet show as sea, never black (owner 28 Nov: a black patch followed the drag) */
     mapTiles(c, tx, tz, sc, px, pz, half, big ? 150 : 60);
     /* rivers + lakes as shapes ONLY when zoomed out (a terrain cell is wider than a river). Zoomed in, the terrain layer
        already shows the real water and its banks — a line on top looked painted on (owner 22 Nov). One path per river,
@@ -30669,4 +30689,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795858735').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795859386').catch(()=>{});</script></body></html>
