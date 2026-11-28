@@ -6775,20 +6775,12 @@ function recCP(t) {
   return Math.round(cp * .9 / 10) * 10;
 }
 function renderPort() {
-  const box = $('portList'); box.innerHTML = ''; const cp = combatPower();
-  if (S.gx != null) {
-    const t = tierAt(S.gx, S.gz), b = tierBand(t), row = shopRow('回到上次离开的地方', regionLabel(t) + ' · Lv.' + b[0] + '-' + b[1], '#7de0ff');
-    const go = document.createElement('button'); go.className = 'sbtn'; go.textContent = '前往'; go.addEventListener('click', () => { closePanel('port'); voyage('驶向上次离开的地方', () => goGround(S.gx, S.gz)); }); row.appendChild(go); box.appendChild(row);
-  }
-  for (let t = 1; t <= TIERS_N; t++) {
-    const b = tierBand(t), rc = recCP(t), ok = cp >= rc * .8;
-    const B = biomeOf(t), row = shopRow(regionLabel(t) + ' · Lv.' + b[0] + '-' + b[1], '丧尸特性：' + B.bn + (B.buff ? '（' + B.bd + '）' : '') + ' · 建议战力 ' + rc + (ok ? '' : ' · 你的战力偏低'), ok ? '#ffc46b' : '#ff9b8a');
-    const go = document.createElement('button'); go.className = 'sbtn' + (ok ? '' : ' ghostb'); go.textContent = '开船';
-    go.addEventListener('click', () => { const p = findRegion(t, S.gx != null ? S.gx : 0, S.gz != null ? S.gz : 0); closePanel('port'); voyage('驶向 ' + regionLabel(t), () => goGround(p.x, p.z)); });
-    row.appendChild(go); box.appendChild(row);
-  }
+  /* owner 28 Nov (item 3): the region list is gone — the mainland is reached through the map and its lit waystones */
+  const box = $('portList'); box.innerHTML = '';
+  const row = shopRow('大陆地图 · 传送石碑', '打开地图，点亮着的石碑就能传送过去（第一次只有灰港码头）', '#7de0ff');
+  const go = document.createElement('button'); go.className = 'sbtn'; go.textContent = '打开'; go.addEventListener('click', () => { closePanel('port'); openWorldMap(); }); row.appendChild(go); box.appendChild(row);
 }
-$('bPort').addEventListener('click', () => { if (!padNear()) return; audioInit(); openPanel('port', renderPort); });
+$('bPort').addEventListener('click', () => { if (!padNear()) return; audioInit(); openWorldMap(); });
 $('portClose').addEventListener('click', () => closePanel('port'));
 let _portShown = false;
 function portTick() { const s = padNear(); if (s !== _portShown) { _portShown = s; $('bPort').style.display = s ? 'block' : 'none'; } }
@@ -26558,7 +26550,7 @@ petsTick = (o => function (dt) { o(dt); try { lowHpTick(dt); } catch (e) { } })(
    - 点一下地图空白处放标记（最多 6 个），点已有的标记就删掉（和以前一样）。
    做法：drawMap 在 MAPV.on 时以 MAPV.cx/cz 为中心画（d_main.js），画在一张正方形的离屏画布上，再裁成屏幕大小。 */
 const MP2 = { c: null, x: null, off: null, ox: null, r: 240, follow: true, ptr: new Map(), pinch: null, drag: null, tap: null, dirty: false, tm: 0, sq: 0, k: 1, w: 0, h: 0, pending: null };
-const MP2_LIM = () => S.dun ? [20, 320] : S.isl ? [40, 520] : [60, 19000];   /* zoom right out to see the whole continent */
+const MP2_LIM = () => S.dun ? [20, 320] : S.isl && !MP2.world ? [40, 520] : [60, 19000];   /* zoom right out to see the whole continent */
 const mp2Clamp = r => { const L = MP2_LIM(); return Math.max(L[0], Math.min(L[1], r)); };
 const MP2_IC = {
   plus: '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>',
@@ -26950,10 +26942,10 @@ petsTick = (o => function (dt) { o(dt); try { lmTick(dt); } catch (e) { } })(pet
 drawExtraRadar = (o => function (tx, tz, edgeMark) { o(tx, tz, edgeMark);
   try { if (S.isl || S.dun) return; const c = mctx, W = c.canvas.width, k = _mapK || 2, sc = tx(1) - tx(0); if (!(sc > 0)) return;
     const cx = (W / 2 - tx(0)) / sc, cz = (W / 2 - tz(0)) / sc, half = W / 2 / sc, big = W > 300 * k;
-    for (const L of lmFixed()) { const x = tx(L.x), y = tz(L.z); if (x < -40 || y < -40 || x > W + 40 || y > W + 40) continue;   /* the named places: always on the map */
+    for (const L of lmFixed()) { if (typeof fogSeen === 'function' && !fogSeen(L.x, L.z)) continue; const x = tx(L.x), y = tz(L.z); if (x < -40 || y < -40 || x > W + 40 || y > W + 40) continue;   /* the named places: always on the map */
       mapPin(c, x, y, (big ? 8 : 5.5) * k, '#ffd27a', LM_GLYPH[L.type], k); if (big && half <= 3000) { c.font = '800 ' + 11 * k + 'px sans-serif'; c.textAlign = 'center'; c.lineWidth = 3 * k; c.strokeStyle = 'rgba(10,6,12,.85)'; c.strokeText(L.name, x, y - 13 * k); c.fillStyle = '#ffe9b8'; c.fillText(L.name, x, y - 13 * k); } }
     if (big && half > 900) return;   /* zoomed far out: no other landmark pins (the map got far too busy) */
-    for (const L of lmsIn(cx - half, cz - half, cx + half, cz + half)) { if (L.fixed) continue; const x = tx(L.x), y = tz(L.z), seen = !!S.lmSeen[L.id];
+    for (const L of lmsIn(cx - half, cz - half, cx + half, cz + half)) { if (L.fixed || (typeof fogSeen === 'function' && !fogSeen(L.x, L.z))) continue; const x = tx(L.x), y = tz(L.z), seen = !!S.lmSeen[L.id];
       mapPin(c, x, y, (big ? 7 : 5) * k, '#9fe37a', LM_GLYPH[L.type], k);   /* owner 22 Nov: no question marks */
       if (big && seen && half < 700) { c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#e6ffd8'; c.fillText(lmName(L), x, y - 11 * k); } } } catch (e) { } })(drawExtraRadar);
 shopSave = (o => function () { const r = o.apply(this, arguments); try { const ks = Object.keys(S.lmSeen); r.lms = ks.slice(-800); } catch (e) { } return r; })(shopSave);
@@ -26997,7 +26989,7 @@ drawExtraRadar = (o => function (tx, tz, edgeMark) { o(tx, tz, edgeMark);
     const txt = (s, x, y, size, col, w) => { c.font = (w || 800) + ' ' + size * k + 'px sans-serif'; c.strokeText(s, x, y); c.fillStyle = col; c.fillText(s, x, y); };
     if (vr > 1800) { for (let t = 1; t <= TIERS_N; t++) { const C = REGC[t], x = tx(C[0]), y = tz(C[1]), b = tierBand(t); if (x < -60 * k || y < -40 * k || x > W + 60 * k || y > W + 40 * k) continue;
         txt(biomeOf(t).n, x, y - 7 * k, vr > 8000 ? 15 : 18, '#fff2e4', 900); txt('Lv.' + b[0] + '-' + b[1], x, y + 11 * k, 10.5, 'hsl(' + (120 - (t - 1) * 13) + ',85%,72%)', 700); } }
-    else for (const P of plAll()) { const x = tx(P.x), y = tz(P.z); if (x < -60 * k || y < -30 * k || x > W + 60 * k || y > W + 30 * k) continue;
+    else for (const P of plAll()) { if (typeof fogSeen === 'function' && !fogSeen(P.x, P.z)) continue; const x = tx(P.x), y = tz(P.z); if (x < -60 * k || y < -30 * k || x > W + 60 * k || y > W + 30 * k) continue;
       txt(P.n, x, y, P.cap ? 15 : 12.5, P.cap ? '#fff2e4' : '#e8d8c8', P.cap ? 900 : 700); if (P.cap) txt(biomeOf(P.t).n + ' · Lv.' + tierBand(P.t)[0] + '-' + tierBand(P.t)[1], x, y + 15 * k, 10, 'hsl(' + (120 - (P.t - 1) * 13) + ',85%,72%)', 700); }
     c.textBaseline = 'alphabetic'; } catch (e) { } })(drawExtraRadar);
 /* ============ 人物模型 2.0（owner 22 Nov：村民要各有特色，一眼看清男女、大人小孩老人）============
@@ -27554,7 +27546,7 @@ try { if (typeof KE_LIST !== 'undefined' && !KE_LIST.includes('bTele')) KE_LIST.
 setTimeout(function telePill() { try { const p = document.querySelector('.m2pills'); if (!p) { setTimeout(telePill, 1000); return; } if ($('m2tele')) return;
   const b = document.createElement('button'); b.className = 'm2p'; b.id = 'm2tele'; b.textContent = T2('传送', 'Travel'); b.addEventListener('click', e => { e.stopPropagation(); teleOpen(); }); p.insertBefore(b, p.firstChild); } catch (e) { } }, 800);
 drawExtraRadar = (o => function (tx, tz, edgeMark) { o(tx, tz, edgeMark); try { if (S.isl || S.dun) return; const c = mctx, k = _mapK || 2, W = c.canvas.width, vr = MAPV.on ? MAPV.vr : 0, sc = tx(1) - tx(0);
-  for (const T of teleAll()) { if (T.lm && MAPV.on && vr > 2500) continue; const x = tx(T.x), y = tz(T.z); if (x < -20 || y < -20 || x > W + 20 || y > W + 20) continue; const on = teleOn(T), r = (on ? 5 : 4) * k;
+  for (const T of teleAll()) { if ((T.lm && MAPV.on && vr > 2500 && !teleOn(T)) || (!teleOn(T) && typeof fogSeen === 'function' && !fogSeen(T.x, T.z))) continue; const x = tx(T.x), y = tz(T.z); if (x < -20 || y < -20 || x > W + 20 || y > W + 20) continue; const on = teleOn(T), r = (on ? 5 : 4) * k;
     c.fillStyle = 'rgba(0,0,0,.55)'; c.beginPath(); c.moveTo(x, y - r * 1.5 - k); c.lineTo(x + r + k, y); c.lineTo(x, y + r * 1.5 + k); c.lineTo(x - r - k, y); c.closePath(); c.fill();
     c.fillStyle = on ? '#7ff0ff' : '#8a8a96'; c.beginPath(); c.moveTo(x, y - r * 1.5); c.lineTo(x + r, y); c.lineTo(x, y + r * 1.5); c.lineTo(x - r, y); c.closePath(); c.fill();
     if (MAPV.on && vr <= 4000 && T.lm) { c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = on ? '#bff6ff' : '#c8c8d0'; c.fillText(T.n, x, y - r * 1.5 - 5 * k); } } } catch (e) { } })(drawExtraRadar);
@@ -28419,7 +28411,7 @@ qmTarget = (o => function () { const T = o.apply(this, arguments); let st = null
   return best ? { x: best.x, z: best.z, n: T2('首领 · ', 'Boss · ') + locPath(best.x, best.z, true), lair: best } : T; })(qmTarget);
 
 /* ---- story text: the land's new name ---- */
-try { const fix = s => typeof s === 'string' ? s.replace(/荒废郊区/g, '灰港').replace(/Ruined Suburbs/g, 'Greyport') : s;
+try { const fix = s => typeof s === 'string' ? s.replace(/上船，选「荒废郊区」/g, '上船，在地图上点「灰港码头」石碑').replace(/荒废郊区/g, '灰港').replace(/Ruined Suburbs/g, 'Greyport') : s;
   const walk = o => { if (!o || typeof o !== 'object') return; for (const k in o) { const v = o[k]; if (typeof v === 'string') o[k] = fix(v); else if (v && typeof v === 'object') walk(v); } };
   if (typeof STORY !== 'undefined') walk(STORY); if (typeof C1 !== 'undefined') walk(C1); } catch (e) { }
 
@@ -28437,6 +28429,94 @@ zSpecialTick = (o => function (dt) { o(dt); try { const g = garwMake(), T = (typ
     const d = T ? Math.hypot(T.x - player.pos.x, T.z - player.pos.z) : 0; g.visible = !off && d > 6; if (!g.visible) return;
     const y = (pm && pm.g ? pm.g.position.y : 0) + .06; g.position.set(player.pos.x, y, player.pos.z);
     GARW.a.rotation.y = Math.atan2(-(T.x - player.pos.x), -(T.z - player.pos.z)); const p = 1 + Math.sin(performance.now() / 260) * .06; GARW.a.scale.set(p, p, p); } catch (e) { } })(zSpecialTick);
+/* ============ 地图迷雾 + 码头石碑 + 地图传送 (owner 28 Nov, item 3) ============
+   Answers: every land is fogged on the map whatever your level; the fog clears where you walk (about 150 m round you); once
+   every waystone of a land is lit, that whole land clears; the pier boat opens the big map (the region list is gone) and a
+   lit waystone on the map asks 「传送到 X？」.
+   - `FOG.b` = one byte per 40 m cell over ±10 km (500×500), saved run-length coded as r.fog; `FOG.cv` = a 500×500 canvas
+     whose pixels are the fog (cleared where explored), drawn over the map ground / roads / lairs and under the pins
+     (fogDraw is called from drawMap before drawExtraRadar). Land names are written on the fog.
+   - Place names, landmark pins and unlit waystones only show where you have explored (`fogSeen`).
+   - 「灰港码头」 = a waystone that is always lit, next to land 1's capital: the first and only place the boat can take a
+     new player.
+   - openWorldMap(): the big map showing the mainland even from the island (MP2.world; the island branch of drawMap is
+     skipped while it draws), with a 「活动 · 副本」 button for the old pier menu (dungeons, PvP, events). */
+const FOG = { N: 500, C: 40, O: 10000, b: null, cv: null, g: null, t: 0, land: {} };
+function fogInit() { if (FOG.b) return; FOG.b = new Uint8Array(FOG.N * FOG.N);
+  try { const c = document.createElement('canvas'); c.width = c.height = FOG.N; const g = c.getContext('2d'); if (g && g.fillRect) { g.fillStyle = 'rgb(22,20,28)'; g.fillRect(0, 0, FOG.N, FOG.N); FOG.cv = c; FOG.g = g; } } catch (e) { }
+  /* the open sea round the continent is never fogged */
+  for (let j = 0; j < FOG.N; j++) for (let i = 0; i < FOG.N; i++) { const x = (i + .5) * FOG.C - FOG.O, z = (j + .5) * FOG.C - FOG.O; if (x * x + z * z > 9750 * 9750) fogCell(i, j); } }
+const fogI = v => Math.floor((v + FOG.O) / FOG.C);
+function fogSeen(x, z) { if (S.isl || S.dun) return true; if (!FOG.b) return false; const i = fogI(x), j = fogI(z); if (i < 0 || j < 0 || i >= FOG.N || j >= FOG.N) return true; return FOG.b[j * FOG.N + i] === 1; }
+function fogCell(i, j) { if (i < 0 || j < 0 || i >= FOG.N || j >= FOG.N) return false; const k = j * FOG.N + i; if (FOG.b[k]) return false; FOG.b[k] = 1; if (FOG.g) FOG.g.clearRect(i, j, 1, 1); return true; }
+function fogReveal(x, z, r) { fogInit(); const i0 = fogI(x - r), i1 = fogI(x + r), j0 = fogI(z - r), j1 = fogI(z + r); let n = 0;
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const cx = (i + .5) * FOG.C - FOG.O, cz = (j + .5) * FOG.C - FOG.O; if ((cx - x) ** 2 + (cz - z) ** 2 <= r * r && fogCell(i, j)) n++; }
+  return n; }
+// a whole land, worked through a few rows at a time
+function fogRevealLand(t) { if (FOG.land[t]) return; FOG.land[t] = 1; fogInit(); let j = 0;
+  const step = () => { const end = Date.now() + 8; for (; j < FOG.N && Date.now() < end; j++) for (let i = 0; i < FOG.N; i++) { if (FOG.b[j * FOG.N + i]) continue; const x = (i + .5) * FOG.C - FOG.O, z = (j + .5) * FOG.C - FOG.O; if (x * x + z * z > 1e8) continue; try { if (tierAt(x, z) === t) fogCell(i, j); } catch (e) { } }
+    if (j < FOG.N) setTimeout(step, 30); else { try { mp2Dirty(); } catch (e) { } } };
+  step(); }
+// all the waystones of a land lit → the whole land clears
+function fogLandCheck() { try { const by = {}; for (const T of teleAll()) { by[T.t] = by[T.t] || [0, 0]; by[T.t][0]++; if (teleOn(T)) by[T.t][1]++; }
+    for (const t in by) if (by[t][0] && by[t][0] === by[t][1] && !FOG.land[t]) { fogRevealLand(+t); banner(T2('地图已全部点亮', 'Map revealed'), biomeOf(+t).n + T2(' 的传送石碑全部点亮了', ': every waystone lit'), 3); } } catch (e) { } }
+petsTick = (o => function (dt) { o(dt); try { FOG.t -= dt; if (FOG.t > 0 || !S.started) return; FOG.t = .4; S.tele = S.tele || {}; S.tele.tp_1 = 1; if (S.isl || S.dun) return;
+    if (fogReveal(player.pos.x, player.pos.z, 150) && $('bigmap').classList.contains('show')) mp2Dirty(); } catch (e) { } })(petsTick);
+teleUnlock = (o => function () { const r = o.apply(this, arguments); fogLandCheck(); return r; })(teleUnlock);
+/* drawn over the ground, roads and lairs, under the pins */
+function fogDraw(c, tx, tz, sc, W, k) { fogInit(); if (!FOG.cv) return; const x0 = (0 - tx(0)) / sc, z0 = (0 - tz(0)) / sc, span = W / sc;
+  const sx = (x0 + FOG.O) / FOG.C, sy = (z0 + FOG.O) / FOG.C, sw = span / FOG.C; c.save(); c.imageSmoothingEnabled = true; c.globalAlpha = .93;
+  c.drawImage(FOG.cv, sx, sy, sw, sw, 0, 0, W, W); c.restore();
+  // land names on the fog
+  c.save(); c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineWidth = 3 * k; c.strokeStyle = 'rgba(0,0,0,.7)'; const big = W > 300 * k;
+  for (let t = 1; t <= TIERS_N; t++) { const C = REGC[t]; if (fogSeen(C[0], C[1])) continue; const x = tx(C[0]), y = tz(C[1]); if (x < -80 * k || y < -40 * k || x > W + 80 * k || y > W + 40 * k) continue;
+    c.font = '900 ' + (big ? 17 : 10) * k + 'px sans-serif'; c.strokeText(biomeOf(t).n, x, y); c.fillStyle = 'rgba(232,220,206,.85)'; c.fillText(biomeOf(t).n, x, y);
+    if (big) { c.font = '700 ' + 10 * k + 'px sans-serif'; c.fillStyle = 'rgba(200,190,180,.7)'; c.fillText(T2('未探索', 'Unexplored'), x, y + 15 * k); } }
+  // the view's middle is in the fog and no land name is on screen: say which land it is
+  if (big) { const mx = x0 + span / 2, mz = z0 + span / 2; if (!fogSeen(mx, mz)) { const t = tierAt(mx, mz), C = REGC[t], cx = tx(C[0]), cy = tz(C[1]);
+      if (cx < 0 || cy < 0 || cx > W || cy > W) { c.font = '900 ' + 15 * k + 'px sans-serif'; c.strokeText(biomeOf(t).n + ' · ' + T2('未探索', 'Unexplored'), W / 2, W / 2 - 40 * k); c.fillStyle = 'rgba(232,220,206,.8)'; c.fillText(biomeOf(t).n + ' · ' + T2('未探索', 'Unexplored'), W / 2, W / 2 - 40 * k); } } }
+  c.restore(); }
+/* save: run lengths of 0 / 1 bytes, base 36 */
+function fogPack() { if (!FOG.b) return ''; const out = []; let cur = 0, n = 0; for (let k = 0; k < FOG.b.length; k++) { if (FOG.b[k] === cur) n++; else { out.push(n.toString(36)); cur = FOG.b[k]; n = 1; } } out.push(n.toString(36)); return out.join(','); }
+function fogUnpack(s) { fogInit(); if (typeof s !== 'string' || !s) return false; const a = s.split(','); let k = 0, cur = 0;
+  for (const r of a) { const n = parseInt(r, 36) || 0; if (cur) for (let q = 0; q < n && k + q < FOG.b.length; q++) { const kk = k + q; FOG.b[kk] = 1; if (FOG.g) FOG.g.clearRect(kk % FOG.N, Math.floor(kk / FOG.N), 1, 1); } k += n; cur = 1 - cur; }
+  return true; }
+shopSave = (o => function () { const r = o.apply(this, arguments); try { r.fog = fogPack(); } catch (e) { } return r; })(shopSave);
+shopLoad = (o => function (d) { o.apply(this, arguments);
+  try { FOG.b = null; FOG.land = {}; fogInit(); const had = fogUnpack(d && d.sh && d.sh.fog);
+    /* an older save: the places you were last and every waystone you lit are known already */
+    if (!had) { if (S.gx != null) fogReveal(S.gx, S.gz, 250); for (const T of teleAll()) if (teleOn(T)) fogReveal(T.x, T.z, 220); }
+    S.tele = S.tele || {}; S.tele.tp_1 = 1; setTimeout(fogLandCheck, 3000); } catch (e) { } })(shopLoad);
+
+/* ---- 灰港码头: the waystone the boat brings you to, always lit ---- */
+teleAll = (o => function () { const A = o.apply(this, arguments); if (!A.some(T => T.id === 'tp_1')) {
+    const C = REGC[1]; let x = C[0] + 14, z = C[1] + 10; for (let q = 0; q < 40 && waterAt(x, z) > -.6; q++) { x += Math.cos(q * 2.4) * (6 + q * 4); z += Math.sin(q * 2.4) * (6 + q * 4); }
+    A.unshift({ id: 'tp_1', n: '灰港码头', t: 1, x, z, lm: 'pier' }); }
+  return A; })(teleAll);
+
+/* ---- the world map (from the pier boat, or the 传送 pill): the mainland, even from the island ---- */
+function openWorldMap() { if (!S.started || S.dead) return; try { if (S.paused) { document.querySelectorAll('.overlay.show').forEach(e => { if (e.id !== 'bigmap') e.classList.remove('show'); }); S.paused = false; } } catch (e) { }
+  MP2.world = true; if (S.isl) { MP2.follow = false; const T = teleAll().find(q => q.id === 'tp_1'); MAPV.cx = T.x; MAPV.cz = T.z; MP2.r = Math.max(MP2.r, 1600); }
+  openMap(); setTimeout(() => { try { mp2Dirty(); wmBtn(); } catch (e) { } }, 30); }
+mp2Draw = (o => function () { const fake = MP2.world && S.isl; if (fake) { S.isl = false; MP2.follow = false; }
+  try { return o.apply(this, arguments); } finally { if (fake) { S.isl = true; const rg = $('m2reg'); if (rg) rg.innerHTML = T2('海岛 · 码头', 'Island · Pier') + '<small style="color:#9fd88a">' + T2('点亮着的传送石碑出发', 'tap a lit waystone') + '</small>'; } } })(mp2Draw);
+// leaving the map ends the world view
+setInterval(() => { try { const open = $('bigmap').classList.contains('show'); if (MP2.world && !open) { MP2.world = false; MP2.follow = true; } if (!MP2.world || !open) { const b = $('wmPort'); if (b) b.remove(); } } catch (e) { } }, 400);
+function wmBtn() { if ($('wmPort') || !MP2.world || !S.isl) return; const p = document.querySelector('.m2pills'); if (!p) return;
+  const b = document.createElement('button'); b.id = 'wmPort'; b.className = p.firstElementChild ? p.firstElementChild.className : 'm2pill'; b.textContent = T2('副本', 'Dungeons');
+  b.addEventListener('click', e => { e.stopPropagation(); closePanel('bigmap'); MP2.world = false; portTab = 'dun'; openPanel('port', renderPort); }); p.appendChild(b); }
+// a tap on a lit waystone: ask before travelling
+mp2Mark = (o => function (sx, sy) { try { if (!S.dun && (MP2.world || !S.isl)) { const w = mp2World(sx, sy), hit = mp2Mpp() * 22; let best = null, bd = hit;
+      for (const T of teleAll()) { if (!teleOn(T)) continue; const d = Math.hypot(T.x - w.x, T.z - w.z); if (d < bd) { bd = d; best = T; } }
+      if (best) { teleAsk(best); return; } } } catch (e) { } return o.apply(this, arguments); })(mp2Mark);
+function teleAsk(T) { const old = $('tlAsk'); if (old) old.remove(); const m = document.createElement('div'); m.id = 'tlAsk';
+  m.innerHTML = '<div class="tlab"><b>' + T2('传送到 ', 'Travel to ') + T.n + '？</b><small>' + locPath(T.x, T.z) + '</small><div class="tlbt"><button class="sbtn">' + T2('取消', 'Cancel') + '</button><button class="sbtn go2">' + T2('传送', 'Travel') + '</button></div></div>';
+  const [no, yes] = m.querySelectorAll('button'); no.addEventListener('click', e => { e.stopPropagation(); m.remove(); }); m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+  yes.addEventListener('click', e => { e.stopPropagation(); m.remove(); MP2.world = false; teleGo(T); }); document.body.appendChild(m); }
+try { const st = document.createElement('style'); st.textContent = '#tlAsk{position:fixed;inset:0;z-index:2147482000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45)}' +
+  '#tlAsk .tlab{background:#1c1420;border:1px solid rgba(127,240,255,.45);border-radius:14px;padding:16px 18px;min-width:240px;max-width:86vw;text-align:center;color:#f2e6d0;box-shadow:0 10px 30px rgba(0,0,0,.5)}' +
+  '#tlAsk b{display:block;font-size:17px;color:#bff6ff}#tlAsk small{display:block;margin:6px 0 12px;opacity:.75;font-size:12px}#tlAsk .tlbt{display:flex;gap:10px;justify-content:center}#tlAsk .go2{background:#2a7a8a;color:#fff}';
+  document.head.appendChild(st); } catch (e) { }
 /* ============ 九霄 boxes + the star-fall draw animation (owner 23 Nov) ============
    Two new pools in 商城 · 补给抽奖, each a BOX of 10 prizes: 3 普通, 3 稀有, 2 史诗, 1 传说, 1 神话.
    Every draw takes one prize out of the box (it gets a tick and can't come again); the price climbs with each draw
@@ -30114,6 +30194,7 @@ function drawMap(ctx, W, range, big, k) {
   // island defence: every raider is a red dot, and an arrow on the rim points at the ones off the map
   if (typeof ID !== 'undefined' && ID.on) for (const z of ID.zs) { if (z.dead) continue; const zx = tx(z.pos.x), zz = tz(z.pos.z), r = (z.boss ? 3.4 : 2.4) * k;
     c.fillStyle = 'rgba(0,0,0,.6)'; c.beginPath(); c.arc(zx, zz, r + k, 0, 7); c.fill(); c.fillStyle = (S.t * 4 | 0) % 2 ? '#ff2a2a' : '#ff6a4a'; c.beginPath(); c.arc(zx, zz, r, 0, 7); c.fill(); edgeMark(z, '#ff3a3a'); }
+  if (!S.isl && !S.dun && typeof fogDraw === 'function') try { fogDraw(c, tx, tz, sc, W, k); } catch (e) { }
   drawExtraRadar(tx, tz, edgeMark); evRadar(c, tx, tz, k, edgeMark);
   // player: view cone + arrow
   c.save(); c.translate(tx(player.pos.x), tz(player.pos.z)); c.rotate(-player.face + Math.PI);
@@ -30492,4 +30573,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795855598').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795856372').catch(()=>{});</script></body></html>
