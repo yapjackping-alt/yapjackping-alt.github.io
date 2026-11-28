@@ -8880,7 +8880,7 @@ function storySave() { return [S.story.c, S.story.s, S.story.p, S.story.seen]; }
 function storyLoad(a) { const n = v => Number.isFinite(+v) ? Math.floor(+v) : 0; S.story = { c: 0, s: 0, p: 0, seen: -1 }; if (Array.isArray(a)) S.story = { c: Math.max(0, Math.min(STORY.length, n(a[0]))), s: Math.max(0, n(a[1])), p: Math.max(0, n(a[2])), seen: a[3] == null ? -1 : n(a[3]) };
   if (!stDone() && S.story.s >= stCh().steps.length) S.story.s = 0; setTimeout(stTrk, 0); }
 // after the prologue Old Chen teaches first person: a 视角 button appears beside the backpack (island only)
-function fpTeach() { S.fpNew = 1; storyTalk([['老陈', T2('还有一招：在海岛上可以换成「第一人称」，用自己的眼睛看世界。点右上角背包旁边的「视角」按钮就能切换，再点一下换回俯视。', 'One more trick: on the island you can switch to first person. Tap the View button next to the backpack (top right) to switch; tap again to go back.')],
+function fpTeach() { S.fpNew = 1; storyTalk([['老陈', T2('还有一招：在海岛上可以换成「第一人称」，用自己的眼睛看世界。打开「设置」里的「海岛视角」就能切换，再切回去就是俯视。', 'One more trick: on the island you can switch to first person. Switch it under View in Settings.')],
   ['老陈', T2('第一人称下：右半边屏幕滑动转头，准星靠近丧尸会自动吸附，按「射击」开火。守岛的时候试试。', 'In first person: swipe the right half of the screen to look around. The crosshair sticks to nearby zombies; tap Fire to shoot.')]]); try { saveGame(); } catch (e) { } }
 stAdvance = (orig => function () { const c0 = S.story.c; orig(); if (c0 === 0 && S.story.c >= 1) try { fpTeach(); } catch (e) { } })(stAdvance);
 setInterval(() => { try {
@@ -21876,7 +21876,6 @@ const KEYB = [   // [key code, cap shown, button id (or a list: the first one sh
   ['KeyN', 'N', 'bHub', T2('活动', 'Events')],
   ['KeyP', 'P', 'bMall', T2('商城', 'Shop')],
   ['KeyL', 'L', 'storyTrk', T2('任务书（主线 / 委托 / 区域挑战）', 'Task book')],
-  ['KeyY', 'Y', 'bView', T2('第一人称 / 俯视（海岛上）', 'First person / top-down (island)')],
   ['KeyO', 'O', 'bPet', T2('狗狗', 'Dogs')],
   ['KeyT', 'T', 'bComp', T2('同伴', 'Companions')],
   ['KeyE', 'E', KE_LIST, T2('互动：走到东西旁边才有（码头、储物柜、工作台、锅炉、商人、副本机关……），屏幕下方会提示 E 现在做什么', 'Interact: only next to something (pier, storage, workbench, stove, trader, dungeon switch …); the hint at the bottom says what E does now')]
@@ -25378,6 +25377,13 @@ x9Desc('jian9k', 'pick', '剑山变成一柄柄巨大的石剑从地下破土刺
    - over water the old hover (WFLY, z_fash2.js) is unchanged and also counts as flying for the bonus. */
 const WRUN = { on: false, k: 0, bt: 0, posed: false };
 const WRUN_LIFT = 1.2;   /* owner 28 Nov: about 1.2 m */
+/* owner 28 Nov: 「屋顶也属于墙壁，在屋子里面要低一点」 — under a roof / upper floor fly low, in dungeons a little lower;
+   WRUN.L is the height actually used (glides between them) */
+WRUN.L = WRUN_LIFT; WRUN.rt = 0; WRUN.rf = false;
+function wrunUnderRoof() { const x = player.pos.x, z = player.pos.z;
+  try { return builds.some(b => { const T = BT[b.type]; return T && T.k === 'upper' && b.hp > 0 && Math.abs(x - b.x) < (T.hw || 1.5) + .3 && Math.abs(z - b.z) < (T.hd || 1.5) + .3; }); } catch (e) { return false; } }
+function wrunLiftTick(dt) { WRUN.rt -= dt; if (WRUN.rt <= 0) { WRUN.rt = .25; WRUN.rf = S.isl && wrunUnderRoof(); }
+  const want = WRUN.rf ? .4 : S.dun ? .6 : WRUN_LIFT; WRUN.L += (want - WRUN.L) * Math.min(1, dt * 5); }
 // the move-speed share that comes from wings (winged outfit's own spd + an accessory wing's spd)
 function wrunWingSpd() { let v = 0; try { const K = S.skin && SKINS[S.skin]; if (K && K.st && K.st.spd && wingBlockName()) v += K.st.spd; } catch (e) { }
   try { if (typeof wingActive === 'function' && wingActive() && WINGS[S.wing] && WINGS[S.wing].st) v += WINGS[S.wing].st.spd || 0; } catch (e) { } return v; }
@@ -25390,12 +25396,12 @@ function wrunCan() { if (!(typeof hasWings === 'function' && hasWings())) return
   if (typeof WFLY !== 'undefined' && WFLY.on) return false;
   return !!S.sprint && (typeof jswMv === 'function' ? jswMv() : Math.hypot(input.mx || 0, input.mz || 0)) > .2; }
 // island: the lift is added to the ground height (terOff); elsewhere pm.g is lifted after the frame
-terOff = (o => function () { const v = o(); return WRUN.k > .001 && !(typeof WFLY !== 'undefined' && WFLY.on) ? v + WRUN_LIFT * WRUN.k : v; })(terOff);
-skinFxTick = (o => function (dt) { o(dt); try { const want = wrunCan(), T = S.t || 0;
+terOff = (o => function () { const v = o(); return WRUN.k > .001 && !(typeof WFLY !== 'undefined' && WFLY.on) ? v + WRUN.L * WRUN.k : v; })(terOff);
+skinFxTick = (o => function (dt) { o(dt); try { const want = wrunCan(), T = S.t || 0; wrunLiftTick(dt);
     if (want && !WRUN.on) { try { burst(player.pos.x, ((typeof playerY === 'function' && playerY()) || 0) + .1, player.pos.z, 0xfff4d8, 10, 3); sfx.pick && sfx.pick(); } catch (e) { } }
     WRUN.on = want; WRUN.k += ((want ? 1 : 0) - WRUN.k) * Math.min(1, dt * 6); if (WRUN.k < .002) WRUN.k = 0;
     const k = WRUN.k;
-    if (k > 0) { if (!S.isl && pm && pm.g) pm.g.position.y = ((typeof playerY === 'function' && playerY()) || 0) + WRUN_LIFT * k + Math.sin(T * 2.4) * .05 * k;
+    if (k > 0) { if (!S.isl && pm && pm.g) pm.g.position.y = ((typeof playerY === 'function' && playerY()) || 0) + WRUN.L * k + Math.sin(T * 2.4) * .05 * k;
       // gliding pose (owner 28 Nov: lean forward, legs TOGETHER trailing back — no running stride, no running bounce)
       if (pm.legL && pm.legR) { const lg = .55 + Math.sin(T * 2) * .05;
         for (const L of [pm.legL, pm.legR]) { L.rotation.x = L.rotation.x * (1 - k) + lg * k; L.rotation.z *= 1 - k; L.position.z *= 1 - k; } }
@@ -25403,7 +25409,7 @@ skinFxTick = (o => function (dt) { o(dt); try { const want = wrunCan(), T = S.t 
       // a whoosh on each down-beat and a dust ring blown off the ground under you
       WRUN.bt -= dt; if (WRUN.on && WRUN.bt <= 0) { WRUN.bt = (2 * Math.PI) / (typeof WFLAP_SP !== 'undefined' ? WFLAP_SP : 7.5);
         try { if (typeof sfxNoise === 'function') sfxNoise(.18, .05, 700, { type: 'bandpass', q: .7 }); } catch (e) { }
-        try { const gy = (S.isl && typeof terOff === 'function') ? terOff() - WRUN_LIFT * k : ((typeof playerY === 'function' && playerY()) || 0); fxRing(player.pos.x, player.pos.z, .3, 1.5, .5, 0xe8e0cc, .35, gy + .05); } catch (e) { } } }
+        try { const gy = (S.isl && typeof terOff === 'function') ? terOff() - WRUN.L * k : ((typeof playerY === 'function' && playerY()) || 0); fxRing(player.pos.x, player.pos.z, .3, 1.5, .5, 0xe8e0cc, .35, gy + .05); } catch (e) { } } }
     else if (WRUN.posed) { WRUN.posed = false; if (pm.body) pm.body.rotation.x = 0; }
   } catch (e) { } })(skinFxTick);
 // no footsteps while gliding
@@ -28704,15 +28710,15 @@ const GS_SVG = {
 const GS_RANK = { 0: .75, 2: 1, 3: 1.25, 4: 1.55, 5: 1.9 };
 const GSCN = {
   drop: (best, n) => { let smk = ''; for (let i = 0; i < 9; i++) smk += '<i style="--d:' + (i * .12).toFixed(2) + 's;--x:' + ((i % 3 - 1) * 10 + (Math.random() * 8 - 4)).toFixed(0) + 'px"></i>';
-    return { hit: 2050, rev: 2350, html: '<div class="gsc gsdrop"><div class="gsmoon"></div>' + GS_SVG.plane + '<div class="gsfall">' + GS_SVG.crate + '</div>' + GS_SVG.city +
+    return { hit: 2050, rev: 2350, html: '<div class="gscn gsdrop"><div class="gsmoon"></div>' + GS_SVG.plane + '<div class="gsfall">' + GS_SVG.crate + '</div>' + GS_SVG.city +
       '<div class="gsflare"><b></b><div class="gssmk">' + smk + '</div></div><div class="gsdust"></div><div class="gsbeam"></div>' + (best >= 5 ? '<div class="gsring"></div><div class="gsring r2"></div>' : '') + '</div>' }; },
   fire: (best) => { let emb = ''; for (let i = 0; i < 22; i++) emb += '<i style="left:' + (Math.random() * 100).toFixed(0) + '%;--d:' + (Math.random() * 3).toFixed(2) + 's;--t:' + (2.5 + Math.random() * 2.5).toFixed(2) + 's"></i>';
     let sp = ''; for (let i = 0; i < 14; i++) sp += '<i style="--a:' + (-60 + Math.random() * 120).toFixed(0) + 'deg;--h:' + (20 + Math.random() * 25).toFixed(0) + 'vh;--d:' + (Math.random() * .3).toFixed(2) + 's"></i>';
-    return { hit: 1700, rev: best >= 5 ? 2300 : 1950, html: '<div class="gsc gsfire" style="--fh:' + GS_RANK[best] + '"><div class="gsemb">' + emb + '</div><div class="gsspark"></div><div class="gsflame"><u></u><u></u><u></u></div>' +
+    return { hit: 1700, rev: best >= 5 ? 2300 : 1950, html: '<div class="gscn gsfire" style="--fh:' + GS_RANK[best] + '"><div class="gsemb">' + emb + '</div><div class="gsspark"></div><div class="gsflame"><u></u><u></u><u></u></div>' +
       '<div class="gssparks">' + sp + '</div>' + GS_SVG.brazier + (best >= 5 ? GS_SVG.phoenix : '') + '</div>' }; },
   seal: (best) => { let sw = ''; if (best >= 5) for (let i = 0; i < 9; i++) sw += '<i style="--a:' + (i * 40) + 'deg;--d:' + (1.05 + i * .06).toFixed(2) + 's">' + GS_SVG.sword + '</i>';
     const tal = '<b>敕</b><b>令</b><b>封</b>';
-    return { hit: 1150, rev: best >= 5 ? 1750 : 1500, html: '<div class="gsc gsseal"><div class="gscloud"></div>' + GS_SVG.array + '<div class="gstal"><div class="gsh a">' + tal + '</div><div class="gsh b">' + tal + '</div></div>' +
+    return { hit: 1150, rev: best >= 5 ? 1750 : 1500, html: '<div class="gscn gsseal"><div class="gscloud"></div>' + GS_SVG.array + '<div class="gstal"><div class="gsh a">' + tal + '</div><div class="gsh b">' + tal + '</div></div>' +
       '<div class="gscut"></div><div class="gsfly">' + GS_SVG.sword + '</div>' + (best >= 5 ? '<div class="gs9">' + sw + '</div>' : '') + '</div>' }; }
 };
 // items: [{r, n, ic?, s?}]; done() when the player closes it
@@ -28784,7 +28790,7 @@ drawModal = (o => function (out, n) { const a = arguments; gStar(out.map(x => ({
   '.gstar{position:fixed;inset:0;z-index:450;overflow:hidden;background:radial-gradient(140% 100% at 50% 110%,#1a2a4a 0,#0a1024 45%,#03050c 100%);color:#fff;touch-action:manipulation;user-select:none;-webkit-user-select:none}' +
   '@keyframes gstw{0%,100%{opacity:.25}50%{opacity:1}}@keyframes gbxpulse{0%,100%{transform:scale(.92);opacity:.7}50%{transform:scale(1.05);opacity:1}}' +
   '.gflash{position:absolute;inset:0;background:radial-gradient(circle at 50% 62%,#fff,var(--gc) 40%,rgba(0,0,0,0) 75%);opacity:0;animation:gsfl .7s ease-out var(--ft) forwards;pointer-events:none}@keyframes gsfl{0%{opacity:0}20%{opacity:.95}100%{opacity:0}}' +
-  '.gstar.rev .gsc{opacity:.28;filter:blur(2px);transition:opacity .4s,filter .4s}.gsc{position:absolute;inset:0;overflow:hidden}.gsc svg{position:absolute}' +
+  '.gstar.rev .gscn{opacity:.28;filter:blur(2px);transition:opacity .4s,filter .4s}.gscn{position:absolute;inset:0;overflow:hidden}.gscn svg{position:absolute}' +
   /* 空投补给 */
   '.gstar.th_drop{background:linear-gradient(180deg,#0a0e1c 0,#17182a 60%,#231a22 100%)}.gsmoon{position:absolute;left:12%;top:10%;width:9vmin;height:9vmin;border-radius:50%;background:#e8e2cc;box-shadow:0 0 40px rgba(232,226,204,.35);opacity:.8}' +
   '.gscity{left:0;bottom:0;width:100%;height:24vh}.gsplane{top:15%;left:-25%;width:22vmin;animation:gspl 2s linear .15s forwards}@keyframes gspl{to{left:115%}}.gsblink{animation:gstw .5s infinite}' +
@@ -28853,7 +28859,7 @@ try { const R0 = renderer.render.bind(renderer);
 window.addEventListener('wheel', e => { if (e.target !== canvas || czOff() || S.paused) return; e.preventDefault(); czSet(CZ.k * Math.exp(e.deltaY * .0012)); }, { passive: false });
 // phone: two fingers that both start on the 3D view
 (() => { const T = {}; const onC = t => t.target === canvas;
-  canvas.addEventListener('touchstart', e => { for (const t of e.changedTouches) if (onC(t)) T[t.identifier] = [t.clientX, t.clientY];
+  canvas.addEventListener('touchstart', e => { /* a finger-up the browser never sent left a ghost finger here: zoom stopped working (owner 28 Nov) */ try { const live = new Set([...e.touches].map(t => String(t.identifier))); for (const k of Object.keys(T)) if (!live.has(k)) delete T[k]; } catch (er) { } for (const t of e.changedTouches) if (onC(t)) T[t.identifier] = [t.clientX, t.clientY];
     const ids = Object.keys(T); if (ids.length === 2 && !czOff()) { const [a, b] = ids.map(i => T[i]); CZ.pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, k: CZ.k }; } }, { passive: true });
   canvas.addEventListener('touchmove', e => { for (const t of e.changedTouches) if (T[t.identifier]) T[t.identifier] = [t.clientX, t.clientY];
     if (!CZ.pinch || czOff()) return; const ids = Object.keys(T); if (ids.length !== 2) return; const [a, b] = ids.map(i => T[i]), d = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
@@ -28949,7 +28955,7 @@ window.addEventListener('pointerup', e => { if (e.pointerType === 'mouse' && e.b
 window.addEventListener('blur', pcmStop);
 setInterval(() => { if (PCM.down && !pcmOk()) pcmStop(); }, 200);
 // Space = roll; stop the old Space-fire listener (d_main) from seeing it
-const pcmSpace = e => { if (e.code !== 'Space') return; const t = e.target; if (t && /input|textarea/i.test(t.tagName || '')) return; e.stopImmediatePropagation(); e.preventDefault();
+const pcmSpace = e => { if (e.code !== 'Space' || S.dead) return;   /* dead: Space revives (z_fix28) */ const t = e.target; if (t && /input|textarea/i.test(t.tagName || '')) return; e.stopImmediatePropagation(); e.preventDefault();
   if (e.type === 'keydown' && !e.repeat && pcmOk()) try { rollGo(); } catch (er) { } };
 window.addEventListener('keydown', pcmSpace, true); window.addEventListener('keyup', pcmSpace, true);
 /* ============ 今日目标 (owner 23 Nov: 每天上线要知道做什么) ============
@@ -29523,6 +29529,69 @@ mp2Draw = (o => function () { o.apply(this, arguments);
    on PC 高 quality it is a 2048×2048 soft shadow map drawn every frame) */
 const SHF = { n: 0 };
 try { renderer.render = (o => function (sc, cam) { const M = renderer.shadowMap; if (M && M.enabled && sc === scene) { M.autoUpdate = false; M.needsUpdate = (++SHF.n & 1) === 0 || SHF.n < 3; } return o.apply(this, arguments); })(renderer.render); } catch (e) { }
+/* ============ 按钮没反应 / 复活按不了 / 画面不能缩放 (owner 28 Nov item 6) ============
+   Could not be reproduced in tests, so every way it can happen is closed off:
+   1. a stuck input state (a finger-up / mouse-up the browser never delivered, a held fire flag, a hit-stop or slow motion that
+      never ended, 检视 still on) is cleared when you die, when you revive, when the window loses focus, and by a 1 s watchdog;
+   2. a button that keeps keyboard focus after a click (Space / Enter would press it again) or a hidden text box that keeps focus
+      (every key then types into it, nothing reaches the game) is un-focused;
+   3. reviving also works on finger/mouse UP (if the click got lost) and with Enter / Space / E / R on PC;
+   4. a watchdog checks the main buttons every second: if a stray see-through layer sits on top of one (not a window, not the
+      story box), it is made click-through at once and remembered (Settings shows it, so a real case can be found and fixed). */
+const FX28 = { last: '' };
+try { FX28.last = localStorage.getItem('ember_blk') || ''; } catch (e) { }
+function fx28Reset() {
+  try { if (typeof inputReset === 'function') inputReset(); } catch (e) { }
+  try { if (typeof pcmStop === 'function') pcmStop(); } catch (e) { }
+  try { keys.Space = false; input.fire = false; } catch (e) { }
+  try { document.querySelectorAll('.btn.on,.btn2.on').forEach(b => b.classList.remove('on')); } catch (e) { }
+  try { if (typeof FEEL !== 'undefined') { FEEL.hs = 0; FEEL.slow = 0; FEEL.slowK = 1; } } catch (e) { }
+  try { if (typeof CZ !== 'undefined') CZ.pinch = null; } catch (e) { }
+  try { if (typeof WINSP !== 'undefined' && WINSP.on && typeof insStop === 'function') insStop(); } catch (e) { }
+}
+playerDie = (o => function () { const r = o.apply(this, arguments); try { fx28Reset(); } catch (e) { } return r; })(playerDie);
+respawn = (o => function () { if (!S.dead) return; try { fx28Reset(); } catch (e) { } return o.apply(this, arguments); })(respawn);
+window.addEventListener('blur', fx28Reset);
+// revive on pointer-up too (a click is lost if the button was redrawn between down and up) + keys on PC
+try { const g = $('goRespawn'); g.addEventListener('pointerup', () => { if (S.dead && $('dead').classList.contains('show')) setTimeout(() => { try { respawn(); } catch (e) { } }, 0); }); } catch (e) { }
+window.addEventListener('keydown', e => { if (!S.dead || !$('dead') || !$('dead').classList.contains('show')) return; const t = e.target;
+  if (t && /input|textarea/i.test(t.tagName || '')) return;
+  if (['Enter', 'NumpadEnter', 'Space', 'KeyE', 'KeyR'].includes(e.code)) { e.preventDefault(); e.stopImmediatePropagation(); try { respawn(); } catch (er) { } } }, true);
+// focus hygiene
+window.addEventListener('pointerup', () => { setTimeout(() => { try { const a = document.activeElement; if (a && a.tagName === 'BUTTON') a.blur(); } catch (e) { } }, 0); }, true);
+// watchdog
+const FX28_IDS = ['bFire', 'bMed', 'bReload', 'bSkill', 'bRoll', 'bBag', 'bMore', 'bRecall', 'bChat', 'goRespawn'];
+function fx28Okay(e) { if (!e) return true; if (e === document.body || e === document.documentElement) return false;
+  if (e.closest && (e.closest('.overlay.show') || e.closest('#storyDlg.show') || e.closest('#storyTrk') || e.closest('#build'))) return true;
+  return false; }
+setInterval(() => { try {
+    if (!S.started) return;
+    // a text box that is not on screen any more keeps no focus
+    const a = document.activeElement; if (a && /input|textarea/i.test(a.tagName || '') && (!a.offsetParent || a.getBoundingClientRect().width < 2)) a.blur();
+    // the mouse / fire hold must not outlive the press
+    if (typeof PCM !== 'undefined' && !PCM.down && keys.Space && !document.hasFocus()) keys.Space = false;
+    if (typeof FEEL !== 'undefined' && FEEL.slow > 3) { FEEL.slow = 0; FEEL.slowK = 1; }
+    if (typeof FEEL !== 'undefined' && FEEL.hs > 1) FEEL.hs = 0;
+    if (S.paused && !S.dead) return;
+    for (const id of FX28_IDS) { const b = $(id); if (!b || !b.getBoundingClientRect) continue; const cs = getComputedStyle(b); if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < .1) continue;
+      if (id === 'goRespawn' && !S.dead) continue; if (id !== 'goRespawn' && S.dead) continue;
+      const q = b.getBoundingClientRect(); if (q.width < 6) continue; const x = q.left + q.width / 2, y = q.top + q.height / 2; if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue;
+      const e = document.elementFromPoint(x, y); if (!e || b.contains(e) || e.contains(b)) continue;
+      if (id !== 'goRespawn' && fx28Okay(e)) continue;
+      if (e.id === 'c' || e === (typeof canvas !== 'undefined' && canvas)) continue;
+      // a stray layer: make it click-through and remember what it was
+      let L = e; while (L.parentElement && L.parentElement !== document.body && getComputedStyle(L).position !== 'fixed') L = L.parentElement;
+      if (id === 'goRespawn' && L.id === 'storyDlg') { try { stClose(); } catch (er) { } continue; }
+      if (L.classList && L.classList.contains('overlay')) { if (id === 'goRespawn' && L.id !== 'dead') L.classList.remove('show'); continue; }
+      const lr = L.getBoundingClientRect(); if (lr.width * lr.height < innerWidth * innerHeight * .4) continue;   /* small popups / cards are meant to be on top */
+      L.style.pointerEvents = 'none'; const nm = (L.id ? '#' + L.id : '') + (L.className && typeof L.className === 'string' ? '.' + L.className.trim().split(/\s+/).join('.') : '') || L.tagName;
+      FX28.last = nm + ' 挡住 ' + id; try { localStorage.setItem('ember_blk', FX28.last); } catch (er) { } console.warn('FX28 blocker', FX28.last); }
+  } catch (e) { } }, 1000);
+// Settings: show the last blocker (so it can be reported)
+renderSettings = (o => function () { o(); try { if (!FX28.last) return; const box = $('setBox'); if (!box) return; const r = document.createElement('div'); r.className = 'snote';
+  r.textContent = '上次挡住按钮的东西（已自动穿透）：' + FX28.last + ' —— 截图发给开发者'; box.appendChild(r); } catch (e) { } })(renderSettings);
+// 视角 (first person / top-down) is only in Settings now (owner item 18): the HUD button and the Y key are gone
+setInterval(() => { try { const b = $('bView'); if (b) b.remove(); } catch (e) { } }, 600);
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -30600,4 +30669,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795857901').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795858735').catch(()=>{});</script></body></html>
