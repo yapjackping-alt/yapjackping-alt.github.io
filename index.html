@@ -29904,6 +29904,50 @@ try { const st = document.createElement('style'); st.textContent =
   '#swPickM .swpr b{font-size:15px}#swPickM .swpr span{font-size:12px;opacity:.75}#swPickM .swpr.me{opacity:.55;border-style:dashed}' +
   '#swPickM .swpn{font-size:11.5px;opacity:.65;text-align:center}#swPickM .swpf{display:flex;justify-content:center}';
   document.head.appendChild(st); } catch (e) { }
+/* ============ 多点触控 (owner 28 Nov item 10: while one finger runs, the other could not press 更多 / 任务 / 商城 / 医疗包…) ============
+   Phones (iOS above all) do not send a 'click' for a tap made while another finger is on the screen, and iOS sometimes
+   drops the second finger's pointerdown too (the skill button already had its own fix, SKT2 in z_fix21.js).
+   This file watches raw touches: for a tap that starts while another finger is down, it finds the button under the finger and,
+   ONLY if the browser did not deliver the event itself, sends it: a pointerdown ~70 ms after the touch (buttons that act on
+   press: fire, medkit, reload, roll…) and a pointerup + click when the finger lifts without sliding (buttons that act on tap:
+   更多, 任务, 商城, 背包, the tracker lines…). Real events always win: nothing is sent twice. Opening a window still pauses. */
+const MTCH = { t: new Map(), pd: new WeakMap(), ck: new WeakMap(), SKIP: new Set(['bSkill', 'stickzone', 'c']) };
+const mtNow2 = () => (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+// the tappable thing under a finger
+function mtTarget(x, y) { const top = document.elementFromPoint(x, y); let e = top, ptr = null;
+  for (let i = 0; e && e !== document.body && i < 10; i++, e = e.parentElement) {
+    if (e.id && MTCH.SKIP.has(e.id)) return null;
+    if (e.tagName === 'CANVAS') return null;
+    if (e.tagName === 'BUTTON' || e.tagName === 'A' || (e.classList && (e.classList.contains('btn') || e.classList.contains('btn2') || e.classList.contains('bagbtn')))) return e;
+    /* cursor is inherited: keep the OUTERMOST html element that still shows a pointer (an svg inside a button is not the button) */
+    try { if (e instanceof HTMLElement && getComputedStyle(e).cursor === 'pointer') ptr = e; else if (ptr) break; } catch (er) { } }
+  return ptr; }
+// remember the real events
+document.addEventListener('pointerdown', e => { if (e.isTrusted) { let n = e.target; for (let i = 0; n && i < 8; i++, n = n.parentElement) MTCH.pd.set(n, mtNow2()); } }, true);
+document.addEventListener('click', e => { if (e.isTrusted) { let n = e.target; for (let i = 0; n && i < 8; i++, n = n.parentElement) MTCH.ck.set(n, mtNow2()); } }, true);
+function mtFire(el, type, t, id) { try { const o = { bubbles: true, cancelable: true, clientX: t.clientX, clientY: t.clientY, pointerId: 900 + (id % 50), pointerType: 'touch', isPrimary: false, button: 0, buttons: type === 'pointerdown' ? 1 : 0 };
+    el.dispatchEvent(typeof PointerEvent === 'function' ? new PointerEvent(type, o) : new MouseEvent(type, o)); } catch (e) { } }
+document.addEventListener('touchstart', e => { try {
+    const others = (e.touches ? e.touches.length : 1) - (e.changedTouches ? e.changedTouches.length : 1);
+    for (const t of e.changedTouches || []) {
+      if (others < 1 && !(e.touches && e.touches.length > 1)) continue;   /* a lone finger works normally */
+      const el = mtTarget(t.clientX, t.clientY); if (!el || el.disabled) continue;
+      const T0 = mtNow2(), rec = { el, x: t.clientX, y: t.clientY, t0: T0, pd: false };
+      MTCH.t.set(t.identifier, rec);
+      setTimeout(() => { try { if (rec.pd) return; if ((MTCH.pd.get(el) || -1e9) >= T0 - 5) return;
+          rec.pd = true; mtFire(el, 'pointerdown', t, t.identifier); } catch (er) { } }, 70);
+    } } catch (er) { } }, { capture: true, passive: true });
+const mtEnd = (e, cancel) => { try { for (const t of e.changedTouches || []) { const rec = MTCH.t.get(t.identifier); if (!rec) continue; MTCH.t.delete(t.identifier); rec.up = true;
+      const el = rec.el, moved = Math.hypot(t.clientX - rec.x, t.clientY - rec.y) > 16, T1 = mtNow2();
+      const fin = () => { if (rec.pd) mtFire(el, 'pointerup', t, t.identifier);
+        if (cancel || moved) return;
+        if ((MTCH.ck.get(el) || -1e9) >= rec.t0 - 5) return;   /* the browser clicked it itself */
+        try { if (el.click) el.click(); else el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })); } catch (er) { } };
+      /* a tap shorter than the pointerdown delay: send the press first */
+      if (T1 - rec.t0 < 75 && !rec.pd && (MTCH.pd.get(el) || -1e9) < rec.t0 - 5) { rec.pd = true; mtFire(el, 'pointerdown', t, t.identifier); }
+      setTimeout(fin, 60); } } catch (er) { } };
+document.addEventListener('touchend', e => mtEnd(e, false), { capture: true, passive: true });
+document.addEventListener('touchcancel', e => mtEnd(e, true), { capture: true, passive: true });
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -30982,4 +31026,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795862351').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795863079').catch(()=>{});</script></body></html>
