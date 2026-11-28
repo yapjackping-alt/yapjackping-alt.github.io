@@ -28231,6 +28231,212 @@ renderStory = (o => function () { o(); try { const box = $('storyList'); if (!bo
 const ST4_V = 4;
 storySave = (o => function () { const a = o(); a[4] = ST4_V; return a; })(storySave);
 storyLoad = (o => function (a) { o(a); try { if (Array.isArray(a) && (a[4] | 0) < ST4_V && S.story.c >= 2 && S.story.c <= 10) { S.story.s = 0; S.story.p = 0; S.story.seen = -1; } } catch (e) { } })(storyLoad);
+/* ============ 首领巢穴 2.0 + 四层地名 + 告诉玩家首领在哪 (owner 28 Nov, item 2) ============
+   Owner: 「boss 应该有自己的巢穴而且要精心设计周围环境，不要只是几个牙齿和一个圆圈」 — answers: three lairs per land, ALL designed
+   with care; names in four levels 洲 · 地区 · 城市 · 小地点; where the boss is = the ground arrow (item 4) + the tracker.
+   - Each lair (lairsAll, a2_world.js) is now a landmark of type 'lair' (built / freed with its chunk by z_lmark's lmBuild,
+     houses / trees / roads keep off its footprint through lmsIn → lmChunkMark / lmNear). Ten themes (one per land) ×
+     three layouts (`LAIR_TH[t]`): a walled outer ring with two way-ins, big set pieces, details, lights, a clear fighting
+     floor (r ≈ 15) in the middle with the boss's altar and a glowing sigil. The old ring of posts (makeLair) is gone.
+   - Every lair has its own name (`LAIR_N[t][v]`) shown on the map, in the tracker and as 「发现」 when you first arrive.
+   - Place names: `locPath(x, z)` = 烬土洲 · land · city/place · nearest named spot (lair / landmark / village / waystone
+     within 350 m). Used by the corner chip, the big map chip and the boss line in the tracker.
+   - qmTarget 'boss' looked only 8 chunks (≈ 380 m) round you, but lairs are 900-1500 m from the capital, so the gold
+     marker never appeared: it now takes the nearest unlocked-cooldown lair of the wanted land from lairsAll().
+   - Story chapter 1 still said 「荒废郊区」 (the land's old name): now 灰港. The land-1 lair bosses are Lv.5 (were Lv.9):
+     the chapter-1 boss step comes at about Lv.5 (owner: 太早打 boss 根本打不过). */
+const CONT_NAME = '烬土洲';
+const LAIR_N = [null,
+  ['沉船坞', '锈锚货场', '断桥渡口'], ['腐根祭坛', '吊笼林', '蘑菇王庭'], ['沙蝎古墓', '风蚀神殿', '黄沙斗场'],
+  ['毒沼巢', '沉木祭台', '虫卵洼地'], ['冰封要塞', '雪狼冰窟', '冻骨营地'], ['废弃工厂', '变电站', '地铁检修场'],
+  ['赤岩斗场', '吊桥峡口', '骷髅图腾'], ['熔岩王座', '黑曜石坑', '火山熔炉'], ['虚空裂隙', '倒悬石林', '幽影祭坛'],
+  ['余烬神殿', '锁链熔炉', '灰烬王陵']];
+// colours: [floor, floor2, main, main2, accent(glow), dark]
+const LAIR_C = [null,
+  [0x5a5a5e, 0x4a4a4e, 0x8a4a2a, 0x3a5a6a, 0xff6a3a, 0x2a2426], [0x3a3226, 0x2e2a1e, 0x4a3a2a, 0x5a6a3a, 0x9fff7a, 0x1e1a14],
+  [0xc0a070, 0xa88a5a, 0xc8a878, 0x9a7a4a, 0xffc94a, 0x5a4028], [0x3a3a2a, 0x2a3a24, 0x4a4030, 0x3a5a2e, 0x7aff5a, 0x1a2014],
+  [0xd8e4ec, 0xb8ccd8, 0xa8d8f0, 0x6a8090, 0x7ae0ff, 0x3a4a58], [0x4a4a4e, 0x3a3a40, 0x6a5a4a, 0x8a4a2a, 0xffa030, 0x22222a],
+  [0x8a4a32, 0x7a3a28, 0xa85a3a, 0x6a3020, 0xff8a3a, 0x3a1a14], [0x2a2224, 0x1e1a1c, 0x3a3034, 0x1a1214, 0xff5a1a, 0x120c0c],
+  [0x2a2236, 0x1e1a2a, 0x3a3048, 0x4a3a6a, 0xb08aff, 0x14101e], [0x3a2420, 0x2a1a16, 0x4a3430, 0x6a3a2a, 0xffb030, 0x1a100c]];
+const LAIR_R = 32;
+const LG = { tor: new THREE.TorusGeometry(1, .06, 6, 40), ring: new THREE.CylinderGeometry(1, 1, 1, 24, 1, true), sph: new THREE.SphereGeometry(1, 10, 8), cone4: new THREE.ConeGeometry(1, 1, 4) };
+function lairRng(L) { let s = (Math.abs(L.i * 73856093 ^ L.j * 19349663) >>> 0) || 1; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
+
+/* ---- the lair landmarks: one per lair, never added to lmFixed (lairsAll → villageNear → vil3All → lmFixed would loop) ---- */
+let LAIR_LM = null;
+function lairLms() { if (LAIR_LM) return LAIR_LM; const A = lairsAll(); const out = []; const per = {};
+  for (const l of A.values()) { const v = per[l.rb] = (per[l.rb] || 0) + 1, vi = (v - 1) % 3;
+    l.v = vi; l.name = LAIR_N[l.rb] ? LAIR_N[l.rb][vi] : '首领巢穴';
+    out.push({ id: 'lr' + l.id, i: Math.round(l.x), j: Math.round(l.z), type: 'lair', x: l.x, z: l.z, rot: ((l.rb + vi) % 4) * Math.PI / 2, R: LAIR_R, t: l.rb, v: vi, name: l.name, fixed: true, lair: l }); }
+  LAIR_LM = out; return out; }
+lmsIn = (o => function (x0, z0, x1, z1) { const out = o.apply(this, arguments);
+  try { if (LAIRS || LAIR_LM) for (const L of lairLms()) if (L.x + L.R > x0 && L.x - L.R < x1 && L.z + L.R > z0 && L.z - L.R < z1) out.push(L); } catch (e) { }
+  return out; })(lmsIn);
+LM_R.lair = LAIR_R; LM_GLYPH.lair = '巢';
+// the old ring of posts is not built any more (its footprint mark in genChunk stays: the landmark marks the whole area)
+makeLair = function () { return { meshes: [], obs: [] }; };
+lmBuild = (o => function (L) { if (L.type !== 'lair') return o(L); if (LMB.has(L.id)) return;
+  const R = { L, meshes: [], obs: [], fl: [], crate: null }, A = new Batch(), Wb = new Batch();
+  try { lairBuild(L, R, A, Wb); } catch (e) { console.warn('lair', e); }
+  for (const [B, m] of [[A, chunkMatL], [Wb, chunkMatW]]) { const me = B.mesh(m); if (me) { scene.add(me); R.meshes.push(me); } }
+  LMB.set(L.id, R); })(lmBuild);
+// tier-1 lair bosses fit a chapter-1 player (set when the list is first built; never build it while this file loads)
+lairsAll = (o => function () { const first = !LAIRS, r = o.apply(this, arguments); if (first) for (const l of r.values()) if (l.rb === 1) l.lv = 6; return r; })(lairsAll);
+
+/* ---- building helpers in the lair's frame ---- */
+function lairBuild(L, R, A, Wb) {
+  const C = LAIR_C[L.t] || LAIR_C[1], rnd = lairRng(L), v = L.v | 0;
+  const P = (B, g, col, x, y, z, rx, ry, rz, sx, sy, sz) => lmPut(B, L, g, col, x, y, z, rx, ry, rz, sx, sy, sz);
+  const Bx = (B, col, x, y, z, w, h, d, rx, ry, rz) => lmBox(B, L, col, x, y, z, w, h, d, rx, ry, rz);
+  const ob = (x, z, r) => lmObsC(R, L, x, z, r);
+  const at = (a, r) => [Math.cos(a) * r, Math.sin(a) * r];
+  const gaps = [Math.PI / 2, Math.PI / 2 + Math.PI * (.8 + v * .2)];   /* two way in; the first faces local +z */
+  const inGap = a => gaps.some(g => Math.abs(Math.atan2(Math.sin(a - g), Math.cos(a - g))) < .26);
+  // the fighting floor: a broad disc, an inner ring of slabs, scorched patches, the glowing sigil in the middle
+  P(A, LMG.cyl, C[0], 0, .06, 0, 0, 0, 0, 17, .12, 17);
+  for (let k = 0; k < 24; k++) { const a = k / 24 * Math.PI * 2, [x, z] = at(a, 15.6); Bx(A, k % 2 ? C[0] : C[1], x, .16, z, 2.1, .08, 1.3, 0, -a, 0); }
+  for (let k = 0; k < 7; k++) { const [x, z] = at(rnd() * 6.28, 3 + rnd() * 10); P(A, LMG.cyl, C[5], x, .13, z, 0, rnd() * 3, 0, 1.2 + rnd() * 1.6, .02, .8 + rnd()); }
+  P(Wb, LG.tor, C[4], 0, .2, 0, Math.PI / 2, 0, 0, 6, 6, 1); P(Wb, LG.tor, C[4], 0, .2, 0, Math.PI / 2, 0, 0, 3.4, 3.4, 1.4);
+  for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2, [x, z] = at(a, 4.7); Bx(Wb, C[4], x, .18, z, 2.6, .04, .16, 0, -a + Math.PI / 2, 0); }
+  // the boss's altar at the back (local −z), with a floating sigil and two flames
+  Bx(A, C[5], 0, .7, -12.5, 4.4, 1.4, 2.2); Bx(A, C[2], 0, 1.5, -12.5, 4.8, .2, 2.6); Bx(A, C[3], 0, 2.6, -13.2, 1.2, 2, .8);
+  P(Wb, LMG.oct, C[4], 0, 4.1, -13.2, 0, .5, 0, .55, .9, .55); P(Wb, LG.tor, C[4], 0, 4.1, -13.2, 0, 0, 0, 1.1, 1.1, 1);
+  for (const s of [-1, 1]) { Bx(A, C[5], s * 3.4, .9, -12, .9, 1.8, .9); lmFlame(R, L, s * 3.4, 2.3, -12, .8); ob(s * 3.4, -12, .6); }
+  ob(0, -12.5, 2.2);
+  // braziers round the floor
+  for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2 + .26, [x, z] = at(a, 13.2); if (inGap(a)) continue;
+    P(A, LMG.cyl, C[5], x, .6, z, 0, 0, 0, .3, 1.2, .3); P(A, LMG.cyl, C[3], x, 1.35, z, 0, 0, 0, .65, .4, .65); lmFlame(R, L, x, 2, z, .7); ob(x, z, .55); }
+  (LAIR_TH[L.t] || LAIR_TH[1])({ L, R, A, Wb, C, rnd, v, P, Bx, ob, at, inGap }); }
+// a ring of pieces round the lair, skipping the two way-ins
+function lairRing(o, r, n, fn) { for (let k = 0; k < n; k++) { const a = (k + .5) / n * Math.PI * 2; if (o.inGap(a)) continue; const [x, z] = o.at(a, r + (o.rnd() - .5) * 2); fn(x, z, a, k); } }
+
+/* ---- the ten themes; v (0-2) changes the layout and the set pieces ---- */
+const LAIR_TH = [null,
+  // 1 灰港 — harbour scrapyard: stacked shipping containers as walls, a beached hull, cranes, barrels and chain fences
+  o => { const { P, Bx, ob, rnd, C, v } = o, cc = [0x8a3a2a, 0x2a5a6a, 0x6a6a2a, 0x5a3a5a, 0x8a5a2a];
+    lairRing(o, 24, 22, (x, z, a, k) => { const h = 1 + (k % 3 === 0 ? 1 : 0), c = cc[k % 5]; for (let s = 0; s < h; s++) { Bx(o.A, c, x, 1.3 + s * 2.6, z, 6, 2.5, 2.4, 0, -a + Math.PI / 2 + (s ? .12 : 0), 0); Bx(o.A, 0x2a2426, x, 1.3 + s * 2.6, z, 6.06, .14, 2.46, 0, -a + Math.PI / 2, 0); } ob(x, z, 2.4); });
+    // the beached ship hull (v0), a crane (v1), a fallen gantry (v2) — and always the other two smaller
+    const hull = (x, z, r, s) => { for (let q = 0; q < 6; q++) Bx(o.A, q % 2 ? 0x5a3028 : 0x6a3a2a, x + q * 2.2 * s - 5 * s, 1.6 - Math.abs(q - 2.5) * .25, z, 2.2 * s, 3.2 - Math.abs(q - 2.5) * .3, 6 * s, 0, r, .18);
+      Bx(o.A, 0x3a2a26, x, 3.4, z, 6 * s, 2, 3 * s, 0, r, .18); Bx(o.A, 0xc8c0b0, x + 1, 5.2, z, 1, 3, .4, 0, r, .18); ob(x, z, 4.5 * s); };
+    const crane = (x, z) => { for (let q = 0; q < 5; q++) Bx(o.A, 0xd8a030, x, 2 + q * 3, z, .8, 3.2, .8, 0, 0, 0); Bx(o.A, 0xd8a030, x + 5, 15.5, z, 12, .7, .7); Bx(o.A, 0x2a2426, x + 9, 12, z, .1, 6.6, .1); Bx(o.A, 0x5a5a5e, x + 9, 8.6, z, 1.6, .9, 1.6); ob(x, z, 1); };
+    if (v === 0) { hull(-20, -14, .6, 1.1); crane(18, -16); } else if (v === 1) { crane(-19, -15); crane(19, -14); hull(0, -27, 0, .9); } else { hull(18, -16, -.5, 1); Bx(o.A, 0x7a6a5a, -16, 1.2, -18, 14, .8, 1.4, .3, .7, .4); crane(-22, 6); }
+    for (let k = 0; k < 16; k++) { const a = rnd() * 6.28, [x, z] = o.at(a, 17 + rnd() * 4); if (o.inGap(a)) continue; P(o.A, LMG.cyl, k % 3 ? 0x8a2a24 : 0x3a5a3a, x, .7, z, (rnd() > .7) * 1.4, 0, 0, .45, 1.4, .45); ob(x, z, .5); }
+    for (let k = 0; k < 10; k++) { const [x, z] = o.at(rnd() * 6.28, 6 + rnd() * 8); P(o.A, LMG.rock, 0xd8d0c0, x, .15, z, rnd(), rnd(), 0, .35, .12, .14); } },
+  // 2 枯木林 — rotten-root altar: huge dead trees with roots arching overhead, hanging cages, glowing mushroom clusters
+  o => { const { P, Bx, ob, rnd, C, v } = o;
+    lairRing(o, 23, 9 + v, (x, z, a) => { const h = 12 + rnd() * 6; P(o.A, LMG.cyl, C[2], x, h / 2, z, (rnd() - .5) * .2, 0, (rnd() - .5) * .2, 1.5, h, 1.5); ob(x, z, 1.7);
+      for (let q = 0; q < 4; q++) { const b = q * 1.57 + rnd(); P(o.A, LMG.cyl, C[2], x + Math.cos(b) * 2, h * .5 + q * 1.5, z + Math.sin(b) * 2, Math.cos(b) * .9, 0, Math.sin(b) * .9, .35, 6, .35); }
+      // a root arching inward over the floor's edge
+      for (let q = 0; q < 6; q++) { const u = q / 5, rx = x * (1 - u * .32), rz = z * (1 - u * .32); P(o.A, LMG.cyl, C[5], rx, 1 + Math.sin(u * Math.PI) * 4, rz, 0, -a, 1.2 - u * 2.4, .55, 2.4, .55); }
+      if (rnd() < .6) { Bx(o.A, 0x3a3a3a, x * .8, h * .55, z * .8, 1.2, 1.6, 1.2); Bx(o.A, 0x1a1a1a, x * .8, h * .55 + 2.2, z * .8, .06, 2.8, .06); } });
+    for (let k = 0; k < 14; k++) { const a = rnd() * 6.28, [x, z] = o.at(a, 16 + rnd() * 5); if (o.inGap(a)) continue; for (let q = 0; q < 3; q++) { P(o.A, LMG.cyl, 0xe8e0c8, x + q * .4, .3, z, 0, 0, 0, .08, .6, .08); P(o.Wb, LMG.sph, C[4], x + q * .4, .65 + q * .1, z, 0, 0, 0, .35 - q * .06, .14, .35 - q * .06); } }
+    lairRing(o, 18.5, 16, (x, z) => { P(o.A, LMG.rock, 0x6a6a5a, x, .8, z, 0, rnd() * 3, 0, .8, 1.6, .7); ob(x, z, .8); }); },
+  // 3 流沙原 — sunken desert tomb: a ring of broken sandstone columns, a jackal statue, stairs into the sand, banners
+  o => { const { P, Bx, ob, rnd, C, v } = o;
+    lairRing(o, 20, 18, (x, z, a, k) => { const h = k % 3 === 1 ? 2 + rnd() * 2 : 7 + rnd() * 3; P(o.A, LMG.cyl, C[2], x, h / 2, z, 0, 0, 0, .9, h, .9); P(o.A, LMG.box, C[3], x, h + .3, z, 0, -a, 0, 2.4, .6, 2.4); ob(x, z, 1);
+      if (h < 5) P(o.A, LMG.cyl, C[2], x + 2, .6, z, Math.PI / 2, -a, 0, .85, 4, .85); });
+    lairRing(o, 27, 14, (x, z, a) => { Bx(o.A, C[3], x, 1.6, z, 7, 3.2 + rnd() * 2, 1.6, 0, -a + Math.PI / 2, (rnd() - .5) * .2); ob(x, z, 2.6); });
+    const statue = (x, z, s) => { Bx(o.A, C[3], x, 1, z, 3 * s, 2, 4 * s); Bx(o.A, C[2], x, 3.4, z - .5 * s, 2 * s, 3 * s, 2.4 * s); Bx(o.A, C[2], x, 5.6 * s, z + .4 * s, 1.4 * s, 1.6 * s, 2 * s); P(o.A, LG.cone4, C[2], x - .5 * s, 7 * s, z, 0, 0, 0, .4 * s, 1.4 * s, .4 * s); P(o.A, LG.cone4, C[2], x + .5 * s, 7 * s, z, 0, 0, 0, .4 * s, 1.4 * s, .4 * s); P(o.Wb, LMG.oct, C[4], x, 6 * s, z + 1.4 * s, 0, 0, 0, .25, .25, .1); ob(x, z, 2.2 * s); };
+    statue(-9, -17, 1.2); statue(9, -17, 1.2); if (v === 1) statue(0, 20, 1.5);
+    for (let q = 0; q < 5; q++) Bx(o.A, C[q % 2 ? 0 : 1], 0, -.1 - q * .15, 21 - q * 1.2, 7 - q * .4, .4, 1.2);
+    for (let k = 0; k < 6; k++) { const [x, z] = o.at(k * 1.05 + .3, 21); if (o.inGap(k * 1.05 + .3)) continue; Bx(o.A, 0x5a3a2a, x, 4, z, .12, 8, .12); Bx(o.A, 0x8a2a24, x + .6, 6.4, z, 1.1, 2.6, .04); } },
+  // 4 腐沼 — toxic swamp nest: a raised mud island, glowing green pools, dead mangroves, rotten boardwalks, egg sacs
+  o => { const { P, Bx, ob, rnd, C, v } = o;
+    for (let k = 0; k < 9; k++) { const a = k / 9 * 6.28 + v, [x, z] = o.at(a, 22 + rnd() * 3); if (o.inGap(a)) continue; P(o.A, LMG.cyl, 0x2a3a1e, x, .08, z, 0, rnd(), 0, 3.4 + rnd() * 2, .04, 2.6 + rnd()); P(o.Wb, LMG.cyl, 0x5a9a3a, x, .1, z, 0, rnd(), 0, 2.4 + rnd(), .03, 1.6 + rnd() * .6); }
+    lairRing(o, 26, 12, (x, z, a) => { const h = 8 + rnd() * 4; P(o.A, LMG.cyl, C[2], x, h / 2, z, (rnd() - .5) * .3, 0, (rnd() - .5) * .3, .7, h, .7); ob(x, z, .9);
+      for (let q = 0; q < 5; q++) { const b = q * 1.26; P(o.A, LMG.cyl, C[5], x + Math.cos(b) * 1.3, .9, z + Math.sin(b) * 1.3, Math.sin(b) * .7, 0, -Math.cos(b) * .7, .18, 2.4, .18); }
+      for (let q = 0; q < 3; q++) P(o.A, LMG.ico, C[3], x + (rnd() - .5) * 3, h - q * 1.2, z + (rnd() - .5) * 3, 0, 0, 0, 1.6, .8, 1.6); });
+    for (const s of [-1, 1]) for (let q = 0; q < 8; q++) Bx(o.A, 0x5a4a32, s * 2, .35, 17 + q * 1.4, 2.6, .12, 1.2, 0, 0, (q % 3 - 1) * .08);
+    for (let k = 0; k < 12; k++) { const a = rnd() * 6.28, [x, z] = o.at(a, 17 + rnd() * 3); if (o.inGap(a)) continue; for (let q = 0; q < 4; q++) P(o.Wb, LMG.sph, 0xd0ff9a, x + (q % 2) * .7, .45 + (q > 1) * .5, z + (q < 2 ? 0 : .5), 0, 0, 0, .42, .55, .42); ob(x, z, .9); } },
+  // 5 寒霜岭 — frozen fortress: ice spires, a ruined outpost with frozen walls, icicles, bodies trapped in ice blocks
+  o => { const { P, Bx, ob, rnd, C, v } = o;
+    lairRing(o, 22, 16, (x, z, a, k) => { const h = 6 + rnd() * 8; P(o.Wb, LMG.cone, C[2], x, h / 2, z, (rnd() - .5) * .3, rnd() * 3, (rnd() - .5) * .3, 1.4, h, 1.4); P(o.Wb, LMG.cone, C[2], x + 1.4, h / 3, z + .5, .3, 0, .2, .8, h * .6, .8); ob(x, z, 1.5); });
+    lairRing(o, 28, 10, (x, z, a) => { Bx(o.A, C[3], x, 2, z, 7, 4, 1.4, 0, -a + Math.PI / 2, 0); Bx(o.A, C[0], x, 4.15, z, 7.2, .3, 1.6, 0, -a + Math.PI / 2, 0); for (let q = 0; q < 4; q++) P(o.Wb, LMG.cone, C[2], x + (q - 1.5) * 1.5 * Math.sin(a), 3.4, z - (q - 1.5) * 1.5 * Math.cos(a), Math.PI, 0, 0, .18, 1.2, .18); ob(x, z, 3); });
+    for (let k = 0; k < 4 + v; k++) { const a = k * 1.7 + .4, [x, z] = o.at(a, 17); if (o.inGap(a)) continue; P(o.Wb, LMG.box, 0xbfeaff, x, 1.1, z, 0, a, .1, 1.4, 2.2, 1.2); Bx(o.A, 0x5a4a48, x, 1.1, z, .5, 1.6, .4, 0, a, .4); ob(x, z, 1); }
+    // a frozen watchtower
+    const wx = v === 2 ? 19 : -19, wz = -15; for (const [dx, dz] of [[-1.4, -1.4], [1.4, -1.4], [-1.4, 1.4], [1.4, 1.4]]) Bx(o.A, 0x4a3a30, wx + dx, 4, wz + dz, .4, 8, .4); Bx(o.A, 0x5a4a3a, wx, 8.2, wz, 3.6, .3, 3.6); Bx(o.A, C[0], wx, 9.8, wz, 4, .5, 4, .1, 0, .06); ob(wx, wz, 2.2); },
+  // 6 铁锈城 — abandoned factory yard: smokestacks, broken brick walls, pipes on trestles, a sparking generator
+  o => { const { P, Bx, ob, rnd, C, v } = o;
+    lairRing(o, 25, 14, (x, z, a, k) => { const h = k % 4 === 0 ? 1.5 : 5 + rnd() * 2; Bx(o.A, k % 2 ? 0x6a3a2a : 0x7a4430, x, h / 2, z, 6, h, 1.2, 0, -a + Math.PI / 2, 0); if (h > 3) for (let q = 0; q < 3; q++) Bx(o.A, 0x1a1a20, x, h * .6, z, 1, .8, 1.26, 0, -a + Math.PI / 2 + (q - 1) * .02, 0); ob(x, z, 2.6); });
+    const stack = (x, z, h) => { P(o.A, LMG.cyl, 0x7a4a38, x, h / 2, z, 0, 0, 0, 1.3, h, 1.3); for (let q = 1; q < 4; q++) P(o.A, LMG.cyl, 0x2a2a2e, x, q * h / 4, z, 0, 0, 0, 1.38, .3, 1.38); P(o.Wb, LMG.cyl, C[4], x, h + .05, z, 0, 0, 0, 1, .1, 1); ob(x, z, 1.4); };
+    stack(-18, -18, 22); stack(-13, -21, 16); if (v !== 1) stack(19, -19, 19);
+    // pipes on trestles across the back
+    for (let q = 0; q < 6; q++) { const x = -15 + q * 6; Bx(o.A, 0x3a3a40, x, 2, -24, .4, 4, .4); Bx(o.A, 0x3a3a40, x, 2, -26, .4, 4, .4); }
+    P(o.A, LMG.cyl, 0x5a6a6a, 0, 4.2, -24.4, 0, 0, Math.PI / 2, .7, 32, .7); P(o.A, LMG.cyl, 0x6a5a4a, 0, 4.2, -25.8, 0, 0, Math.PI / 2, .5, 32, .5);
+    const gen = v === 2 ? [-17, 12] : [17, 13]; Bx(o.A, 0x4a5a4a, gen[0], 1.3, gen[1], 3.6, 2.6, 2.4); for (let q = 0; q < 5; q++) Bx(o.Wb, C[4], gen[0] + (q - 2) * .6, 2.7, gen[1] + 1.25, .1, .5, .05); ob(gen[0], gen[1], 2.2);
+    for (let k = 0; k < 8; k++) { const a = rnd() * 6.28, [x, z] = o.at(a, 18 + rnd() * 3); if (o.inGap(a)) continue; Bx(o.A, k % 2 ? 0x8a6a2a : 0x4a4a52, x, .6, z, 1.6, 1.2, 1.2, 0, rnd() * 3, 0); ob(x, z, 1); } },
+  // 7 赤岩谷 — red-rock arena: a ring of tall mesas, rope bridges between them, wooden spikes, skull totems
+  o => { const { P, Bx, ob, rnd, C, v } = o; const tops = [];
+    lairRing(o, 25, 10, (x, z, a) => { const h = 8 + rnd() * 6, w = 3 + rnd() * 1.5; P(o.A, LMG.cyl, C[2], x, h / 2, z, 0, rnd() * 3, 0, w, h, w * .85); P(o.A, LMG.cyl, C[3], x, h * .3, z, 0, 0, 0, w + .4, h * .12, w * .9 + .4); P(o.A, LMG.rock, C[2], x, h + .2, z, 0, rnd() * 3, 0, w * .9, .8, w * .8); ob(x, z, w); tops.push([x, z, h]); });
+    for (let q = 0; q + 1 < tops.length; q += 2) { const [ax, az, ah] = tops[q], [bx, bz, bh] = tops[q + 1], n = 8; for (let s = 1; s < n; s++) { const u = s / n; Bx(o.A, 0x6a4a2a, ax + (bx - ax) * u, Math.min(ah, bh) - Math.sin(u * Math.PI) * 1.5, az + (bz - az) * u, .9, .1, 1.6, 0, -Math.atan2(bz - az, bx - ax), 0); } }
+    lairRing(o, 18.8, 18, (x, z, a) => { P(o.A, LMG.cone, 0x7a5a3a, x, .9, z, (Math.cos(a)) * -.6, 0, (Math.sin(a)) * .6, .16, 2.2, .16); });
+    for (let k = 0; k < 3 + v; k++) { const a = k * 2.1 + .6, [x, z] = o.at(a, 20); if (o.inGap(a)) continue; Bx(o.A, 0x4a3020, x, 2.2, z, .3, 4.4, .3); for (let q = 0; q < 3; q++) P(o.A, LMG.ico, 0xe8dcc8, x, 2.6 + q * .7, z, 0, q, 0, .32, .36, .3); P(o.Wb, LMG.oct, C[4], x, 4.6, z, 0, 0, 0, .14, .2, .14); ob(x, z, .4); } },
+  // 8 熔火原 — lava throne: a basalt platform, glowing lava channels, obsidian spikes, a huge throne behind the altar
+  o => { const { P, Bx, ob, rnd, C, v } = o;
+    for (let k = 0; k < 8; k++) { const a = k / 8 * 6.28 + .2; if (o.inGap(a)) continue; for (let q = 0; q < 5; q++) { const [x, z] = o.at(a + (rnd() - .5) * .05, 17.5 + q * 2.2); Bx(o.Wb, C[4], x, .09, z, 2.4, .05, .7, 0, -a, 0); } }
+    lairRing(o, 23, 20, (x, z, a) => { const h = 4 + rnd() * 7; P(o.A, LMG.cone, C[3], x, h / 2, z, (rnd() - .5) * .3, rnd() * 3, (rnd() - .5) * .3, 1.3, h, 1.3); P(o.A, LMG.cone, C[2], x + 1.2, h / 3, z, .3, 0, -.2, .7, h * .5, .7); ob(x, z, 1.3); });
+    lairRing(o, 29, 12, (x, z, a) => { P(o.A, LMG.rock, C[2], x, 2.5, z, 0, rnd() * 3, 0, 3.4, 3 + rnd() * 2, 2.6); ob(x, z, 3); });
+    const ty = -19.5; Bx(o.A, C[3], 0, 1.2, ty, 8, 2.4, 4); Bx(o.A, C[2], 0, 5, ty - 1.4, 7, 6, 1.2); for (const s of [-1, 1]) { Bx(o.A, C[3], s * 3.2, 3.4, ty, 1.2, 2.6, 3.4); P(o.A, LMG.cone, C[3], s * 3, 9.4, ty - 1.4, 0, 0, s * .2, .7, 3.2, .7); }
+    P(o.Wb, LMG.oct, C[4], 0, 7.4, ty - .7, 0, 0, 0, .8, 1.2, .3); ob(0, ty, 4); if (v) lmFlame(o.R, o.L, -6, 3, ty, 1.4), lmFlame(o.R, o.L, 6, 3, ty, 1.4); },
+  // 9 暗影原 — void rift: floating crystal shards, broken obelisks, a purple rift gate
+  o => { const { P, Bx, ob, rnd, C, v } = o;
+    lairRing(o, 22, 12, (x, z, a, k) => { const h = 6 + rnd() * 5; if (k % 3 === 2) { Bx(o.A, C[2], x, 1.4, z, 1.6, 2.8, 1.6, 0, a, 0); Bx(o.A, C[2], x + .8, .4, z + .6, 1.4, .8, 3, .6, a, .3); } else { Bx(o.A, C[2], x, h / 2, z, 1.6, h, 1.6, 0, a, (rnd() - .5) * .12); P(o.Wb, LMG.oct, C[4], x, h + 1.4, z, 0, a, 0, .4, .8, .4); } ob(x, z, 1.2); });
+    for (let k = 0; k < 18; k++) { const a = rnd() * 6.28, [x, z] = o.at(a, 16 + rnd() * 12); if (o.inGap(a)) continue; P(o.Wb, LMG.oct, k % 3 ? C[4] : 0x6a5aff, x, 3 + rnd() * 6, z, rnd(), rnd(), rnd(), .3 + rnd() * .5, .9 + rnd() * 1.4, .3 + rnd() * .5); }
+    const gz = -20; for (const s of [-1, 1]) { for (let q = 0; q < 5; q++) Bx(o.A, C[2], s * 4.5, 1 + q * 2, gz, 1.8 - q * .15, 2, 1.8 - q * .15, 0, q * .2, s * q * .03); }
+    for (let q = 0; q < 9; q++) { const u = q / 8, a = Math.PI * u; Bx(o.Wb, C[4], -Math.cos(a) * 4.5, 1 + Math.sin(a) * 9, gz, .5, .5, .3, 0, 0, a); }
+    P(o.Wb, LMG.cyl, C[4], 0, 5, gz, Math.PI / 2, 0, 0, 3.6, .04, 6.5); ob(-4.5, gz, 1.2); ob(4.5, gz, 1.2);
+    lairRing(o, 28, 12 - v, (x, z) => { P(o.A, LMG.rock, C[5], x, 1.4, z, 0, rnd() * 3, 0, 2.6, 2.8, 2.2); ob(x, z, 2.4); }); },
+  // 10 余烬之心 — ember temple: a colonnade, chained cages, a giant glowing ember crystal, lava cracks across the floor
+  o => { const { P, Bx, ob, rnd, C, v } = o;
+    lairRing(o, 21, 14, (x, z, a) => { const h = 10; Bx(o.A, C[2], x, .5, z, 2.4, 1, 2.4, 0, a, 0); P(o.A, LMG.cyl, C[3], x, h / 2 + .8, z, 0, 0, 0, .8, h, .8); Bx(o.A, C[2], x, h + 1.3, z, 2.2, .9, 2.2, 0, a, 0); P(o.Wb, LMG.cyl, C[4], x, 2.6, z, 0, 0, 0, .84, .14, .84); ob(x, z, 1.2); });
+    lairRing(o, 27, 9, (x, z, a) => { Bx(o.A, C[5], x, 3, z, 8.5, 6, 2, 0, -a + Math.PI / 2, 0); Bx(o.A, C[2], x, 6.3, z, 8.8, .6, 2.4, 0, -a + Math.PI / 2, 0); ob(x, z, 3.6); });
+    for (let k = 0; k < 10; k++) { const a = rnd() * 6.28, r = 4 + rnd() * 10, [x, z] = o.at(a, r); Bx(o.Wb, C[4], x, .14, z, .25, .03, 2 + rnd() * 3, 0, rnd() * 3, 0); }
+    // the ember heart above the altar, chained to two pillars
+    P(o.Wb, LMG.oct, C[4], 0, 8.5, -16, 0, .4, 0, 1.6, 2.6, 1.6); P(o.Wb, LG.tor, 0xffe2a0, 0, 8.5, -16, Math.PI / 2, 0, 0, 2.6, 2.6, 1);
+    for (const s of [-1, 1]) { P(o.A, LMG.cyl, C[3], s * 6, 6, -16, 0, 0, 0, .9, 12, .9); for (let q = 0; q < 8; q++) { const u = q / 7; Bx(o.A, 0x3a3434, s * 6 * (1 - u) + s * 1.4 * u, 11 - Math.sin(u * Math.PI) * 1.4 - u * 2, -16, .4, .25, .25, 0, 0, s * .5); } ob(s * 6, -16, 1); }
+    for (let k = 0; k < 2 + v; k++) { const a = k * 2.4 + 1, [x, z] = o.at(a, 17); if (o.inGap(a)) continue; for (let q = 0; q < 6; q++) Bx(o.A, 0x2a2224, x + (q % 3 - 1) * .7, 1.4, z + (q < 3 ? -.7 : .7), .1, 2.8, .1); Bx(o.A, 0x2a2224, x, 2.9, z, 2, .2, 2); ob(x, z, 1.2); } }];
+
+/* ---- place names in four levels ---- */
+function locSpot(x, z) { let best = null, bd = 350 * 350;
+  const see = (n, sx, sz) => { const d = (sx - x) ** 2 + (sz - z) ** 2; if (d < bd) { bd = d; best = n; } };
+  try { for (const L of lairLms()) see(L.name, L.x, L.z); } catch (e) { }
+  try { for (const L of lmFixed()) see(L.name, L.x, L.z); } catch (e) { }
+  try { for (const v of villagesNear(x, z)) see(v.name, v.x, v.z); } catch (e) { }
+  return best; }
+function locPath(x, z, short) { try { const t = tierAt(x, z), P = placeAt(x, z), sp = locSpot(x, z), a = [CONT_NAME, biomeOf(t).n];
+  if (P) a.push(P.n); if (sp && (!P || sp !== P.n)) a.push(sp); return (short ? a.slice(1) : a).join(' · '); } catch (e) { return ''; } }
+regionHud = (o => function () { if (S.isl || S.dun) return o.apply(this, arguments);
+  let t = ''; try { t = locPath(player.pos.x, player.pos.z, true) + ' · ' + DN.label; } catch (e) { } if (t && t !== _regTxt) { _regTxt = t; try { $('regTxt').textContent = t; } catch (e) { } } })(regionHud);
+// the big map's corner chip: the full four levels
+mp2Draw = (o => function () { o.apply(this, arguments); try { if (S.isl || S.dun) return; const rg = $('m2reg'); if (!rg) return; const p = locPath(player.pos.x, player.pos.z), b = rg.firstChild;
+    if (b && b.nodeType === 3 && b.textContent !== p) b.textContent = p; } catch (e) { } })(mp2Draw);
+
+/* ---- the boss target: nearest lair of the wanted land, from the whole list ---- */
+qmTarget = (o => function () { const T = o.apply(this, arguments); let st = null; try { if (!stDone() && !stLocked()) st = stStep(); } catch (e) { }
+  if (!st || st.k !== 'boss' || S.dead) return T;
+  if (S.isl) return T; let best = null, bd = 1e18; const now = Date.now();
+  try { for (const L of lairLms()) { if (st.tier && L.t !== st.tier) continue; const l = L.lair, d = (l.x - player.pos.x) ** 2 + (l.z - player.pos.z) ** 2 + ((S.lairCd[l.id] || 0) > now ? 1e12 : 0); if (d < bd) { bd = d; best = L; } } } catch (e) { }
+  return best ? { x: best.x, z: best.z, n: T2('首领 · ', 'Boss · ') + locPath(best.x, best.z, true), lair: best } : T; })(qmTarget);
+
+/* ---- story text: the land's new name ---- */
+try { const fix = s => typeof s === 'string' ? s.replace(/荒废郊区/g, '灰港').replace(/Ruined Suburbs/g, 'Greyport') : s;
+  const walk = o => { if (!o || typeof o !== 'object') return; for (const k in o) { const v = o[k]; if (typeof v === 'string') o[k] = fix(v); else if (v && typeof v === 'object') walk(v); } };
+  if (typeof STORY !== 'undefined') walk(STORY); if (typeof C1 !== 'undefined') walk(C1); } catch (e) { }
+
+/* ---- ground ring + arrow at your feet pointing at the current target (owner 28 Nov: 「脚下一个圈带着箭头」, item 4 will add
+   map marks and a switch in Settings) ---- */
+const GARW = { g: null, a: null };
+function garwMake() { if (GARW.g) return GARW.g; const g = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.17, 40), new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: .45, depthWrite: false, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; g.add(ring);
+  const sh = new THREE.Shape(); sh.moveTo(0, .55); sh.lineTo(.36, 0); sh.lineTo(.13, .06); sh.lineTo(0, -.1); sh.lineTo(-.13, .06); sh.lineTo(-.36, 0); sh.closePath();
+  let ag; try { ag = new THREE.ShapeGeometry(sh); } catch (e) { ag = new THREE.PlaneGeometry(.6, .6); }
+  const arr = new THREE.Mesh(ag, new THREE.MeshBasicMaterial({ color: 0xffc94a, transparent: true, opacity: .95, depthWrite: false, side: THREE.DoubleSide })); arr.rotation.x = -Math.PI / 2; arr.position.z = -1.55;
+  const piv = new THREE.Group(); piv.add(arr); g.add(piv); GARW.a = piv; g.renderOrder = 3; g.visible = false; scene.add(g); GARW.g = g; return g; }
+zSpecialTick = (o => function (dt) { o(dt); try { const g = garwMake(), T = (typeof QM !== 'undefined') ? QM.tg : null;
+    const off = !T || !S.started || S.dead || S.dun || S.boat || (typeof GV !== 'undefined' && GV.on) || (typeof lsGet === 'function' && lsGet('ember_garw') === '0');
+    const d = T ? Math.hypot(T.x - player.pos.x, T.z - player.pos.z) : 0; g.visible = !off && d > 6; if (!g.visible) return;
+    const y = (pm && pm.g ? pm.g.position.y : 0) + .06; g.position.set(player.pos.x, y, player.pos.z);
+    GARW.a.rotation.y = Math.atan2(-(T.x - player.pos.x), -(T.z - player.pos.z)); const p = 1 + Math.sin(performance.now() / 260) * .06; GARW.a.scale.set(p, p, p); } catch (e) { } })(zSpecialTick);
 /* ============ 九霄 boxes + the star-fall draw animation (owner 23 Nov) ============
    Two new pools in 商城 · 补给抽奖, each a BOX of 10 prizes: 3 普通, 3 稀有, 2 史诗, 1 传说, 1 神话.
    Every draw takes one prize out of the box (it gets a tick and can't come again); the price climbs with each draw
@@ -29894,7 +30100,7 @@ function drawMap(ctx, W, range, big, k) {
       for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) { const l = lairAt(pcx + i, pcz + j); if (!l) continue; const lx = tx(l.x), lz = tz(l.z); if (lx < -20 || lz < -20 || lx > W + 20 || lz > W + 20) continue;
         const cd = (S.lairCd[l.id] || 0) > Date.now(); c.strokeStyle = cd ? 'rgba(160,140,140,.6)' : '#ff4a3a'; c.lineWidth = 1.8 * k; c.setLineDash([4 * k, 3 * k]); c.beginPath(); c.arc(lx, lz, Math.max(6 * k, 14 * sc), 0, 7); c.stroke(); c.setLineDash([]);
         mapPin(c, lx, lz, 5.5 * k, cd ? '#9a8a8a' : '#ff5a4a', 'B', k);
-        if (big && vr <= 250 && !cd) { c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#ffd0c8'; c.fillText(l.bn + '·' + BOSS_TYPES[l.tp].name, lx, lz - 10 * k); } } }
+        if (big && vr <= 250 && !cd) { c.font = '700 ' + 10.5 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#ffd0c8'; c.fillText((l.name || l.bn) + '·' + BOSS_TYPES[l.tp].name, lx, lz - 10 * k); } } }
     // crates by tier
     if (vr <= 1000) for (const cr of crates.values()) if (!cr.open) { const s2 = (4 + cr.t.id * 1.2) * k, x = tx(cr.x), y = tz(cr.z); c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(x - s2 / 2 - k, y - s2 / 2 - k, s2 + 2 * k, s2 + 2 * k); c.fillStyle = cr.t.css; c.fillRect(x - s2 / 2, y - s2 / 2, s2, s2); }
     // enemies
@@ -30286,4 +30492,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795854163').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795855598').catch(()=>{});</script></body></html>
