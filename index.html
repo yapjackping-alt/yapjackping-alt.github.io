@@ -2257,7 +2257,7 @@ function updateChunks(px, pz, force) {
   for (let dx = -LOAD_R; dx <= LOAD_R; dx++) for (let dz = -LOAD_R; dz <= LOAD_R; dz++) if (!chunks.has(ckey(cx + dx, cz + dz))) need.push({ cx: cx + dx, cz: cz + dz, d: dx * dx + dz * dz });
   need.sort((a, b) => a.d - b.d);
   let made = 0;
-  for (const n of need) { if (!force && made >= 2) break; genChunk(n.cx, n.cz); onChunkLoad.forEach(f => f(n.cx, n.cz)); made++; }
+  for (const n of need) { if (!force && made >= 1) break;   /* owner 28 Nov (卡): one new chunk per frame, not two */ genChunk(n.cx, n.cz); onChunkLoad.forEach(f => f(n.cx, n.cz)); made++; }
   chunkPending = made < need.length;
   for (const ch of [...chunks.values()]) if (Math.max(Math.abs(ch.cx - cx), Math.abs(ch.cz - cz)) > LOAD_R + 1) { onChunkUnload.forEach(f => f(ch.cx, ch.cz)); unloadChunk(ch); }
 }
@@ -29173,6 +29173,43 @@ buildWeapon = (orig => function (id, t, skin) { const k = skin !== undefined ? s
   const g = orig(id, t, '');   // the plain gun (muzzle point, wid), then emptied and rebuilt
   try { for (const c of g.children.slice()) g.remove(c); celestGun(g, id); g.userData.mg = k; } catch (e) { console.warn('celest gun', e); }
   return g; })(buildWeapon);
+/* ============ 地图不卡 (owner 28 Nov: 「地图拖动会很卡…只要拉大拉近就会卡」, both iPhone and PC, worst on the mainland) ============
+   Measured in Playwright before the fix: one big-map draw cost 40-110 ms (the ground was re-sampled every zoom step / every
+   cell of drag) and up to 1.7 s the first time a new area came into view (roads 725 ms + random landmarks 950 ms generated
+   inside the draw). Now:
+   - the ground comes from cached world tiles (MT / mapTiles in d_main.js), filled a little each frame (`mtWork`);
+   - while the big map is drawn, NEW roads / streets / roundabouts / random landmarks are generated only inside a small
+     time budget per frame (`MGEN`); what is not ready yet simply appears a frame or two later;
+   - the big map keeps redrawing (one frame at a time) until everything in view is ready;
+   - the minimap uses the same tiles (it used to re-sample 3 600 points every 2 m you walked). */
+const MGEN = { end: 0, more: false };
+function mgenOk(has) { if (has || !MAPV.on) return true; if (mtNow() < MGEN.end) return true; MGEN.more = true; return false; }
+rEdge = (o => function (i, j, d) { return mgenOk(_reC.has('e' + i + ',' + j + ',' + d)) ? o(i, j, d) : null; })(rEdge);
+rRing = (o => function (i, j) { return mgenOk(_reC.has('r' + i + ',' + j)) ? o(i, j) : null; })(rRing);
+rStreet = (o => function (i, j, d) { return mgenOk(_reC.has('s' + i + ',' + j + ',' + d)) ? o(i, j, d) : null; })(rStreet);
+lmAt = (o => function (i, j) { return mgenOk(LM_CACHE.has(i + ',' + j)) ? o(i, j) : null; })(lmAt);
+mp2Draw = (o => function () { const t0 = mtNow(); MGEN.end = t0 + 7; MGEN.more = false;
+  o.apply(this, arguments);
+  let left = 0; try { left = mtWork(Math.max(3, 12 - (mtNow() - t0))); } catch (e) { }
+  /* not everything in view is ready yet: draw again next frame */
+  if ((left || MGEN.more) && $('bigmap').classList.contains('show')) mp2Dirty(); })(mp2Draw);
+drawMini = (o => function () { o.apply(this, arguments); try { if (!S.isl && !S.dun) mtWork(2); } catch (e) { } })(drawMini);
+/* the boss lair list is built once; do it in a quiet moment after start instead of inside the first map draw */
+setTimeout(() => { try { lairsAll(); } catch (e) { } }, 4000);
+/* most of what is left is pixels: at full sharpness a phone draws a 1748×1748 picture every frame. While a finger is on the
+   map (or right after a zoom) it is drawn at 1× pixels, and sharp again 0.25 s after you let go. */
+const MFAST = { z: 0, low: false, tm: 0 };
+mp2Zoom = (o => function () { MFAST.z = mtNow(); return o.apply(this, arguments); })(mp2Zoom);
+mp2Size = (o => function () { o.apply(this, arguments);
+  const busy = (MP2.ptr && MP2.ptr.size > 0) || mtNow() - MFAST.z < 250; MFAST.low = busy && MP2.k > 1;
+  if (MFAST.low) { const c = MP2.c, k = 1, w = MP2.w, h = MP2.h; if (c.width !== Math.round(w * k)) { c.width = Math.round(w * k); c.height = Math.round(h * k); }
+    if (MP2.off.width !== Math.round(MP2.sq * k)) MP2.off.width = MP2.off.height = Math.round(MP2.sq * k); MP2.k = k; } })(mp2Size);
+mp2Draw = (o => function () { o.apply(this, arguments);
+  if (MFAST.low) { clearTimeout(MFAST.tm); MFAST.tm = setTimeout(() => { if ($('bigmap').classList.contains('show')) mp2Dirty(); }, 280); } })(mp2Draw);
+/* the sun's shadow picture is redrawn every second frame instead of every frame (moving shadows lag one frame, not visible;
+   on PC 高 quality it is a 2048×2048 soft shadow map drawn every frame) */
+const SHF = { n: 0 };
+try { renderer.render = (o => function (sc, cam) { const M = renderer.shadowMap; if (M && M.enabled && sc === scene) { M.autoUpdate = false; M.needsUpdate = (++SHF.n & 1) === 0 || SHF.n < 3; } return o.apply(this, arguments); })(renderer.render); } catch (e) { }
 /* ============ first person: your hands and weapon in front of the camera (like PUBG) ============
    A small model hangs off the camera: two sleeved arms holding the weapon in hand (with its skin). It bobs while you
    walk, kicks back and flashes when you shoot, dips while reloading and slashes when you swing a melee weapon.
@@ -29812,7 +29849,7 @@ function drawMap(ctx, W, range, big, k) {
     if (big) { c.font = '700 ' + 12 * k + 'px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#ffd8b0'; c.fillText('码头', tx(PAD.x), tz(PAD.z) - 4 * sc - 7 * k); if (!FREE) { c.fillStyle = 'rgba(255,230,210,.6)'; c.fillText('海岛 · 没有感染', W / 2, 22 * k); } }
   } else {
     // regions in their biome colours
-    { const T = terrainLayer(px, pz, half, big ? 150 : 60); if (T) { c.imageSmoothingEnabled = true; c.drawImage(T.cv, tx(T.x0), tz(T.z0), T.span * sc, T.span * sc); } }
+    mapTiles(c, tx, tz, sc, px, pz, half, big ? 150 : 60);
     /* rivers + lakes as shapes ONLY when zoomed out (a terrain cell is wider than a river). Zoomed in, the terrain layer
        already shows the real water and its banks — a line on top looked painted on (owner 22 Nov). One path per river,
        opaque, same colour as the terrain's water, so joins never show as darker dots. */
@@ -29891,29 +29928,50 @@ function drawMap(ctx, W, range, big, k) {
 let _regTxt = '';
 function regionHud() { const t = S.isl ? '海岛' : (() => { const tt = tierAt(player.pos.x, player.pos.z); return '区域' + tt + ' ' + biomeOf(tt).s; })() + ' · ' + DN.label; if (t !== _regTxt) { _regTxt = t; $('regTxt').textContent = t; } }
 /* the ground layer of the map: region colours with their irregular borders, rivers, streams and seas.
-   Sampled on a grid aligned to the world (so it doesn't swim as you walk) and cached until you move a cell. */
-const _terr = {};
+   MAP TILES (owner 28 Nov: 地图拖动/放大缩小会卡): the ground is baked into world-aligned square tiles at power-of-two
+   scales (cell = 2^n m, n 1…8, TILE cells a side) and cached. A tile is filled a few rows at a time inside a time budget
+   (`mtWork`), so dragging and zooming never wait for the sampling; until a tile is done, the nearest coarser finished
+   tile is drawn in its place. The old version re-sampled ~23 000 points (waterAt/riverAt/tierAt) on EVERY zoom step. */
 /* one water colour for the whole map: terrain cells, river lines and lake shapes (muted, owner 22 Nov) */
 const MAPW = { r: 72, g: 112, b: 136, c: 'rgb(68,106,130)' };
-function terrainLayer(px, pz, half, N) {
-  const cell = (half * 2) / N, key = N + ':' + Math.round(half); let T = _terr[key];
-  const gx = Math.floor((px - half) / cell), gz = Math.floor((pz - half) / cell);
-  if (T && T.gx === gx && T.gz === gz) return T;
-  const cv = (T && T.cv) || document.createElement('canvas'); cv.width = cv.height = N + 2; const g = cv.getContext('2d'); if (!g || !g.createImageData) return null;
-  const im = g.createImageData(N + 2, N + 2), d = im.data, tiers = new Int8Array((N + 2) * (N + 2)); const cc = new THREE.Color();
-  for (let j = 0; j < N + 2; j++) for (let i = 0; i < N + 2; i++) {
-    const x = (gx + i + .5) * cell, z = (gz + j + .5) * cell, w0 = waterAt(x, z), w = cell > 6 && w0 > -.6 && w0 < 2.5 && typeof riverAt === 'function' && riverAt(x, z) >= w0 - .001 ? -2 : w0, t = w > 1.6 ? 0 : tierAt(x, z), o = (j * (N + 2) + i) * 4; tiers[j * (N + 2) + i] = t;   /* t 0 = open water: no border lines across the sea */
-    if (w > 0 && !(cell > 6 && w < .9)) { const dk = clamp(w / 3, 0, 1);   /* zoomed out, thin streams are left off (they made the map look scribbled) */ d[o] = MAPW.r - dk * 18; d[o + 1] = MAPW.g - dk * 26; d[o + 2] = MAPW.b - dk * 22; }
-    else if (w > -.5 && !(cell > 6 && w < .9)) { d[o] = 168; d[o + 1] = 154; d[o + 2] = 118; }
-    else { cc.setHex(biomeOf(t).g); const R0 = cc.r * 300, G0 = cc.g * 300, B0 = cc.b * 300, gy = (R0 + G0 + B0) / 3;   /* a little greyer: a map, not a sticker */
-      d[o] = Math.min(255, R0 * .84 + gy * .16); d[o + 1] = Math.min(255, G0 * .84 + gy * .16); d[o + 2] = Math.min(255, B0 * .84 + gy * .16); }
-    d[o + 3] = 245;
-  }
-  // darken the region borders
-  for (let j = 1; j < N + 1; j++) for (let i = 1; i < N + 1; i++) { const t = tiers[j * (N + 2) + i]; if (t !== tiers[j * (N + 2) + i + 1] || t !== tiers[(j + 1) * (N + 2) + i]) { const o = (j * (N + 2) + i) * 4; d[o] *= .45; d[o + 1] *= .45; d[o + 2] *= .45; } }
-  g.putImageData(im, 0, 0);
-  T = _terr[key] = { cv, gx, gz, x0: gx * cell, z0: gz * cell, span: (N + 2) * cell }; return T;
-}
+const mtNow = () => (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+const MT = { T: 64, tiles: new Map(), q: [], n0: 1, n1: 8, cc: null };
+function mtKey(n, ix, iz) { return n + ':' + ix + ':' + iz; }
+function mtGet(n, ix, iz, make) { const k = mtKey(n, ix, iz); let t = MT.tiles.get(k);
+  if (!t && make) { const N = MT.T + 1; t = { k, n, ix, iz, cs: 2 ** n, row: 0, done: false, cv: null, im: null, tiers: new Int8Array(N * N), used: 0 }; MT.tiles.set(k, t);
+    if (MT.tiles.size > 360) { let old = null; for (const u of MT.tiles.values()) if (u.n !== MT.n1 && (!old || u.used < old.used)) old = u; if (old) MT.tiles.delete(old.k); } }
+  if (t) t.used = mtNow(); return t; }
+/* fill rows of one tile until the deadline; true when the tile is finished */
+function mtFill(t, end) { const N = MT.T + 1, cs = t.cs; if (!t.im) { try { t.cv = document.createElement('canvas'); t.cv.width = t.cv.height = MT.T; const g = t.cv.getContext('2d'); if (!g || !g.createImageData) { t.done = true; t.cv = null; return true; } t.g = g; t.im = g.createImageData(N, N); } catch (e) { t.done = true; t.cv = null; return true; } }
+  const d = t.im.data, cc = MT.cc || (MT.cc = new THREE.Color());
+  while (t.row < N) { const j = t.row;
+    for (let i = 0; i < N; i++) { const x = (t.ix * MT.T + i + .5) * cs, z = (t.iz * MT.T + j + .5) * cs, w0 = waterAt(x, z), w = cs > 6 && w0 > -.6 && w0 < 2.5 && typeof riverAt === 'function' && riverAt(x, z) >= w0 - .001 ? -2 : w0, tt = w > 1.6 ? 0 : tierAt(x, z), o = (j * N + i) * 4; t.tiers[j * N + i] = tt;
+      if (w > 0 && !(cs > 6 && w < .9)) { const dk = clamp(w / 3, 0, 1); d[o] = MAPW.r - dk * 18; d[o + 1] = MAPW.g - dk * 26; d[o + 2] = MAPW.b - dk * 22; }
+      else if (w > -.5 && !(cs > 6 && w < .9)) { d[o] = 168; d[o + 1] = 154; d[o + 2] = 118; }
+      else { cc.setHex(biomeOf(tt).g); const R0 = cc.r * 300, G0 = cc.g * 300, B0 = cc.b * 300, gy = (R0 + G0 + B0) / 3; d[o] = Math.min(255, R0 * .84 + gy * .16); d[o + 1] = Math.min(255, G0 * .84 + gy * .16); d[o + 2] = Math.min(255, B0 * .84 + gy * .16); }
+      d[o + 3] = 245; }
+    t.row++; if (mtNow() > end && t.row < N) return false; }
+  /* darken the region borders, then copy the inner T×T cells to the tile's canvas */
+  for (let j = 0; j < MT.T; j++) for (let i = 0; i < MT.T; i++) { const tt = t.tiers[j * N + i]; if (tt !== t.tiers[j * N + i + 1] || tt !== t.tiers[(j + 1) * N + i]) { const o = (j * N + i) * 4; d[o] *= .45; d[o + 1] *= .45; d[o + 2] *= .45; } }
+  try { t.g.putImageData(t.im, 0, 0, 0, 0, MT.T, MT.T); } catch (e) { }
+  t.im = null; t.g = null; t.tiers = null; t.done = true; return true; }
+/* work through the wanted tiles (closest to the view first) for `ms` milliseconds */
+function mtWork(ms) { const end = mtNow() + ms; while (MT.q.length && mtNow() < end) { const t = MT.q[0]; if (t.done || mtFill(t, end)) MT.q.shift(); } return MT.q.length; }
+function mtWant(t) { if (!t.done && !MT.q.includes(t)) MT.q.push(t); }
+/* level for a view: about `N` cells across the drawn square */
+function mtLevel(half, N) { const want = 2 * half / N; let n = MT.n0; while (n < MT.n1 && 2 ** n < want) n++; return n; }
+function mapTiles(c, tx, tz, sc, px, pz, half, N) {
+  const n = mtLevel(half, N), span = MT.T * 2 ** n, i0 = Math.floor((px - half) / span), i1 = Math.floor((px + half) / span), j0 = Math.floor((pz - half) / span), j1 = Math.floor((pz + half) / span);
+  c.imageSmoothingEnabled = true; MT.q.length = 0; let missing = 0;
+  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const t = mtGet(n, i, j, true), X = i * span, Z = j * span;
+    if (t.done) { if (t.cv) c.drawImage(t.cv, tx(X), tz(Z), span * sc + .6, span * sc + .6); continue; }
+    missing++; mtWant(t);
+    /* stand-in: the nearest coarser finished tile, cut to this square */
+    for (let m = n + 1; m <= MT.n1; m++) { const S2 = MT.T * 2 ** m, pi = Math.floor(X / S2), pj = Math.floor(Z / S2), P = mtGet(m, pi, pj, m === MT.n1); if (!P) continue;
+      if (!P.done) { if (m === MT.n1) mtWant(P); continue; } if (!P.cv) break;
+      const k = MT.T / S2, sx = (X - pi * S2) * k, sz = (Z - pj * S2) * k, sw = span * k;
+      c.drawImage(P.cv, sx, sz, sw, sw, tx(X), tz(Z), span * sc + .6, span * sc + .6); break; } }
+  return missing; }
 function villagesWide(px, pz, half) { const out = [], n = Math.ceil(half / VIL_CELL) + 1, i0 = Math.floor(px / VIL_CELL), j0 = Math.floor(pz / VIL_CELL); for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) { if (Math.abs(i) <= 1 && Math.abs(j) <= 1) continue; const v = villageAt(i0 + i, j0 + j); if (v) out.push(v); } return out; }
 /* big map: tap the radar */
 const bigc = $('bigc'), bigCtx = bigc.getContext('2d'), MAP_RANGES = [120, 240, 480, 960, 1920]; let mapZ = 2;
@@ -30228,4 +30286,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795448005').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795854163').catch(()=>{});</script></body></html>
