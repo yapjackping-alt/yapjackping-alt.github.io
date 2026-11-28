@@ -28478,13 +28478,21 @@ function garwDist(d) { d = Math.round(d); return d >= 1000 ? (d / 1000).toFixed(
 const FOG = { N: 500, C: 40, O: 10000, b: null, cv: null, g: null, t: 0, land: {} };
 function fogInit() { if (FOG.b) return; FOG.b = new Uint8Array(FOG.N * FOG.N);
   try { const c = document.createElement('canvas'); c.width = c.height = FOG.N; const g = c.getContext('2d'); if (g && g.fillRect) { g.fillStyle = '#fff'; g.fillRect(0, 0, FOG.N, FOG.N); FOG.cv = c; FOG.g = g; } } catch (e) { }
-  /* the open sea round the continent is never fogged */
-  for (let j = 0; j < FOG.N; j++) for (let i = 0; i < FOG.N; i++) { const x = (i + .5) * FOG.C - FOG.O, z = (j + .5) * FOG.C - FOG.O; const d2 = x * x + z * z; if (d2 > 9750 * 9750 || (d2 > 6800 * 6800 && Math.sqrt(d2) > coastR(x, z) + 300)) fogCell(i, j); } }
+  /* the open sea round the continent is never fogged; near the coast the fog thins out (one ImageData write, not 250k canvas calls) */
+  let id = null; try { if (FOG.g && FOG.g.createImageData) id = FOG.g.createImageData(FOG.N, FOG.N); } catch (e) { }
+  for (let j = 0; j < FOG.N; j++) for (let i = 0; i < FOG.N; i++) { const x = (i + .5) * FOG.C - FOG.O, z = (j + .5) * FOG.C - FOG.O, f = fogEdge(x, z), k = j * FOG.N + i;
+    if (f <= 0) FOG.b[k] = 1; if (id) { const p = k * 4; id.data[p] = id.data[p + 1] = id.data[p + 2] = 255; id.data[p + 3] = Math.round(255 * Math.max(0, f)); } }
+  if (id) FOG.g.putImageData(id, 0, 0); }
+/* coast radius per 1/4 degree, worked out once (calling coastR for every cell took ~0.4 s at load) */
+function fogCoast(x, z) { if (!FOG.cr) { FOG.cr = new Float32Array(1440); for (let q = 0; q < 1440; q++) { const a = (q + .5) / 1440 * Math.PI * 2; FOG.cr[q] = coastR(Math.cos(a) * 8000, Math.sin(a) * 8000); } }
+  const a = Math.atan2(z, x); return FOG.cr[((Math.floor((a < 0 ? a + Math.PI * 2 : a) / (Math.PI * 2) * 1440)) % 1440 + 1440) % 1440]; }
+/* owner 28 Nov: the fog follows the coast and thins out slowly over the sea (1 = full fog, 0 = none) */
+function fogEdge(x, z) { const d2 = x * x + z * z; if (d2 < 4000 * 4000) return 1; if (d2 > 10900 * 10900) return 0; const d = Math.sqrt(d2) - fogCoast(x, z); return Math.max(0, Math.min(1, (1100 - d) / 1600)); }
 const fogI = v => Math.floor((v + FOG.O) / FOG.C);
 function fogSeen(x, z) { if (S.isl || S.dun) return true; if (!FOG.b) return false; const i = fogI(x), j = fogI(z); if (i < 0 || j < 0 || i >= FOG.N || j >= FOG.N) return true; return FOG.b[j * FOG.N + i] === 1; }
 function fogCell(i, j) { if (i < 0 || j < 0 || i >= FOG.N || j >= FOG.N) return false; const k = j * FOG.N + i; if (FOG.b[k]) return false; FOG.b[k] = 1; fogPaint(i, j); return true; }
 /* the mask: unexplored = solid, explored = a thin mist (owner 28 Nov: 周围也要是雾，但是比较透), the open sea = clear */
-function fogPaint(i, j) { const g = FOG.g; if (!g) return; g.clearRect(i, j, 1, 1); const x = (i + .5) * FOG.C - FOG.O, z = (j + .5) * FOG.C - FOG.O; const d2 = x * x + z * z; if (d2 > 9750 * 9750 || (d2 > 6800 * 6800 && Math.sqrt(d2) > coastR(x, z) + 300)) return; g.fillStyle = 'rgba(255,255,255,' + FOG_MIST + ')'; g.fillRect(i, j, 1, 1); }
+function fogPaint(i, j) { const g = FOG.g; if (!g) return; g.clearRect(i, j, 1, 1); const x = (i + .5) * FOG.C - FOG.O, z = (j + .5) * FOG.C - FOG.O; const f = fogEdge(x, z); if (f <= 0) return; g.fillStyle = 'rgba(255,255,255,' + (FOG_MIST * f).toFixed(3) + ')'; g.fillRect(i, j, 1, 1); }
 const FOG_MIST = .2;
 function fogReveal(x, z, r) { fogInit(); const i0 = fogI(x - r), i1 = fogI(x + r), j0 = fogI(z - r), j1 = fogI(z + r); let n = 0;
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const cx = (i + .5) * FOG.C - FOG.O, cz = (j + .5) * FOG.C - FOG.O; if ((cx - x) ** 2 + (cz - z) ** 2 <= r * r && fogCell(i, j)) n++; }
@@ -30689,4 +30697,4 @@ window.addEventListener('pagehide', () => { try { flushSave(); } catch (e) { } }
 refreshHud(); acctInit();
 frame();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795859386').catch(()=>{});</script></body></html>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=1795859993').catch(()=>{});</script></body></html>
